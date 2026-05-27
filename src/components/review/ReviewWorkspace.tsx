@@ -1,9 +1,17 @@
 import { useMemo, useState } from "react";
-import { buildFileTree } from "../../domain/fileTree";
-import type { AppSettings, CompareMode, DiffFile, ReviewSession, ReviewSummary } from "../../domain/types";
+import { buildFileTree } from "@/domain/fileTree";
+import type { AppSettings, CompareMode, DiffFile, ReviewSession, ReviewSummary } from "@/domain/types";
 import { DiffViewer } from "./DiffViewer";
 import { FileTree } from "./FileTree";
 import { ReviewToolbar } from "./ReviewToolbar";
+import {
+  getEffectiveReadingMode,
+  getIsAllCollapsed,
+  getReviewLayoutClassName,
+  getReviewPaneClassName,
+  getVisibleFiles,
+} from "./review-workspace/reviewWorkspaceUtils";
+import { useFileSelection } from "./review-workspace/useFileSelection";
 import { StateBlock } from "./StateBlock";
 
 interface ReviewWorkspaceProps {
@@ -45,16 +53,13 @@ export function ReviewWorkspace({
 }: ReviewWorkspaceProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const fileTree = useMemo(() => buildFileTree(summary?.files ?? []), [summary]);
-  const effectiveReadingMode = summary?.isLargeDiff ? "single-file" : settings.readingMode;
+  const effectiveReadingMode = getEffectiveReadingMode(summary, settings);
   const visibleFiles = getVisibleFiles(summary, effectiveReadingMode, selectedFileId);
   const isAllCollapsed = getIsAllCollapsed(summary, collapsedFileIds);
-
-  function selectFile(file: DiffFile) {
-    onSelectedFileChange(file.id);
-    if (effectiveReadingMode === "continuous") {
-      document.getElementById(`diff-file-${file.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" });
-    }
-  }
+  const { selectFile } = useFileSelection({
+    readingMode: effectiveReadingMode,
+    onSelectedFileChange,
+  });
 
   return (
     <section className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr]">
@@ -73,8 +78,8 @@ export function ReviewWorkspace({
         onToggleFileTree={() => setIsFileTreeVisible((visible) => !visible)}
       />
 
-      <div className={isFileTreeVisible ? "grid min-h-0 grid-cols-[minmax(0,1fr)_390px]" : "grid min-h-0 grid-cols-[minmax(0,1fr)]"}>
-        <section className={settings.wrapDiffLines ? getReviewPaneClassName(isFileTreeVisible, true) : getReviewPaneClassName(isFileTreeVisible, false)}>
+      <div className={getReviewLayoutClassName(isFileTreeVisible)}>
+        <section className={getReviewPaneClassName(isFileTreeVisible, settings.wrapDiffLines)}>
           {summary?.isLargeDiff && (
             <div className="flex h-10 items-center border-b bg-amber-50 px-5 text-sm font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               检测到大量差异，已自动切换到单文件模式。可在查看选项中切回连续模式。
@@ -104,16 +109,6 @@ export function ReviewWorkspace({
   );
 }
 
-function getReviewPaneClassName(isFileTreeVisible: boolean, wrapDiffLines: boolean) {
-  const baseClassName = isFileTreeVisible
-    ? "min-w-0 overflow-auto border-r bg-background"
-    : "min-w-0 overflow-auto bg-background";
-
-  return wrapDiffLines
-    ? `${baseClassName} [&_code]:whitespace-pre-wrap [&_code]:break-words`
-    : baseClassName;
-}
-
 function ReviewContent({
   collapsedFileIds,
   files,
@@ -134,7 +129,7 @@ function ReviewContent({
   onToggleFile: (fileId: string) => void;
 }) {
   if (isLoading) {
-    return <StateBlock title="Loading diff..." />;
+    return <StateBlock title="正在加载差异..." />;
   }
 
   if (reviewError) {
@@ -153,24 +148,4 @@ function ReviewContent({
       onToggleFile={onToggleFile}
     />
   );
-}
-
-function getVisibleFiles(summary: ReviewSummary | null, readingMode: AppSettings["readingMode"], selectedFileId: string | null) {
-  if (!summary) {
-    return [];
-  }
-
-  if (readingMode === "single-file") {
-    return summary.files.filter((file) => file.id === selectedFileId).slice(0, 1);
-  }
-
-  return summary.files;
-}
-
-function getIsAllCollapsed(summary: ReviewSummary | null, collapsedFileIds: Set<string>) {
-  if (!summary || summary.files.length === 0) {
-    return false;
-  }
-
-  return summary.files.every((file) => collapsedFileIds.has(file.id));
 }

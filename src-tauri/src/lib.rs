@@ -58,6 +58,7 @@ fn git_branches(project_path: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 fn open_file_in_vscode(project_path: String, file_path: String) -> Result<(), String> {
     let full_path = Path::new(&project_path).join(file_path);
+    // Tauri GUI 进程不一定继承 shell PATH，先尝试 code 命令，再回退到 macOS 应用打开方式。
     let code_status = Command::new("code")
         .arg("-g")
         .arg(&full_path)

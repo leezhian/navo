@@ -1,40 +1,16 @@
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
-import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Check,
-  ChevronDown,
-  ChevronsUpDown,
-  Folder,
-  GitBranch,
-  PanelLeft,
-  Search,
-  Settings2,
-  SplitSquareHorizontal,
-  Rows3,
-} from "lucide-react";
-import { useRef, useState } from "react";
-import type { AppSettings, CompareMode, ReviewSession, ReviewSummary } from "../../domain/types";
-
-const compareModeLabels: Record<CompareMode, string> = {
-  unstaged: "未暂存",
-  staged: "已暂存",
-  branch: "分支",
-  "previous-session": "上轮对话",
-};
+import type { AppSettings, CompareMode, ReviewSession, ReviewSummary } from "@/domain/types";
+import { Folder, PanelLeft, Rows3, SplitSquareHorizontal } from "lucide-react";
+import { useState } from "react";
+import { BranchMenu } from "./review-toolbar/BranchMenu";
+import { CompareModeMenu } from "./review-toolbar/CompareModeMenu";
+import { toggleDiffView } from "./review-toolbar/settingsActions";
+import { ViewOptionsMenu } from "./review-toolbar/ViewOptionsMenu";
 
 interface ReviewToolbarProps {
   compareMode: CompareMode;
-  isFileTreeVisible: boolean;
   isAllCollapsed: boolean;
+  isFileTreeVisible: boolean;
   localBranches: string[];
   session: ReviewSession;
   settings: AppSettings;
@@ -48,8 +24,8 @@ interface ReviewToolbarProps {
 
 export function ReviewToolbar({
   compareMode,
-  isFileTreeVisible,
   isAllCollapsed,
+  isFileTreeVisible,
   localBranches,
   session,
   settings,
@@ -96,7 +72,6 @@ export function ReviewToolbar({
           onSettingsChange={onSettingsChange}
           onToggleAllCollapsed={onToggleAllCollapsed}
         />
-
         <IconTooltip
           label={settings.diffViewMode === "split" ? "切换到统一视图" : "切换到分栏视图"}
           onClick={() => toggleDiffView(onSettingsChange)}
@@ -116,209 +91,4 @@ export function ReviewToolbar({
       </div>
     </header>
   );
-}
-
-function CompareModeMenu({
-  compareMode,
-  onCompareModeChange,
-}: {
-  compareMode: CompareMode;
-  onCompareModeChange: (mode: CompareMode) => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className="h-8 gap-1 px-0 text-base font-normal hover:bg-transparent aria-expanded:bg-transparent aria-expanded:text-foreground focus-visible:border-transparent focus-visible:ring-0"
-          type="button"
-          variant="ghost"
-        >
-          <span>{compareModeLabels[compareMode]}</span>
-          <ChevronDown className="size-3.5 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-36">
-        {Object.entries(compareModeLabels).map(([value, label]) => (
-          <DropdownMenuItem
-            key={value}
-            onSelect={() => onCompareModeChange(value as CompareMode)}
-          >
-            <span>{label}</span>
-            {compareMode === value && <Check className="ml-auto size-4" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ViewOptionsMenu({
-  isAllCollapsed,
-  settings,
-  onSettingsChange,
-  onToggleAllCollapsed,
-}: {
-  isAllCollapsed: boolean;
-  settings: AppSettings;
-  onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
-  onToggleAllCollapsed: () => void;
-}) {
-  const tooltip = useDropdownTooltip();
-
-  return (
-    <DropdownMenu onOpenChange={tooltip.handleMenuOpenChange}>
-      <Tooltip open={tooltip.isTooltipOpen} onOpenChange={tooltip.handleTooltipOpenChange}>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button
-              className="text-muted-foreground hover:text-foreground"
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <Settings2 className="size-[17px]" />
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="top">查看选项</TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem onSelect={() => updateWrap(onSettingsChange)}>
-          {settings.wrapDiffLines ? "关闭差异换行" : "开启差异换行"}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onToggleAllCollapsed}>
-          {isAllCollapsed ? "全部展开" : "折叠全部"}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function BranchMenu({
-  branchOptions,
-  branchSearch,
-  settings,
-  onSearchChange,
-  onSettingsChange,
-}: {
-  branchOptions: string[];
-  branchSearch: string;
-  settings: AppSettings;
-  onSearchChange: (value: string) => void;
-  onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
-}) {
-  const tooltip = useDropdownTooltip();
-
-  return (
-    <DropdownMenu
-      onOpenChange={(open) => {
-        tooltip.handleMenuOpenChange(open);
-        if (!open) {
-          onSearchChange("");
-        }
-      }}
-    >
-      <Tooltip open={tooltip.isTooltipOpen} onOpenChange={tooltip.handleTooltipOpenChange}>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button
-              className="h-6 gap-1 px-0 text-[15px] font-normal text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
-              type="button"
-              variant="ghost"
-            >
-              <span>{settings.targetBranch}</span>
-              <ChevronsUpDown className="size-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="top">{settings.targetBranch}</TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="start" className="w-[292px] p-2">
-        <div className="flex h-8 items-center gap-2 px-2 text-muted-foreground">
-          <Search className="size-3.5" />
-          <Input
-            className="h-7 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-            placeholder="搜索分支"
-            value={branchSearch}
-            onChange={(event) => onSearchChange(event.target.value)}
-          />
-        </div>
-        <DropdownMenuLabel>分支</DropdownMenuLabel>
-        {branchOptions.map((branch) => (
-          <BranchOption
-            active={settings.targetBranch === branch}
-            key={branch}
-            label={branch}
-            onSelect={() => updateTargetBranch(branch, onSettingsChange)}
-          />
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function useDropdownTooltip() {
-  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const suppressUntilRef = useRef(0);
-
-  const suppressTooltip = () => {
-    suppressUntilRef.current = Date.now() + 400;
-    setIsTooltipOpen(false);
-  };
-
-  const handleMenuOpenChange = (open: boolean) => {
-    setIsMenuOpen(open);
-    suppressTooltip();
-  };
-
-  const handleTooltipOpenChange = (open: boolean) => {
-    if (open && (isMenuOpen || Date.now() < suppressUntilRef.current)) {
-      return;
-    }
-
-    setIsTooltipOpen(open);
-  };
-
-  return {
-    handleMenuOpenChange,
-    handleTooltipOpenChange,
-    isTooltipOpen,
-  };
-}
-
-function BranchOption({
-  active,
-  label,
-  onSelect,
-}: {
-  active: boolean;
-  label: string;
-  onSelect: () => void;
-}) {
-  return (
-    <DropdownMenuItem onSelect={onSelect}>
-      <GitBranch className="size-4 text-muted-foreground" />
-      <span>{label}</span>
-      {active && <Check className="ml-auto size-4" />}
-    </DropdownMenuItem>
-  );
-}
-
-function updateWrap(updateSettings: React.Dispatch<React.SetStateAction<AppSettings>>) {
-  updateSettings((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }));
-}
-
-function toggleDiffView(updateSettings: React.Dispatch<React.SetStateAction<AppSettings>>) {
-  updateSettings((current) => ({
-    ...current,
-    diffViewMode: current.diffViewMode === "split" ? "unified" : "split",
-  }));
-}
-
-function updateTargetBranch(
-  targetBranch: string,
-  updateSettings: React.Dispatch<React.SetStateAction<AppSettings>>,
-) {
-  updateSettings((current) => ({ ...current, targetBranch }));
 }
