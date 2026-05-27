@@ -1,51 +1,162 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { MacWindow } from "./components/layout/MacWindow";
+import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
+import { SessionSidebar } from "./components/session/SessionSidebar";
+import { SettingsPanel } from "./components/settings/SettingsPanel";
+import { mockSessions } from "./domain/mockData";
+import type { CompareMode, ReviewSession, ReviewSummary } from "./domain/types";
+import { useLocalSettings } from "./hooks/useLocalSettings";
+import { loadLocalBranches, loadReviewDiff, mockSummary } from "./services/reviewApi";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const { settings, updateSettings } = useLocalSettings();
+  const [sessions, setSessions] = useState(mockSessions);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(mockSessions[0]?.id ?? null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [compareMode, setCompareMode] = useState<CompareMode>("previous-session");
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  const [collapsedFileIds, setCollapsedFileIds] = useState<Set<string>>(new Set());
+  const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(mockSummary());
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [isReviewLoading, setIsReviewLoading] = useState(false);
+  const [localBranches, setLocalBranches] = useState<string[]>(["main", "master"]);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
+  const orderedSessions = useOrderedSessions(sessions);
+
+  const refreshReview = useCallback(() => {
+    if (!selectedSession) {
+      return;
+    }
+
+    setIsReviewLoading(true);
+    setReviewError(null);
+
+    loadReviewDiff(selectedSession.projectPath, compareMode, settings.targetBranch)
+      .then((summary) => {
+        const nextSummary = summary.fileCount > 0 ? summary : mockSummary();
+        setReviewSummary(nextSummary);
+        setSelectedFileId(nextSummary.files[0]?.id ?? null);
+        setCollapsedFileIds(new Set(nextSummary.files.filter((file) => file.isLarge).map((file) => file.id)));
+      })
+      .catch((error: unknown) => {
+        setReviewError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        setIsReviewLoading(false);
+      });
+  }, [compareMode, selectedSession, settings.targetBranch]);
+
+  useEffect(() => {
+    refreshReview();
+  }, [refreshReview]);
+
+  useEffect(() => {
+    if (!selectedSession) {
+      return;
+    }
+
+    loadLocalBranches(selectedSession.projectPath)
+      .then(setLocalBranches)
+      .catch(() => setLocalBranches(["main", "master"]));
+  }, [selectedSession]);
+
+  function selectSession(session: ReviewSession) {
+    setSelectedSessionId(session.id);
+    setShowSettings(false);
+    setSessions((current) =>
+      current.map((item) => (item.id === session.id ? { ...item, unread: false } : item)),
+    );
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <main className="min-h-screen bg-background p-4 text-foreground">
+      <MacWindow>
+        <div
+          className={
+            selectedSession || showSettings
+              ? "grid h-[calc(100%-44px)] grid-cols-[280px_minmax(0,1fr)]"
+              : "grid h-[calc(100%-44px)] grid-cols-[280px]"
+          }
+        >
+          <SessionSidebar
+            orderedSessions={orderedSessions}
+            selectedSessionId={selectedSessionId}
+            onOpenSettings={() => {
+              setShowSettings(true);
+              setSelectedSessionId(null);
+            }}
+            onSelectSession={selectSession}
+          />
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+          {showSettings && (
+            <section className="min-h-0 min-w-0">
+              <SettingsPanel
+                settings={settings}
+                updateSettings={updateSettings}
+                onBack={() => {
+                  setShowSettings(false);
+                  setSelectedSessionId(mockSessions[0]?.id ?? null);
+                }}
+              />
+            </section>
+          )}
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+          {!showSettings && selectedSession && (
+            <ReviewWorkspace
+              collapsedFileIds={collapsedFileIds}
+              compareMode={compareMode}
+              isLoading={isReviewLoading}
+              localBranches={localBranches}
+              reviewError={reviewError}
+              selectedFileId={selectedFileId}
+              session={selectedSession}
+              settings={settings}
+              summary={reviewSummary}
+              onClose={() => setSelectedSessionId(null)}
+              onCompareModeChange={setCompareMode}
+              onRefresh={refreshReview}
+              onSelectedFileChange={setSelectedFileId}
+              onSettingsChange={updateSettings}
+              onToggleAllCollapsed={() => setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary))}
+              onToggleFile={(fileId) => setCollapsedFileIds((current) => toggleSetValue(current, fileId))}
+            />
+          )}
+        </div>
+      </MacWindow>
     </main>
   );
+}
+
+function useOrderedSessions(sessions: ReviewSession[]) {
+  return useMemo(
+    () =>
+      [...sessions].sort(
+        (first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime(),
+      ),
+    [sessions],
+  );
+}
+
+function toggleSetValue(source: Set<string>, value: string) {
+  const next = new Set(source);
+  if (next.has(value)) {
+    next.delete(value);
+  } else {
+    next.add(value);
+  }
+  return next;
+}
+
+function toggleAllFiles(current: Set<string>, summary: ReviewSummary | null) {
+  if (!summary) {
+    return current;
+  }
+
+  const allFileIds = summary.files.map((file) => file.id);
+  const allCollapsed = allFileIds.length > 0 && allFileIds.every((fileId) => current.has(fileId));
+  return allCollapsed ? new Set<string>() : new Set(allFileIds);
 }
 
 export default App;

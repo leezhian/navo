@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "vibe-reviewer",
-        "width": 800,
-        "height": 600
+        "title": "Vibe Reviewer",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 960,
+        "minHeight": 680
       }
     ],
     "security": {
