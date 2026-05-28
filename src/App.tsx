@@ -13,6 +13,7 @@ function App() {
   const { settings, updateSettings } = useLocalSettings();
   const [sessions, setSessions] = useState(mockSessions);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(mockSessions[0]?.id ?? null);
+  const [isSessionSidebarVisible, setIsSessionSidebarVisible] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [compareMode, setCompareMode] = useState<CompareMode>("previous-session");
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
@@ -76,11 +77,12 @@ function App() {
         <div
           className={
             selectedSession || showSettings
-              ? "grid h-[calc(100%-44px)] grid-cols-[280px_minmax(0,1fr)]"
-              : "grid h-[calc(100%-44px)] grid-cols-[280px]"
+              ? getAppLayoutClassName(isSessionSidebarVisible, true)
+              : getAppLayoutClassName(isSessionSidebarVisible, false)
           }
         >
           <SessionSidebar
+            isVisible={isSessionSidebarVisible}
             orderedSessions={orderedSessions}
             selectedSessionId={selectedSessionId}
             onOpenSettings={() => {
@@ -88,6 +90,7 @@ function App() {
               setSelectedSessionId(null);
             }}
             onSelectSession={selectSession}
+            onToggleSidebar={() => setIsSessionSidebarVisible((visible) => !visible)}
           />
 
           {showSettings && (
@@ -137,6 +140,20 @@ function useOrderedSessions(sessions: ReviewSession[]) {
       ),
     [sessions],
   );
+}
+
+function getAppLayoutClassName(isSessionSidebarVisible: boolean, hasContent: boolean) {
+  if (isSessionSidebarVisible && hasContent) {
+    return "grid h-[calc(100%-44px)] grid-cols-[280px_minmax(0,1fr)]";
+  }
+
+  if (isSessionSidebarVisible) {
+    return "grid h-[calc(100%-44px)] grid-cols-[280px]";
+  }
+
+  return hasContent
+    ? "grid h-[calc(100%-44px)] grid-cols-[48px_minmax(0,1fr)]"
+    : "grid h-[calc(100%-44px)] grid-cols-[48px]";
 }
 
 function toggleSetValue(source: Set<string>, value: string) {

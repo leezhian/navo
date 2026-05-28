@@ -1,33 +1,44 @@
 import type { ReviewSession } from "../../domain/types";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
+import { PanelLeft, Settings } from "lucide-react";
 
 interface SessionSidebarProps {
+  isVisible: boolean;
   orderedSessions: ReviewSession[];
   selectedSessionId: string | null;
   onOpenSettings: () => void;
   onSelectSession: (session: ReviewSession) => void;
+  onToggleSidebar: () => void;
 }
 
 export function SessionSidebar({
+  isVisible,
   orderedSessions,
   selectedSessionId,
   onOpenSettings,
   onSelectSession,
+  onToggleSidebar,
 }: SessionSidebarProps) {
+  if (!isVisible) {
+    return (
+      <aside className="flex min-w-0 border-r bg-sidebar px-2 py-3">
+        <IconTooltip label="显示会话列表" onClick={onToggleSidebar}>
+          <PanelLeft className="size-5" />
+        </IconTooltip>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="grid min-w-0 grid-rows-[72px_1fr] border-r bg-sidebar">
-      <div className="flex items-center justify-between border-b px-[18px]">
-        <div>
-          <div className="text-[17px] font-semibold">Review Inbox</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">{orderedSessions.length} local sessions</div>
-        </div>
-        <IconTooltip label="设置" size="icon-lg" onClick={onOpenSettings}>
-          <Settings className="size-5" />
+    <aside className="grid min-w-0 grid-rows-[56px_1fr_auto] border-r bg-sidebar">
+      <div className="flex items-center pl-2">
+        <IconTooltip label="隐藏会话列表" onClick={onToggleSidebar}>
+          <PanelLeft className="size-5" />
         </IconTooltip>
       </div>
       <div className="min-h-0 overflow-y-auto p-3">
+        <h2 className="px-1.5 pb-3 text-[15px] font-medium text-foreground">会话</h2>
         {orderedSessions.length === 0 ? (
           <div className="px-1.5 py-5 text-muted-foreground">
             <h2 className="mb-2 text-lg font-semibold text-foreground">暂无审查会话</h2>
@@ -46,6 +57,12 @@ export function SessionSidebar({
             />
           ))
         )}
+      </div>
+      <div className="p-3">
+        <Button className="h-9 w-full justify-start gap-2 px-2.5 font-normal" type="button" variant="ghost" onClick={onOpenSettings}>
+          <Settings className="size-5" />
+          <span>设置</span>
+        </Button>
       </div>
     </aside>
   );

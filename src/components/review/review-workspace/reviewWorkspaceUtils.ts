@@ -31,8 +31,8 @@ export function getIsAllCollapsed(summary: ReviewSummary | null, collapsedFileId
 
 export function getReviewLayoutClassName(isFileTreeVisible: boolean) {
   return isFileTreeVisible
-    ? "grid min-h-0 grid-cols-[minmax(0,1fr)_390px]"
-    : "grid min-h-0 grid-cols-[minmax(0,1fr)]";
+    ? "grid min-h-0 overflow-hidden grid-cols-[minmax(0,1fr)_390px]"
+    : "grid min-h-0 overflow-hidden grid-cols-[minmax(0,1fr)]";
 }
 
 export function getReviewPaneClassName(isFileTreeVisible: boolean, wrapDiffLines: boolean) {

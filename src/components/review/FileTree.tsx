@@ -23,7 +23,7 @@ export function FileTree({ nodes, projectPath, selectedFileId, onSelectFile }: F
   const isSearching = searchText.trim().length > 0;
 
   return (
-    <aside className="grid min-w-0 grid-rows-[64px_1fr] bg-muted/30">
+    <aside className="grid h-full min-h-0 min-w-0 grid-rows-[64px_1fr] overflow-hidden bg-muted/30">
       <div className="border-b p-3.5">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
