@@ -4,6 +4,7 @@ import type { FileTreeNode } from "@/domain/fileTree";
 import type { DiffFile } from "@/domain/types";
 import { ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { FileContextMenu } from "./file-tree/FileContextMenu";
 import { FileTypeIcon } from "./file-tree/FileTypeIcon";
 import { filterTreeNodes } from "./file-tree/fileTreeFilter";
@@ -13,17 +14,24 @@ interface FileTreeProps {
   nodes: FileTreeNode[];
   projectPath: string;
   selectedFileId: string | null;
+  onResizeStart: (event: ReactPointerEvent) => void;
   onSelectFile: (file: DiffFile) => void;
 }
 
-export function FileTree({ nodes, projectPath, selectedFileId, onSelectFile }: FileTreeProps) {
+export function FileTree({ nodes, projectPath, selectedFileId, onResizeStart, onSelectFile }: FileTreeProps) {
   const [searchText, setSearchText] = useState("");
   const { collapsedDirectoryIds, toggleDirectory } = useDirectoryCollapse();
   const visibleNodes = useMemo(() => filterTreeNodes(nodes, searchText), [nodes, searchText]);
   const isSearching = searchText.trim().length > 0;
 
   return (
-    <aside className="grid h-full min-h-0 min-w-0 grid-rows-[64px_1fr] overflow-hidden bg-muted/30">
+    <aside className="relative grid h-full min-h-0 min-w-0 grid-rows-[64px_1fr] overflow-hidden bg-muted/30">
+      <button
+        aria-label="调整文件树宽度"
+        className="absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize bg-transparent"
+        type="button"
+        onPointerDown={onResizeStart}
+      />
       <div className="border-b p-3.5">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />

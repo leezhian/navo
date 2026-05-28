@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { buildFileTree } from "@/domain/fileTree";
 import type { AppSettings, CompareMode, DiffFile, ReviewSession, ReviewSummary } from "@/domain/types";
 import { DiffViewer } from "./DiffViewer";
@@ -9,10 +10,12 @@ import {
   getEffectiveReadingMode,
   getIsAllCollapsed,
   getReviewLayoutClassName,
+  getReviewLayoutStyle,
   getReviewPaneClassName,
   getVisibleFiles,
 } from "./review-workspace/reviewWorkspaceUtils";
 import { useFileSelection } from "./review-workspace/useFileSelection";
+import { useResizableFileTree } from "./review-workspace/useResizableFileTree";
 import { StateBlock } from "./StateBlock";
 
 interface ReviewWorkspaceProps {
@@ -55,6 +58,7 @@ export function ReviewWorkspace({
   onToggleFile,
 }: ReviewWorkspaceProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
+  const { fileTreeWidth, isResizing, startResize } = useResizableFileTree(() => setIsFileTreeVisible(false));
   const fileTree = useMemo(() => buildFileTree(summary?.files ?? []), [summary]);
   const effectiveReadingMode = getEffectiveReadingMode(summary, settings);
   const visibleFiles = getVisibleFiles(summary, effectiveReadingMode, selectedFileId);
@@ -82,7 +86,11 @@ export function ReviewWorkspace({
         onToggleFileTree={() => setIsFileTreeVisible((visible) => !visible)}
       />
 
-      <div className={getReviewLayoutClassName(isFileTreeVisible)}>
+      <motion.div
+        animate={getReviewLayoutStyle(isFileTreeVisible, fileTreeWidth)}
+        className={getReviewLayoutClassName()}
+        transition={isResizing ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
+      >
         <section className={getReviewPaneClassName(isFileTreeVisible, settings.wrapDiffLines)}>
           {summary?.isLargeDiff && (
             <div className="flex h-10 items-center border-b bg-amber-50 px-5 text-sm font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
@@ -100,15 +108,26 @@ export function ReviewWorkspace({
             onToggleFile={onToggleFile}
           />
         </section>
-        {isFileTreeVisible && (
-          <FileTree
-            nodes={fileTree}
-            projectPath={session.projectPath}
-            selectedFileId={selectedFileId}
-            onSelectFile={selectFile}
-          />
-        )}
-      </div>
+        <AnimatePresence initial={false}>
+          {isFileTreeVisible && (
+            <motion.div
+              animate={{ opacity: 1, x: 0 }}
+              className="min-h-0 min-w-0 overflow-hidden"
+              exit={{ opacity: 0, x: 28 }}
+              initial={{ opacity: 0, x: 28 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              <FileTree
+                nodes={fileTree}
+                projectPath={session.projectPath}
+                selectedFileId={selectedFileId}
+                onResizeStart={startResize}
+                onSelectFile={selectFile}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </section>
   );
 }

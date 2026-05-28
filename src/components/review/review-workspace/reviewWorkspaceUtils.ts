@@ -30,11 +30,14 @@ export function getIsAllCollapsed(summary: ReviewSummary | null, collapsedFileId
   return summary.files.every((file) => collapsedFileIds.has(file.id));
 }
 
-export function getReviewLayoutClassName(isFileTreeVisible: boolean) {
-  return classNames(
-    "grid min-h-0 overflow-hidden",
-    isFileTreeVisible ? "grid-cols-[minmax(0,1fr)_390px]" : "grid-cols-[minmax(0,1fr)]",
-  );
+export function getReviewLayoutClassName() {
+  return classNames("grid min-h-0 overflow-hidden");
+}
+
+export function getReviewLayoutStyle(isFileTreeVisible: boolean, fileTreeWidth: number) {
+  return {
+    gridTemplateColumns: isFileTreeVisible ? `minmax(0, 1fr) ${fileTreeWidth}px` : "minmax(0, 1fr) 0px",
+  };
 }
 
 export function getReviewPaneClassName(isFileTreeVisible: boolean, wrapDiffLines: boolean) {
