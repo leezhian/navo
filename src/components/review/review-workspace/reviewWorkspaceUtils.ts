@@ -1,4 +1,5 @@
 import type { AppSettings, ReviewSummary } from "@/domain/types";
+import classNames from "classnames";
 
 export function getEffectiveReadingMode(summary: ReviewSummary | null, settings: AppSettings) {
   // 大量 diff 时强制单文件模式，避免连续渲染把桌面窗口拖慢。
@@ -30,17 +31,16 @@ export function getIsAllCollapsed(summary: ReviewSummary | null, collapsedFileId
 }
 
 export function getReviewLayoutClassName(isFileTreeVisible: boolean) {
-  return isFileTreeVisible
-    ? "grid min-h-0 overflow-hidden grid-cols-[minmax(0,1fr)_390px]"
-    : "grid min-h-0 overflow-hidden grid-cols-[minmax(0,1fr)]";
+  return classNames(
+    "grid min-h-0 overflow-hidden",
+    isFileTreeVisible ? "grid-cols-[minmax(0,1fr)_390px]" : "grid-cols-[minmax(0,1fr)]",
+  );
 }
 
 export function getReviewPaneClassName(isFileTreeVisible: boolean, wrapDiffLines: boolean) {
-  const baseClassName = isFileTreeVisible
-    ? "min-w-0 overflow-auto border-r bg-background"
-    : "min-w-0 overflow-auto bg-background";
-
-  return wrapDiffLines
-    ? `${baseClassName} [&_code]:whitespace-pre-wrap [&_code]:break-words`
-    : baseClassName;
+  return classNames(
+    "min-w-0 overflow-auto bg-background",
+    isFileTreeVisible && "border-r",
+    wrapDiffLines && "[&_code]:whitespace-pre-wrap [&_code]:break-words",
+  );
 }

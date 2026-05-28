@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { MacWindow } from "./components/layout/MacWindow";
 import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
@@ -73,14 +74,11 @@ function App() {
 
   return (
     <main className="min-h-screen bg-background p-4 text-foreground">
-      <MacWindow>
-        <div
-          className={
-            selectedSession || showSettings
-              ? getAppLayoutClassName(isSessionSidebarVisible, true)
-              : getAppLayoutClassName(isSessionSidebarVisible, false)
-          }
-        >
+      <MacWindow
+        isSidebarVisible={isSessionSidebarVisible}
+        onToggleSidebar={() => setIsSessionSidebarVisible((visible) => !visible)}
+      >
+        <div className="flex h-full min-w-0">
           <SessionSidebar
             isVisible={isSessionSidebarVisible}
             orderedSessions={orderedSessions}
@@ -90,42 +88,59 @@ function App() {
               setSelectedSessionId(null);
             }}
             onSelectSession={selectSession}
-            onToggleSidebar={() => setIsSessionSidebarVisible((visible) => !visible)}
           />
 
-          {showSettings && (
-            <section className="min-h-0 min-w-0">
-              <SettingsPanel
-                settings={settings}
-                updateSettings={updateSettings}
-                onBack={() => {
-                  setShowSettings(false);
-                  setSelectedSessionId(mockSessions[0]?.id ?? null);
-                }}
-              />
-            </section>
-          )}
+          <AnimatePresence mode="wait" initial={false}>
+            {showSettings && (
+              <motion.section
+                animate={{ opacity: 1, x: 0 }}
+                className="min-h-0 min-w-0 flex-1"
+                exit={{ opacity: 0, x: 28 }}
+                initial={{ opacity: 0, x: 28 }}
+                key="settings"
+                transition={{ duration: 0.18, ease: "easeOut" }}
+              >
+                <SettingsPanel
+                  settings={settings}
+                  updateSettings={updateSettings}
+                  onBack={() => {
+                    setShowSettings(false);
+                    setSelectedSessionId(mockSessions[0]?.id ?? null);
+                  }}
+                />
+              </motion.section>
+            )}
 
-          {!showSettings && selectedSession && (
-            <ReviewWorkspace
-              collapsedFileIds={collapsedFileIds}
-              compareMode={compareMode}
-              isLoading={isReviewLoading}
-              localBranches={localBranches}
-              reviewError={reviewError}
-              selectedFileId={selectedFileId}
-              session={selectedSession}
-              settings={settings}
-              summary={reviewSummary}
-              onClose={() => setSelectedSessionId(null)}
-              onCompareModeChange={setCompareMode}
-              onRefresh={refreshReview}
-              onSelectedFileChange={setSelectedFileId}
-              onSettingsChange={updateSettings}
-              onToggleAllCollapsed={() => setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary))}
-              onToggleFile={(fileId) => setCollapsedFileIds((current) => toggleSetValue(current, fileId))}
-            />
-          )}
+            {!showSettings && selectedSession && (
+              <motion.section
+                animate={{ opacity: 1, x: 0 }}
+                className="min-h-0 min-w-0 flex-1"
+                exit={{ opacity: 0, x: 28 }}
+                initial={{ opacity: 0, x: 28 }}
+                key={`review-${selectedSession.id}`}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+              >
+                <ReviewWorkspace
+                  collapsedFileIds={collapsedFileIds}
+                  compareMode={compareMode}
+                  isLoading={isReviewLoading}
+                  localBranches={localBranches}
+                  reviewError={reviewError}
+                  selectedFileId={selectedFileId}
+                  session={selectedSession}
+                  settings={settings}
+                  summary={reviewSummary}
+                  onClose={() => setSelectedSessionId(null)}
+                  onCompareModeChange={setCompareMode}
+                  onRefresh={refreshReview}
+                  onSelectedFileChange={setSelectedFileId}
+                  onSettingsChange={updateSettings}
+                  onToggleAllCollapsed={() => setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary))}
+                  onToggleFile={(fileId) => setCollapsedFileIds((current) => toggleSetValue(current, fileId))}
+                />
+              </motion.section>
+            )}
+          </AnimatePresence>
         </div>
       </MacWindow>
     </main>
@@ -140,20 +155,6 @@ function useOrderedSessions(sessions: ReviewSession[]) {
       ),
     [sessions],
   );
-}
-
-function getAppLayoutClassName(isSessionSidebarVisible: boolean, hasContent: boolean) {
-  if (isSessionSidebarVisible && hasContent) {
-    return "grid h-[calc(100%-44px)] grid-cols-[280px_minmax(0,1fr)]";
-  }
-
-  if (isSessionSidebarVisible) {
-    return "grid h-[calc(100%-44px)] grid-cols-[280px]";
-  }
-
-  return hasContent
-    ? "grid h-[calc(100%-44px)] grid-cols-[48px_minmax(0,1fr)]"
-    : "grid h-[calc(100%-44px)] grid-cols-[48px]";
 }
 
 function toggleSetValue(source: Set<string>, value: string) {

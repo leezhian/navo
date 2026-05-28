@@ -1,5 +1,6 @@
 import { File, FileCode2, FileImage, FileJson, FileText } from "lucide-react";
 import { getFileIconType, type FileIconType } from "./fileIcon";
+import classNames from "classnames";
 
 export function FileTypeIcon({ path }: { path: string }) {
   const iconType = getFileIconType(path);
@@ -46,5 +47,5 @@ function getFileIconClassName(iconType: FileIconType) {
     vue: "text-green-500",
   };
 
-  return `${base} ${classes[iconType]}`;
+  return classNames(base, classes[iconType]);
 }

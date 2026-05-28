@@ -1,7 +1,8 @@
 import type { ReviewSession } from "../../domain/types";
-import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { Button } from "@/components/ui/button";
-import { PanelLeft, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import classNames from "classnames";
 
 interface SessionSidebarProps {
   isVisible: boolean;
@@ -9,7 +10,6 @@ interface SessionSidebarProps {
   selectedSessionId: string | null;
   onOpenSettings: () => void;
   onSelectSession: (session: ReviewSession) => void;
-  onToggleSidebar: () => void;
 }
 
 export function SessionSidebar({
@@ -18,53 +18,52 @@ export function SessionSidebar({
   selectedSessionId,
   onOpenSettings,
   onSelectSession,
-  onToggleSidebar,
 }: SessionSidebarProps) {
-  if (!isVisible) {
-    return (
-      <aside className="flex min-w-0 border-r bg-sidebar px-2 py-3">
-        <IconTooltip label="显示会话列表" onClick={onToggleSidebar}>
-          <PanelLeft className="size-5" />
-        </IconTooltip>
-      </aside>
-    );
-  }
-
   return (
-    <aside className="grid min-w-0 grid-rows-[56px_1fr_auto] border-r bg-sidebar">
-      <div className="flex items-center pl-2">
-        <IconTooltip label="隐藏会话列表" onClick={onToggleSidebar}>
-          <PanelLeft className="size-5" />
-        </IconTooltip>
-      </div>
-      <div className="min-h-0 overflow-y-auto p-3">
-        <h2 className="px-1.5 pb-3 text-[15px] font-medium text-foreground">会话</h2>
-        {orderedSessions.length === 0 ? (
-          <div className="px-1.5 py-5 text-muted-foreground">
-            <h2 className="mb-2 text-lg font-semibold text-foreground">暂无审查会话</h2>
-            <p className="mb-4 text-sm leading-6">开启 Agent 监听后，完成一次代码修改会话即可在这里看到 diff。</p>
-            <Button type="button" variant="outline" onClick={onOpenSettings}>
-              打开设置
+    <AnimatePresence initial={false}>
+      {isVisible && (
+        <motion.aside
+          animate={{ opacity: 1, width: 280, x: 0 }}
+          className="grid min-w-0 shrink-0 grid-rows-[1fr_auto] overflow-hidden border-r bg-sidebar"
+          exit={{ opacity: 0, width: 0, x: -24 }}
+          initial={{ opacity: 0, width: 0, x: -24 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+        >
+          <div className="min-h-0 overflow-y-auto px-3 pt-14 pb-3">
+            <h2 className="px-1.5 pb-3 text-[15px] font-medium text-foreground">会话</h2>
+            {orderedSessions.length === 0 ? (
+              <div className="px-1.5 py-5 text-muted-foreground">
+                <h2 className="mb-2 text-lg font-semibold text-foreground">暂无审查会话</h2>
+                <p className="mb-4 text-sm leading-6">开启 Agent 监听后，完成一次代码修改会话即可在这里看到 diff。</p>
+                <Button type="button" variant="outline" onClick={onOpenSettings}>
+                  打开设置
+                </Button>
+              </div>
+            ) : (
+              orderedSessions.map((session) => (
+                <SessionItem
+                  active={session.id === selectedSessionId}
+                  key={session.id}
+                  session={session}
+                  onSelect={() => onSelectSession(session)}
+                />
+              ))
+            )}
+          </div>
+          <div className="p-3">
+            <Button
+              className="h-9 w-full justify-start gap-2 px-2.5 font-normal"
+              type="button"
+              variant="ghost"
+              onClick={onOpenSettings}
+            >
+              <Settings className="size-5" />
+              <span>设置</span>
             </Button>
           </div>
-        ) : (
-          orderedSessions.map((session) => (
-            <SessionItem
-              active={session.id === selectedSessionId}
-              key={session.id}
-              session={session}
-              onSelect={() => onSelectSession(session)}
-            />
-          ))
-        )}
-      </div>
-      <div className="p-3">
-        <Button className="h-9 w-full justify-start gap-2 px-2.5 font-normal" type="button" variant="ghost" onClick={onOpenSettings}>
-          <Settings className="size-5" />
-          <span>设置</span>
-        </Button>
-      </div>
-    </aside>
+        </motion.aside>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -79,11 +78,10 @@ function SessionItem({
 }) {
   return (
     <button
-      className={
-        active
-          ? "mb-2.5 grid w-full gap-1.5 rounded-lg border border-primary/40 bg-accent p-3 text-left text-sm text-muted-foreground"
-          : "mb-2.5 grid w-full gap-1.5 rounded-lg border bg-background/70 p-3 text-left text-sm text-muted-foreground hover:bg-accent"
-      }
+      className={classNames(
+        "mb-2.5 grid w-full gap-1.5 rounded-lg border p-3 text-left text-sm text-muted-foreground",
+        active ? "border-primary/40 bg-accent" : "bg-background/70 hover:bg-accent",
+      )}
       type="button"
       onClick={onSelect}
     >

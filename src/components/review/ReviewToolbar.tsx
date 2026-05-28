@@ -85,7 +85,7 @@ export function ReviewToolbar({
         <IconTooltip label={isFileTreeVisible ? "隐藏文件树" : "显示文件树"} onClick={onToggleFileTree}>
           <Folder className="size-[17px]" />
         </IconTooltip>
-        <IconTooltip label="显示/隐藏侧边栏" onClick={onClose}>
+        <IconTooltip label="显示/隐藏审查" onClick={onClose}>
           <PanelLeft className="size-5" />
         </IconTooltip>
       </div>
