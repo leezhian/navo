@@ -37,7 +37,7 @@ export function ViewOptionsMenu({
               type="button"
               variant="ghost"
             >
-              <Settings2 className="size-[17px]" />
+              <Settings2 className="size-4" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>

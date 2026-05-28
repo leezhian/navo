@@ -81,7 +81,7 @@ function FileTreeItem({
     return (
       <FileContextMenu file={node.file} projectPath={projectPath}>
         <Button
-          className="h-[33px] w-full justify-start gap-2 rounded-lg px-2 text-left font-normal"
+          className="h-8 w-full justify-start gap-2 rounded-lg px-2 text-left font-normal"
           style={{ paddingLeft }}
           type="button"
           variant={node.file.id === selectedFileId ? "secondary" : "ghost"}
@@ -99,7 +99,7 @@ function FileTreeItem({
   return (
     <div>
       <button
-        className="flex min-h-[33px] w-full items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-muted"
+        className="flex min-h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-muted"
         style={{ paddingLeft }}
         type="button"
         onClick={() => onToggleDirectory(node.id)}

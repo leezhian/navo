@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { buildFileTree } from "@/domain/fileTree";
 import type { AppSettings, CompareMode, DiffFile, ReviewSession, ReviewSummary } from "@/domain/types";
 import { DiffViewer } from "./DiffViewer";
@@ -24,6 +25,7 @@ interface ReviewWorkspaceProps {
   session: ReviewSession;
   settings: AppSettings;
   summary: ReviewSummary | null;
+  leadingControls?: ReactNode;
   onClose: () => void;
   onCompareModeChange: (mode: CompareMode) => void;
   onRefresh: () => void;
@@ -43,6 +45,7 @@ export function ReviewWorkspace({
   session,
   settings,
   summary,
+  leadingControls,
   onClose,
   onCompareModeChange,
   onRefresh,
@@ -71,6 +74,7 @@ export function ReviewWorkspace({
         session={session}
         settings={settings}
         summary={summary}
+        leadingControls={leadingControls}
         onClose={onClose}
         onCompareModeChange={onCompareModeChange}
         onSettingsChange={onSettingsChange}

@@ -43,7 +43,7 @@ export function BranchMenu({
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
             <Button
-              className="h-6 gap-1 px-0 text-[15px] font-normal text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
+              className="h-6 gap-1 px-0 text-sm font-normal text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
               type="button"
               variant="ghost"
             >
@@ -54,7 +54,7 @@ export function BranchMenu({
         </TooltipTrigger>
         <TooltipContent side="top">{settings.targetBranch}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="start" className="w-[292px] p-2">
+      <DropdownMenuContent align="start" className="w-72 p-2">
         <div className="flex h-8 items-center gap-2 px-2 text-muted-foreground">
           <Search className="size-3.5" />
           <Input

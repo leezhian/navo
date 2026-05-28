@@ -31,7 +31,7 @@ function getFileIconComponent(iconType: FileIconType) {
 }
 
 function getFileIconClassName(iconType: FileIconType) {
-  const base = "size-[18px] shrink-0";
+  const base = "size-5 shrink-0";
   const classes: Record<FileIconType, string> = {
     css: "text-sky-500",
     generic: "text-muted-foreground",

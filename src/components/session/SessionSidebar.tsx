@@ -29,8 +29,8 @@ export function SessionSidebar({
           initial={{ opacity: 0, width: 0, x: -24 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <div className="min-h-0 overflow-y-auto px-3 pt-14 pb-3">
-            <h2 className="px-1.5 pb-3 text-[15px] font-medium text-foreground">会话</h2>
+          <div className="min-h-0 overflow-y-auto px-3 pt-12 pb-3">
+            <h2 className="px-1.5 pb-3 text-sm font-medium text-foreground">会话</h2>
             {orderedSessions.length === 0 ? (
               <div className="px-1.5 py-5 text-muted-foreground">
                 <h2 className="mb-2 text-lg font-semibold text-foreground">暂无审查会话</h2>
@@ -91,7 +91,7 @@ function SessionItem({
         </span>
         {session.unread && <span className="size-2 rounded-full bg-destructive" />}
       </span>
-      <strong className="text-[15px] text-foreground">{session.projectName}</strong>
+      <strong className="text-sm text-foreground">{session.projectName}</strong>
       <span>{session.branchName}</span>
       <span>
         {session.fileCount} files · +{session.additions} -{session.deletions}
