@@ -10,16 +10,29 @@ import {
   LineNumberCell,
   LocalCommentBox,
 } from "./diff-viewer/LineComment";
+import { FileContextMenu } from "./file-actions/FileContextMenu";
 
 interface DiffViewerProps {
   collapsedFileIds: Set<string>;
   compareMode: CompareMode;
   files: DiffFile[];
+  projectPath: string;
+  wrapDiffLines: boolean;
   viewMode: AppSettings["diffViewMode"];
+  onToggleWrap: () => void;
   onToggleFile: (fileId: string) => void;
 }
 
-export function DiffViewer({ collapsedFileIds, compareMode, files, viewMode, onToggleFile }: DiffViewerProps) {
+export function DiffViewer({
+  collapsedFileIds,
+  compareMode,
+  files,
+  projectPath,
+  wrapDiffLines,
+  viewMode,
+  onToggleWrap,
+  onToggleFile,
+}: DiffViewerProps) {
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
 
   return (
@@ -32,7 +45,10 @@ export function DiffViewer({ collapsedFileIds, compareMode, files, viewMode, onT
           activeCommentId={activeCommentId}
           compareMode={compareMode}
           viewMode={viewMode}
+          projectPath={projectPath}
+          wrapDiffLines={wrapDiffLines}
           onCommentOpen={setActiveCommentId}
+          onToggleWrap={onToggleWrap}
           onToggle={() => onToggleFile(file.id)}
         />
       ))}
@@ -46,7 +62,10 @@ function DiffFileView({
   file,
   activeCommentId,
   viewMode,
+  projectPath,
+  wrapDiffLines,
   onCommentOpen,
+  onToggleWrap,
   onToggle,
 }: {
   collapsed: boolean;
@@ -54,7 +73,10 @@ function DiffFileView({
   file: DiffFile;
   activeCommentId: string | null;
   viewMode: AppSettings["diffViewMode"];
+  projectPath: string;
+  wrapDiffLines: boolean;
   onCommentOpen: (commentId: string | null) => void;
+  onToggleWrap: () => void;
   onToggle: () => void;
 }) {
   const handleHeaderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -67,32 +89,46 @@ function DiffFileView({
   };
 
   return (
-    <article className="group/file" id={`diff-file-${file.id}`}>
-      <div
-        className="sticky top-0 z-20 flex min-h-9 w-full cursor-default items-center justify-between gap-4 bg-background px-5.5 text-left hover:bg-muted"
-        role="button"
-        tabIndex={0}
-        onKeyDown={handleHeaderKeyDown}
-        onClick={onToggle}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <ChevronDown
-            className={
-              collapsed
-                ? "size-4 shrink-0 transition-transform duration-150"
-                : "-rotate-180 size-4 shrink-0 transition-transform duration-150"
-            }
-          />
-          <span className="truncate text-sm">{file.displayPath}</span>
+    <FileContextMenu
+      file={file}
+      projectPath={projectPath}
+      showWrapToggle
+      wrapDiffLines={wrapDiffLines}
+      onToggleWrap={onToggleWrap}
+    >
+      <article className="group/file" id={`diff-file-${file.id}`}>
+        <div
+          className="sticky top-0 z-20 flex min-h-9 w-full cursor-default items-center justify-between gap-4 bg-background px-5.5 text-left hover:bg-muted"
+          role="button"
+          tabIndex={0}
+          onKeyDown={handleHeaderKeyDown}
+          onClick={onToggle}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <ChevronDown
+              className={
+                collapsed
+                  ? "size-4 shrink-0 transition-transform duration-150"
+                  : "-rotate-180 size-4 shrink-0 transition-transform duration-150"
+              }
+            />
+            <span className="truncate text-sm">{file.displayPath}</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-xs">
+            <FileHeaderActions compareMode={compareMode} />
+            <span className="text-green-600 dark:text-green-400">+{file.additions}</span>
+            <span className="text-red-600 dark:text-red-400">-{file.deletions}</span>
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs">
-          <FileHeaderActions compareMode={compareMode} />
-          <span className="text-green-600 dark:text-green-400">+{file.additions}</span>
-          <span className="text-red-600 dark:text-red-400">-{file.deletions}</span>
-        </div>
-      </div>
-      {renderFileBody(file, collapsed, viewMode, activeCommentId, onCommentOpen)}
-    </article>
+        {renderFileBody({
+          activeCommentId,
+          collapsed,
+          file,
+          viewMode,
+          onCommentOpen,
+        })}
+      </article>
+    </FileContextMenu>
   );
 }
 
@@ -119,13 +155,19 @@ function FileHeaderActions({ compareMode }: { compareMode: CompareMode }) {
   );
 }
 
-function renderFileBody(
-  file: DiffFile,
-  collapsed: boolean,
-  viewMode: AppSettings["diffViewMode"],
-  activeCommentId: string | null,
-  onCommentOpen: (commentId: string | null) => void,
-) {
+function renderFileBody({
+  activeCommentId,
+  collapsed,
+  file,
+  viewMode,
+  onCommentOpen,
+}: {
+  activeCommentId: string | null;
+  collapsed: boolean;
+  file: DiffFile;
+  viewMode: AppSettings["diffViewMode"];
+  onCommentOpen: (commentId: string | null) => void;
+}) {
   if (collapsed) {
     return null;
   }

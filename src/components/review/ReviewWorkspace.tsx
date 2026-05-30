@@ -112,10 +112,13 @@ export function ReviewWorkspace({
             collapsedFileIds={collapsedFileIds}
             files={visibleFiles}
             isLoading={isLoading}
+            projectPath={session.projectPath}
             reviewError={reviewError}
             settings={settings}
             summary={summary}
+            onCompareModeChange={onCompareModeChange}
             onRefresh={onRefresh}
+            onSettingsChange={onSettingsChange}
             onToggleFile={onToggleFile}
           />
         </section>
@@ -148,20 +151,26 @@ function ReviewContent({
   compareMode,
   files,
   isLoading,
+  projectPath,
   reviewError,
   settings,
   summary,
+  onCompareModeChange,
   onRefresh,
+  onSettingsChange,
   onToggleFile,
 }: {
   collapsedFileIds: Set<string>;
   compareMode: CompareMode;
   files: DiffFile[];
   isLoading: boolean;
+  projectPath: string;
   reviewError: string | null;
   settings: AppSettings;
   summary: ReviewSummary | null;
+  onCompareModeChange: (mode: CompareMode) => void;
   onRefresh: () => void;
+  onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
   onToggleFile: (fileId: string) => void;
 }) {
   if (isLoading) {
@@ -173,7 +182,15 @@ function ReviewContent({
   }
 
   if (summary && summary.fileCount === 0) {
-    return <StateBlock title="当前对比方式暂无改动。" />;
+    const emptyState = getEmptyReviewState(compareMode);
+    return (
+      <StateBlock
+        actionLabel={emptyState.actionLabel}
+        body={emptyState.body}
+        title={emptyState.title}
+        onAction={emptyState.actionLabel ? () => onCompareModeChange("branch") : undefined}
+      />
+    );
   }
 
   return (
@@ -181,8 +198,33 @@ function ReviewContent({
       compareMode={compareMode}
       collapsedFileIds={collapsedFileIds}
       files={files}
+      projectPath={projectPath}
+      wrapDiffLines={settings.wrapDiffLines}
       viewMode={settings.diffViewMode}
+      onToggleWrap={() => onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }))}
       onToggleFile={onToggleFile}
     />
   );
+}
+
+function getEmptyReviewState(compareMode: CompareMode) {
+  if (compareMode === "staged") {
+    return {
+      actionLabel: "查看分支差异",
+      body: "接受边界内容并暂存",
+      title: "无暂存更改",
+    };
+  }
+
+  if (compareMode === "unstaged") {
+    return {
+      actionLabel: "查看分支差异",
+      body: "代码更改将在此处显示",
+      title: "无未暂存更改",
+    };
+  }
+
+  return {
+    title: "当前对比方式暂无改动。",
+  };
 }

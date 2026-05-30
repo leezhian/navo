@@ -5,7 +5,7 @@ import type { DiffFile } from "@/domain/types";
 import { ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { FileContextMenu } from "./file-tree/FileContextMenu";
+import { FileContextMenu } from "./file-actions/FileContextMenu";
 import { FileTypeIcon } from "./file-tree/FileTypeIcon";
 import { filterTreeNodes } from "./file-tree/fileTreeFilter";
 import { useDirectoryCollapse } from "./file-tree/useDirectoryCollapse";

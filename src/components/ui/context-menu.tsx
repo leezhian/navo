@@ -56,9 +56,23 @@ function ContextMenuItem({
   )
 }
 
+function ContextMenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Separator>) {
+  return (
+    <ContextMenuPrimitive.Separator
+      data-slot="context-menu-separator"
+      className={cn("mx-2 my-1 h-px bg-border", className)}
+      {...props}
+    />
+  )
+}
+
 export {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 }
