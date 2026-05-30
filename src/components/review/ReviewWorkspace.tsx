@@ -98,6 +98,7 @@ export function ReviewWorkspace({
             </div>
           )}
           <ReviewContent
+            compareMode={compareMode}
             collapsedFileIds={collapsedFileIds}
             files={visibleFiles}
             isLoading={isLoading}
@@ -134,6 +135,7 @@ export function ReviewWorkspace({
 
 function ReviewContent({
   collapsedFileIds,
+  compareMode,
   files,
   isLoading,
   reviewError,
@@ -143,6 +145,7 @@ function ReviewContent({
   onToggleFile,
 }: {
   collapsedFileIds: Set<string>;
+  compareMode: CompareMode;
   files: DiffFile[];
   isLoading: boolean;
   reviewError: string | null;
@@ -165,6 +168,7 @@ function ReviewContent({
 
   return (
     <DiffViewer
+      compareMode={compareMode}
       collapsedFileIds={collapsedFileIds}
       files={files}
       viewMode={settings.diffViewMode}

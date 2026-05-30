@@ -18,7 +18,7 @@ export function LineNumberCell({ commentId, lineNumber, onCommentOpen }: LineNum
       {commentId && (
         <button
           aria-label="添加本地评论"
-          className="absolute top-1/2 right-1 z-10 hidden size-6 -translate-y-1/2 items-center justify-center rounded bg-foreground text-background shadow-sm hover:bg-foreground/90 group-hover/line:flex"
+          className="absolute top-0 right-1 z-10 hidden size-[22px] items-center justify-center rounded bg-foreground text-background shadow-sm hover:bg-foreground/90 group-hover/line:flex"
           type="button"
           onClick={() => onCommentOpen(commentId)}
         >
