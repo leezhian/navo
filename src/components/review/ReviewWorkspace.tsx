@@ -103,8 +103,8 @@ export function ReviewWorkspace({
       >
         <section className={getReviewPaneClassName(isFileTreeVisible, settings.wrapDiffLines)}>
           {summary?.isLargeDiff && (
-            <div className="flex h-10 items-center border-b bg-amber-50 px-5 text-sm font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-              检测到大量差异，已自动切换到单文件模式。可在查看选项中切回连续模式。
+            <div className="flex h-7 items-center bg-amber-50 px-5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              检测到大量差异：每次仅显示一个文件。
             </div>
           )}
           <ReviewContent

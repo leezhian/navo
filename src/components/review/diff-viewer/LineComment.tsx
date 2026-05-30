@@ -10,7 +10,7 @@ interface LineNumberCellProps {
   commentId: string | null;
   lineNumber: number | null | undefined;
   stickyClassName?: string;
-  onCommentOpen: (commentId: string | null) => void;
+  onCommentOpen: (commentId: string) => void;
 }
 
 export function LineNumberCell({
@@ -84,7 +84,13 @@ export function getLineCommentId(fileId: string, line: DiffLine, side: CommentSi
 }
 
 export function getCommentLineLabel(line: DiffLine, side: CommentSide) {
-  const lineNumber = side === "old" ? line.oldLineNumber : line.newLineNumber ?? line.oldLineNumber;
+  if (side === "unified") {
+    const isOldSideLine = line.type === "delete";
+    const lineNumber = isOldSideLine ? line.oldLineNumber : line.newLineNumber ?? line.oldLineNumber;
+    return `${isOldSideLine ? "L" : "R"}${lineNumber ?? "-"}`;
+  }
+
+  const lineNumber = side === "old" ? line.oldLineNumber : line.newLineNumber;
   const prefix = side === "old" ? "L" : "R";
   return `${prefix}${lineNumber ?? "-"}`;
 }

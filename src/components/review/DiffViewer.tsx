@@ -33,7 +33,19 @@ export function DiffViewer({
   onToggleWrap,
   onToggleFile,
 }: DiffViewerProps) {
-  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [activeCommentIds, setActiveCommentIds] = useState<Set<string>>(new Set());
+
+  function openLineComment(commentId: string) {
+    setActiveCommentIds((current) => new Set(current).add(commentId));
+  }
+
+  function closeLineComment(commentId: string) {
+    setActiveCommentIds((current) => {
+      const next = new Set(current);
+      next.delete(commentId);
+      return next;
+    });
+  }
 
   return (
     <>
@@ -42,12 +54,13 @@ export function DiffViewer({
           collapsed={collapsedFileIds.has(file.id)}
           file={file}
           key={file.id}
-          activeCommentId={activeCommentId}
+          activeCommentIds={activeCommentIds}
           compareMode={compareMode}
           viewMode={viewMode}
           projectPath={projectPath}
           wrapDiffLines={wrapDiffLines}
-          onCommentOpen={setActiveCommentId}
+          onCommentClose={closeLineComment}
+          onCommentOpen={openLineComment}
           onToggleWrap={onToggleWrap}
           onToggle={() => onToggleFile(file.id)}
         />
@@ -60,10 +73,11 @@ function DiffFileView({
   collapsed,
   compareMode,
   file,
-  activeCommentId,
+  activeCommentIds,
   viewMode,
   projectPath,
   wrapDiffLines,
+  onCommentClose,
   onCommentOpen,
   onToggleWrap,
   onToggle,
@@ -71,11 +85,12 @@ function DiffFileView({
   collapsed: boolean;
   compareMode: CompareMode;
   file: DiffFile;
-  activeCommentId: string | null;
+  activeCommentIds: Set<string>;
   viewMode: AppSettings["diffViewMode"];
   projectPath: string;
   wrapDiffLines: boolean;
-  onCommentOpen: (commentId: string | null) => void;
+  onCommentClose: (commentId: string) => void;
+  onCommentOpen: (commentId: string) => void;
   onToggleWrap: () => void;
   onToggle: () => void;
 }) {
@@ -121,10 +136,11 @@ function DiffFileView({
           </div>
         </div>
         {renderFileBody({
-          activeCommentId,
+          activeCommentIds,
           collapsed,
           file,
           viewMode,
+          onCommentClose,
           onCommentOpen,
         })}
       </article>
@@ -156,17 +172,19 @@ function FileHeaderActions({ compareMode }: { compareMode: CompareMode }) {
 }
 
 function renderFileBody({
-  activeCommentId,
+  activeCommentIds,
   collapsed,
   file,
   viewMode,
+  onCommentClose,
   onCommentOpen,
 }: {
-  activeCommentId: string | null;
+  activeCommentIds: Set<string>;
   collapsed: boolean;
   file: DiffFile;
   viewMode: AppSettings["diffViewMode"];
-  onCommentOpen: (commentId: string | null) => void;
+  onCommentClose: (commentId: string) => void;
+  onCommentOpen: (commentId: string) => void;
 }) {
   if (collapsed) {
     return null;
@@ -179,22 +197,34 @@ function renderFileBody({
   return (
     <div className="overflow-x-auto overscroll-x-none">
       {viewMode === "split" ? (
-        <SplitDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
+        <SplitDiff
+          activeCommentIds={activeCommentIds}
+          file={file}
+          onCommentClose={onCommentClose}
+          onCommentOpen={onCommentOpen}
+        />
       ) : (
-        <UnifiedDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
+        <UnifiedDiff
+          activeCommentIds={activeCommentIds}
+          file={file}
+          onCommentClose={onCommentClose}
+          onCommentOpen={onCommentOpen}
+        />
       )}
     </div>
   );
 }
 
 function UnifiedDiff({
-  activeCommentId,
+  activeCommentIds,
   file,
+  onCommentClose,
   onCommentOpen,
 }: {
-  activeCommentId: string | null;
+  activeCommentIds: Set<string>;
   file: DiffFile;
-  onCommentOpen: (commentId: string | null) => void;
+  onCommentClose: (commentId: string) => void;
+  onCommentOpen: (commentId: string) => void;
 }) {
   return (
     <div className="inline-block min-w-full">
@@ -203,10 +233,11 @@ function UnifiedDiff({
           <FoldRow count={hunk.leadingContext} />
           {hunk.lines.map((line) => (
             <UnifiedLine
-              activeCommentId={activeCommentId}
+              activeCommentIds={activeCommentIds}
               fileId={file.id}
               key={line.id}
               line={line}
+              onCommentClose={onCommentClose}
               onCommentOpen={onCommentOpen}
             />
           ))}
@@ -218,13 +249,15 @@ function UnifiedDiff({
 }
 
 function SplitDiff({
-  activeCommentId,
+  activeCommentIds,
   file,
+  onCommentClose,
   onCommentOpen,
 }: {
-  activeCommentId: string | null;
+  activeCommentIds: Set<string>;
   file: DiffFile;
-  onCommentOpen: (commentId: string | null) => void;
+  onCommentClose: (commentId: string) => void;
+  onCommentOpen: (commentId: string) => void;
 }) {
   return (
     <div className="inline-block min-w-full">
@@ -240,17 +273,19 @@ function SplitDiff({
               key={row.id}
             >
               <SplitCell
-                activeCommentId={activeCommentId}
+                activeCommentIds={activeCommentIds}
                 fileId={file.id}
                 line={row.oldLine}
                 side="old"
+                onCommentClose={onCommentClose}
                 onCommentOpen={onCommentOpen}
               />
               <SplitCell
-                activeCommentId={activeCommentId}
+                activeCommentIds={activeCommentIds}
                 fileId={file.id}
                 line={row.newLine}
                 side="new"
+                onCommentClose={onCommentClose}
                 onCommentOpen={onCommentOpen}
               />
             </div>
@@ -266,15 +301,17 @@ function SplitDiff({
 }
 
 function UnifiedLine({
-  activeCommentId,
+  activeCommentIds,
   fileId,
   line,
+  onCommentClose,
   onCommentOpen,
 }: {
-  activeCommentId: string | null;
+  activeCommentIds: Set<string>;
   fileId: string;
   line: DiffLine;
-  onCommentOpen: (commentId: string | null) => void;
+  onCommentClose: (commentId: string) => void;
+  onCommentOpen: (commentId: string) => void;
 }) {
   const commentId = getLineCommentId(fileId, line, "unified");
 
@@ -288,25 +325,27 @@ function UnifiedLine({
         />
         <code className="min-w-0 pl-4 font-mono whitespace-pre">{line.content}</code>
       </div>
-      {activeCommentId === commentId && (
-        <LocalCommentBox lineLabel={getCommentLineLabel(line, "unified")} onCancel={() => onCommentOpen(null)} />
+      {activeCommentIds.has(commentId) && (
+        <LocalCommentBox lineLabel={getCommentLineLabel(line, "unified")} onCancel={() => onCommentClose(commentId)} />
       )}
     </>
   );
 }
 
 function SplitCell({
-  activeCommentId,
+  activeCommentIds,
   fileId,
   line,
   side,
+  onCommentClose,
   onCommentOpen,
 }: {
-  activeCommentId: string | null;
+  activeCommentIds: Set<string>;
   fileId: string;
   line: DiffLine | null;
   side: "old" | "new";
-  onCommentOpen: (commentId: string | null) => void;
+  onCommentClose: (commentId: string) => void;
+  onCommentOpen: (commentId: string) => void;
 }) {
   const commentId = line ? getLineCommentId(fileId, line, side) : null;
 
@@ -321,8 +360,8 @@ function SplitCell({
         />
         <code className="min-w-0 pl-4 font-mono whitespace-pre">{line?.content ?? ""}</code>
       </div>
-      {line && commentId && activeCommentId === commentId && (
-        <LocalCommentBox lineLabel={getCommentLineLabel(line, side)} onCancel={() => onCommentOpen(null)} />
+      {line && commentId && activeCommentIds.has(commentId) && (
+        <LocalCommentBox lineLabel={getCommentLineLabel(line, side)} onCancel={() => onCommentClose(commentId)} />
       )}
     </div>
   );
