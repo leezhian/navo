@@ -63,7 +63,7 @@ export function ReviewToolbar({
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-5 pb-2.5 pt-0">
         <div>
-          <div className="flex min-h-7 flex-wrap items-center gap-3">
+          <div className="flex min-h-7 flex-wrap items-center gap-3 text-sm">
             <CompareModeMenu compareMode={compareMode} onCompareModeChange={onCompareModeChange} />
             <span className="text-green-600 dark:text-green-400">+{summary?.additions ?? session.additions}</span>
             <span className="text-red-600 dark:text-red-400">-{summary?.deletions ?? session.deletions}</span>

@@ -19,7 +19,7 @@ export function CompareModeMenu({ compareMode, onCompareModeChange }: CompareMod
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="h-8 gap-1 px-0 text-base font-normal hover:bg-transparent aria-expanded:bg-transparent aria-expanded:text-foreground focus-visible:border-transparent focus-visible:ring-0"
+          className="h-8 gap-1 px-0 text-sm font-normal hover:bg-transparent aria-expanded:bg-transparent aria-expanded:text-foreground focus-visible:border-transparent focus-visible:ring-0"
           type="button"
           variant="ghost"
         >

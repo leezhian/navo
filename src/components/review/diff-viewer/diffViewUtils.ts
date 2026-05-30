@@ -9,7 +9,7 @@ export interface SplitDiffRow {
 
 export function getUnifiedLineClassName(type: DiffLine["type"]) {
   return classNames(
-    "grid min-h-7 grid-cols-[46px_46px_minmax(0,1fr)]",
+    "group/line grid min-h-7 grid-cols-[52px_minmax(0,1fr)]",
     type === "add" && "bg-green-100 text-green-900 dark:bg-green-950/50 dark:text-green-200",
     type === "delete" && "bg-red-100 text-red-900 dark:bg-red-950/50 dark:text-red-200",
   );
@@ -17,7 +17,7 @@ export function getUnifiedLineClassName(type: DiffLine["type"]) {
 
 export function getSplitCellClassName(type: DiffLine["type"] | undefined, side: "old" | "new") {
   return classNames(
-    "grid min-h-7 min-w-0 grid-cols-[52px_minmax(0,1fr)]",
+    "group/line grid min-h-7 min-w-0 grid-cols-[52px_minmax(0,1fr)]",
     side === "old" && "border-r",
     type === "add" && "bg-green-100 text-green-900 dark:bg-green-950/50 dark:text-green-200",
     type === "delete" && "bg-red-100 text-red-900 dark:bg-red-950/50 dark:text-red-200",

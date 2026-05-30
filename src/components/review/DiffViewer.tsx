@@ -1,7 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
 import type { AppSettings, DiffFile, DiffLine } from "../../domain/types";
 import { getSplitCellClassName, getUnifiedLineClassName, pairSplitLines } from "./diff-viewer/diffViewUtils";
+import {
+  getCommentLineLabel,
+  getLineCommentId,
+  LineNumberCell,
+  LocalCommentBox,
+} from "./diff-viewer/LineComment";
 
 interface DiffViewerProps {
   collapsedFileIds: Set<string>;
@@ -11,6 +18,8 @@ interface DiffViewerProps {
 }
 
 export function DiffViewer({ collapsedFileIds, files, viewMode, onToggleFile }: DiffViewerProps) {
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+
   return (
     <>
       {files.map((file) => (
@@ -18,7 +27,9 @@ export function DiffViewer({ collapsedFileIds, files, viewMode, onToggleFile }: 
           collapsed={collapsedFileIds.has(file.id)}
           file={file}
           key={file.id}
+          activeCommentId={activeCommentId}
           viewMode={viewMode}
+          onCommentOpen={setActiveCommentId}
           onToggle={() => onToggleFile(file.id)}
         />
       ))}
@@ -29,12 +40,16 @@ export function DiffViewer({ collapsedFileIds, files, viewMode, onToggleFile }: 
 function DiffFileView({
   collapsed,
   file,
+  activeCommentId,
   viewMode,
+  onCommentOpen,
   onToggle,
 }: {
   collapsed: boolean;
   file: DiffFile;
+  activeCommentId: string | null;
   viewMode: AppSettings["diffViewMode"];
+  onCommentOpen: (commentId: string | null) => void;
   onToggle: () => void;
 }) {
   return (
@@ -44,20 +59,26 @@ function DiffFileView({
           <span className="inline-flex h-5 items-center rounded-full bg-muted px-2 text-xs text-muted-foreground">
             {file.status}
           </span>
-          <strong className="truncate text-base">{file.displayPath}</strong>
+          <span className="truncate text-sm">{file.displayPath}</span>
         </div>
-        <Button type="button" variant="ghost" onClick={onToggle}>
+        <Button className="font-normal" type="button" variant="ghost" onClick={onToggle}>
           <span className="text-green-600 dark:text-green-400">+{file.additions}</span>
           <span className="text-red-600 dark:text-red-400">-{file.deletions}</span>
           {collapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
         </Button>
       </header>
-      {renderFileBody(file, collapsed, viewMode)}
+      {renderFileBody(file, collapsed, viewMode, activeCommentId, onCommentOpen)}
     </article>
   );
 }
 
-function renderFileBody(file: DiffFile, collapsed: boolean, viewMode: AppSettings["diffViewMode"]) {
+function renderFileBody(
+  file: DiffFile,
+  collapsed: boolean,
+  viewMode: AppSettings["diffViewMode"],
+  activeCommentId: string | null,
+  onCommentOpen: (commentId: string | null) => void,
+) {
   if (collapsed) {
     return <div className="p-7 text-muted-foreground">文件已折叠</div>;
   }
@@ -66,25 +87,35 @@ function renderFileBody(file: DiffFile, collapsed: boolean, viewMode: AppSetting
     return <div className="p-7 text-muted-foreground">二进制文件不展示代码 diff。</div>;
   }
 
-  return viewMode === "split" ? <SplitDiff file={file} /> : <UnifiedDiff file={file} />;
+  return viewMode === "split" ? (
+    <SplitDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
+  ) : (
+    <UnifiedDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
+  );
 }
 
-function UnifiedDiff({ file }: { file: DiffFile }) {
+function UnifiedDiff({
+  activeCommentId,
+  file,
+  onCommentOpen,
+}: {
+  activeCommentId: string | null;
+  file: DiffFile;
+  onCommentOpen: (commentId: string | null) => void;
+}) {
   return (
     <div>
       {file.hunks.map((hunk) => (
-        <div className="font-mono text-sm leading-7" key={hunk.id}>
+        <div className="font-mono text-xs leading-7" key={hunk.id}>
           <FoldRow count={hunk.leadingContext} />
           {hunk.lines.map((line) => (
-            <div className={getUnifiedLineClassName(line.type)} key={line.id}>
-              <span className="select-none border-r pr-3 text-right text-muted-foreground">
-                {line.oldLineNumber ?? ""}
-              </span>
-              <span className="select-none border-r pr-3 text-right text-muted-foreground">
-                {line.newLineNumber ?? ""}
-              </span>
-              <code className="min-w-0 overflow-hidden pl-4 font-mono whitespace-pre">{line.content}</code>
-            </div>
+            <UnifiedLine
+              activeCommentId={activeCommentId}
+              fileId={file.id}
+              key={line.id}
+              line={line}
+              onCommentOpen={onCommentOpen}
+            />
           ))}
           <FoldRow count={hunk.trailingContext} />
         </div>
@@ -93,19 +124,39 @@ function UnifiedDiff({ file }: { file: DiffFile }) {
   );
 }
 
-function SplitDiff({ file }: { file: DiffFile }) {
+function SplitDiff({
+  activeCommentId,
+  file,
+  onCommentOpen,
+}: {
+  activeCommentId: string | null;
+  file: DiffFile;
+  onCommentOpen: (commentId: string | null) => void;
+}) {
   return (
     <div>
       {file.hunks.map((hunk) => (
-        <div className="font-mono text-sm leading-7" key={hunk.id}>
+        <div className="font-mono text-xs leading-7" key={hunk.id}>
           <div className="grid grid-cols-2">
             <FoldRow count={hunk.leadingContext} />
             <FoldRow count={hunk.leadingContext} />
           </div>
           {pairSplitLines(hunk.lines).map((row) => (
             <div className="grid grid-cols-2" key={row.id}>
-              <SplitCell line={row.oldLine} side="old" />
-              <SplitCell line={row.newLine} side="new" />
+              <SplitCell
+                activeCommentId={activeCommentId}
+                fileId={file.id}
+                line={row.oldLine}
+                side="old"
+                onCommentOpen={onCommentOpen}
+              />
+              <SplitCell
+                activeCommentId={activeCommentId}
+                fileId={file.id}
+                line={row.newLine}
+                side="new"
+                onCommentOpen={onCommentOpen}
+              />
             </div>
           ))}
           <div className="grid grid-cols-2">
@@ -118,13 +169,64 @@ function SplitDiff({ file }: { file: DiffFile }) {
   );
 }
 
-function SplitCell({ line, side }: { line: DiffLine | null; side: "old" | "new" }) {
+function UnifiedLine({
+  activeCommentId,
+  fileId,
+  line,
+  onCommentOpen,
+}: {
+  activeCommentId: string | null;
+  fileId: string;
+  line: DiffLine;
+  onCommentOpen: (commentId: string | null) => void;
+}) {
+  const commentId = getLineCommentId(fileId, line, "unified");
+
   return (
-    <div className={getSplitCellClassName(line?.type, side)}>
-      <span className="select-none border-r pr-3 text-right text-muted-foreground">
-        {side === "old" ? line?.oldLineNumber ?? "" : line?.newLineNumber ?? ""}
-      </span>
-      <code className="min-w-0 overflow-hidden pl-4 font-mono whitespace-pre">{line?.content ?? ""}</code>
+    <>
+      <div className={getUnifiedLineClassName(line.type)}>
+        <LineNumberCell
+          commentId={commentId}
+          lineNumber={line.newLineNumber ?? line.oldLineNumber}
+          onCommentOpen={onCommentOpen}
+        />
+        <code className="min-w-0 overflow-hidden pl-4 font-mono whitespace-pre">{line.content}</code>
+      </div>
+      {activeCommentId === commentId && (
+        <LocalCommentBox lineLabel={getCommentLineLabel(line, "unified")} onCancel={() => onCommentOpen(null)} />
+      )}
+    </>
+  );
+}
+
+function SplitCell({
+  activeCommentId,
+  fileId,
+  line,
+  side,
+  onCommentOpen,
+}: {
+  activeCommentId: string | null;
+  fileId: string;
+  line: DiffLine | null;
+  side: "old" | "new";
+  onCommentOpen: (commentId: string | null) => void;
+}) {
+  const commentId = line ? getLineCommentId(fileId, line, side) : null;
+
+  return (
+    <div>
+      <div className={getSplitCellClassName(line?.type, side)}>
+        <LineNumberCell
+          commentId={commentId}
+          lineNumber={side === "old" ? line?.oldLineNumber ?? null : line?.newLineNumber ?? null}
+          onCommentOpen={onCommentOpen}
+        />
+        <code className="min-w-0 overflow-hidden pl-4 font-mono whitespace-pre">{line?.content ?? ""}</code>
+      </div>
+      {line && commentId && activeCommentId === commentId && (
+        <LocalCommentBox lineLabel={getCommentLineLabel(line, side)} onCancel={() => onCommentOpen(null)} />
+      )}
     </div>
   );
 }
@@ -135,7 +237,7 @@ function FoldRow({ count }: { count: number }) {
   }
 
   return (
-    <div className="flex h-10 items-center gap-3 bg-muted px-4 font-sans text-sm text-muted-foreground">
+    <div className="flex h-10 items-center gap-3 bg-muted px-4 font-sans text-xs text-muted-foreground">
       <ChevronDown className="size-4" />
       <span>{count} unmodified lines</span>
     </div>
