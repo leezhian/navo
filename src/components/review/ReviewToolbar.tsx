@@ -1,6 +1,6 @@
 import { IconTooltip } from "@/components/ui/icon-tooltip";
-import type { AppSettings, CompareMode, ReviewSession, ReviewSummary } from "@/domain/types";
-import { Folder, Rows3, SplitSquareHorizontal, X } from "lucide-react";
+import type { AppSettings, CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "@/domain/types";
+import { FolderClosed, FolderOpen, Rows3, SplitSquareHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { BranchMenu } from "./review-toolbar/BranchMenu";
@@ -10,6 +10,7 @@ import { ViewOptionsMenu } from "./review-toolbar/ViewOptionsMenu";
 
 interface ReviewToolbarProps {
   compareMode: CompareMode;
+  compareModeFileCounts: CompareModeFileCounts;
   isAllCollapsed: boolean;
   isFileTreeVisible: boolean;
   localBranches: string[];
@@ -26,6 +27,7 @@ interface ReviewToolbarProps {
 
 export function ReviewToolbar({
   compareMode,
+  compareModeFileCounts,
   isAllCollapsed,
   isFileTreeVisible,
   localBranches,
@@ -64,7 +66,11 @@ export function ReviewToolbar({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-5 pb-2.5 pt-0">
         <div>
           <div className="flex min-h-7 flex-wrap items-center gap-3 text-sm">
-            <CompareModeMenu compareMode={compareMode} onCompareModeChange={onCompareModeChange} />
+            <CompareModeMenu
+              compareMode={compareMode}
+              fileCounts={compareModeFileCounts}
+              onCompareModeChange={onCompareModeChange}
+            />
             <span className="text-green-600 dark:text-green-400">+{summary?.additions ?? session.additions}</span>
             <span className="text-red-600 dark:text-red-400">-{summary?.deletions ?? session.deletions}</span>
           </div>
@@ -101,8 +107,12 @@ export function ReviewToolbar({
               <SplitSquareHorizontal className="size-4" />
             )}
           </IconTooltip>
-          <IconTooltip label={isFileTreeVisible ? "隐藏文件树" : "显示文件树"} onClick={onToggleFileTree}>
-            <Folder className="size-4" />
+          <IconTooltip
+            className={isFileTreeVisible ? "bg-muted text-foreground" : undefined}
+            label={isFileTreeVisible ? "隐藏文件树" : "显示文件树"}
+            onClick={onToggleFileTree}
+          >
+            {isFileTreeVisible ? <FolderOpen className="size-4" /> : <FolderClosed className="size-4" />}
           </IconTooltip>
         </div>
       </div>

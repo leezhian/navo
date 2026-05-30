@@ -5,7 +5,7 @@ import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { mockSessions } from "./domain/mockData";
-import type { CompareMode, ReviewSession, ReviewSummary } from "./domain/types";
+import type { CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
 import { loadLocalBranches, loadReviewDiff, mockSummary } from "./services/reviewApi";
 import "./App.css";
@@ -23,22 +23,40 @@ function App() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [isReviewLoading, setIsReviewLoading] = useState(false);
   const [localBranches, setLocalBranches] = useState<string[]>(["main", "master"]);
+  const [compareModeFileCounts, setCompareModeFileCounts] = useState<CompareModeFileCounts>({});
 
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
   const orderedSessions = useOrderedSessions(sessions);
   const shouldPlaceWindowControlsInReviewToolbar = !isSessionSidebarVisible && !showSettings && Boolean(selectedSession);
 
+  const refreshCompareModeFileCounts = useCallback(() => {
+    if (!selectedSession) {
+      setCompareModeFileCounts({});
+      return;
+    }
+
+    loadCompareModeFileCounts(selectedSession.projectPath, settings.targetBranch)
+      .then(setCompareModeFileCounts)
+      .catch(() => setCompareModeFileCounts({}));
+  }, [selectedSession, settings.targetBranch]);
+
   const refreshReview = useCallback(() => {
     if (!selectedSession) {
+      setCompareModeFileCounts({});
       return;
     }
 
     setIsReviewLoading(true);
     setReviewError(null);
+    refreshCompareModeFileCounts();
 
     loadReviewDiff(selectedSession.projectPath, compareMode, settings.targetBranch)
       .then((summary) => {
         const nextSummary = summary.fileCount > 0 ? summary : mockSummary();
+        if (isTrackedFileCountMode(compareMode)) {
+          setCompareModeFileCounts((current) => ({ ...current, [compareMode]: summary.fileCount }));
+        }
+
         setReviewSummary(nextSummary);
         setSelectedFileId(nextSummary.files[0]?.id ?? null);
         setCollapsedFileIds(new Set(nextSummary.files.filter((file) => file.isLarge).map((file) => file.id)));
@@ -49,7 +67,7 @@ function App() {
       .finally(() => {
         setIsReviewLoading(false);
       });
-  }, [compareMode, selectedSession, settings.targetBranch]);
+  }, [compareMode, refreshCompareModeFileCounts, selectedSession, settings.targetBranch]);
 
   useEffect(() => {
     refreshReview();
@@ -125,6 +143,7 @@ function App() {
                 <ReviewWorkspace
                   collapsedFileIds={collapsedFileIds}
                   compareMode={compareMode}
+                  compareModeFileCounts={compareModeFileCounts}
                   isLoading={isReviewLoading}
                   localBranches={localBranches}
                   reviewError={reviewError}
@@ -186,6 +205,25 @@ function toggleAllFiles(current: Set<string>, summary: ReviewSummary | null) {
   const allFileIds = summary.files.map((file) => file.id);
   const allCollapsed = allFileIds.length > 0 && allFileIds.every((fileId) => current.has(fileId));
   return allCollapsed ? new Set<string>() : new Set(allFileIds);
+}
+
+function isTrackedFileCountMode(mode: CompareMode) {
+  return mode === "unstaged" || mode === "staged";
+}
+
+async function loadCompareModeFileCounts(
+  projectPath: string,
+  targetBranch: string,
+): Promise<CompareModeFileCounts> {
+  const [unstagedSummary, stagedSummary] = await Promise.all([
+    loadReviewDiff(projectPath, "unstaged", targetBranch),
+    loadReviewDiff(projectPath, "staged", targetBranch),
+  ]);
+
+  return {
+    unstaged: unstagedSummary.fileCount,
+    staged: stagedSummary.fileCount,
+  };
 }
 
 export default App;

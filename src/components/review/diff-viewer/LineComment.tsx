@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import type { DiffLine } from "@/domain/types";
 import { MessageCircle, Plus } from "lucide-react";
+import classNames from "classnames";
 import type { FormEvent } from "react";
 
 export type CommentSide = "old" | "new" | "unified";
@@ -8,12 +9,23 @@ export type CommentSide = "old" | "new" | "unified";
 interface LineNumberCellProps {
   commentId: string | null;
   lineNumber: number | null | undefined;
+  stickyClassName?: string;
   onCommentOpen: (commentId: string | null) => void;
 }
 
-export function LineNumberCell({ commentId, lineNumber, onCommentOpen }: LineNumberCellProps) {
+export function LineNumberCell({
+  commentId,
+  lineNumber,
+  stickyClassName = "left-0",
+  onCommentOpen,
+}: LineNumberCellProps) {
   return (
-    <span className="relative select-none border-r text-right text-muted-foreground">
+    <span
+      className={classNames(
+        "sticky z-10 select-none border-r border-border/40 bg-inherit text-right text-muted-foreground",
+        stickyClassName,
+      )}
+    >
       <span className="block pr-3">{lineNumber ?? ""}</span>
       {commentId && (
         <button

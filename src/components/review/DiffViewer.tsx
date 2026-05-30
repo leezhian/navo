@@ -69,7 +69,7 @@ function DiffFileView({
   return (
     <article className="group/file" id={`diff-file-${file.id}`}>
       <div
-        className="flex min-h-9 w-full cursor-default items-center justify-between gap-4 px-5.5 text-left hover:bg-muted/50"
+        className="sticky top-0 z-20 flex min-h-9 w-full cursor-default items-center justify-between gap-4 bg-background px-5.5 text-left hover:bg-muted"
         role="button"
         tabIndex={0}
         onKeyDown={handleHeaderKeyDown}
@@ -134,10 +134,14 @@ function renderFileBody(
     return <div className="p-7 text-muted-foreground">二进制文件不展示代码 diff。</div>;
   }
 
-  return viewMode === "split" ? (
-    <SplitDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
-  ) : (
-    <UnifiedDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
+  return (
+    <div className="overflow-x-auto overscroll-x-none">
+      {viewMode === "split" ? (
+        <SplitDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
+      ) : (
+        <UnifiedDiff activeCommentId={activeCommentId} file={file} onCommentOpen={onCommentOpen} />
+      )}
+    </div>
   );
 }
 
@@ -151,7 +155,7 @@ function UnifiedDiff({
   onCommentOpen: (commentId: string | null) => void;
 }) {
   return (
-    <div>
+    <div className="inline-block min-w-full">
       {file.hunks.map((hunk) => (
         <div className="font-mono text-xs leading-[22px]" key={hunk.id}>
           <FoldRow count={hunk.leadingContext} />
@@ -181,7 +185,7 @@ function SplitDiff({
   onCommentOpen: (commentId: string | null) => void;
 }) {
   return (
-    <div>
+    <div className="inline-block min-w-full">
       {file.hunks.map((hunk) => (
         <div className="font-mono text-xs leading-[22px]" key={hunk.id}>
           <div className="grid grid-cols-2">
@@ -189,7 +193,10 @@ function SplitDiff({
             <FoldRow count={hunk.leadingContext} />
           </div>
           {pairSplitLines(hunk.lines).map((row) => (
-            <div className="grid grid-cols-2" key={row.id}>
+            <div
+              className="split-diff-row grid w-full min-w-max grid-cols-[minmax(max-content,1fr)_minmax(max-content,1fr)]"
+              key={row.id}
+            >
               <SplitCell
                 activeCommentId={activeCommentId}
                 fileId={file.id}
@@ -237,7 +244,7 @@ function UnifiedLine({
           lineNumber={line.newLineNumber ?? line.oldLineNumber}
           onCommentOpen={onCommentOpen}
         />
-        <code className="min-w-0 overflow-hidden pl-4 font-mono whitespace-pre">{line.content}</code>
+        <code className="min-w-0 pl-4 font-mono whitespace-pre">{line.content}</code>
       </div>
       {activeCommentId === commentId && (
         <LocalCommentBox lineLabel={getCommentLineLabel(line, "unified")} onCancel={() => onCommentOpen(null)} />
@@ -267,9 +274,10 @@ function SplitCell({
         <LineNumberCell
           commentId={commentId}
           lineNumber={side === "old" ? line?.oldLineNumber ?? null : line?.newLineNumber ?? null}
+          stickyClassName={side === "old" ? "left-0" : "left-1/2"}
           onCommentOpen={onCommentOpen}
         />
-        <code className="min-w-0 overflow-hidden pl-4 font-mono whitespace-pre">{line?.content ?? ""}</code>
+        <code className="min-w-0 pl-4 font-mono whitespace-pre">{line?.content ?? ""}</code>
       </div>
       {line && commentId && activeCommentId === commentId && (
         <LocalCommentBox lineLabel={getCommentLineLabel(line, side)} onCancel={() => onCommentOpen(null)} />

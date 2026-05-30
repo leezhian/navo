@@ -42,8 +42,9 @@ export function getReviewLayoutStyle(isFileTreeVisible: boolean, fileTreeWidth: 
 
 export function getReviewPaneClassName(isFileTreeVisible: boolean, wrapDiffLines: boolean) {
   return classNames(
-    "min-w-0 overflow-auto bg-background",
+    "min-w-0 overflow-auto overscroll-none bg-background",
     isFileTreeVisible && "border-r",
-    wrapDiffLines && "[&_code]:whitespace-pre-wrap [&_code]:break-words",
+    wrapDiffLines &&
+      "[&_.diff-code-line]:min-w-0 [&_.diff-code-line]:grid-cols-[52px_minmax(0,1fr)] [&_.split-diff-row]:min-w-0 [&_.split-diff-row]:grid-cols-2 [&_code]:whitespace-pre-wrap [&_code]:break-words",
   );
 }

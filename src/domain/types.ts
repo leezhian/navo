@@ -2,6 +2,8 @@ export type AgentType = "Claude Code" | "Codex" | "OpenCode" | "Qoder";
 
 export type CompareMode = "unstaged" | "staged" | "branch" | "previous-session";
 
+export type CompareModeFileCounts = Partial<Record<CompareMode, number>>;
+
 export type DiffViewMode = "unified" | "split";
 
 export type ReadingMode = "continuous" | "single-file";
@@ -76,4 +78,3 @@ export interface ReviewSummary {
   fileCount: number;
   isLargeDiff: boolean;
 }
-

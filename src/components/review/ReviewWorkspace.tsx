@@ -2,7 +2,14 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { buildFileTree } from "@/domain/fileTree";
-import type { AppSettings, CompareMode, DiffFile, ReviewSession, ReviewSummary } from "@/domain/types";
+import type {
+  AppSettings,
+  CompareMode,
+  CompareModeFileCounts,
+  DiffFile,
+  ReviewSession,
+  ReviewSummary,
+} from "@/domain/types";
 import { DiffViewer } from "./DiffViewer";
 import { FileTree } from "./FileTree";
 import { ReviewToolbar } from "./ReviewToolbar";
@@ -21,6 +28,7 @@ import { StateBlock } from "./StateBlock";
 interface ReviewWorkspaceProps {
   collapsedFileIds: Set<string>;
   compareMode: CompareMode;
+  compareModeFileCounts: CompareModeFileCounts;
   isLoading: boolean;
   localBranches: string[];
   reviewError: string | null;
@@ -41,6 +49,7 @@ interface ReviewWorkspaceProps {
 export function ReviewWorkspace({
   collapsedFileIds,
   compareMode,
+  compareModeFileCounts,
   isLoading,
   localBranches,
   reviewError,
@@ -72,6 +81,7 @@ export function ReviewWorkspace({
     <section className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr]">
       <ReviewToolbar
         compareMode={compareMode}
+        compareModeFileCounts={compareModeFileCounts}
         isFileTreeVisible={isFileTreeVisible}
         isAllCollapsed={isAllCollapsed}
         localBranches={localBranches}

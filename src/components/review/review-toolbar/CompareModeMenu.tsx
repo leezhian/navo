@@ -5,16 +5,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CompareMode } from "@/domain/types";
+import type { CompareMode, CompareModeFileCounts } from "@/domain/types";
 import { Check, ChevronDown } from "lucide-react";
 import { compareModeLabels } from "./constants";
 
 interface CompareModeMenuProps {
   compareMode: CompareMode;
+  fileCounts?: CompareModeFileCounts;
   onCompareModeChange: (mode: CompareMode) => void;
 }
 
-export function CompareModeMenu({ compareMode, onCompareModeChange }: CompareModeMenuProps) {
+export function CompareModeMenu({ compareMode, fileCounts, onCompareModeChange }: CompareModeMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -24,17 +25,45 @@ export function CompareModeMenu({ compareMode, onCompareModeChange }: CompareMod
           variant="ghost"
         >
           <span>{compareModeLabels[compareMode]}</span>
+          <CompareModeFileCountBadge count={getVisibleFileCount(compareMode, fileCounts)} />
           <ChevronDown className="size-3.5 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-36">
+      <DropdownMenuContent align="start" className="w-40">
         {Object.entries(compareModeLabels).map(([value, label]) => (
-          <DropdownMenuItem key={value} onSelect={() => onCompareModeChange(value as CompareMode)}>
+          <DropdownMenuItem
+            className="gap-2"
+            key={value}
+            onSelect={() => onCompareModeChange(value as CompareMode)}
+          >
             <span>{label}</span>
-            {compareMode === value && <Check className="ml-auto size-4" />}
+            <span className="ml-auto inline-flex items-center gap-2">
+              <CompareModeFileCountBadge count={getVisibleFileCount(value as CompareMode, fileCounts)} />
+              {compareMode === value && <Check className="size-4" />}
+            </span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function CompareModeFileCountBadge({ count }: { count?: number }) {
+  if (!count || count <= 0) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex h-5 min-w-6 items-center justify-center rounded-md bg-muted px-1.5 text-xs leading-none text-muted-foreground">
+      {count}
+    </span>
+  );
+}
+
+function getVisibleFileCount(mode: CompareMode, fileCounts?: CompareModeFileCounts) {
+  if (mode !== "unstaged" && mode !== "staged") {
+    return undefined;
+  }
+
+  return fileCounts?.[mode];
 }
