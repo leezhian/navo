@@ -40,7 +40,7 @@ export function PierreDiffFile({
         fileDiff={file.pierreFile}
         lineAnnotations={lineAnnotations}
         options={{
-          diffIndicators: "none",
+          diffIndicators: "bars",
           diffStyle: viewMode === "split" ? "split" : "unified",
           disableFileHeader: true,
           enableGutterUtility: true,
@@ -49,8 +49,8 @@ export function PierreDiffFile({
           lineHoverHighlight: "both",
           overflow: wrapDiffLines ? "wrap" : "scroll",
           theme: {
-            dark: "pierre-dark",
-            light: "pierre-light",
+            dark: "github-dark",
+            light: "github-light",
           },
           themeType: "system",
           tokenizeMaxLineLength: 3000,

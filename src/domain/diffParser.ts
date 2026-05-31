@@ -1,14 +1,34 @@
-import { parsePatchFiles } from "@pierre/diffs";
-import type { ChangeTypes, FileDiffMetadata } from "@pierre/diffs";
+import { parsePatchFiles, processFile } from "@pierre/diffs";
+import type { ChangeTypes, FileContents, FileDiffMetadata } from "@pierre/diffs";
 import type { DiffFile, FileStatus, ReviewSummary } from "./types";
 
 const LARGE_FILE_LINE_THRESHOLD = 3000;
 const LARGE_DIFF_LINE_THRESHOLD = 6000;
 
-export function parseGitDiff(rawDiff: string, cacheKeyPrefix = "review-diff"): ReviewSummary {
+export interface GitFileSnapshot {
+  old_path: string | null;
+  new_path: string | null;
+  old_content: string | null;
+  new_content: string | null;
+}
+
+export function parseGitDiff(
+  rawDiff: string,
+  cacheKeyPrefix = "review-diff",
+  fileSnapshots: GitFileSnapshot[] = [],
+): ReviewSummary {
   const parsedPatches = parsePatchFiles(rawDiff, cacheKeyPrefix);
+  const rawDiffFiles = splitRawDiffFiles(rawDiff);
+  const snapshotMap = createSnapshotMap(fileSnapshots);
   const binaryFilePaths = getBinaryFilePaths(rawDiff);
-  const files = parsedPatches.flatMap((patch) => patch.files.map((file) => toDiffFile(file, binaryFilePaths)));
+  const files = parsedPatches.flatMap((patch) =>
+    patch.files.map((file, fileIndex) =>
+      toDiffFile(
+        resolveExpandablePierreFile(file, rawDiffFiles[fileIndex], snapshotMap, `${cacheKeyPrefix}-${fileIndex}`),
+        binaryFilePaths,
+      ),
+    ),
+  );
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
   const totalLines = files.reduce((sum, file) => sum + getRenderedLineCount(file.pierreFile), 0);
@@ -20,6 +40,63 @@ export function parseGitDiff(rawDiff: string, cacheKeyPrefix = "review-diff"): R
     fileCount: files.length,
     isLargeDiff: totalLines > LARGE_DIFF_LINE_THRESHOLD || files.some((file) => file.isLarge),
   };
+}
+
+function resolveExpandablePierreFile(
+  fallbackFile: FileDiffMetadata,
+  rawDiffFile: string | undefined,
+  snapshotMap: Map<string, GitFileSnapshot>,
+  cacheKey: string,
+) {
+  if (!rawDiffFile) {
+    return fallbackFile;
+  }
+
+  const snapshot = snapshotMap.get(fallbackFile.name) ?? snapshotMap.get(fallbackFile.prevName ?? "");
+
+  if (!snapshot || snapshot.old_content == null || snapshot.new_content == null) {
+    return fallbackFile;
+  }
+
+  // Pierre 只有拿到完整的新旧文件内容时，才能展开 diff 中折叠的未修改行。
+  return (
+    processFile(rawDiffFile, {
+      cacheKey,
+      isGitDiff: true,
+      newFile: createFileContents(snapshot.new_path ?? fallbackFile.name, snapshot.new_content),
+      oldFile: createFileContents(snapshot.old_path ?? fallbackFile.prevName ?? fallbackFile.name, snapshot.old_content),
+    }) ?? fallbackFile
+  );
+}
+
+function createFileContents(name: string, contents: string): FileContents {
+  return { name, contents };
+}
+
+function createSnapshotMap(fileSnapshots: GitFileSnapshot[]) {
+  const snapshotMap = new Map<string, GitFileSnapshot>();
+
+  for (const snapshot of fileSnapshots) {
+    if (snapshot.new_path) {
+      snapshotMap.set(snapshot.new_path, snapshot);
+    }
+    if (snapshot.old_path) {
+      snapshotMap.set(snapshot.old_path, snapshot);
+    }
+  }
+
+  return snapshotMap;
+}
+
+function splitRawDiffFiles(rawDiff: string) {
+  const firstFileIndex = rawDiff.startsWith("diff --git ") ? 0 : rawDiff.indexOf("\ndiff --git ");
+
+  if (firstFileIndex < 0) {
+    return [];
+  }
+
+  const diffOnly = rawDiff.slice(firstFileIndex === 0 ? 0 : firstFileIndex + 1);
+  return diffOnly.split(/\n(?=diff --git )/);
 }
 
 function toDiffFile(pierreFile: FileDiffMetadata, binaryFilePaths: Set<string>): DiffFile {

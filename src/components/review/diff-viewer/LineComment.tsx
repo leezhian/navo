@@ -53,7 +53,7 @@ export function LocalCommentButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       aria-label="添加本地评论"
-      className="relative z-30 flex size-[22px] items-center justify-center rounded bg-foreground text-background shadow-sm hover:bg-foreground/90"
+      className="relative z-30 flex size-[1lh] items-center justify-center rounded bg-foreground text-background shadow-sm hover:bg-foreground/90"
       type="button"
       onClick={(event) => {
         event.stopPropagation();

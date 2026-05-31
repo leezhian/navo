@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { parseGitDiff } from "../domain/diffParser";
+import { parseGitDiff, type GitFileSnapshot } from "../domain/diffParser";
 import { mockRawDiff } from "../domain/mockData";
 import type { CompareMode, ReviewSummary } from "../domain/types";
 
 interface GitCommandOutput {
   stdout: string;
   stderr: string;
+  file_snapshots?: GitFileSnapshot[];
 }
 
 export async function loadReviewDiff(
@@ -24,7 +25,7 @@ export async function loadReviewDiff(
       return emptySummary();
     }
 
-    return parseGitDiff(output.stdout, `${projectPath}-${mode}-${targetBranch}`);
+    return parseGitDiff(output.stdout, `${projectPath}-${mode}-${targetBranch}`, output.file_snapshots);
   } catch (error) {
     if (isBrowserDevError(error)) {
       return mockSummary();
