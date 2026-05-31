@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { parseGitDiff } from "../domain/diffParser";
-import { mockDiffFiles } from "../domain/mockData";
+import { mockRawDiff } from "../domain/mockData";
 import type { CompareMode, ReviewSummary } from "../domain/types";
 
 interface GitCommandOutput {
@@ -24,7 +24,7 @@ export async function loadReviewDiff(
       return emptySummary();
     }
 
-    return parseGitDiff(output.stdout);
+    return parseGitDiff(output.stdout, `${projectPath}-${mode}-${targetBranch}`);
   } catch (error) {
     if (isBrowserDevError(error)) {
       return mockSummary();
@@ -48,13 +48,7 @@ export async function loadLocalBranches(projectPath: string): Promise<string[]> 
 }
 
 export function mockSummary(): ReviewSummary {
-  return {
-    files: mockDiffFiles,
-    additions: mockDiffFiles.reduce((sum, file) => sum + file.additions, 0),
-    deletions: mockDiffFiles.reduce((sum, file) => sum + file.deletions, 0),
-    fileCount: mockDiffFiles.length,
-    isLargeDiff: false,
-  };
+  return parseGitDiff(mockRawDiff, "mock-review-diff");
 }
 
 function emptySummary(): ReviewSummary {

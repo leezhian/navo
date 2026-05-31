@@ -1,3 +1,5 @@
+import type { FileDiffMetadata } from "@pierre/diffs";
+
 export type AgentType = "Claude Code" | "Codex" | "OpenCode" | "Qoder";
 
 export type CompareMode = "unstaged" | "staged" | "branch" | "previous-session";
@@ -40,24 +42,6 @@ export interface AppSettings {
   targetBranch: string;
 }
 
-export interface DiffLine {
-  id: string;
-  type: "context" | "add" | "delete";
-  oldLineNumber: number | null;
-  newLineNumber: number | null;
-  content: string;
-}
-
-export interface DiffHunk {
-  id: string;
-  oldStart: number;
-  newStart: number;
-  header: string;
-  lines: DiffLine[];
-  leadingContext: number;
-  trailingContext: number;
-}
-
 export interface DiffFile {
   id: string;
   oldPath: string | null;
@@ -68,7 +52,7 @@ export interface DiffFile {
   deletions: number;
   isBinary: boolean;
   isLarge: boolean;
-  hunks: DiffHunk[];
+  pierreFile: FileDiffMetadata;
 }
 
 export interface ReviewSummary {

@@ -1,49 +1,19 @@
 import { Button } from "@/components/ui/button";
-import type { DiffLine } from "@/domain/types";
 import { MessageCircle, Plus } from "lucide-react";
-import classNames from "classnames";
 import type { FormEvent } from "react";
 
-export type CommentSide = "old" | "new" | "unified";
+export type CommentSide = "deletions" | "additions";
 
-interface LineNumberCellProps {
-  commentId: string | null;
-  lineNumber: number | null | undefined;
-  stickyClassName?: string;
-  onCommentOpen: (commentId: string) => void;
-}
-
-export function LineNumberCell({
-  commentId,
-  lineNumber,
-  stickyClassName = "left-0",
-  onCommentOpen,
-}: LineNumberCellProps) {
-  return (
-    <span
-      className={classNames(
-        "sticky z-10 select-none border-r border-border/40 bg-inherit text-right text-muted-foreground",
-        stickyClassName,
-      )}
-    >
-      <span className="block pr-3">{lineNumber ?? ""}</span>
-      {commentId && (
-        <button
-          aria-label="添加本地评论"
-          className="absolute top-0 right-1 z-10 hidden size-[22px] items-center justify-center rounded bg-foreground text-background shadow-sm hover:bg-foreground/90 group-hover/line:flex"
-          type="button"
-          onClick={() => onCommentOpen(commentId)}
-        >
-          <Plus className="size-3.5" />
-        </button>
-      )}
-    </span>
-  );
+export interface LocalCommentMetadata {
+  id: string;
+  lineNumber: number;
+  lineLabel: string;
+  side: CommentSide;
 }
 
 export function LocalCommentBox({ lineLabel, onCancel }: { lineLabel: string; onCancel: () => void }) {
   return (
-    <div className="bg-blue-100/70 py-2 pr-2 pl-[60px] dark:bg-blue-950/40">
+    <div className="bg-blue-100/70 p-2 dark:bg-blue-950/40">
       <div className="overflow-hidden rounded-xl bg-background shadow-sm">
         <div className="flex h-12 items-center justify-between border-b border-border/50 px-4">
           <div className="flex items-center gap-2.5 font-sans text-sm font-medium">
@@ -79,18 +49,44 @@ function resizeCommentTextarea(event: FormEvent<HTMLTextAreaElement>) {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-export function getLineCommentId(fileId: string, line: DiffLine, side: CommentSide) {
-  return `${fileId}:${side}:${line.id}`;
+export function LocalCommentButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      aria-label="添加本地评论"
+      className="relative z-30 flex size-[22px] items-center justify-center rounded bg-foreground text-background shadow-sm hover:bg-foreground/90"
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
+      <Plus className="size-3.5" />
+    </button>
+  );
 }
 
-export function getCommentLineLabel(line: DiffLine, side: CommentSide) {
-  if (side === "unified") {
-    const isOldSideLine = line.type === "delete";
-    const lineNumber = isOldSideLine ? line.oldLineNumber : line.newLineNumber ?? line.oldLineNumber;
-    return `${isOldSideLine ? "L" : "R"}${lineNumber ?? "-"}`;
+export function getLineCommentId(fileId: string, side: CommentSide, lineNumber: number) {
+  return `${fileId}:${side}:${lineNumber}`;
+}
+
+export function getCommentLineLabel(side: CommentSide, lineNumber: number) {
+  return `${side === "deletions" ? "L" : "R"}${lineNumber}`;
+}
+
+export function parseLineCommentId(commentId: string): LocalCommentMetadata | null {
+  const parts = commentId.split(":");
+  const side = parts[parts.length - 2];
+  const rawLineNumber = parts[parts.length - 1];
+  const lineNumber = Number(rawLineNumber);
+
+  if ((side !== "deletions" && side !== "additions") || !Number.isFinite(lineNumber)) {
+    return null;
   }
 
-  const lineNumber = side === "old" ? line.oldLineNumber : line.newLineNumber;
-  const prefix = side === "old" ? "L" : "R";
-  return `${prefix}${lineNumber ?? "-"}`;
+  return {
+    id: commentId,
+    lineNumber,
+    lineLabel: getCommentLineLabel(side, lineNumber),
+    side,
+  };
 }

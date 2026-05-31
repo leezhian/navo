@@ -1,4 +1,4 @@
-import type { AppSettings, DiffFile, ReviewSession } from "./types";
+import type { AppSettings, ReviewSession } from "./types";
 
 export const defaultSettings: AppSettings = {
   enabledAgents: {
@@ -68,174 +68,36 @@ export const mockSessions: ReviewSession[] = [
   },
 ];
 
-export const mockDiffFiles: DiffFile[] = [
-  {
-    id: "workspaces-web-pages-components-pagecontainer-index-scss",
-    oldPath: "workspaces/web/pages/@components/PageContainer/index.scss",
-    newPath: "workspaces/web/pages/@components/PageContainer/index.scss",
-    displayPath: "workspaces/web/pages/@components/PageContainer/index.scss",
-    status: "modified",
-    additions: 1,
-    deletions: 1,
-    isBinary: false,
-    isLarge: false,
-    hunks: [
-      {
-        id: "scss-hunk-1",
-        oldStart: 1,
-        newStart: 1,
-        header: "@@ -1,3 +1,3 @@",
-        leadingContext: 0,
-        trailingContext: 0,
-        lines: [
-          {
-            id: "scss-delete-1",
-            type: "delete",
-            oldLineNumber: 1,
-            newLineNumber: null,
-            content: ".page-container {",
-          },
-          {
-            id: "scss-add-1",
-            type: "add",
-            oldLineNumber: null,
-            newLineNumber: 1,
-            content: ".page-container--show-footer {",
-          },
-          {
-            id: "scss-context-2",
-            type: "context",
-            oldLineNumber: 2,
-            newLineNumber: 2,
-            content: "  padding-bottom: 56px;",
-          },
-          {
-            id: "scss-context-3",
-            type: "context",
-            oldLineNumber: 3,
-            newLineNumber: 3,
-            content: "}",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "workspaces-web-pages-components-pagecontainer-index-tsx",
-    oldPath: "workspaces/web/pages/@components/PageContainer/index.tsx",
-    newPath: "workspaces/web/pages/@components/PageContainer/index.tsx",
-    displayPath: "workspaces/web/pages/@components/PageContainer/index.tsx",
-    status: "modified",
-    additions: 5,
-    deletions: 3,
-    isBinary: false,
-    isLarge: false,
-    hunks: [
-      {
-        id: "tsx-hunk-1",
-        oldStart: 65,
-        newStart: 65,
-        header: "@@ -65,7 +65,9 @@",
-        leadingContext: 64,
-        trailingContext: 30,
-        lines: [
-          {
-            id: "tsx-context-65",
-            type: "context",
-            oldLineNumber: 65,
-            newLineNumber: 65,
-            content: "const headerProps = getHeaderProps(props);",
-          },
-          {
-            id: "tsx-context-66",
-            type: "context",
-            oldLineNumber: 66,
-            newLineNumber: 66,
-            content: "return (",
-          },
-          {
-            id: "tsx-delete-68",
-            type: "delete",
-            oldLineNumber: 68,
-            newLineNumber: null,
-            content: "<div className={classNames('page-container', className)}>",
-          },
-          {
-            id: "tsx-add-68",
-            type: "add",
-            oldLineNumber: null,
-            newLineNumber: 68,
-            content:
-              "<div className={classNames('page-container', { 'page-container--show-footer': showFooter }, className)}>",
-          },
-          {
-            id: "tsx-context-69",
-            type: "context",
-            oldLineNumber: 69,
-            newLineNumber: 69,
-            content: "{headerProps && <PageHeader {...headerProps} />}",
-          },
-          {
-            id: "tsx-context-70",
-            type: "context",
-            oldLineNumber: 70,
-            newLineNumber: 70,
-            content: "{children}",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "src-tauri-src-lib-rs",
-    oldPath: "src-tauri/src/lib.rs",
-    newPath: "src-tauri/src/lib.rs",
-    displayPath: "src-tauri/src/lib.rs",
-    status: "modified",
-    additions: 44,
-    deletions: 8,
-    isBinary: false,
-    isLarge: false,
-    hunks: [
-      {
-        id: "rust-hunk-1",
-        oldStart: 1,
-        newStart: 1,
-        header: "@@ -1,5 +1,8 @@",
-        leadingContext: 2,
-        trailingContext: 6,
-        lines: [
-          {
-            id: "rust-delete-1",
-            type: "delete",
-            oldLineNumber: 1,
-            newLineNumber: null,
-            content: "fn greet(name: &str) -> String {",
-          },
-          {
-            id: "rust-add-1",
-            type: "add",
-            oldLineNumber: null,
-            newLineNumber: 1,
-            content: "fn run_git_diff(project_path: String, mode: String) -> Result<String, String> {",
-          },
-          {
-            id: "rust-add-2",
-            type: "add",
-            oldLineNumber: null,
-            newLineNumber: 2,
-            content: "    run_git(project_path, mode)",
-          },
-          {
-            id: "rust-context-3",
-            type: "context",
-            oldLineNumber: 3,
-            newLineNumber: 3,
-            content: "}",
-          },
-        ],
-      },
-    ],
-  },
-];
-
+export const mockRawDiff = `diff --git a/workspaces/web/pages/@components/PageContainer/index.scss b/workspaces/web/pages/@components/PageContainer/index.scss
+index 91d43a2..c7a9e15 100644
+--- a/workspaces/web/pages/@components/PageContainer/index.scss
++++ b/workspaces/web/pages/@components/PageContainer/index.scss
+@@ -1,3 +1,3 @@
+-.page-container {
++.page-container--show-footer {
+   padding-bottom: 56px;
+ }
+diff --git a/workspaces/web/pages/@components/PageContainer/index.tsx b/workspaces/web/pages/@components/PageContainer/index.tsx
+index 120a4ac..f37e9bd 100644
+--- a/workspaces/web/pages/@components/PageContainer/index.tsx
++++ b/workspaces/web/pages/@components/PageContainer/index.tsx
+@@ -65,6 +65,6 @@
+ const headerProps = getHeaderProps(props);
+ return (
+-<div className={classNames('page-container', className)}>
++<div className={classNames('page-container', { 'page-container--show-footer': showFooter }, className)}>
+ {headerProps && <PageHeader {...headerProps} />}
+ {children}
+ )
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index f7a5a2a..34c4d3b 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -1,4 +1,5 @@
+-fn greet(name: &str) -> String {
++fn run_git_diff(project_path: String, mode: String) -> Result<String, String> {
++    run_git(project_path, mode)
+ }
+${" "}
+ fn run_git(project_path: String, mode: String) -> Result<String, String> {
+`;

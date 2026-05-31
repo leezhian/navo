@@ -101,7 +101,7 @@ export function ReviewWorkspace({
         className={getReviewLayoutClassName()}
         transition={isResizing ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
       >
-        <section className={getReviewPaneClassName(isFileTreeVisible, settings.wrapDiffLines)}>
+        <section className={getReviewPaneClassName(isFileTreeVisible)}>
           {summary?.isLargeDiff && (
             <div className="flex h-7 items-center bg-amber-50 px-5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               检测到大量差异：每次仅显示一个文件。
