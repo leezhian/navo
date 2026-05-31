@@ -2,7 +2,7 @@ export const pierreDiffUnsafeCss = `
 :host {
   --diffs-font-size: 12px;
   --diffs-gap-block: 0px;
-  --diffs-gap-inline: 0px;
+  --diffs-gap-inline: 8px;
   --diffs-bg: var(--background);
   --diffs-light-bg: var(--background);
   --diffs-dark-bg: var(--background);
@@ -20,6 +20,10 @@ export const pierreDiffUnsafeCss = `
   overflow-y: clip;
   position: relative;
   z-index: 0;
+}
+
+[data-diffs-header="custom"][data-sticky] {
+  background: var(--background);
 }
 
 [data-gutter] [data-gutter-buffer],

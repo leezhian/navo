@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { AppSettings, CompareMode, DiffFile } from "../../domain/types";
 import { parseLineCommentId } from "./diff-viewer/LineComment";
-import { DiffFileHeader } from "./diff-viewer/DiffFileHeader";
 import { PierreDiffFile, type LocalCommentAnnotation } from "./diff-viewer/PierreDiffFile";
 import { FileContextMenu } from "./file-actions/FileContextMenu";
 
@@ -98,17 +97,17 @@ function DiffFileView({
       onToggleWrap={onToggleWrap}
     >
       <article className="group/file" id={`diff-file-${file.id}`}>
-        <DiffFileHeader collapsed={collapsed} compareMode={compareMode} file={file} onToggle={onToggle} />
-        {!collapsed && (
-          <PierreDiffFile
-            file={file}
-            lineAnnotations={lineAnnotations}
-            viewMode={viewMode}
-            wrapDiffLines={wrapDiffLines}
-            onCommentClose={onCommentClose}
-            onCommentOpen={onCommentOpen}
-          />
-        )}
+        <PierreDiffFile
+          collapsed={collapsed}
+          compareMode={compareMode}
+          file={file}
+          lineAnnotations={lineAnnotations}
+          viewMode={viewMode}
+          wrapDiffLines={wrapDiffLines}
+          onCommentClose={onCommentClose}
+          onCommentOpen={onCommentOpen}
+          onToggle={onToggle}
+        />
       </article>
     </FileContextMenu>
   );

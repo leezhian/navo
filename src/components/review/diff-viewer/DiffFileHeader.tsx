@@ -23,16 +23,18 @@ export function DiffFileHeader({ collapsed, compareMode, file, onToggle }: DiffF
 
   return (
     <div
-      className="sticky top-0 z-20 flex min-h-9 w-full cursor-default items-center justify-between gap-4 bg-background px-5.5 text-left"
+      className="flex min-h-9 w-full cursor-default items-center justify-between gap-4 bg-background pr-5.5 pl-2 text-left transition-colors hover:bg-muted/45"
       role="button"
       tabIndex={0}
       onClick={onToggle}
       onKeyDown={handleKeyDown}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <ChevronDown
-          className={classNames("size-4 shrink-0 transition-transform duration-150", !collapsed && "-rotate-180")}
-        />
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+          <ChevronDown
+            className={classNames("size-4 transition-transform duration-150", !collapsed && "-rotate-180")}
+          />
+        </span>
         <span className="truncate text-sm">{file.displayPath}</span>
       </div>
       <div className="flex shrink-0 items-center gap-2 text-xs">
