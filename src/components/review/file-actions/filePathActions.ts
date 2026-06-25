@@ -1,5 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
-
 export function getFullPath(projectPath: string, filePath: string) {
   return `${projectPath.replace(/\/$/, "")}/${filePath}`;
 }
@@ -9,5 +7,5 @@ export function copyFilePath(filePath: string) {
 }
 
 export function openFileInVsCode(projectPath: string, filePath: string) {
-  void invoke("open_file_in_vscode", { projectPath, filePath });
+  void window.vibeReviewer.review.openFileInVsCode({ projectPath, filePath });
 }

@@ -1,13 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
-import { parseGitDiff, type GitFileSnapshot } from "../domain/diffParser";
+import { parseGitDiff } from "../domain/diffParser";
 import { mockRawDiff } from "../domain/mockData";
 import type { CompareMode, ReviewSummary } from "../domain/types";
-
-interface GitCommandOutput {
-  stdout: string;
-  stderr: string;
-  file_snapshots?: GitFileSnapshot[];
-}
 
 export async function loadReviewDiff(
   projectPath: string,
@@ -15,7 +8,7 @@ export async function loadReviewDiff(
   targetBranch: string,
 ): Promise<ReviewSummary> {
   try {
-    const output = await invoke<GitCommandOutput>("run_git_diff", {
+    const output = await window.vibeReviewer.review.runGitDiff({
       projectPath,
       mode,
       targetBranch,
@@ -27,7 +20,7 @@ export async function loadReviewDiff(
 
     return parseGitDiff(output.stdout, `${projectPath}-${mode}-${targetBranch}`, output.file_snapshots);
   } catch (error) {
-    if (isBrowserDevError(error)) {
+    if (isElectronApiUnavailable(error)) {
       return mockSummary();
     }
 
@@ -37,10 +30,10 @@ export async function loadReviewDiff(
 
 export async function loadLocalBranches(projectPath: string): Promise<string[]> {
   try {
-    const branches = await invoke<string[]>("git_branches", { projectPath });
+    const branches = await window.vibeReviewer.review.loadLocalBranches(projectPath);
     return branches.length > 0 ? branches : ["main", "master"];
   } catch (error) {
-    if (isBrowserDevError(error)) {
+    if (isElectronApiUnavailable(error)) {
       return ["main", "master", "feature/review-ui", "live-play-route"];
     }
 
@@ -62,11 +55,7 @@ function emptySummary(): ReviewSummary {
   };
 }
 
-function isBrowserDevError(error: unknown) {
+function isElectronApiUnavailable(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes("__TAURI_INTERNALS__") ||
-    message.includes("not found") ||
-    message.includes("is not a function")
-  );
+  return message.includes("vibeReviewer") || message.includes("is not a function");
 }

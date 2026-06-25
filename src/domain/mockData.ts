@@ -89,15 +89,15 @@ index 120a4ac..f37e9bd 100644
  {headerProps && <PageHeader {...headerProps} />}
  {children}
  )
-diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+diff --git a/src/main-process/ipc/reviewHandlers.ts b/src/main-process/ipc/reviewHandlers.ts
 index f7a5a2a..34c4d3b 100644
---- a/src-tauri/src/lib.rs
-+++ b/src-tauri/src/lib.rs
+--- a/src/main-process/ipc/reviewHandlers.ts
++++ b/src/main-process/ipc/reviewHandlers.ts
 @@ -1,4 +1,5 @@
--fn greet(name: &str) -> String {
-+fn run_git_diff(project_path: String, mode: String) -> Result<String, String> {
-+    run_git(project_path, mode)
+-export function registerHandlers() {
++export function registerReviewHandlers() {
++  ipcMain.handle("review:run-git-diff", runGitDiff);
  }
 ${" "}
- fn run_git(project_path: String, mode: String) -> Result<String, String> {
+ export function runGitDiff() {
 `;
