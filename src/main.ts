@@ -1,7 +1,9 @@
 import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
+import { TRAFFIC_LIGHT_POSITION } from "./shared/windowLayout";
 import { registerReviewHandlers } from "./main-process/ipc/reviewHandlers";
+import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -14,6 +16,9 @@ const createWindow = () => {
     height: 820,
     minWidth: 960,
     minHeight: 720,
+    backgroundColor: "#ffffff",
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: TRAFFIC_LIGHT_POSITION,
     title: "Vibe Reviewer",
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -21,6 +26,8 @@ const createWindow = () => {
       nodeIntegration: false,
     },
   });
+
+  bindWindowStateEvents(mainWindow);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -33,6 +40,7 @@ const createWindow = () => {
 
 app.on("ready", () => {
   registerReviewHandlers();
+  registerWindowHandlers();
   createWindow();
 });
 

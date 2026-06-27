@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { LoadReviewDiffParams, OpenFileInVsCodeParams, VibeReviewerApi } from "./shared/electronApi";
+import type { IpcRendererEvent } from "electron";
+import type {
+  LoadReviewDiffParams,
+  OpenFileInVsCodeParams,
+  VibeReviewerApi,
+  WindowFullScreenListener,
+} from "./shared/electronApi";
 import { ipcChannels } from "./shared/ipcChannels";
 
 const api: VibeReviewerApi = {
@@ -12,6 +18,19 @@ const api: VibeReviewerApi = {
     },
     openFileInVsCode(params: OpenFileInVsCodeParams) {
       return ipcRenderer.invoke(ipcChannels.reviewOpenFileInVsCode, params);
+    },
+  },
+  window: {
+    getIsFullScreen() {
+      return ipcRenderer.invoke(ipcChannels.windowGetIsFullScreen);
+    },
+    onFullScreenChange(listener: WindowFullScreenListener) {
+      const handler = (_event: IpcRendererEvent, isFullScreen: boolean) => {
+        listener(isFullScreen);
+      };
+
+      ipcRenderer.on(ipcChannels.windowFullScreenChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.windowFullScreenChanged, handler);
     },
   },
 };

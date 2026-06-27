@@ -1,9 +1,17 @@
 import type { ReactNode } from "react";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
+import { useWindowFullScreen } from "@/hooks/useWindowFullScreen";
 import { PanelLeftClose, PanelLeftOpen, Plus, X } from "lucide-react";
 import { motion } from "motion/react";
 import classNames from "classnames";
-import { SIDEBAR_HEADER_SPACER_WIDTH } from "./windowLayout";
+import {
+  FULL_SCREEN_SIDEBAR_TOGGLE_OFFSET,
+  FULL_SCREEN_WINDOW_CONTROLS_WIDTH,
+  SESSION_SIDEBAR_WIDTH,
+  SESSION_SIDEBAR_TRANSITION,
+  SIDEBAR_TOGGLE_OFFSET,
+  WINDOW_CONTROLS_WIDTH,
+} from "@/shared/windowLayout";
 
 interface MacWindowProps {
   /** 窗口主体内容，通常包含会话侧边栏和右侧工作区。 */
@@ -23,7 +31,7 @@ export function MacWindow({
   onToggleSidebar,
 }: MacWindowProps) {
   return (
-    <div className="relative h-[calc(100vh-32px)] min-h-[680px] overflow-hidden rounded-2xl border bg-background shadow-2xl">
+    <div className="relative h-screen min-h-[680px] overflow-hidden bg-background">
       <WindowHeader
         isSidebarVisible={isSidebarVisible}
         workspaceTabs={workspaceTabs}
@@ -44,16 +52,26 @@ interface WindowHeaderProps {
 }
 
 function WindowHeader({ isSidebarVisible, workspaceTabs, onToggleSidebar }: WindowHeaderProps) {
+  const isFullScreen = useWindowFullScreen();
+  const controlsWidth = isFullScreen ? FULL_SCREEN_WINDOW_CONTROLS_WIDTH : WINDOW_CONTROLS_WIDTH;
+  const sidebarToggleOffset = isFullScreen ? FULL_SCREEN_SIDEBAR_TOGGLE_OFFSET : SIDEBAR_TOGGLE_OFFSET;
+  const sidebarSpacerWidth = Math.max(SESSION_SIDEBAR_WIDTH - controlsWidth, 0);
+
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-12">
-      <div className="flex w-24 shrink-0 items-center pl-3.5">
-        <WindowControls isSidebarVisible={isSidebarVisible} onToggleSidebar={onToggleSidebar} />
-      </div>
+    <div className="window-drag-region pointer-events-auto absolute inset-x-0 top-0 z-30 flex h-12 select-none">
       <motion.div
-        animate={{ width: isSidebarVisible ? SIDEBAR_HEADER_SPACER_WIDTH : 0 }}
+        animate={{ paddingLeft: sidebarToggleOffset, width: controlsWidth }}
+        className="flex shrink-0 items-center"
+        initial={false}
+        transition={SESSION_SIDEBAR_TRANSITION}
+      >
+        <WindowControls isSidebarVisible={isSidebarVisible} onToggleSidebar={onToggleSidebar} />
+      </motion.div>
+      <motion.div
+        animate={{ width: isSidebarVisible ? sidebarSpacerWidth : 0 }}
         className="shrink-0 overflow-hidden"
         initial={false}
-        transition={{ duration: 0.18, ease: "easeOut" }}
+        transition={SESSION_SIDEBAR_TRANSITION}
       />
       <div className="flex min-w-0 flex-1 items-center px-5">{workspaceTabs}</div>
     </div>
@@ -73,14 +91,9 @@ export function WindowControls({ className, isSidebarVisible, onToggleSidebar }:
   const SidebarIcon = isSidebarVisible ? PanelLeftClose : PanelLeftOpen;
 
   return (
-    <div className={classNames("pointer-events-auto flex items-center gap-3", className)}>
-      <div className="flex gap-2" aria-hidden="true">
-        <span className="size-[11px] rounded-full bg-[#ff5f57]" />
-        <span className="size-[11px] rounded-full bg-[#febc2e]" />
-        <span className="size-[11px] rounded-full bg-[#28c840]" />
-      </div>
+    <div className={classNames("window-no-drag pointer-events-auto flex items-center", className)}>
       <IconTooltip label="切换边栏" onClick={onToggleSidebar}>
-        <SidebarIcon className="size-5" />
+        <SidebarIcon className="size-4" />
       </IconTooltip>
     </div>
   );
@@ -126,7 +139,7 @@ export function WindowWorkspaceTabs({
   onCloseTerminal,
 }: WindowWorkspaceTabsProps) {
   return (
-    <div className="pointer-events-auto flex min-w-0 items-center gap-1.5">
+    <div className="window-no-drag pointer-events-auto flex min-w-0 items-center gap-1.5">
       {hasReview && (
         <WindowTab active={isReviewActive} title="审查" onClose={onCloseReview} onSelect={onSelectReview} />
       )}

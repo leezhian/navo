@@ -1,6 +1,6 @@
 import type { ReviewSession } from "../../domain/types";
 import { Button } from "@/components/ui/button";
-import { SESSION_SIDEBAR_WIDTH } from "@/components/layout/windowLayout";
+import { SESSION_SIDEBAR_TRANSITION, SESSION_SIDEBAR_WIDTH } from "@/shared/windowLayout";
 import { Settings } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import classNames from "classnames";
@@ -33,7 +33,7 @@ export function SessionSidebar({
           className="shrink-0 overflow-hidden border-r bg-sidebar"
           exit={{ opacity: 0, width: 0, x: -24 }}
           initial={{ opacity: 0, width: 0, x: -24 }}
-          transition={{ duration: 0.18, ease: "easeOut" }}
+          transition={SESSION_SIDEBAR_TRANSITION}
         >
           <div className="grid h-full grid-rows-[1fr_auto]" style={{ width: SESSION_SIDEBAR_WIDTH }}>
             <div className="min-h-0 overflow-y-auto px-3 pt-12 pb-3">

@@ -18,10 +18,18 @@ export interface OpenFileInVsCodeParams {
   filePath: string;
 }
 
+export type WindowFullScreenListener = (isFullScreen: boolean) => void;
+
 export interface VibeReviewerApi {
   review: {
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;
     loadLocalBranches(projectPath: string): Promise<string[]>;
     openFileInVsCode(params: OpenFileInVsCodeParams): Promise<void>;
+  };
+  window: {
+    /** 读取当前窗口是否处于 macOS 系统全屏。 */
+    getIsFullScreen(): Promise<boolean>;
+    /** 监听系统全屏状态变化；返回取消监听函数。 */
+    onFullScreenChange(listener: WindowFullScreenListener): () => void;
   };
 }

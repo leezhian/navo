@@ -136,7 +136,7 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-background p-4 text-foreground">
+    <main className="min-h-screen bg-background text-foreground">
       <MacWindow
         isSidebarVisible={isSessionSidebarVisible}
         workspaceTabs={
