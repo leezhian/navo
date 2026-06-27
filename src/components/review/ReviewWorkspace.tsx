@@ -182,7 +182,10 @@ function ReviewContent({
     return (
       <StateBlock
         actionLabel={emptyState.actionLabel}
+        actionVariant="secondary"
         body={emptyState.body}
+        centered
+        quietTitle
         title={emptyState.title}
         onAction={emptyState.actionLabel ? () => onCompareModeChange("branch") : undefined}
       />

@@ -21,11 +21,12 @@
 
 - `src/components`：放置 UI 组件，组件以展示和交互承接为主。
 - `src/hooks`：放置可复用状态逻辑、副作用逻辑和本地设置等 hook。
-- `src/services`：放置外部能力、Tauri 命令、Git 数据加载等服务封装。
+- `src/services`：放置渲染进程的数据访问、Electron IPC API 调用和 Git 数据加载等服务封装。
 - `src/domain`：放置业务类型、业务数据结构和领域转换逻辑。
 - `src/utils`：放置无副作用的纯函数工具。
 - `src/lib`：放置底层通用工具，例如 shadcn 组件依赖的工具函数。
-- `src-tauri`：放置 Tauri/Rust 端能力，命令职责应小而明确。
+- `src/main-process`：放置 Electron 主进程能力，IPC handler 和系统命令职责应小而明确。
+- `src/shared`：放置主进程、预加载脚本和渲染进程共享的 IPC 类型、通道和窗口布局常量。
 
 ## UI 与样式
 
@@ -39,4 +40,4 @@
 - 修改应聚焦当前需求，不顺手做无关重构。
 - 新增依赖前必须先征求用户确认。
 - 涉及用户可见文案时，默认使用中文。
-- 完成代码改动后，优先运行与改动相关的验证命令，例如 `pnpm build`、`cargo check`、`git diff --check`。
+- 完成代码改动后，优先运行与改动相关的验证命令，例如 `npm run lint`、`git diff --check`；涉及打包链路时再运行 `npm run build`。

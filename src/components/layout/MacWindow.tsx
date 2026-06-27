@@ -79,19 +79,17 @@ function WindowHeader({ isSidebarVisible, workspaceTabs, onToggleSidebar }: Wind
 }
 
 interface WindowControlsProps {
-  /** 允许调用方补充定位或间距类名。 */
-  className?: string;
   /** 决定边栏切换按钮展示收起还是展开图标。 */
   isSidebarVisible: boolean;
   /** 点击边栏切换按钮时触发。 */
   onToggleSidebar: () => void;
 }
 
-export function WindowControls({ className, isSidebarVisible, onToggleSidebar }: WindowControlsProps) {
+function WindowControls({ isSidebarVisible, onToggleSidebar }: WindowControlsProps) {
   const SidebarIcon = isSidebarVisible ? PanelLeftClose : PanelLeftOpen;
 
   return (
-    <div className={classNames("window-no-drag pointer-events-auto flex items-center", className)}>
+    <div className="window-no-drag pointer-events-auto flex items-center">
       <IconTooltip label="切换边栏" onClick={onToggleSidebar}>
         <SidebarIcon className="size-4" />
       </IconTooltip>

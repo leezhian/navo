@@ -7,6 +7,8 @@ import { CompareModeMenu } from "./review-toolbar/CompareModeMenu";
 import { toggleDiffView } from "./review-toolbar/settingsActions";
 import { ViewOptionsMenu } from "./review-toolbar/ViewOptionsMenu";
 
+const CHANGE_COUNT_FORMATTER = new Intl.NumberFormat("en-US");
+
 interface ReviewToolbarProps {
   /** 当前对比方式，驱动对比方式选择器和分支选择区域是否展示。 */
   compareMode: CompareMode;
@@ -52,6 +54,8 @@ export function ReviewToolbar({
   const branchOptions = localBranches.filter((branch) =>
     branch.toLowerCase().includes(branchSearch.trim().toLowerCase()),
   );
+  const additions = summary?.additions ?? session.additions;
+  const deletions = summary?.deletions ?? session.deletions;
 
   return (
     <header className="border-b bg-background pt-12">
@@ -63,8 +67,12 @@ export function ReviewToolbar({
               fileCounts={compareModeFileCounts}
               onCompareModeChange={onCompareModeChange}
             />
-            <span className="text-green-600 dark:text-green-400">+{summary?.additions ?? session.additions}</span>
-            <span className="text-red-600 dark:text-red-400">-{summary?.deletions ?? session.deletions}</span>
+            {additions > 0 && (
+              <span className="text-green-600 dark:text-green-400">+{formatChangeCount(additions)}</span>
+            )}
+            {deletions > 0 && (
+              <span className="text-red-600 dark:text-red-400">-{formatChangeCount(deletions)}</span>
+            )}
           </div>
 
           {compareMode === "branch" && (
@@ -110,4 +118,8 @@ export function ReviewToolbar({
       </div>
     </header>
   );
+}
+
+function formatChangeCount(count: number) {
+  return CHANGE_COUNT_FORMATTER.format(count);
 }
