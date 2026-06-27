@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { buildFileTree } from "@/domain/fileTree";
 import type {
@@ -26,23 +25,37 @@ import { useResizableFileTree } from "./review-workspace/useResizableFileTree";
 import { StateBlock } from "./StateBlock";
 
 interface ReviewWorkspaceProps {
+  /** 已折叠的文件 id 集合，由 App 维护以支持跨模式保持折叠状态。 */
   collapsedFileIds: Set<string>;
+  /** 当前对比方式，决定 diff 数据来源和空状态文案。 */
   compareMode: CompareMode;
+  /** 各对比方式的文件数量角标，只展示未暂存和已暂存的非零数量。 */
   compareModeFileCounts: CompareModeFileCounts;
+  /** diff 数据加载中时展示加载占位。 */
   isLoading: boolean;
+  /** 当前项目的本地分支列表，供分支对比选择器使用。 */
   localBranches: string[];
+  /** Git 或解析失败信息，存在时优先展示错误状态。 */
   reviewError: string | null;
+  /** 单文件模式下正在查看的文件 id，连续模式下用于文件树定位。 */
   selectedFileId: string | null;
+  /** 当前审查会话，提供项目路径、分支和兜底改动统计。 */
   session: ReviewSession;
+  /** 本地展示设置，控制 diff 布局、换行、主题等行为。 */
   settings: AppSettings;
+  /** 当前对比方式解析出的 diff 汇总数据。 */
   summary: ReviewSummary | null;
-  leadingControls?: ReactNode;
-  onClose: () => void;
+  /** 切换对比方式后由上层重新加载 diff。 */
   onCompareModeChange: (mode: CompareMode) => void;
+  /** 重新执行当前对比方式的 Git diff 加载。 */
   onRefresh: () => void;
+  /** 文件树选择文件时更新选中项。 */
   onSelectedFileChange: (fileId: string) => void;
+  /** 更新本地展示设置，例如换行、分栏和目标分支。 */
   onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
+  /** 在全部折叠和全部展开之间切换。 */
   onToggleAllCollapsed: () => void;
+  /** 切换单个文件 diff 的折叠状态。 */
   onToggleFile: (fileId: string) => void;
 }
 
@@ -57,8 +70,6 @@ export function ReviewWorkspace({
   session,
   settings,
   summary,
-  leadingControls,
-  onClose,
   onCompareModeChange,
   onRefresh,
   onSelectedFileChange,
@@ -88,8 +99,6 @@ export function ReviewWorkspace({
         session={session}
         settings={settings}
         summary={summary}
-        leadingControls={leadingControls}
-        onClose={onClose}
         onCompareModeChange={onCompareModeChange}
         onSettingsChange={onSettingsChange}
         onToggleAllCollapsed={onToggleAllCollapsed}
@@ -159,20 +168,7 @@ function ReviewContent({
   onRefresh,
   onSettingsChange,
   onToggleFile,
-}: {
-  collapsedFileIds: Set<string>;
-  compareMode: CompareMode;
-  files: DiffFile[];
-  isLoading: boolean;
-  projectPath: string;
-  reviewError: string | null;
-  settings: AppSettings;
-  summary: ReviewSummary | null;
-  onCompareModeChange: (mode: CompareMode) => void;
-  onRefresh: () => void;
-  onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
-  onToggleFile: (fileId: string) => void;
-}) {
+}: ReviewContentProps) {
   if (isLoading) {
     return <StateBlock title="正在加载差异..." />;
   }
@@ -205,6 +201,33 @@ function ReviewContent({
       onToggleFile={onToggleFile}
     />
   );
+}
+
+interface ReviewContentProps {
+  /** 已折叠文件 id 集合，透传给 DiffViewer 控制每个文件块。 */
+  collapsedFileIds: Set<string>;
+  /** 当前对比方式，用于选择空状态文案和文件头操作。 */
+  compareMode: CompareMode;
+  /** 当前需要渲染的文件列表，已按连续/单文件模式过滤。 */
+  files: DiffFile[];
+  /** 是否正在加载当前 diff。 */
+  isLoading: boolean;
+  /** 当前项目根路径，供 diff 文件右键菜单使用。 */
+  projectPath: string;
+  /** 当前 Git diff 加载错误。 */
+  reviewError: string | null;
+  /** 本地展示设置，提供 diff 布局和换行状态。 */
+  settings: AppSettings;
+  /** 当前 diff 汇总，用于判断是否展示空状态。 */
+  summary: ReviewSummary | null;
+  /** 空状态按钮点击时切换到分支对比模式。 */
+  onCompareModeChange: (mode: CompareMode) => void;
+  /** 错误状态中点击刷新时重新加载 diff。 */
+  onRefresh: () => void;
+  /** 从 diff 右键菜单中更新本地展示设置。 */
+  onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
+  /** 点击文件头时切换单个文件折叠状态。 */
+  onToggleFile: (fileId: string) => void;
 }
 
 function getEmptyReviewState(compareMode: CompareMode) {

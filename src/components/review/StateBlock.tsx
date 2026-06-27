@@ -1,7 +1,11 @@
 interface StateBlockProps {
+  /** 可选操作按钮文案；没有操作时不展示按钮。 */
   actionLabel?: string;
+  /** 状态说明正文，通常用于错误详情或空状态解释。 */
   body?: string;
+  /** 状态标题，是该占位块的主要信息。 */
   title: string;
+  /** 点击操作按钮时触发，需和 actionLabel 同时传入。 */
   onAction?: () => void;
 }
 

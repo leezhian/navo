@@ -5,10 +5,15 @@ import { AnimatePresence, motion } from "motion/react";
 import classNames from "classnames";
 
 interface SessionSidebarProps {
+  /** 控制会话栏是否参与布局；隐藏时会执行宽度收起动画。 */
   isVisible: boolean;
+  /** 已按更新时间排序的会话列表，组件内只负责展示。 */
   orderedSessions: ReviewSession[];
+  /** 当前打开的会话 id，用于高亮对应列表项。 */
   selectedSessionId: string | null;
+  /** 打开偏好设置面板，同时由上层负责关闭当前审查内容。 */
   onOpenSettings: () => void;
+  /** 选择会话后进入对应审查页，并清理未读状态。 */
   onSelectSession: (session: ReviewSession) => void;
 }
 
@@ -67,15 +72,16 @@ export function SessionSidebar({
   );
 }
 
-function SessionItem({
-  active,
-  session,
-  onSelect,
-}: {
+interface SessionItemProps {
+  /** 当前会话是否为正在查看的审查会话。 */
   active: boolean;
+  /** 会话摘要，用于展示项目、分支、Agent 和改动统计。 */
   session: ReviewSession;
+  /** 点击会话卡片时触发选择。 */
   onSelect: () => void;
-}) {
+}
+
+function SessionItem({ active, session, onSelect }: SessionItemProps) {
   return (
     <button
       className={classNames(

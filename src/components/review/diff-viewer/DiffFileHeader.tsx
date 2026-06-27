@@ -5,9 +5,13 @@ import { ChevronDown, Minus, Plus, Undo2 } from "lucide-react";
 import type { KeyboardEvent } from "react";
 
 interface DiffFileHeaderProps {
+  /** 当前文件是否折叠，用于箭头方向和 Pierre 文件内容展示。 */
   collapsed: boolean;
+  /** 当前对比方式，决定是否展示暂存/取消暂存文件按钮。 */
   compareMode: CompareMode;
+  /** 文件级 diff 摘要，用于路径和增删数量展示。 */
   file: DiffFile;
+  /** 点击文件头整行时切换折叠状态。 */
   onToggle: () => void;
 }
 
@@ -46,7 +50,12 @@ export function DiffFileHeader({ collapsed, compareMode, file, onToggle }: DiffF
   );
 }
 
-function FileHeaderActions({ compareMode }: { compareMode: CompareMode }) {
+interface FileHeaderActionsProps {
+  /** 仅未暂存和已暂存模式展示文件级 Git 操作。 */
+  compareMode: CompareMode;
+}
+
+function FileHeaderActions({ compareMode }: FileHeaderActionsProps) {
   if (compareMode !== "staged" && compareMode !== "unstaged") {
     return null;
   }

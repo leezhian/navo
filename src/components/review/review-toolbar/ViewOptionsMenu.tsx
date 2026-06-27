@@ -12,9 +12,13 @@ import { updateWrapDiffLines } from "./settingsActions";
 import { useDropdownTooltip } from "./useDropdownTooltip";
 
 interface ViewOptionsMenuProps {
+  /** 当前是否所有文件都已折叠，用于“折叠全部/全部展开”文案互切。 */
   isAllCollapsed: boolean;
+  /** 本地展示设置，读取差异换行状态。 */
   settings: AppSettings;
+  /** 更新本地展示设置，例如开启或关闭差异换行。 */
   onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
+  /** 点击折叠选项时切换全部文件折叠状态。 */
   onToggleAllCollapsed: () => void;
 }
 

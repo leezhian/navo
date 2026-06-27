@@ -5,13 +5,24 @@ import type { FormEvent } from "react";
 export type CommentSide = "deletions" | "additions";
 
 export interface LocalCommentMetadata {
+  /** 评论框唯一 id，包含文件、左右侧和行号信息。 */
   id: string;
+  /** Pierre annotation 需要定位的目标行号。 */
   lineNumber: number;
+  /** 展示给用户的行号标签，例如 L12 或 R24。 */
   lineLabel: string;
+  /** 评论所在 diff 侧；删除行为 L，新增和上下文行为 R。 */
   side: CommentSide;
 }
 
-export function LocalCommentBox({ lineLabel, onCancel }: { lineLabel: string; onCancel: () => void }) {
+interface LocalCommentBoxProps {
+  /** 展示在评论框标题右侧的 L/R 行号标签。 */
+  lineLabel: string;
+  /** 取消当前评论时关闭对应 annotation。 */
+  onCancel: () => void;
+}
+
+export function LocalCommentBox({ lineLabel, onCancel }: LocalCommentBoxProps) {
   return (
     <div className="bg-blue-100/70 p-2 dark:bg-blue-950/40">
       <div className="overflow-hidden rounded-xl bg-background shadow-sm">
@@ -49,7 +60,12 @@ function resizeCommentTextarea(event: FormEvent<HTMLTextAreaElement>) {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-export function LocalCommentButton({ onClick }: { onClick: () => void }) {
+interface LocalCommentButtonProps {
+  /** 点击行号上的加号按钮时打开对应行的本地评论框。 */
+  onClick: () => void;
+}
+
+export function LocalCommentButton({ onClick }: LocalCommentButtonProps) {
   return (
     <button
       aria-label="添加本地评论"

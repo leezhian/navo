@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 interface IconTooltipProps
   extends ComponentProps<"button">,
     VariantProps<typeof buttonVariants> {
+  /** tooltip 和 aria-label 共用文案，必须能准确说明按钮动作。 */
   label: string;
+  /** 按钮内图标或少量可视内容。 */
   children: ReactNode;
 }
 

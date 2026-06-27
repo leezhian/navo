@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { MacWindow, WindowControls } from "./components/layout/MacWindow";
+import { MacWindow, WindowReviewTab } from "./components/layout/MacWindow";
 import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
@@ -27,7 +27,7 @@ function App() {
 
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
   const orderedSessions = useOrderedSessions(sessions);
-  const shouldPlaceWindowControlsInReviewToolbar = !isSessionSidebarVisible && !showSettings && Boolean(selectedSession);
+  const shouldShowReviewTab = !showSettings && Boolean(selectedSession);
 
   const refreshCompareModeFileCounts = useCallback(() => {
     if (!selectedSession) {
@@ -95,7 +95,7 @@ function App() {
     <main className="min-h-screen bg-background p-4 text-foreground">
       <MacWindow
         isSidebarVisible={isSessionSidebarVisible}
-        showWindowControls={!shouldPlaceWindowControlsInReviewToolbar}
+        reviewTab={shouldShowReviewTab ? <WindowReviewTab onClose={() => setSelectedSessionId(null)} /> : undefined}
         onToggleSidebar={() => setIsSessionSidebarVisible((visible) => !visible)}
       >
         <div className="flex h-full min-w-0">
@@ -151,16 +151,6 @@ function App() {
                   session={selectedSession}
                   settings={settings}
                   summary={reviewSummary}
-                  leadingControls={
-                    shouldPlaceWindowControlsInReviewToolbar ? (
-                      <WindowControls
-                        className="mr-3"
-                        isSidebarVisible={isSessionSidebarVisible}
-                        onToggleSidebar={() => setIsSessionSidebarVisible((visible) => !visible)}
-                      />
-                    ) : undefined
-                  }
-                  onClose={() => setSelectedSessionId(null)}
                   onCompareModeChange={setCompareMode}
                   onRefresh={refreshReview}
                   onSelectedFileChange={setSelectedFileId}

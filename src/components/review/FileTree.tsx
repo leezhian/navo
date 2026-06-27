@@ -11,10 +11,15 @@ import { filterTreeNodes } from "./file-tree/fileTreeFilter";
 import { useDirectoryCollapse } from "./file-tree/useDirectoryCollapse";
 
 interface FileTreeProps {
+  /** 已按目录结构整理后的文件树节点。 */
   nodes: FileTreeNode[];
+  /** 当前项目根路径，用于文件右键菜单拼接完整路径。 */
   projectPath: string;
+  /** 当前选中的 diff 文件 id，用于文件树高亮。 */
   selectedFileId: string | null;
+  /** 按下左侧拖拽热区时触发文件树宽度调整。 */
   onResizeStart: (event: ReactPointerEvent) => void;
+  /** 点击文件节点时通知上层切换或定位 diff 文件。 */
   onSelectFile: (file: DiffFile) => void;
 }
 
@@ -64,6 +69,25 @@ export function FileTree({ nodes, projectPath, selectedFileId, onResizeStart, on
   );
 }
 
+interface FileTreeItemProps {
+  /** 当前已折叠目录 id 集合；搜索中会临时忽略折叠状态。 */
+  collapsedDirectoryIds: Set<string>;
+  /** 是否处于搜索状态，搜索时目录需要展开以露出命中文件。 */
+  isSearching: boolean;
+  /** 当前渲染的目录或文件节点。 */
+  node: FileTreeNode;
+  /** 点击文件节点时选择对应 diff 文件。 */
+  onSelectFile: (file: DiffFile) => void;
+  /** 点击目录整行时切换该目录展开状态。 */
+  onToggleDirectory: (directoryId: string) => void;
+  /** 当前项目根路径，透传给文件右键菜单。 */
+  projectPath: string;
+  /** 当前选中的文件 id，用于文件节点激活态。 */
+  selectedFileId: string | null;
+  /** 当前节点所在层级，用于计算缩进。 */
+  depth?: number;
+}
+
 function FileTreeItem({
   collapsedDirectoryIds,
   isSearching,
@@ -73,16 +97,7 @@ function FileTreeItem({
   projectPath,
   selectedFileId,
   depth = 0,
-}: {
-  collapsedDirectoryIds: Set<string>;
-  isSearching: boolean;
-  node: FileTreeNode;
-  onSelectFile: (file: DiffFile) => void;
-  onToggleDirectory: (directoryId: string) => void;
-  projectPath: string;
-  selectedFileId: string | null;
-  depth?: number;
-}) {
+}: FileTreeItemProps) {
   const paddingLeft = 12 + depth * 18;
 
   if (node.type === "file" && node.file) {

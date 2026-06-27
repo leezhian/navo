@@ -12,8 +12,11 @@ import type { AgentType, AppSettings } from "../../domain/types";
 import { ArrowLeft } from "lucide-react";
 
 interface SettingsPanelProps {
+  /** 当前本地偏好设置。 */
   settings: AppSettings;
+  /** 点击返回按钮时退出设置页并回到审查页。 */
   onBack: () => void;
+  /** 更新本地偏好设置，例如 Agent 开关和主题。 */
   updateSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
 }
 

@@ -10,8 +10,11 @@ import { Check, ChevronDown } from "lucide-react";
 import { compareModeLabels } from "./constants";
 
 interface CompareModeMenuProps {
+  /** 当前生效的对比方式。 */
   compareMode: CompareMode;
+  /** 对比方式文件数角标，目前只展示未暂存和已暂存的非零数量。 */
   fileCounts?: CompareModeFileCounts;
+  /** 用户选择对比方式后通知上层重新加载 diff。 */
   onCompareModeChange: (mode: CompareMode) => void;
 }
 
@@ -48,7 +51,12 @@ export function CompareModeMenu({ compareMode, fileCounts, onCompareModeChange }
   );
 }
 
-function CompareModeFileCountBadge({ count }: { count?: number }) {
+interface CompareModeFileCountBadgeProps {
+  /** 需要展示的文件数量，空值或 0 不展示角标。 */
+  count?: number;
+}
+
+function CompareModeFileCountBadge({ count }: CompareModeFileCountBadgeProps) {
   if (!count || count <= 0) {
     return null;
   }

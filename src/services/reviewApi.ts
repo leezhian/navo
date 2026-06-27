@@ -21,6 +21,7 @@ export async function loadReviewDiff(
     return parseGitDiff(output.stdout, `${projectPath}-${mode}-${targetBranch}`, output.file_snapshots);
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
+      // 浏览器预览或 preload 未注入时使用 mock，避免纯前端调试被 Electron IPC 阻断。
       return mockSummary();
     }
 
@@ -34,6 +35,7 @@ export async function loadLocalBranches(projectPath: string): Promise<string[]> 
     return branches.length > 0 ? branches : ["main", "master"];
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
+      // 本地预览没有 Electron API 时提供固定分支，保证分支菜单仍可交互。
       return ["main", "master", "feature/review-ui", "live-play-route"];
     }
 

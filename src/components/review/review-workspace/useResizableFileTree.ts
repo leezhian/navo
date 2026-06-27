@@ -6,7 +6,9 @@ const MIN_FILE_TREE_WIDTH = 200;
 const COLLAPSE_DRAG_DISTANCE = 80;
 
 interface ResizeState {
+  /** 开始拖拽时的指针横坐标，用于计算本次拖拽位移。 */
   startPointerX: number;
+  /** 开始拖拽时的文件树宽度，拖拽过程中以它为基准增减。 */
   startWidth: number;
 }
 
@@ -41,6 +43,7 @@ export function useResizableFileTree(onCollapse: () => void) {
       }
 
       const nextWidth = resizeState.startWidth - (event.clientX - resizeState.startPointerX);
+      // 小于最小宽度后继续向右拖 80px，才判定为明确关闭意图。
       const isClosingIntent = nextWidth < MIN_FILE_TREE_WIDTH - COLLAPSE_DRAG_DISTANCE;
       if (isClosingIntent) {
         setFileTreeWidth(MIN_FILE_TREE_WIDTH);

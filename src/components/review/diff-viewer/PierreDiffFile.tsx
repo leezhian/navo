@@ -15,14 +15,23 @@ import { pierreDiffUnsafeCss } from "./pierreDiffStyles";
 type LocalCommentAnnotation = DiffLineAnnotation<LocalCommentMetadata>;
 
 interface PierreDiffFileProps {
+  /** 当前文件是否折叠，直接映射到 Pierre FileDiff 的 collapsed 配置。 */
   collapsed: boolean;
+  /** 当前对比方式，传给自定义文件头判断文件级操作按钮。 */
   compareMode: CompareMode;
+  /** 应用层文件数据，内部持有 Pierre 解析后的 fileDiff 元数据。 */
   file: DiffFile;
+  /** 当前文件内需要插入的本地评论 annotation。 */
   lineAnnotations: LocalCommentAnnotation[];
+  /** 统一或分栏视图，映射到 Pierre 的 diffStyle。 */
   viewMode: AppSettings["diffViewMode"];
+  /** 自动换行开关，映射到 Pierre 的 overflow 配置。 */
   wrapDiffLines: boolean;
+  /** 关闭指定本地评论 annotation。 */
   onCommentClose: (commentId: string) => void;
+  /** 点击行号 gutter 加号时打开本地评论。 */
   onCommentOpen: (commentId: string) => void;
+  /** 点击自定义文件头时切换文件折叠状态。 */
   onToggle: () => void;
 }
 
@@ -67,6 +76,7 @@ export function PierreDiffFile({
         return;
       }
 
+      // Pierre 在部分更新后可能把外层滚动容器置顶；这里只在异常归零时恢复用户上次滚动位置。
       const previousScrollTop = latestScrollTopRef.current;
       if (previousScrollTop > 0 && scrollContainer.scrollTop === 0) {
         scrollContainer.scrollTop = previousScrollTop;

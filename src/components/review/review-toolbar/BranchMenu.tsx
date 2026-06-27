@@ -14,10 +14,15 @@ import { updateTargetBranch } from "./settingsActions";
 import { useDropdownTooltip } from "./useDropdownTooltip";
 
 interface BranchMenuProps {
+  /** 经过搜索过滤后的本地分支候选项。 */
   branchOptions: string[];
+  /** 当前分支搜索关键词，由上层维护以便关闭菜单时清空。 */
   branchSearch: string;
+  /** 本地设置，读取并更新目标对比分支。 */
   settings: AppSettings;
+  /** 搜索框内容变化时更新关键词。 */
   onSearchChange: (value: string) => void;
+  /** 选择分支后写回本地设置。 */
   onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
 }
 
@@ -78,15 +83,16 @@ export function BranchMenu({
   );
 }
 
-function BranchOption({
-  active,
-  label,
-  onSelect,
-}: {
+interface BranchOptionProps {
+  /** 当前分支是否为已选目标分支。 */
   active: boolean;
+  /** 分支名称。 */
   label: string;
+  /** 点击分支项时更新目标分支。 */
   onSelect: () => void;
-}) {
+}
+
+function BranchOption({ active, label, onSelect }: BranchOptionProps) {
   return (
     <DropdownMenuItem onSelect={onSelect}>
       <GitBranch className="size-4 text-muted-foreground" />

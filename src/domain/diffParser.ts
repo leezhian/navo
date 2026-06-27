@@ -6,9 +6,13 @@ const LARGE_FILE_LINE_THRESHOLD = 3000;
 const LARGE_DIFF_LINE_THRESHOLD = 6000;
 
 export interface GitFileSnapshot {
+  /** diff 旧侧文件路径，新增文件时为空。 */
   old_path: string | null;
+  /** diff 新侧文件路径，删除文件时为空。 */
   new_path: string | null;
+  /** 旧侧完整文件内容，缺失时 Pierre 只能展示 patch 中已有上下文。 */
   old_content: string | null;
+  /** 新侧完整文件内容，缺失时 Pierre 只能展示 patch 中已有上下文。 */
   new_content: string | null;
 }
 
@@ -96,6 +100,7 @@ function splitRawDiffFiles(rawDiff: string) {
   }
 
   const diffOnly = rawDiff.slice(firstFileIndex === 0 ? 0 : firstFileIndex + 1);
+  // parsePatchFiles 会把所有文件合并到 patch 结构里；这里保留原始文件级 patch 供 processFile 展开上下文。
   return diffOnly.split(/\n(?=diff --git )/);
 }
 

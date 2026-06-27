@@ -6,16 +6,24 @@ import { createPortal } from "react-dom";
 import { copyFilePath, getFullPath, openFileInVsCode } from "./filePathActions";
 
 interface FileContextMenuProps {
+  /** 触发右键菜单的文件树节点或 diff 文件块。 */
   children: ReactNode;
+  /** 当前文件信息，用于展示和执行文件路径相关操作。 */
   file: DiffFile;
+  /** 当前项目根路径，用于拼接完整文件路径。 */
   projectPath: string;
+  /** diff 文件块需要额外展示相对路径和自动换行选项。 */
   showWrapToggle?: boolean;
+  /** 当前自动换行状态，用于右键菜单文案互切。 */
   wrapDiffLines?: boolean;
+  /** 点击自动换行选项时触发，仅在 showWrapToggle 为 true 时需要。 */
   onToggleWrap?: () => void;
 }
 
 interface MenuPosition {
+  /** 菜单左上角距离视口左侧的像素坐标。 */
   x: number;
+  /** 菜单左上角距离视口顶部的像素坐标。 */
   y: number;
 }
 
@@ -141,6 +149,7 @@ function getMenuPosition(clientX: number, clientY: number, showWrapToggle: boole
   const maxX = window.innerWidth - menuWidth - viewportPadding;
   const maxY = window.innerHeight - menuHeight - viewportPadding;
 
+  // 右键菜单根据每次点击位置重新计算，同时限制在视口内，避免重复右击时沿用旧坐标。
   return {
     x: Math.max(viewportPadding, Math.min(clientX, maxX)),
     y: Math.max(viewportPadding, Math.min(clientY, maxY)),

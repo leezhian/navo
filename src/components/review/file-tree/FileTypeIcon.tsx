@@ -2,7 +2,12 @@ import { File, FileCode2, FileImage, FileJson, FileText } from "lucide-react";
 import { getFileIconType, type FileIconType } from "./fileIcon";
 import classNames from "classnames";
 
-export function FileTypeIcon({ path }: { path: string }) {
+interface FileTypeIconProps {
+  /** 文件相对路径，用于根据扩展名选择接近 VS Code 的文件图标。 */
+  path: string;
+}
+
+export function FileTypeIcon({ path }: FileTypeIconProps) {
   const iconType = getFileIconType(path);
   const className = getFileIconClassName(iconType);
   const Icon = getFileIconComponent(iconType);
