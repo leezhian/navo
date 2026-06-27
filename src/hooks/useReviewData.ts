@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "@/domain/types";
-import { loadLocalBranches, loadReviewDiff } from "@/services/reviewApi";
+import type { CompareMode, CompareModeFileCounts, ReviewFileAction, ReviewSession, ReviewSummary } from "@/domain/types";
+import { loadLocalBranches, loadReviewDiff, runReviewFileAction } from "@/services/reviewApi";
 
 interface UseReviewDataParams {
   /** 当前选中的审查会话；为空时停止加载 diff，并清空对比方式文件数。 */
@@ -15,7 +15,6 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
   const [collapsedFileIds, setCollapsedFileIds] = useState<Set<string>>(new Set());
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [isReviewLoading, setIsReviewLoading] = useState(Boolean(selectedSession));
   const [localBranches, setLocalBranches] = useState<string[]>(["main", "master"]);
   const [compareModeFileCounts, setCompareModeFileCounts] = useState<CompareModeFileCounts>({});
 
@@ -26,7 +25,6 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       setReviewError(null);
       setSelectedFileId(null);
       setCollapsedFileIds(new Set());
-      setIsReviewLoading(false);
       return;
     }
 
@@ -41,7 +39,6 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       return;
     }
 
-    setIsReviewLoading(true);
     setReviewError(null);
     refreshCompareModeFileCounts();
 
@@ -57,9 +54,6 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       })
       .catch((error: unknown) => {
         setReviewError(error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        setIsReviewLoading(false);
       });
   }, [compareMode, refreshCompareModeFileCounts, selectedSession, targetBranch]);
 
@@ -85,11 +79,24 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
     setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary));
   }
 
+  function runFileAction(filePath: string, action: ReviewFileAction) {
+    if (!selectedSession) {
+      return;
+    }
+
+    setReviewError(null);
+
+    runReviewFileAction(selectedSession.projectPath, filePath, action)
+      .then(refreshReview)
+      .catch((error: unknown) => {
+        setReviewError(error instanceof Error ? error.message : String(error));
+      });
+  }
+
   return {
     collapsedFileIds,
     compareMode,
     compareModeFileCounts,
-    isReviewLoading,
     localBranches,
     reviewError,
     reviewSummary,
@@ -97,6 +104,7 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
     refreshReview,
     setCompareMode,
     setSelectedFileId,
+    runFileAction,
     toggleAllCollapsed,
     toggleFileCollapsed,
   };

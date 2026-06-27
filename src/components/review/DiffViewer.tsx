@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { AppSettings, CompareMode, DiffFile } from "../../domain/types";
+import type { AppSettings, CompareMode, DiffFile, ReviewFileAction } from "../../domain/types";
 import { parseLineCommentId } from "./diff-viewer/LineComment";
 import { PierreDiffFile, type LocalCommentAnnotation } from "./diff-viewer/PierreDiffFile";
 import { FileContextMenu } from "./file-actions/FileContextMenu";
@@ -17,6 +17,8 @@ interface DiffViewerProps {
   wrapDiffLines: boolean;
   /** 统一或分栏 diff 视图模式。 */
   viewMode: AppSettings["diffViewMode"];
+  /** 执行文件头上的还原/暂存/取消暂存操作。 */
+  onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 在文件块右键菜单中切换自动换行。 */
   onToggleWrap: () => void;
   /** 点击文件头时切换该文件折叠状态。 */
@@ -30,6 +32,7 @@ export function DiffViewer({
   projectPath,
   wrapDiffLines,
   viewMode,
+  onFileAction,
   onToggleWrap,
   onToggleFile,
 }: DiffViewerProps) {
@@ -61,6 +64,7 @@ export function DiffViewer({
           wrapDiffLines={wrapDiffLines}
           onCommentClose={closeLineComment}
           onCommentOpen={openLineComment}
+          onFileAction={onFileAction}
           onToggle={() => onToggleFile(file.id)}
           onToggleWrap={onToggleWrap}
         />
@@ -88,6 +92,8 @@ interface DiffFileViewProps {
   onCommentClose: (commentId: string) => void;
   /** 打开指定本地评论框。 */
   onCommentOpen: (commentId: string) => void;
+  /** 执行文件级 Git 操作。 */
+  onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 切换当前文件折叠状态。 */
   onToggle: () => void;
   /** 切换全局 diff 自动换行设置。 */
@@ -104,6 +110,7 @@ function DiffFileView({
   wrapDiffLines,
   onCommentClose,
   onCommentOpen,
+  onFileAction,
   onToggle,
   onToggleWrap,
 }: DiffFileViewProps) {
@@ -127,6 +134,7 @@ function DiffFileView({
           wrapDiffLines={wrapDiffLines}
           onCommentClose={onCommentClose}
           onCommentOpen={onCommentOpen}
+          onFileAction={onFileAction}
           onToggle={onToggle}
         />
       </article>

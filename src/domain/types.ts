@@ -16,6 +16,8 @@ export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "binary"
 
 export type AgentStatus = "listening" | "disabled" | "failed";
 
+export type ReviewFileAction = "restore-worktree" | "restore-file" | "stage" | "unstage";
+
 export interface ReviewSession {
   id: string;
   agent: AgentType;

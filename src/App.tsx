@@ -37,11 +37,11 @@ function App() {
     collapsedFileIds,
     compareMode,
     compareModeFileCounts,
-    isReviewLoading,
     localBranches,
     refreshReview,
     reviewError,
     reviewSummary,
+    runFileAction,
     selectedFileId,
     setCompareMode,
     setSelectedFileId,
@@ -123,7 +123,6 @@ function App() {
                 collapsedFileIds={collapsedFileIds}
                 compareMode={compareMode}
                 compareModeFileCounts={compareModeFileCounts}
-                isLoading={isReviewLoading}
                 localBranches={localBranches}
                 reviewError={reviewError}
                 selectedFileId={selectedFileId}
@@ -131,6 +130,7 @@ function App() {
                 settings={settings}
                 summary={reviewSummary}
                 onCompareModeChange={setCompareMode}
+                onFileAction={runFileAction}
                 onRefresh={refreshReview}
                 onSelectedFileChange={setSelectedFileId}
                 onSettingsChange={updateSettings}

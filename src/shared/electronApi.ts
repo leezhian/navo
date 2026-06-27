@@ -1,5 +1,5 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
-import type { CompareMode } from "../domain/types";
+import type { CompareMode, ReviewFileAction } from "../domain/types";
 
 export interface GitCommandOutput {
   stdout: string;
@@ -18,6 +18,12 @@ export interface OpenFileInVsCodeParams {
   filePath: string;
 }
 
+export interface RunReviewFileActionParams {
+  projectPath: string;
+  filePath: string;
+  action: ReviewFileAction;
+}
+
 export type WindowFullScreenListener = (isFullScreen: boolean) => void;
 
 export interface VibeReviewerApi {
@@ -25,6 +31,7 @@ export interface VibeReviewerApi {
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;
     loadLocalBranches(projectPath: string): Promise<string[]>;
     openFileInVsCode(params: OpenFileInVsCodeParams): Promise<void>;
+    runFileAction(params: RunReviewFileActionParams): Promise<void>;
   };
   window: {
     /** 读取当前窗口是否处于 macOS 系统全屏。 */

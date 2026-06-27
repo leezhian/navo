@@ -6,6 +6,7 @@ import type {
   CompareMode,
   CompareModeFileCounts,
   DiffFile,
+  ReviewFileAction,
   ReviewSession,
   ReviewSummary,
 } from "@/domain/types";
@@ -31,8 +32,6 @@ interface ReviewWorkspaceProps {
   compareMode: CompareMode;
   /** 各对比方式的文件数量角标，只展示未暂存和已暂存的非零数量。 */
   compareModeFileCounts: CompareModeFileCounts;
-  /** diff 数据加载中时展示加载占位。 */
-  isLoading: boolean;
   /** 当前项目的本地分支列表，供分支对比选择器使用。 */
   localBranches: string[];
   /** Git 或解析失败信息，存在时优先展示错误状态。 */
@@ -47,6 +46,8 @@ interface ReviewWorkspaceProps {
   summary: ReviewSummary | null;
   /** 切换对比方式后由上层重新加载 diff。 */
   onCompareModeChange: (mode: CompareMode) => void;
+  /** 点击文件头还原/暂存/取消暂存按钮时执行对应 Git 文件操作。 */
+  onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 重新执行当前对比方式的 Git diff 加载。 */
   onRefresh: () => void;
   /** 文件树选择文件时更新选中项。 */
@@ -63,7 +64,6 @@ export function ReviewWorkspace({
   collapsedFileIds,
   compareMode,
   compareModeFileCounts,
-  isLoading,
   localBranches,
   reviewError,
   selectedFileId,
@@ -71,6 +71,7 @@ export function ReviewWorkspace({
   settings,
   summary,
   onCompareModeChange,
+  onFileAction,
   onRefresh,
   onSelectedFileChange,
   onSettingsChange,
@@ -120,12 +121,12 @@ export function ReviewWorkspace({
             compareMode={compareMode}
             collapsedFileIds={collapsedFileIds}
             files={visibleFiles}
-            isLoading={isLoading}
             projectPath={session.projectPath}
             reviewError={reviewError}
             settings={settings}
             summary={summary}
             onCompareModeChange={onCompareModeChange}
+            onFileAction={onFileAction}
             onRefresh={onRefresh}
             onSettingsChange={onSettingsChange}
             onToggleFile={onToggleFile}
@@ -159,20 +160,16 @@ function ReviewContent({
   collapsedFileIds,
   compareMode,
   files,
-  isLoading,
   projectPath,
   reviewError,
   settings,
   summary,
   onCompareModeChange,
+  onFileAction,
   onRefresh,
   onSettingsChange,
   onToggleFile,
 }: ReviewContentProps) {
-  if (isLoading) {
-    return <StateBlock title="正在加载差异..." />;
-  }
-
   if (reviewError) {
     return <StateBlock actionLabel="刷新" body={reviewError} title="Git 命令失败" onAction={onRefresh} />;
   }
@@ -181,6 +178,7 @@ function ReviewContent({
     const emptyState = getEmptyReviewState(compareMode);
     return (
       <StateBlock
+        actionClassName="font-normal"
         actionLabel={emptyState.actionLabel}
         actionVariant="secondary"
         body={emptyState.body}
@@ -200,6 +198,7 @@ function ReviewContent({
       projectPath={projectPath}
       wrapDiffLines={settings.wrapDiffLines}
       viewMode={settings.diffViewMode}
+      onFileAction={onFileAction}
       onToggleWrap={() => onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }))}
       onToggleFile={onToggleFile}
     />
@@ -213,8 +212,6 @@ interface ReviewContentProps {
   compareMode: CompareMode;
   /** 当前需要渲染的文件列表，已按连续/单文件模式过滤。 */
   files: DiffFile[];
-  /** 是否正在加载当前 diff。 */
-  isLoading: boolean;
   /** 当前项目根路径，供 diff 文件右键菜单使用。 */
   projectPath: string;
   /** 当前 Git diff 加载错误。 */
@@ -225,6 +222,8 @@ interface ReviewContentProps {
   summary: ReviewSummary | null;
   /** 空状态按钮点击时切换到分支对比模式。 */
   onCompareModeChange: (mode: CompareMode) => void;
+  /** 执行 diff 文件头上的文件级 Git 操作。 */
+  onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 错误状态中点击刷新时重新加载 diff。 */
   onRefresh: () => void;
   /** 从 diff 右键菜单中更新本地展示设置。 */

@@ -4,7 +4,12 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { GitFileSnapshot } from "@/domain/diffParser";
 import type { CompareMode } from "@/domain/types";
-import type { GitCommandOutput, LoadReviewDiffParams, OpenFileInVsCodeParams } from "../../shared/electronApi";
+import type {
+  GitCommandOutput,
+  LoadReviewDiffParams,
+  OpenFileInVsCodeParams,
+  RunReviewFileActionParams,
+} from "../../shared/electronApi";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,6 +57,10 @@ export async function openFileInVsCode({ projectPath, filePath }: OpenFileInVsCo
   throw new Error("VS Code command failed");
 }
 
+export async function runReviewFileAction({ action, filePath, projectPath }: RunReviewFileActionParams): Promise<void> {
+  await runGit(projectPath, createFileActionArgs(action, filePath));
+}
+
 function createDiffArgs(mode: CompareMode, targetBranch?: string): string[] {
   const argsByMode: Record<CompareMode, string[]> = {
     unstaged: ["diff"],
@@ -61,6 +70,17 @@ function createDiffArgs(mode: CompareMode, targetBranch?: string): string[] {
   };
 
   return [...argsByMode[mode], "--"];
+}
+
+function createFileActionArgs(action: RunReviewFileActionParams["action"], filePath: string): string[] {
+  const argsByAction: Record<RunReviewFileActionParams["action"], string[]> = {
+    "restore-worktree": ["restore", "--worktree", "--", filePath],
+    "restore-file": ["restore", "--staged", "--worktree", "--", filePath],
+    stage: ["add", "--", filePath],
+    unstage: ["restore", "--staged", "--", filePath],
+  };
+
+  return argsByAction[action];
 }
 
 async function runGit(projectPath: string, args: string[]): Promise<GitCommandOutput> {

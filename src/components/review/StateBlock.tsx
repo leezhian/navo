@@ -7,6 +7,8 @@ type StateBlockActionVariant = ComponentProps<typeof Button>["variant"];
 interface StateBlockProps {
   /** 可选操作按钮文案；没有操作时不展示按钮。 */
   actionLabel?: string;
+  /** 操作按钮额外样式，用于少数占位态覆盖 shadcn 默认字重。 */
+  actionClassName?: string;
   /** 操作按钮的视觉类型，默认保持主按钮语义。 */
   actionVariant?: StateBlockActionVariant;
   /** 状态说明正文，通常用于错误详情或空状态解释。 */
@@ -23,6 +25,7 @@ interface StateBlockProps {
 
 export function StateBlock({
   actionLabel,
+  actionClassName,
   actionVariant = "default",
   body,
   centered = false,
@@ -40,14 +43,14 @@ export function StateBlock({
       <h2
         className={classNames(
           "mb-2",
-          quietTitle ? "text-sm font-normal text-muted-foreground" : "text-lg font-semibold text-foreground",
+          quietTitle ? "text-sm font-normal text-foreground" : "text-lg font-semibold text-foreground",
         )}
       >
         {title}
       </h2>
       {body && <p className="mb-4 text-sm leading-6">{body}</p>}
       {actionLabel && onAction && (
-        <Button type="button" variant={actionVariant} onClick={onAction}>
+        <Button className={actionClassName} type="button" variant={actionVariant} onClick={onAction}>
           {actionLabel}
         </Button>
       )}

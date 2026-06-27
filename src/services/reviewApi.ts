@@ -1,6 +1,6 @@
 import { parseGitDiff } from "../domain/diffParser";
 import { mockRawDiff } from "../domain/mockData";
-import type { CompareMode, ReviewSummary } from "../domain/types";
+import type { CompareMode, ReviewFileAction, ReviewSummary } from "../domain/types";
 
 export async function loadReviewDiff(
   projectPath: string,
@@ -37,6 +37,27 @@ export async function loadLocalBranches(projectPath: string): Promise<string[]> 
     if (isElectronApiUnavailable(error)) {
       // 本地预览没有 Electron API 时提供固定分支，保证分支菜单仍可交互。
       return ["main", "master", "feature/review-ui", "live-play-route"];
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function runReviewFileAction(
+  projectPath: string,
+  filePath: string,
+  action: ReviewFileAction,
+): Promise<void> {
+  try {
+    await window.vibeReviewer.review.runFileAction({
+      action,
+      filePath,
+      projectPath,
+    });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      // 浏览器预览没有 Git 写能力，点击文件操作时保持 no-op，避免 mock 预览报错。
+      return;
     }
 
     throw new Error(error instanceof Error ? error.message : String(error));

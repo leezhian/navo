@@ -1,4 +1,4 @@
-import type { AppSettings, CompareMode, DiffFile } from "@/domain/types";
+import type { AppSettings, CompareMode, DiffFile, ReviewFileAction } from "@/domain/types";
 import type {
   DiffLineAnnotation,
   FileDiff as PierreFileDiffInstance,
@@ -31,6 +31,8 @@ interface PierreDiffFileProps {
   onCommentClose: (commentId: string) => void;
   /** 点击行号 gutter 加号时打开本地评论。 */
   onCommentOpen: (commentId: string) => void;
+  /** 执行文件头上的还原/暂存/取消暂存操作。 */
+  onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 点击自定义文件头时切换文件折叠状态。 */
   onToggle: () => void;
 }
@@ -44,6 +46,7 @@ export function PierreDiffFile({
   wrapDiffLines,
   onCommentClose,
   onCommentOpen,
+  onFileAction,
   onToggle,
 }: PierreDiffFileProps) {
   const latestScrollTopRef = useRef(0);
@@ -119,8 +122,16 @@ export function PierreDiffFile({
   );
 
   const renderCustomHeader = useCallback(
-    () => <DiffFileHeader collapsed={collapsed} compareMode={compareMode} file={file} onToggle={onToggle} />,
-    [collapsed, compareMode, file, onToggle],
+    () => (
+      <DiffFileHeader
+        collapsed={collapsed}
+        compareMode={compareMode}
+        file={file}
+        onFileAction={onFileAction}
+        onToggle={onToggle}
+      />
+    ),
+    [collapsed, compareMode, file, onFileAction, onToggle],
   );
 
   const renderAnnotation = useCallback(
