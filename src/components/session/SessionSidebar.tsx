@@ -1,5 +1,6 @@
 import type { ReviewSession } from "../../domain/types";
 import { Button } from "@/components/ui/button";
+import { SESSION_SIDEBAR_WIDTH } from "@/components/layout/windowLayout";
 import { Settings } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import classNames from "classnames";
@@ -28,43 +29,45 @@ export function SessionSidebar({
     <AnimatePresence initial={false}>
       {isVisible && (
         <motion.aside
-          animate={{ opacity: 1, width: 280, x: 0 }}
-          className="grid min-w-0 shrink-0 grid-rows-[1fr_auto] overflow-hidden border-r bg-sidebar"
+          animate={{ opacity: 1, width: SESSION_SIDEBAR_WIDTH, x: 0 }}
+          className="shrink-0 overflow-hidden border-r bg-sidebar"
           exit={{ opacity: 0, width: 0, x: -24 }}
           initial={{ opacity: 0, width: 0, x: -24 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <div className="min-h-0 overflow-y-auto px-3 pt-12 pb-3">
-            <h2 className="px-1.5 pb-3 text-sm font-medium text-foreground">会话</h2>
-            {orderedSessions.length === 0 ? (
-              <div className="px-1.5 py-5 text-muted-foreground">
-                <h2 className="mb-2 text-lg font-semibold text-foreground">暂无审查会话</h2>
-                <p className="mb-4 text-sm leading-6">开启 Agent 监听后，完成一次代码修改会话即可在这里看到 diff。</p>
-                <Button type="button" variant="outline" onClick={onOpenSettings}>
-                  打开设置
-                </Button>
-              </div>
-            ) : (
-              orderedSessions.map((session) => (
-                <SessionItem
-                  active={session.id === selectedSessionId}
-                  key={session.id}
-                  session={session}
-                  onSelect={() => onSelectSession(session)}
-                />
-              ))
-            )}
-          </div>
-          <div className="p-3">
-            <Button
-              className="h-9 w-full justify-start gap-2 px-2.5 font-normal"
-              type="button"
-              variant="ghost"
-              onClick={onOpenSettings}
-            >
-              <Settings className="size-5" />
-              <span>设置</span>
-            </Button>
+          <div className="grid h-full grid-rows-[1fr_auto]" style={{ width: SESSION_SIDEBAR_WIDTH }}>
+            <div className="min-h-0 overflow-y-auto px-3 pt-12 pb-3">
+              <h2 className="px-1.5 pb-3 text-sm font-medium text-foreground">会话</h2>
+              {orderedSessions.length === 0 ? (
+                <div className="px-1.5 py-5 text-muted-foreground">
+                  <h2 className="mb-2 text-lg font-semibold text-foreground">暂无审查会话</h2>
+                  <p className="mb-4 text-sm leading-6">开启 Agent 监听后，完成一次代码修改会话即可在这里看到 diff。</p>
+                  <Button type="button" variant="outline" onClick={onOpenSettings}>
+                    打开设置
+                  </Button>
+                </div>
+              ) : (
+                orderedSessions.map((session) => (
+                  <SessionItem
+                    active={session.id === selectedSessionId}
+                    key={session.id}
+                    session={session}
+                    onSelect={() => onSelectSession(session)}
+                  />
+                ))
+              )}
+            </div>
+            <div className="p-3">
+              <Button
+                className="h-9 w-full justify-start gap-2 px-2.5 font-normal"
+                type="button"
+                variant="ghost"
+                onClick={onOpenSettings}
+              >
+                <Settings className="size-5" />
+                <span>设置</span>
+              </Button>
+            </div>
           </div>
         </motion.aside>
       )}

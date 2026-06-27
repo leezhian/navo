@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { MacWindow, WindowReviewTab } from "./components/layout/MacWindow";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MacWindow, WindowWorkspaceTabs, type WindowTerminalTab } from "./components/layout/MacWindow";
 import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
+import { TerminalWorkspace } from "./components/terminal/TerminalWorkspace";
 import { mockSessions } from "./domain/mockData";
 import type { CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
 import { loadLocalBranches, loadReviewDiff, mockSummary } from "./services/reviewApi";
 import "./App.css";
+
+type WorkspaceKind = "review" | "terminal";
 
 function App() {
   const { settings, updateSettings } = useLocalSettings();
@@ -24,10 +26,16 @@ function App() {
   const [isReviewLoading, setIsReviewLoading] = useState(false);
   const [localBranches, setLocalBranches] = useState<string[]>(["main", "master"]);
   const [compareModeFileCounts, setCompareModeFileCounts] = useState<CompareModeFileCounts>({});
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKind>("review");
+  const [terminalTabs, setTerminalTabs] = useState<WindowTerminalTab[]>([]);
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
+  const terminalCounterRef = useRef(0);
 
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
   const orderedSessions = useOrderedSessions(sessions);
-  const shouldShowReviewTab = !showSettings && Boolean(selectedSession);
+  const activeTerminal = terminalTabs.find((tab) => tab.id === activeTerminalId) ?? null;
+  const isReviewActive = activeWorkspace === "review" && Boolean(selectedSession);
+  const shouldShowWorkspaceTabs = !showSettings && (Boolean(selectedSession) || terminalTabs.length > 0);
 
   const refreshCompareModeFileCounts = useCallback(() => {
     if (!selectedSession) {
@@ -86,16 +94,69 @@ function App() {
   function selectSession(session: ReviewSession) {
     setSelectedSessionId(session.id);
     setShowSettings(false);
+    setActiveWorkspace("review");
     setSessions((current) =>
       current.map((item) => (item.id === session.id ? { ...item, unread: false } : item)),
     );
+  }
+
+  function addTerminalTab() {
+    terminalCounterRef.current += 1;
+    const nextTab = {
+      id: `terminal-${Date.now()}-${terminalCounterRef.current}`,
+      title: `终端 ${terminalCounterRef.current}`,
+    };
+
+    setShowSettings(false);
+    setTerminalTabs((current) => [...current, nextTab]);
+    setActiveTerminalId(nextTab.id);
+    setActiveWorkspace("terminal");
+  }
+
+  function closeReviewTab() {
+    setSelectedSessionId(null);
+    if (terminalTabs.length > 0) {
+      setActiveTerminalId((current) => current ?? terminalTabs[0].id);
+      setActiveWorkspace("terminal");
+    }
+  }
+
+  function closeTerminalTab(tabId: string) {
+    setTerminalTabs((current) => {
+      const nextTabs = current.filter((tab) => tab.id !== tabId);
+      if (tabId !== activeTerminalId) {
+        return nextTabs;
+      }
+
+      const nextActiveTerminal = nextTabs[nextTabs.length - 1] ?? null;
+      setActiveTerminalId(nextActiveTerminal?.id ?? null);
+      setActiveWorkspace(nextActiveTerminal ? "terminal" : "review");
+      return nextTabs;
+    });
   }
 
   return (
     <main className="min-h-screen bg-background p-4 text-foreground">
       <MacWindow
         isSidebarVisible={isSessionSidebarVisible}
-        reviewTab={shouldShowReviewTab ? <WindowReviewTab onClose={() => setSelectedSessionId(null)} /> : undefined}
+        workspaceTabs={
+          shouldShowWorkspaceTabs ? (
+            <WindowWorkspaceTabs
+              activeTerminalId={activeTerminalId}
+              hasReview={Boolean(selectedSession)}
+              isReviewActive={isReviewActive}
+              terminalTabs={terminalTabs}
+              onAddTerminal={addTerminalTab}
+              onCloseReview={closeReviewTab}
+              onCloseTerminal={closeTerminalTab}
+              onSelectReview={() => setActiveWorkspace("review")}
+              onSelectTerminal={(tabId) => {
+                setActiveTerminalId(tabId);
+                setActiveWorkspace("terminal");
+              }}
+            />
+          ) : undefined
+        }
         onToggleSidebar={() => setIsSessionSidebarVisible((visible) => !visible)}
       >
         <div className="flex h-full min-w-0">
@@ -106,61 +167,52 @@ function App() {
             onOpenSettings={() => {
               setShowSettings(true);
               setSelectedSessionId(null);
+              setActiveWorkspace("review");
             }}
             onSelectSession={selectSession}
           />
 
-          <AnimatePresence mode="wait" initial={false}>
-            {showSettings && (
-              <motion.section
-                animate={{ opacity: 1, x: 0 }}
-                className="min-h-0 min-w-0 flex-1"
-                exit={{ opacity: 0, x: 28 }}
-                initial={{ opacity: 0, x: 28 }}
-                key="settings"
-                transition={{ duration: 0.18, ease: "easeOut" }}
-              >
-                <SettingsPanel
-                  settings={settings}
-                  updateSettings={updateSettings}
-                  onBack={() => {
-                    setShowSettings(false);
-                    setSelectedSessionId(mockSessions[0]?.id ?? null);
-                  }}
-                />
-              </motion.section>
-            )}
+          {showSettings && (
+            <section className="min-h-0 min-w-0 flex-1">
+              <SettingsPanel
+                settings={settings}
+                updateSettings={updateSettings}
+                onBack={() => {
+                  setShowSettings(false);
+                  setSelectedSessionId(mockSessions[0]?.id ?? null);
+                }}
+              />
+            </section>
+          )}
 
-            {!showSettings && selectedSession && (
-              <motion.section
-                animate={{ opacity: 1, x: 0 }}
-                className="min-h-0 min-w-0 flex-1"
-                exit={{ opacity: 0, x: 28 }}
-                initial={{ opacity: 0, x: 28 }}
-                key={`review-${selectedSession.id}`}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-              >
-                <ReviewWorkspace
-                  collapsedFileIds={collapsedFileIds}
-                  compareMode={compareMode}
-                  compareModeFileCounts={compareModeFileCounts}
-                  isLoading={isReviewLoading}
-                  localBranches={localBranches}
-                  reviewError={reviewError}
-                  selectedFileId={selectedFileId}
-                  session={selectedSession}
-                  settings={settings}
-                  summary={reviewSummary}
-                  onCompareModeChange={setCompareMode}
-                  onRefresh={refreshReview}
-                  onSelectedFileChange={setSelectedFileId}
-                  onSettingsChange={updateSettings}
-                  onToggleAllCollapsed={() => setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary))}
-                  onToggleFile={(fileId) => setCollapsedFileIds((current) => toggleSetValue(current, fileId))}
-                />
-              </motion.section>
-            )}
-          </AnimatePresence>
+          {!showSettings && selectedSession && activeWorkspace === "review" && (
+            <section className="min-h-0 min-w-0 flex-1">
+              <ReviewWorkspace
+                collapsedFileIds={collapsedFileIds}
+                compareMode={compareMode}
+                compareModeFileCounts={compareModeFileCounts}
+                isLoading={isReviewLoading}
+                localBranches={localBranches}
+                reviewError={reviewError}
+                selectedFileId={selectedFileId}
+                session={selectedSession}
+                settings={settings}
+                summary={reviewSummary}
+                onCompareModeChange={setCompareMode}
+                onRefresh={refreshReview}
+                onSelectedFileChange={setSelectedFileId}
+                onSettingsChange={updateSettings}
+                onToggleAllCollapsed={() => setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary))}
+                onToggleFile={(fileId) => setCollapsedFileIds((current) => toggleSetValue(current, fileId))}
+              />
+            </section>
+          )}
+
+          {!showSettings && activeTerminal && activeWorkspace === "terminal" && (
+            <section className="min-h-0 min-w-0 flex-1">
+              <TerminalWorkspace title={activeTerminal.title} />
+            </section>
+          )}
         </div>
       </MacWindow>
     </main>

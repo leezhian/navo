@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 export type CommentSide = "deletions" | "additions";
@@ -22,12 +23,54 @@ interface LocalCommentBoxProps {
   onCancel: () => void;
 }
 
+type LocalCommentMode = "draft" | "saved" | "editing";
+
 export function LocalCommentBox({ lineLabel, onCancel }: LocalCommentBoxProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [mode, setMode] = useState<LocalCommentMode>("draft");
+  const [draftText, setDraftText] = useState("");
+  const [savedText, setSavedText] = useState("");
+  const hasCommentContent = draftText.trim().length > 0;
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      resizeCommentTextareaElement(textareaRef.current);
+    }
+  }, [draftText]);
+
+  function saveComment() {
+    if (!hasCommentContent) {
+      return;
+    }
+
+    const nextText = draftText.trim();
+    setDraftText(nextText);
+    setSavedText(nextText);
+    setMode("saved");
+    textareaRef.current?.blur();
+  }
+
+  function cancelEdit() {
+    if (mode === "draft") {
+      onCancel();
+      return;
+    }
+
+    setDraftText(savedText);
+    setMode("saved");
+  }
+
+  function enterEditingMode() {
+    if (mode === "saved") {
+      setMode("editing");
+    }
+  }
+
   return (
-    <div className="bg-blue-100/70 p-2 dark:bg-blue-950/40">
-      <div className="overflow-hidden rounded-xl bg-background shadow-sm">
+    <div className="p-2">
+      <div className="overflow-hidden rounded-xl bg-white shadow-sm dark:bg-card">
         <div className="flex h-12 items-center justify-between border-b border-border/50 px-4">
-          <div className="flex items-center gap-2.5 font-sans text-sm font-medium">
+          <div className="flex items-center gap-2.5 font-sans text-sm font-normal">
             <span className="inline-flex size-6 items-center justify-center rounded-full bg-muted">
               <MessageCircle className="size-3" />
             </span>
@@ -36,28 +79,79 @@ export function LocalCommentBox({ lineLabel, onCancel }: LocalCommentBoxProps) {
           <span className="font-sans text-xs text-muted-foreground">对第 {lineLabel} 行发表评论</span>
         </div>
         <textarea
+          ref={textareaRef}
           className="min-h-9 w-full resize-none overflow-hidden bg-transparent px-4 py-2 font-sans text-sm outline-none placeholder:text-muted-foreground/60"
           placeholder="请求更改"
           rows={1}
+          value={draftText}
+          onChange={(event) => setDraftText(event.target.value)}
+          onFocus={enterEditingMode}
           onInput={resizeCommentTextarea}
         />
-        <div className="flex justify-end gap-2 px-4 pb-3">
-          <Button size="sm" type="button" variant="ghost" onClick={onCancel}>
-            取消
-          </Button>
-          <Button size="sm" type="button">
-            注释
-          </Button>
-        </div>
+        <LocalCommentActions
+          canSave={hasCommentContent}
+          mode={mode}
+          onCancel={cancelEdit}
+          onDelete={onCancel}
+          onSave={saveComment}
+        />
       </div>
     </div>
   );
 }
 
 function resizeCommentTextarea(event: FormEvent<HTMLTextAreaElement>) {
-  const textarea = event.currentTarget;
+  resizeCommentTextareaElement(event.currentTarget);
+}
+
+function resizeCommentTextareaElement(textarea: HTMLTextAreaElement) {
   textarea.style.height = "auto";
   textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+interface LocalCommentActionsProps {
+  /** 文本框是否有可提交内容；没有内容时注释/保存按钮禁用。 */
+  canSave: boolean;
+  /** 当前评论框展示状态，决定底部按钮组合。 */
+  mode: LocalCommentMode;
+  /** 草稿态关闭评论框，编辑态放弃本次改动。 */
+  onCancel: () => void;
+  /** 删除已打开的本地评论 annotation。 */
+  onDelete: () => void;
+  /** 提交草稿或保存编辑内容。 */
+  onSave: () => void;
+}
+
+function LocalCommentActions({ canSave, mode, onCancel, onDelete, onSave }: LocalCommentActionsProps) {
+  if (mode === "saved") {
+    return (
+      <div className="flex justify-end px-4 pb-3">
+        <Button className="font-normal text-muted-foreground" size="sm" type="button" variant="ghost" onClick={onDelete}>
+          删除
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex justify-between gap-2 px-4 pb-3">
+      {mode === "editing" ? (
+        <Button className="font-normal" size="sm" type="button" variant="destructive" onClick={onDelete}>
+          删除
+        </Button>
+      ) : (
+        <span />
+      )}
+      <span className="flex gap-2">
+        <Button className="font-normal text-muted-foreground" size="sm" type="button" variant="ghost" onClick={onCancel}>
+          取消
+        </Button>
+        <Button className="font-normal" disabled={!canSave} size="sm" type="button" onClick={onSave}>
+          {mode === "editing" ? "保存" : "注释"}
+        </Button>
+      </span>
+    </div>
+  );
 }
 
 interface LocalCommentButtonProps {
