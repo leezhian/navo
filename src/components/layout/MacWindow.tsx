@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { useWindowFullScreen } from "@/hooks/useWindowFullScreen";
 import { PanelLeftClose, PanelLeftOpen, Plus, X } from "lucide-react";
@@ -30,8 +30,22 @@ export function MacWindow({
   isSidebarVisible,
   onToggleSidebar,
 }: MacWindowProps) {
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if (!isSidebarShortcut(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      onToggleSidebar();
+    }
+
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [onToggleSidebar]);
+
   return (
-    <div className="relative h-screen min-h-[680px] overflow-hidden bg-background">
+    <div className="relative h-screen min-h-[680px] overflow-hidden bg-transparent">
       <WindowHeader
         isSidebarVisible={isSidebarVisible}
         workspaceTabs={workspaceTabs}
@@ -87,10 +101,11 @@ interface WindowControlsProps {
 
 function WindowControls({ isSidebarVisible, onToggleSidebar }: WindowControlsProps) {
   const SidebarIcon = isSidebarVisible ? PanelLeftClose : PanelLeftOpen;
+  const shortcutLabel = getSidebarShortcutLabel();
 
   return (
     <div className="window-no-drag pointer-events-auto flex items-center">
-      <IconTooltip label="切换边栏" onClick={onToggleSidebar}>
+      <IconTooltip label={`切换边栏 ${shortcutLabel}`} onClick={onToggleSidebar}>
         <SidebarIcon className="size-4" />
       </IconTooltip>
     </div>
@@ -193,4 +208,31 @@ function WindowTab({ active, title, onClose, onSelect }: WindowTabProps) {
       </button>
     </div>
   );
+}
+
+function isSidebarShortcut(event: KeyboardEvent) {
+  if (event.defaultPrevented || event.repeat || isEditableTarget(event.target)) {
+    return false;
+  }
+
+  const usesMacShortcut = isApplePlatform();
+  const hasModifier = usesMacShortcut ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+
+  return hasModifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "b";
+}
+
+function getSidebarShortcutLabel() {
+  return isApplePlatform() ? "⌘B" : "Ctrl+B";
+}
+
+function isApplePlatform() {
+  return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }

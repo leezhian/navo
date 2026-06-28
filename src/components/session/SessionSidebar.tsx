@@ -30,12 +30,13 @@ export function SessionSidebar({
       {isVisible && (
         <motion.aside
           animate={{ opacity: 1, width: SESSION_SIDEBAR_WIDTH, x: 0 }}
-          className="shrink-0 overflow-hidden border-r bg-sidebar"
+          className="relative shrink-0 overflow-hidden border-r bg-sidebar/35 backdrop-blur-[120px] backdrop-saturate-175 supports-[backdrop-filter]:bg-sidebar/32"
           exit={{ opacity: 0, width: 0, x: -24 }}
           initial={{ opacity: 0, width: 0, x: -24 }}
           transition={SESSION_SIDEBAR_TRANSITION}
         >
-          <div className="grid h-full grid-rows-[1fr_auto]" style={{ width: SESSION_SIDEBAR_WIDTH }}>
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 via-white/10 to-white/4 dark:from-white/8 dark:via-white/4 dark:to-black/12" />
+          <div className="relative grid h-full grid-rows-[1fr_auto]" style={{ width: SESSION_SIDEBAR_WIDTH }}>
             <div className="min-h-0 overflow-y-auto px-3 pt-12 pb-3">
               <h2 className="px-1.5 pb-3 text-sm font-medium text-foreground">会话</h2>
               {orderedSessions.length === 0 ? (
@@ -64,7 +65,7 @@ export function SessionSidebar({
                 variant="ghost"
                 onClick={onOpenSettings}
               >
-                <Settings className="size-5" />
+                <Settings className="size-4" />
                 <span>设置</span>
               </Button>
             </div>
@@ -89,7 +90,7 @@ function SessionItem({ active, session, onSelect }: SessionItemProps) {
     <button
       className={classNames(
         "mb-2.5 grid w-full gap-1.5 rounded-lg border p-3 text-left text-sm text-muted-foreground",
-        active ? "border-primary/40 bg-accent" : "bg-background/70 hover:bg-accent",
+        active ? "border-primary/35 bg-accent/75" : "bg-background/45 hover:bg-accent/65",
       )}
       type="button"
       onClick={onSelect}

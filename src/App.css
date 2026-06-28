@@ -123,11 +123,15 @@
   }
 
   html {
-    @apply font-sans;
+    @apply bg-transparent font-sans;
   }
 
   body {
-    @apply min-w-[960px] overflow-hidden bg-background text-foreground;
+    @apply min-w-[960px] overflow-hidden bg-transparent text-foreground;
+  }
+
+  #root {
+    @apply bg-transparent;
   }
 
   .window-drag-region {

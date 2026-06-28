@@ -11,15 +11,19 @@ if (started) {
 }
 
 const createWindow = () => {
+  const usesNativeVibrancy = process.platform === "darwin";
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 960,
     minHeight: 720,
-    backgroundColor: "#ffffff",
+    backgroundColor: usesNativeVibrancy ? "#00000000" : "#ffffff",
+    transparent: usesNativeVibrancy,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: TRAFFIC_LIGHT_POSITION,
     title: "Vibe Reviewer",
+    vibrancy: usesNativeVibrancy ? "sidebar" : undefined,
+    visualEffectState: usesNativeVibrancy ? "active" : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

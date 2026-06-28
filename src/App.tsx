@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { MacWindow, WindowWorkspaceTabs } from "./components/layout/MacWindow";
 import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
@@ -17,6 +17,9 @@ function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(mockSessions[0]?.id ?? null);
   const [isSessionSidebarVisible, setIsSessionSidebarVisible] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const toggleSessionSidebar = useCallback(() => {
+    setIsSessionSidebarVisible((visible) => !visible);
+  }, []);
 
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null;
   const orderedSessions = useOrderedSessions(sessions);
@@ -70,7 +73,7 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-screen bg-transparent text-foreground">
       <MacWindow
         isSidebarVisible={isSessionSidebarVisible}
         workspaceTabs={
@@ -88,7 +91,7 @@ function App() {
             />
           ) : undefined
         }
-        onToggleSidebar={() => setIsSessionSidebarVisible((visible) => !visible)}
+        onToggleSidebar={toggleSessionSidebar}
       >
         <div className="flex h-full min-w-0">
           <SessionSidebar
@@ -104,7 +107,7 @@ function App() {
           />
 
           {showSettings && (
-            <section className="min-h-0 min-w-0 flex-1">
+            <section className="min-h-0 min-w-0 flex-1 bg-background">
               <SettingsPanel
                 settings={settings}
                 updateSettings={updateSettings}
@@ -118,7 +121,7 @@ function App() {
           )}
 
           {!showSettings && selectedSession && activeWorkspace === "review" && (
-            <section className="min-h-0 min-w-0 flex-1">
+            <section className="min-h-0 min-w-0 flex-1 bg-background">
               <ReviewWorkspace
                 collapsedFileIds={collapsedFileIds}
                 compareMode={compareMode}
@@ -141,7 +144,7 @@ function App() {
           )}
 
           {!showSettings && activeTerminal && activeWorkspace === "terminal" && (
-            <section className="min-h-0 min-w-0 flex-1">
+            <section className="min-h-0 min-w-0 flex-1 bg-background">
               <TerminalWorkspace title={activeTerminal.title} />
             </section>
           )}
