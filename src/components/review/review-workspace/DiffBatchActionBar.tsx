@@ -51,7 +51,8 @@ interface BatchActionButtonProps {
 function BatchActionButton({ children, label, onClick }: BatchActionButtonProps) {
   return (
     <Button
-      className="h-8 gap-1.5 rounded-full px-2.5 font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
+      className="gap-1.5 rounded-full px-2.5 font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
+      size="default"
       type="button"
       variant="ghost"
       onClick={onClick}

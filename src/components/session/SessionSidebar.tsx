@@ -30,12 +30,12 @@ export function SessionSidebar({
       {isVisible && (
         <motion.aside
           animate={{ opacity: 1, width: SESSION_SIDEBAR_WIDTH, x: 0 }}
-          className="relative shrink-0 overflow-hidden border-r bg-sidebar/35 backdrop-blur-[120px] backdrop-saturate-175 supports-[backdrop-filter]:bg-sidebar/32"
+          className="relative shrink-0 overflow-hidden border-r border-sidebar-border bg-sidebar/58 text-sidebar-foreground backdrop-blur-[120px] backdrop-saturate-175 supports-[backdrop-filter]:bg-sidebar/52 dark:bg-sidebar/78 dark:backdrop-blur-[120px] dark:backdrop-saturate-125 dark:supports-[backdrop-filter]:bg-sidebar/72"
           exit={{ opacity: 0, width: 0, x: -24 }}
           initial={{ opacity: 0, width: 0, x: -24 }}
           transition={SESSION_SIDEBAR_TRANSITION}
         >
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 via-white/10 to-white/4 dark:from-white/8 dark:via-white/4 dark:to-black/12" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 via-white/10 to-white/4 dark:from-black/18 dark:via-black/14 dark:to-black/20" />
           <div className="relative grid h-full grid-rows-[1fr_auto]" style={{ width: SESSION_SIDEBAR_WIDTH }}>
             <div className="min-h-0 overflow-y-auto px-3 pt-12 pb-3">
               <h2 className="px-1.5 pb-3 text-sm font-medium text-foreground">会话</h2>
@@ -89,8 +89,10 @@ function SessionItem({ active, session, onSelect }: SessionItemProps) {
   return (
     <button
       className={classNames(
-        "mb-2.5 grid w-full gap-1.5 rounded-lg border p-3 text-left text-sm text-muted-foreground",
-        active ? "border-primary/35 bg-accent/75" : "bg-background/45 hover:bg-accent/65",
+        "mb-2.5 grid w-full gap-1.5 rounded-lg border p-3 text-left text-sm text-muted-foreground dark:text-sidebar-foreground/70",
+        active
+          ? "border-primary/35 bg-accent/75 dark:border-sidebar-border dark:bg-sidebar-accent/85"
+          : "bg-background/45 hover:bg-accent/65 dark:border-sidebar-border/80 dark:bg-sidebar-accent/28 dark:hover:bg-sidebar-accent/55",
       )}
       type="button"
       onClick={onSelect}

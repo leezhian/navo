@@ -45,7 +45,7 @@ export function MacWindow({
   }, [onToggleSidebar]);
 
   return (
-    <div className="relative h-screen min-h-[680px] overflow-hidden bg-transparent">
+    <div className="relative h-screen min-h-[600px] overflow-hidden bg-transparent">
       <WindowHeader
         isSidebarVisible={isSidebarVisible}
         workspaceTabs={workspaceTabs}

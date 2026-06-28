@@ -13,10 +13,10 @@ if (started) {
 const createWindow = () => {
   const usesNativeVibrancy = process.platform === "darwin";
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 960,
-    minHeight: 720,
+    width: 1024,
+    height: 768,
+    minWidth: 480,
+    minHeight: 600,
     backgroundColor: usesNativeVibrancy ? "#00000000" : "#ffffff",
     transparent: usesNativeVibrancy,
     titleBarStyle: "hiddenInset",
