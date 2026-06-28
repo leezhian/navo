@@ -1,5 +1,5 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
-import type { CompareMode, ReviewFileAction } from "../domain/types";
+import type { CompareMode, ReviewBatchFileAction, ReviewFileAction } from "../domain/types";
 
 export interface GitCommandOutput {
   stdout: string;
@@ -24,6 +24,12 @@ export interface RunReviewFileActionParams {
   action: ReviewFileAction;
 }
 
+export interface RunReviewBatchFileActionParams {
+  projectPath: string;
+  filePaths: string[];
+  action: ReviewBatchFileAction;
+}
+
 export type WindowFullScreenListener = (isFullScreen: boolean) => void;
 
 export interface VibeReviewerApi {
@@ -31,6 +37,7 @@ export interface VibeReviewerApi {
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;
     loadLocalBranches(projectPath: string): Promise<string[]>;
     openFileInVsCode(params: OpenFileInVsCodeParams): Promise<void>;
+    runBatchFileAction(params: RunReviewBatchFileActionParams): Promise<void>;
     runFileAction(params: RunReviewFileActionParams): Promise<void>;
   };
   window: {

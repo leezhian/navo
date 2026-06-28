@@ -18,6 +18,8 @@ export type AgentStatus = "listening" | "disabled" | "failed";
 
 export type ReviewFileAction = "restore-worktree" | "restore-file" | "stage" | "unstage";
 
+export type ReviewBatchFileAction = "restore-worktree-all" | "stage-all" | "unstage-all";
+
 export interface ReviewSession {
   id: string;
   agent: AgentType;

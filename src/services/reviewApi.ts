@@ -1,6 +1,6 @@
 import { parseGitDiff } from "../domain/diffParser";
 import { mockRawDiff } from "../domain/mockData";
-import type { CompareMode, ReviewFileAction, ReviewSummary } from "../domain/types";
+import type { CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSummary } from "../domain/types";
 
 export async function loadReviewDiff(
   projectPath: string,
@@ -57,6 +57,27 @@ export async function runReviewFileAction(
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       // 浏览器预览没有 Git 写能力，点击文件操作时保持 no-op，避免 mock 预览报错。
+      return;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function runReviewBatchFileAction(
+  projectPath: string,
+  filePaths: string[],
+  action: ReviewBatchFileAction,
+): Promise<void> {
+  try {
+    await window.vibeReviewer.review.runBatchFileAction({
+      action,
+      filePaths,
+      projectPath,
+    });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      // 浏览器预览没有 Git 写能力，点击批量文件操作时保持 no-op。
       return;
     }
 

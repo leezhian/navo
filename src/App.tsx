@@ -44,6 +44,7 @@ function App() {
     refreshReview,
     reviewError,
     reviewSummary,
+    runBatchFileAction,
     runFileAction,
     selectedFileId,
     setCompareMode,
@@ -132,6 +133,7 @@ function App() {
                 session={selectedSession}
                 settings={settings}
                 summary={reviewSummary}
+                onBatchFileAction={runBatchFileAction}
                 onCompareModeChange={setCompareMode}
                 onFileAction={runFileAction}
                 onRefresh={refreshReview}

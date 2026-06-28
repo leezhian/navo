@@ -6,6 +6,7 @@ import type {
   CompareMode,
   CompareModeFileCounts,
   DiffFile,
+  ReviewBatchFileAction,
   ReviewFileAction,
   ReviewSession,
   ReviewSummary,
@@ -23,6 +24,7 @@ import {
 } from "./review-workspace/reviewWorkspaceUtils";
 import { useFileSelection } from "./review-workspace/useFileSelection";
 import { useResizableFileTree } from "./review-workspace/useResizableFileTree";
+import { DiffBatchActionBar } from "./review-workspace/DiffBatchActionBar";
 import { StateBlock } from "./StateBlock";
 
 interface ReviewWorkspaceProps {
@@ -46,6 +48,8 @@ interface ReviewWorkspaceProps {
   summary: ReviewSummary | null;
   /** 切换对比方式后由上层重新加载 diff。 */
   onCompareModeChange: (mode: CompareMode) => void;
+  /** 点击 diff 悬浮条批量操作按钮时执行当前 diff 文件集合的 Git 操作。 */
+  onBatchFileAction: (action: ReviewBatchFileAction) => void;
   /** 点击文件头还原/暂存/取消暂存按钮时执行对应 Git 文件操作。 */
   onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 重新执行当前对比方式的 Git diff 加载。 */
@@ -71,6 +75,7 @@ export function ReviewWorkspace({
   settings,
   summary,
   onCompareModeChange,
+  onBatchFileAction,
   onFileAction,
   onRefresh,
   onSelectedFileChange,
@@ -125,6 +130,7 @@ export function ReviewWorkspace({
             reviewError={reviewError}
             settings={settings}
             summary={summary}
+            onBatchFileAction={onBatchFileAction}
             onCompareModeChange={onCompareModeChange}
             onFileAction={onFileAction}
             onRefresh={onRefresh}
@@ -164,6 +170,7 @@ function ReviewContent({
   reviewError,
   settings,
   summary,
+  onBatchFileAction,
   onCompareModeChange,
   onFileAction,
   onRefresh,
@@ -191,17 +198,20 @@ function ReviewContent({
   }
 
   return (
-    <DiffViewer
-      compareMode={compareMode}
-      collapsedFileIds={collapsedFileIds}
-      files={files}
-      projectPath={projectPath}
-      wrapDiffLines={settings.wrapDiffLines}
-      viewMode={settings.diffViewMode}
-      onFileAction={onFileAction}
-      onToggleWrap={() => onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }))}
-      onToggleFile={onToggleFile}
-    />
+    <>
+      <DiffViewer
+        compareMode={compareMode}
+        collapsedFileIds={collapsedFileIds}
+        files={files}
+        projectPath={projectPath}
+        wrapDiffLines={settings.wrapDiffLines}
+        viewMode={settings.diffViewMode}
+        onFileAction={onFileAction}
+        onToggleWrap={() => onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }))}
+        onToggleFile={onToggleFile}
+      />
+      <DiffBatchActionBar compareMode={compareMode} hasFiles={files.length > 0} onBatchFileAction={onBatchFileAction} />
+    </>
   );
 }
 
@@ -222,6 +232,8 @@ interface ReviewContentProps {
   summary: ReviewSummary | null;
   /** 空状态按钮点击时切换到分支对比模式。 */
   onCompareModeChange: (mode: CompareMode) => void;
+  /** 执行当前 diff 文件集合的批量 Git 操作。 */
+  onBatchFileAction: (action: ReviewBatchFileAction) => void;
   /** 执行 diff 文件头上的文件级 Git 操作。 */
   onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 错误状态中点击刷新时重新加载 diff。 */

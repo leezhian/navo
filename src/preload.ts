@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from "electron";
 import type {
   LoadReviewDiffParams,
   OpenFileInVsCodeParams,
+  RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
   VibeReviewerApi,
   WindowFullScreenListener,
@@ -19,6 +20,9 @@ const api: VibeReviewerApi = {
     },
     openFileInVsCode(params: OpenFileInVsCodeParams) {
       return ipcRenderer.invoke(ipcChannels.reviewOpenFileInVsCode, params);
+    },
+    runBatchFileAction(params: RunReviewBatchFileActionParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewRunBatchFileAction, params);
     },
     runFileAction(params: RunReviewFileActionParams) {
       return ipcRenderer.invoke(ipcChannels.reviewRunFileAction, params);

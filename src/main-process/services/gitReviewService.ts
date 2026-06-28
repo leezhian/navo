@@ -8,6 +8,7 @@ import type {
   GitCommandOutput,
   LoadReviewDiffParams,
   OpenFileInVsCodeParams,
+  RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
 } from "../../shared/electronApi";
 
@@ -61,6 +62,18 @@ export async function runReviewFileAction({ action, filePath, projectPath }: Run
   await runGit(projectPath, createFileActionArgs(action, filePath));
 }
 
+export async function runReviewBatchFileAction({
+  action,
+  filePaths,
+  projectPath,
+}: RunReviewBatchFileActionParams): Promise<void> {
+  if (filePaths.length === 0) {
+    return;
+  }
+
+  await runGit(projectPath, createBatchFileActionArgs(action, filePaths));
+}
+
 function createDiffArgs(mode: CompareMode, targetBranch?: string): string[] {
   const argsByMode: Record<CompareMode, string[]> = {
     unstaged: ["diff"],
@@ -78,6 +91,16 @@ function createFileActionArgs(action: RunReviewFileActionParams["action"], fileP
     "restore-file": ["restore", "--staged", "--worktree", "--", filePath],
     stage: ["add", "--", filePath],
     unstage: ["restore", "--staged", "--", filePath],
+  };
+
+  return argsByAction[action];
+}
+
+function createBatchFileActionArgs(action: RunReviewBatchFileActionParams["action"], filePaths: string[]): string[] {
+  const argsByAction: Record<RunReviewBatchFileActionParams["action"], string[]> = {
+    "restore-worktree-all": ["restore", "--worktree", "--", ...filePaths],
+    "stage-all": ["add", "--", ...filePaths],
+    "unstage-all": ["restore", "--staged", "--", ...filePaths],
   };
 
   return argsByAction[action];

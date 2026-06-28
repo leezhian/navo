@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import type { CompareMode, CompareModeFileCounts, ReviewFileAction, ReviewSession, ReviewSummary } from "@/domain/types";
-import { loadLocalBranches, loadReviewDiff, runReviewFileAction } from "@/services/reviewApi";
+import type {
+  CompareMode,
+  CompareModeFileCounts,
+  DiffFile,
+  ReviewBatchFileAction,
+  ReviewFileAction,
+  ReviewSession,
+  ReviewSummary,
+} from "@/domain/types";
+import { loadLocalBranches, loadReviewDiff, runReviewBatchFileAction, runReviewFileAction } from "@/services/reviewApi";
 
 interface UseReviewDataParams {
   /** 当前选中的审查会话；为空时停止加载 diff，并清空对比方式文件数。 */
@@ -93,6 +101,20 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       });
   }
 
+  function runBatchFileAction(action: ReviewBatchFileAction) {
+    if (!selectedSession || !reviewSummary) {
+      return;
+    }
+
+    setReviewError(null);
+
+    runReviewBatchFileAction(selectedSession.projectPath, getActionFilePaths(reviewSummary.files), action)
+      .then(refreshReview)
+      .catch((error: unknown) => {
+        setReviewError(error instanceof Error ? error.message : String(error));
+      });
+  }
+
   return {
     collapsedFileIds,
     compareMode,
@@ -102,6 +124,7 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
     reviewSummary,
     selectedFileId,
     refreshReview,
+    runBatchFileAction,
     setCompareMode,
     setSelectedFileId,
     runFileAction,
@@ -132,6 +155,10 @@ function toggleAllFiles(current: Set<string>, summary: ReviewSummary | null) {
 
 function isTrackedFileCountMode(mode: CompareMode) {
   return mode === "unstaged" || mode === "staged";
+}
+
+function getActionFilePaths(files: DiffFile[]) {
+  return files.map((file) => file.newPath || file.oldPath || file.displayPath);
 }
 
 async function loadCompareModeFileCounts(
