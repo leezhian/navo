@@ -31,14 +31,17 @@ Vibe Reviewer 是一个面向本地开发者的桌面代码审查工具。它通
 
 ## 4. 技术栈
 
-基于 Tauri 2.0 构建桌面应用。
+基于 Electron Forge + Vite 构建桌面应用。
 
-- pnpm
-- Tauri 2.0
+- npm
+- Electron Forge
 - React
 - Vite
 - TypeScript
-- lodash
+- Tailwind CSS
+- shadcn/ui
+- lucide-react
+- @pierre/diffs
 - Git CLI
 
 ## 5. 核心概念
@@ -105,6 +108,8 @@ Agent 会话是 Vibe Reviewer 的主要入口。一次会话代表某个 Agent �
 
 每个 Agent 都可以独立开启或关闭监听。关闭监听后，该 Agent 的新会话不再进入列表，但历史记录仍可查看。
 
+其中 Codex 与 Claude Code 作为第一批真实接入对象，优先使用官方 hooks 完成会话采集；OpenCode 与 Qoder 后续沿用同一套本地事件日志模型扩展。
+
 #### 7.1.2 监听行为
 
 1. 应用在后台监听已启用 Agent 的会话状态。
@@ -117,6 +122,63 @@ Agent 会话是 Vibe Reviewer 的主要入口。一次会话代表某个 Agent �
 #### 7.1.3 监听失败
 
 当某个 Agent 监听失败时，需要在配置页展示错误状态，并允许用户重新开启监听。失败不应影响其他 Agent。
+
+#### 7.1.4 Codex 与 Claude Code Hook 接入方案
+
+Codex 和 Claude Code 均优先通过官方 hooks 接入，而不是轮询私有会话文件结构。hooks 只负责采集事件和写入本地审查事件，不直接操作 UI。这样即使 Vibe Reviewer 没有打开，也不会丢失 Agent 会话结束后的改动记录。
+
+参考文档：
+
+- Codex hooks: <https://developers.openai.com/codex/hooks>
+- Claude Code hooks: <https://code.claude.com/docs/zh-CN/hooks>
+
+首版默认只使用以下事件：
+
+1. `UserPromptSubmit`：在用户提交提示后、Agent 开始处理前运行，用于记录本轮对话开始前的 Git 快照。
+2. `Stop`：在 Agent 完成一次响应时运行，用于记录结束快照并计算本轮差异。
+3. `SessionEnd`：Claude Code 专有兜底事件，用于会话退出、`/clear`、`/resume` 等场景下补做清理或最终检查。
+
+首版不默认监听 `PostToolUse`。虽然它可以标记“本轮可能发生过工具调用”，但一次会话中可能触发多次工具，每次都启动 hook 进程反而会增加额外开销；并且工具执行成功或失败都不能证明最终代码真的发生了变化。是否产生审查记录必须以开始快照和结束快照的 Git diff 为准。
+
+后续只有在实际验证 `Stop` 阶段的快照对比成为性能瓶颈时，才考虑有限使用 `PostToolUse` 作为优化信号，并且应尽量通过 matcher 限制到明确写文件的工具，例如 Claude Code 的 `Write`、`Edit`。Codex 的 Bash 和 MCP 工具过于宽泛，不适合作为默认监听范围。
+
+事件采集原则：
+
+- Hook 输入中的 `session_id` 作为 Agent 会话 ID。
+- Hook 输入中的 `transcript_path` 作为会话来源引用，仅保存路径，不解析大段会话内容。
+- Hook 输入中的 `cwd` 作为当前工作目录，再通过 `git rev-parse --show-toplevel` 解析项目根目录。
+- 分支名通过 `git branch --show-current` 获取；detached HEAD 场景展示短 commit hash。
+- 如果结束时本轮 diff 为空，不写入审查事件，也不打扰会话列表。
+- 如果 diff 非空，则写入本地事件日志，由 App 启动或文件监听逻辑合并到会话列表。
+
+#### 7.1.5 Hook 安装与启停
+
+设置页的 Agent 开关负责安装、启用或停用对应 hooks。
+
+Codex 配置写入或合并到 Codex 支持的 hooks 配置中，Claude Code 配置写入或合并到 Claude Code 的 settings hooks 配置中。安装逻辑必须遵守以下规则：
+
+1. 不覆盖用户已有 hooks 配置，只做最小 merge。
+2. 首次写入前备份原配置文件。
+3. 配置项中调用 Vibe Reviewer 自带的 hook collector，例如：
+
+   ```bash
+   "/Applications/Vibe Reviewer.app/Contents/MacOS/Vibe Reviewer" --hook collect
+   ```
+
+4. Hook collector 以无窗口模式运行，只读取 stdin JSON、执行 Git 快照和写入事件日志，不启动主窗口。
+5. 用户关闭某个 Agent 监听后，仅禁用对应 Vibe Reviewer hook，不删除用户其他 hooks。
+
+#### 7.1.6 App 启动与实时会话同步
+
+App 启动后由 Electron main process 读取本地审查事件日志，聚合出所有未归档会话并发送给 renderer。运行期间继续监听事件日志变化，有新事件时实时推送给会话列表。
+
+同步规则：
+
+1. 如果会话 ID 已存在，则更新项目、分支、更新时间、diff 引用和统计信息，并设置未读红点。
+2. 如果会话 ID 不存在，则新增会话 item，并设置未读红点。
+3. 用户点击会话后清除该会话的未读红点。
+4. 未归档状态由 Vibe Reviewer 自己维护，不依赖 Codex 或 Claude Code 私有归档状态。
+5. 如果未来需要导入历史会话，可以额外扫描 transcript 目录作为补充能力，但不作为首版实时监听主路径。
 
 ### 7.2 会话列表
 
@@ -194,6 +256,16 @@ Agent 会话是 Vibe Reviewer 的主要入口。一次会话代表某个 Agent �
 该模式用于回答：“这一轮 Agent 到底改了什么？”
 
 如果缺少会话前基线，界面展示不可用状态，并说明原因。
+
+实现上不创建独立 worktree。首选方案是使用临时 Git index 生成 tree object：
+
+1. 在 `UserPromptSubmit` 阶段创建临时 index，读取 `HEAD`，再执行 `git add -A`，通过 `git write-tree` 得到 `baselineTree`。
+2. 在 `Stop` 或兜底结束事件阶段创建另一个临时 index，同样读取 `HEAD`、执行 `git add -A`，通过 `git write-tree` 得到 `currentTree`。
+3. 执行 `git diff <baselineTree> <currentTree>` 得到这一轮对话的完整 diff。
+4. 如果 diff 为空，不生成会话更新。
+5. 如果 diff 非空，将 raw diff 写入本地 patch 文件，并将事件元数据写入事件日志。
+
+这种方式不会 checkout、不创建目录、不修改用户工作区；同时可以覆盖已暂存、未暂存和未跟踪文件。会话开始前已经存在的脏改动会进入 `baselineTree`，因此不会被误算为本轮 Agent 新增改动。
 
 ### 7.5 审查区顶部通栏
 
@@ -412,7 +484,55 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 - 未读状态。
 - 快照引用。
 
-### 10.3 隐私原则
+### 10.3 审查事件日志
+
+审查事件日志用于连接 Agent hooks 和 Vibe Reviewer App。Hook collector 只追加写入，App 负责读取、聚合和展示。
+
+建议存储位置：
+
+- 事件日志：`~/Library/Application Support/Vibe Reviewer/events.jsonl`
+- diff 快照：`~/Library/Application Support/Vibe Reviewer/diffs/<provider>/<sessionId>/<turnId>.patch`
+- 会话状态：`~/Library/Application Support/Vibe Reviewer/sessions.json`
+
+事件日志只保存轻量 metadata，raw diff 单独保存为 patch 文件。事件结构示例：
+
+```ts
+interface ReviewSessionEvent {
+  provider: "codex" | "claude";
+  sessionId: string;
+  turnId?: string;
+  transcriptPath?: string;
+  projectPath: string;
+  projectName: string;
+  branchName: string;
+  rawDiffPath: string;
+  fileCount: number;
+  additions: number;
+  deletions: number;
+  startedAt: string;
+  endedAt: string;
+  updatedAt: string;
+}
+```
+
+为了避免重复事件，App 聚合时使用 `provider + sessionId + turnId` 作为事件唯一键；如果 Agent 没有提供 turn ID，则使用 `provider + sessionId + baselineTree + currentTree` 生成稳定 key。
+
+### 10.4 会话状态
+
+会话状态由 Vibe Reviewer 自己维护，用于支持未读红点、归档状态和最近选择。它不直接依赖 Codex 或 Claude Code 的私有 UI 状态。
+
+会话状态包含：
+
+- 会话 ID。
+- Agent 类型。
+- 项目路径。
+- 分支名。
+- 最近 raw diff 引用。
+- 未读状态。
+- 归档状态。
+- 最近更新时间。
+
+### 10.5 隐私原则
 
 1. 所有代码 diff 和会话记录默认保存在本地。
 2. 首版不上传代码内容。
@@ -491,7 +611,7 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 
 ### 14.1 M1：基础壳与静态审查界面
 
-- 完成 Tauri + React 基础应用结构。
+- 完成 Electron Forge + React 基础应用结构。
 - 完成会话列表、审查区、顶部通栏、文件树、diff 区域的静态界面。
 - 使用 mock 数据验证主要交互。
 
@@ -503,9 +623,11 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 
 ### 14.3 M3：Agent 监听与上轮对话
 
-- 完成 Agent 监听配置。
-- 完成会话开始前基线记录。
-- 完成会话结束后的改动检测。
+- 完成 Codex 与 Claude Code hooks 安装和启停。
+- 完成 hook collector 的无窗口运行模式。
+- 完成会话开始前 Git tree 基线记录。
+- 完成会话结束后的 diff 检测和事件日志写入。
+- 完成 App 启动读取未归档会话和运行中实时更新。
 - 完成上轮对话 diff。
 
 ### 14.4 M4：设置、主题与异常处理
@@ -516,8 +638,8 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 
 ## 15. 待确认问题
 
-1. Agent 监听的具体技术路径：读取日志、监听文件变化、还是接入各 Agent 的 hook/事件机制。
-2. “上轮对话”快照的存储方式：保存完整文件副本、保存 patch、还是保存 Git blob 引用。
+1. 是否需要同步 Codex / Claude Code 原生归档状态，还是长期使用 Vibe Reviewer 自己的归档状态。
+2. Hook 安装入口是仅放在设置页，还是首次启动时提供引导流程。
 3. 分支对比默认目标分支的准确判断策略。
 4. 是否需要在首版支持多窗口或多项目同时审查。
 5. 是否需要提供全局快捷键快速打开最近会话。
