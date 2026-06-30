@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type {
+  ExternalLinkTarget,
   LoadReviewDiffParams,
   OpenFileInVsCodeParams,
   RunReviewBatchFileActionParams,
@@ -11,6 +12,17 @@ import type {
 import { ipcChannels } from "./shared/ipcChannels";
 
 const api: VibeReviewerApi = {
+  app: {
+    getInfo() {
+      return ipcRenderer.invoke(ipcChannels.appGetInfo);
+    },
+    openExternalLink(target: ExternalLinkTarget) {
+      return ipcRenderer.invoke(ipcChannels.appOpenExternalLink, target);
+    },
+    checkForUpdates() {
+      return ipcRenderer.invoke(ipcChannels.appCheckForUpdates);
+    },
+  },
   review: {
     runGitDiff(params: LoadReviewDiffParams) {
       return ipcRenderer.invoke(ipcChannels.reviewRunGitDiff, params);

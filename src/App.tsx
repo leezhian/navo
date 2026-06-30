@@ -101,25 +101,9 @@ function App() {
             selectedSessionId={selectedSessionId}
             onOpenSettings={() => {
               setShowSettings(true);
-              setSelectedSessionId(null);
-              selectReviewWorkspace();
             }}
             onSelectSession={selectSession}
           />
-
-          {showSettings && (
-            <section className="min-h-0 min-w-0 flex-1 bg-background">
-              <SettingsPanel
-                settings={settings}
-                updateSettings={updateSettings}
-                onBack={() => {
-                  setShowSettings(false);
-                  setSelectedSessionId(mockSessions[0]?.id ?? null);
-                  selectReviewWorkspace();
-                }}
-              />
-            </section>
-          )}
 
           {!showSettings && selectedSession && activeWorkspace === "review" && (
             <section className="min-h-0 min-w-0 flex-1 bg-background">
@@ -151,6 +135,18 @@ function App() {
             </section>
           )}
         </div>
+
+        {showSettings && (
+          <section className="absolute inset-0 z-40 bg-background">
+            <SettingsPanel
+              settings={settings}
+              updateSettings={updateSettings}
+              onBack={() => {
+                setShowSettings(false);
+              }}
+            />
+          </section>
+        )}
       </MacWindow>
     </main>
   );

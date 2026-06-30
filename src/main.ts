@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { TRAFFIC_LIGHT_POSITION } from "./shared/windowLayout";
+import { registerAppHandlers } from "./main-process/ipc/appHandlers";
 import { registerReviewHandlers } from "./main-process/ipc/reviewHandlers";
 import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
 
@@ -43,6 +44,7 @@ const createWindow = () => {
 };
 
 app.on("ready", () => {
+  registerAppHandlers();
   registerReviewHandlers();
   registerWindowHandlers();
   createWindow();
