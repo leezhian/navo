@@ -6,6 +6,7 @@ import type {
   CompareMode,
   CompareModeFileCounts,
   DiffFile,
+  ResolvedTheme,
   ReviewBatchFileAction,
   ReviewFileAction,
   ReviewSession,
@@ -38,6 +39,8 @@ interface ReviewWorkspaceProps {
   localBranches: string[];
   /** Git 或解析失败信息，存在时优先展示错误状态。 */
   reviewError: string | null;
+  /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
+  resolvedTheme: ResolvedTheme;
   /** 单文件模式下正在查看的文件 id，连续模式下用于文件树定位。 */
   selectedFileId: string | null;
   /** 当前审查会话，提供项目路径、分支和兜底改动统计。 */
@@ -70,6 +73,7 @@ export function ReviewWorkspace({
   compareModeFileCounts,
   localBranches,
   reviewError,
+  resolvedTheme,
   selectedFileId,
   session,
   settings,
@@ -128,6 +132,7 @@ export function ReviewWorkspace({
             files={visibleFiles}
             projectPath={session.projectPath}
             reviewError={reviewError}
+            resolvedTheme={resolvedTheme}
             settings={settings}
             summary={summary}
             onBatchFileAction={onBatchFileAction}
@@ -168,6 +173,7 @@ function ReviewContent({
   files,
   projectPath,
   reviewError,
+  resolvedTheme,
   settings,
   summary,
   onBatchFileAction,
@@ -204,8 +210,8 @@ function ReviewContent({
         collapsedFileIds={collapsedFileIds}
         files={files}
         projectPath={projectPath}
-        wrapDiffLines={settings.wrapDiffLines}
-        viewMode={settings.diffViewMode}
+        resolvedTheme={resolvedTheme}
+        settings={settings}
         onFileAction={onFileAction}
         onToggleWrap={() => onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }))}
         onToggleFile={onToggleFile}
@@ -226,6 +232,8 @@ interface ReviewContentProps {
   projectPath: string;
   /** 当前 Git diff 加载错误。 */
   reviewError: string | null;
+  /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
+  resolvedTheme: ResolvedTheme;
   /** 本地展示设置，提供 diff 布局和换行状态。 */
   settings: AppSettings;
   /** 当前 diff 汇总，用于判断是否展示空状态。 */

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { AppSettings, CompareMode, DiffFile, ReviewFileAction } from "../../domain/types";
+import type { AppSettings, CompareMode, DiffFile, ResolvedTheme, ReviewFileAction } from "../../domain/types";
 import { parseLineCommentId } from "./diff-viewer/LineComment";
 import { PierreDiffFile, type LocalCommentAnnotation } from "./diff-viewer/PierreDiffFile";
 import { FileContextMenu } from "./file-actions/FileContextMenu";
@@ -13,10 +13,10 @@ interface DiffViewerProps {
   files: DiffFile[];
   /** 当前项目根路径，用于文件块右键菜单。 */
   projectPath: string;
-  /** 是否开启自动换行，传给 Pierre overflow 配置和右键菜单。 */
-  wrapDiffLines: boolean;
-  /** 统一或分栏 diff 视图模式。 */
-  viewMode: AppSettings["diffViewMode"];
+  /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
+  resolvedTheme: ResolvedTheme;
+  /** 本地展示设置，包含 diff 布局、字号、主题和标记方式。 */
+  settings: AppSettings;
   /** 执行文件头上的还原/暂存/取消暂存操作。 */
   onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 在文件块右键菜单中切换自动换行。 */
@@ -30,8 +30,8 @@ export function DiffViewer({
   compareMode,
   files,
   projectPath,
-  wrapDiffLines,
-  viewMode,
+  resolvedTheme,
+  settings,
   onFileAction,
   onToggleWrap,
   onToggleFile,
@@ -60,8 +60,8 @@ export function DiffViewer({
           file={file}
           key={file.id}
           projectPath={projectPath}
-          viewMode={viewMode}
-          wrapDiffLines={wrapDiffLines}
+          resolvedTheme={resolvedTheme}
+          settings={settings}
           onCommentClose={closeLineComment}
           onCommentOpen={openLineComment}
           onFileAction={onFileAction}
@@ -84,10 +84,10 @@ interface DiffFileViewProps {
   file: DiffFile;
   /** 当前项目根路径，用于文件块右键菜单。 */
   projectPath: string;
-  /** 当前 diff 展示模式。 */
-  viewMode: AppSettings["diffViewMode"];
-  /** 当前文件块是否自动换行。 */
-  wrapDiffLines: boolean;
+  /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
+  resolvedTheme: ResolvedTheme;
+  /** 本地展示设置，传给 Pierre diff 文件组件。 */
+  settings: AppSettings;
   /** 关闭指定本地评论框。 */
   onCommentClose: (commentId: string) => void;
   /** 打开指定本地评论框。 */
@@ -106,8 +106,8 @@ function DiffFileView({
   compareMode,
   file,
   projectPath,
-  viewMode,
-  wrapDiffLines,
+  resolvedTheme,
+  settings,
   onCommentClose,
   onCommentOpen,
   onFileAction,
@@ -121,7 +121,7 @@ function DiffFileView({
       file={file}
       projectPath={projectPath}
       showWrapToggle
-      wrapDiffLines={wrapDiffLines}
+      wrapDiffLines={settings.wrapDiffLines}
       onToggleWrap={onToggleWrap}
     >
       <article className="group/file" id={`diff-file-${file.id}`}>
@@ -130,8 +130,8 @@ function DiffFileView({
           compareMode={compareMode}
           file={file}
           lineAnnotations={lineAnnotations}
-          viewMode={viewMode}
-          wrapDiffLines={wrapDiffLines}
+          resolvedTheme={resolvedTheme}
+          settings={settings}
           onCommentClose={onCommentClose}
           onCommentOpen={onCommentOpen}
           onFileAction={onFileAction}

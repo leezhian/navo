@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
-import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import type { CSSProperties, Dispatch, SetStateAction } from "react";
+import { AboutSettingsPage } from "@/components/settings/AboutSettingsPage";
+import { AppearanceThemeSettings } from "@/components/settings/AppearanceThemeSettings";
+import { DiffAppearanceSettings } from "@/components/settings/DiffAppearanceSettings";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  SettingsList,
+  SettingsPageHeader,
+  SettingsSectionHeader,
+  SettingsSwitchRow,
+} from "@/components/settings/settingsPrimitives";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import {
   Sidebar,
   SidebarContent,
@@ -15,20 +17,15 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Switch } from "@/components/ui/switch";
 import { defaultSettings } from "@/domain/mockData";
-import type { AgentType, AppSettings } from "@/domain/types";
-import type { AppInfo, CheckForUpdatesResult, ExternalLinkTarget } from "@/shared/electronApi";
+import type { AgentType, AppSettings, ResolvedTheme } from "@/domain/types";
 import { SESSION_SIDEBAR_WIDTH } from "@/shared/windowLayout";
-import { checkForAppUpdates, loadAppInfo, openAppExternalLink } from "@/services/appApi";
-import { ArrowLeft, Bug, ExternalLink, Info, Palette, RefreshCw, Search, Settings } from "lucide-react";
-import classNames from "classnames";
+import { ArrowLeft, Info, Palette, Search, Settings } from "lucide-react";
 
 type SettingsPage = "general" | "appearance" | "about";
 
@@ -65,11 +62,13 @@ interface SettingsPanelProps {
   settings: AppSettings;
   /** 点击返回按钮时关闭设置页，并回到上层决定的工作区。 */
   onBack: () => void;
+  /** 应用主题解析后的实际浅深色模式，用于设置页实时预览。 */
+  resolvedTheme: ResolvedTheme;
   /** 更新本地偏好设置，例如 Agent 开关和主题。 */
   updateSettings: Dispatch<SetStateAction<AppSettings>>;
 }
 
-export function SettingsPanel({ settings, onBack, updateSettings }: SettingsPanelProps) {
+export function SettingsPanel({ resolvedTheme, settings, onBack, updateSettings }: SettingsPanelProps) {
   const [activePage, setActivePage] = useState<SettingsPage>("general");
   const [searchKeyword, setSearchKeyword] = useState("");
   const visibleNavigation = filterSettingsNavigation(searchKeyword);
@@ -94,15 +93,17 @@ export function SettingsPanel({ settings, onBack, updateSettings }: SettingsPane
         </button>
 
         <SidebarHeader className="relative">
-          <label className="relative block">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <SidebarInput
-              className="bg-background/70 pl-8 focus-visible:border-input focus-visible:ring-0 dark:bg-background/45"
+          <InputGroup className="bg-background/70 shadow-none has-[[data-slot=input-group-control]:focus-visible]:border-input has-[[data-slot=input-group-control]:focus-visible]:ring-0 dark:bg-background/45">
+            <InputGroupAddon>
+              <Search className="size-4" />
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label="搜索设置"
               placeholder="搜索设置..."
               value={searchKeyword}
               onChange={(event) => setSearchKeyword(event.target.value)}
             />
-          </label>
+          </InputGroup>
         </SidebarHeader>
 
         <SettingsNavigation
@@ -115,8 +116,14 @@ export function SettingsPanel({ settings, onBack, updateSettings }: SettingsPane
       <main className="min-h-0 flex-1 overflow-y-auto bg-background px-14 pt-18 pb-12">
         <div className="mx-auto w-full max-w-[820px]">
           {activePage === "general" && <GeneralSettingsPage settings={settings} updateSettings={updateSettings} />}
-          {activePage === "appearance" && <AppearanceSettingsPage settings={settings} updateSettings={updateSettings} />}
-          {activePage === "about" && <AboutPage />}
+          {activePage === "appearance" && (
+            <AppearanceSettingsPage
+              resolvedTheme={resolvedTheme}
+              settings={settings}
+              updateSettings={updateSettings}
+            />
+          )}
+          {activePage === "about" && <AboutSettingsPage />}
         </div>
       </main>
     </SidebarProvider>
@@ -233,217 +240,25 @@ function GeneralSettingsPage({ settings, updateSettings }: GeneralSettingsPagePr
 }
 
 interface AppearanceSettingsPageProps {
+  /** 应用主题解析后的实际浅深色模式，用于设置页实时预览。 */
+  resolvedTheme: ResolvedTheme;
   /** 当前偏好设置数据。 */
   settings: AppSettings;
   /** 更新主题偏好时触发。 */
   updateSettings: Dispatch<SetStateAction<AppSettings>>;
 }
 
-function AppearanceSettingsPage({ settings, updateSettings }: AppearanceSettingsPageProps) {
+function AppearanceSettingsPage({ resolvedTheme, settings, updateSettings }: AppearanceSettingsPageProps) {
   return (
     <>
       <SettingsPageHeader title="外观" />
-
-      <section className="mb-10">
-        <SettingsSectionHeader title="主题" description="选择 Vibe Reviewer 的界面颜色模式。" />
-        <SettingsList>
-          <SettingsSelectRow label="应用主题" description="设置页面、会话列表和审查区都会同步该主题。">
-            <Select
-              value={settings.theme}
-              onValueChange={(theme) =>
-                updateSettings((current) => ({
-                  ...current,
-                  theme: theme as AppSettings["theme"],
-                }))
-              }
-            >
-              <SelectTrigger className="w-[220px] bg-muted/60">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="system">跟随系统</SelectItem>
-                <SelectItem value="light">浅色</SelectItem>
-                <SelectItem value="dark">深色</SelectItem>
-              </SelectContent>
-            </Select>
-          </SettingsSelectRow>
-        </SettingsList>
-      </section>
+      <AppearanceThemeSettings
+        resolvedTheme={resolvedTheme}
+        settings={settings}
+        updateSettings={updateSettings}
+      />
+      <DiffAppearanceSettings settings={settings} updateSettings={updateSettings} />
     </>
-  );
-}
-
-function AboutPage() {
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [updateResult, setUpdateResult] = useState<CheckForUpdatesResult | null>(null);
-  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
-
-  useEffect(() => {
-    loadAppInfo().then(setAppInfo).catch(() => setAppInfo({ name: "vibe-reviewer", version: "未知" }));
-  }, []);
-
-  async function handleCheckForUpdates() {
-    setIsCheckingUpdates(true);
-    setUpdateResult(null);
-
-    try {
-      const result = await checkForAppUpdates();
-      setUpdateResult(result);
-    } catch (error) {
-      setUpdateResult({
-        hasUpdate: false,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setIsCheckingUpdates(false);
-    }
-  }
-
-  return (
-    <>
-      <SettingsPageHeader title="关于" />
-
-      <section className="mb-10">
-        <SettingsSectionHeader
-          title={appInfo?.name ?? "vibe-reviewer"}
-          description="本地 AI 代码审查桌面应用"
-        />
-        <SettingsList>
-          <AboutInfoRow label="当前版本" value={appInfo ? `v${appInfo.version}` : "读取中"} />
-          <AboutInfoRow label="更新状态" value={updateResult?.message ?? "尚未检查更新"} />
-        </SettingsList>
-      </section>
-
-      <div className="flex flex-wrap gap-2.5">
-        <Button
-          className="font-normal"
-          disabled={isCheckingUpdates}
-          type="button"
-          variant="secondary"
-          onClick={handleCheckForUpdates}
-        >
-          <RefreshCw className={classNames("size-4", isCheckingUpdates && "animate-spin")} />
-          {isCheckingUpdates ? "检查中" : "检查更新"}
-        </Button>
-        <ExternalLinkButton target="website">
-          <ExternalLink className="size-4" />
-          官网
-        </ExternalLinkButton>
-        <ExternalLinkButton target="report-bug">
-          <Bug className="size-4" />
-          报告 Bug
-        </ExternalLinkButton>
-      </div>
-    </>
-  );
-}
-
-interface SettingsPageHeaderProps {
-  /** 右侧设置页面主标题。 */
-  title: string;
-}
-
-function SettingsPageHeader({ title }: SettingsPageHeaderProps) {
-  return <h1 className="mb-14 text-xl font-medium tracking-normal">{title}</h1>;
-}
-
-interface SettingsSectionHeaderProps {
-  /** 分区标题。 */
-  title: string;
-  /** 分区说明，帮助用户理解当前配置影响范围。 */
-  description?: string;
-}
-
-function SettingsSectionHeader({ title, description }: SettingsSectionHeaderProps) {
-  return (
-    <header className="mb-5">
-      <h2 className="mb-1 text-sm font-normal">{title}</h2>
-      {description && <p className="text-sm text-muted-foreground">{description}</p>}
-    </header>
-  );
-}
-
-interface SettingsListProps {
-  /** 设置列表中的行内容。 */
-  children: ReactNode;
-}
-
-function SettingsList({ children }: SettingsListProps) {
-  return <div className="overflow-hidden rounded-xl border bg-card">{children}</div>;
-}
-
-interface SettingsSwitchRowProps {
-  /** 当前开关是否开启。 */
-  checked: boolean;
-  /** 设置项补充说明，部分简洁配置项可以不展示。 */
-  description?: string;
-  /** 设置项标题。 */
-  title: string;
-  /** 用户切换开关时触发。 */
-  onCheckedChange: (checked: boolean) => void;
-}
-
-function SettingsSwitchRow({ checked, description, title, onCheckedChange }: SettingsSwitchRowProps) {
-  return (
-    <div className="flex min-h-18 items-center justify-between gap-6 border-b px-4 last:border-b-0">
-      <div className="min-w-0">
-        <h3 className="text-sm font-normal">{title}</h3>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
-      </div>
-      <Switch aria-label={`启用 ${title}`} checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  );
-}
-
-interface SettingsSelectRowProps {
-  /** 设置项右侧控件。 */
-  children: ReactNode;
-  /** 设置项补充说明。 */
-  description: string;
-  /** 设置项标题。 */
-  label: string;
-}
-
-function SettingsSelectRow({ children, description, label }: SettingsSelectRowProps) {
-  return (
-    <div className="flex min-h-18 items-center justify-between gap-6 border-b px-4 last:border-b-0">
-      <div className="min-w-0">
-        <h3 className="text-sm font-normal">{label}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-interface AboutInfoRowProps {
-  /** 左侧信息项名称。 */
-  label: string;
-  /** 右侧信息项内容。 */
-  value: string;
-}
-
-function AboutInfoRow({ label, value }: AboutInfoRowProps) {
-  return (
-    <div className="flex min-h-14 items-center justify-between gap-4 border-b px-4 text-sm last:border-b-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-foreground">{value}</span>
-    </div>
-  );
-}
-
-interface ExternalLinkButtonProps {
-  /** 外部链接白名单目标，由主进程转换成真实 URL。 */
-  target: ExternalLinkTarget;
-  /** 按钮内容，通常是图标加文字。 */
-  children: ReactNode;
-}
-
-function ExternalLinkButton({ target, children }: ExternalLinkButtonProps) {
-  return (
-    <Button className="font-normal" type="button" variant="outline" onClick={() => void openAppExternalLink(target)}>
-      {children}
-    </Button>
   );
 }
 

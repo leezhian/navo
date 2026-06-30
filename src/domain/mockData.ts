@@ -1,6 +1,8 @@
 import type { AppSettings, ReviewSession } from "./types";
+import { defaultDiffSettings } from "./settings";
 
 export const defaultSettings: AppSettings = {
+  ...defaultDiffSettings,
   enabledAgents: {
     "Claude Code": true,
     Codex: true,

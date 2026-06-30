@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { defaultSettings } from "../domain/mockData";
-import type { AppSettings, ThemePreference } from "../domain/types";
+import { normalizeAppSettings } from "../domain/settings";
+import type { AppSettings, ResolvedTheme, ThemePreference } from "../domain/types";
 
 const STORAGE_KEY = "vibe-reviewer-settings";
 const SYSTEM_COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
 export function useLocalSettings() {
   const [settings, setSettings] = useState<AppSettings>(() => readSettings());
+  const [isSystemDark, setIsSystemDark] = useState(() => getIsSystemDark());
+  const resolvedTheme = resolveTheme(settings.theme, isSystemDark);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -14,26 +17,31 @@ export function useLocalSettings() {
 
   useEffect(() => {
     const colorSchemeQuery = window.matchMedia(SYSTEM_COLOR_SCHEME_QUERY);
-    const applyTheme = () => applyThemePreference(settings.theme, colorSchemeQuery.matches);
+    const handleSystemThemeChange = () => setIsSystemDark(colorSchemeQuery.matches);
 
-    applyTheme();
+    handleSystemThemeChange();
 
     if (settings.theme !== "system") {
       return undefined;
     }
 
-    // 跟随系统时 settings.theme 不会变化，需要订阅系统主题事件来刷新根节点 class。
-    colorSchemeQuery.addEventListener("change", applyTheme);
+    // 跟随系统时 settings.theme 不会变化，需要订阅系统主题事件来同步 resolvedTheme。
+    colorSchemeQuery.addEventListener("change", handleSystemThemeChange);
 
-    return () => colorSchemeQuery.removeEventListener("change", applyTheme);
+    return () => colorSchemeQuery.removeEventListener("change", handleSystemThemeChange);
   }, [settings.theme]);
+
+  useEffect(() => {
+    applyResolvedTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   return useMemo(
     () => ({
+      resolvedTheme,
       settings,
       updateSettings: setSettings,
     }),
-    [settings],
+    [resolvedTheme, settings],
   );
 }
 
@@ -44,27 +52,30 @@ function readSettings(): AppSettings {
       return defaultSettings;
     }
 
-    return {
+    return normalizeAppSettings({
       ...defaultSettings,
       ...JSON.parse(raw),
-    };
+    });
   } catch {
     return defaultSettings;
   }
 }
 
-function applyThemePreference(theme: ThemePreference, isSystemDark: boolean) {
+function applyResolvedTheme(resolvedTheme: ResolvedTheme) {
   const root = document.documentElement;
-  const resolvedTheme = resolveTheme(theme, isSystemDark);
 
   root.classList.toggle("dark", resolvedTheme === "dark");
   root.style.colorScheme = resolvedTheme;
 }
 
-function resolveTheme(theme: ThemePreference, isSystemDark: boolean) {
+function resolveTheme(theme: ThemePreference, isSystemDark: boolean): ResolvedTheme {
   if (theme !== "system") {
     return theme;
   }
 
   return isSystemDark ? "dark" : "light";
+}
+
+function getIsSystemDark() {
+  return window.matchMedia(SYSTEM_COLOR_SCHEME_QUERY).matches;
 }

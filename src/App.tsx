@@ -12,7 +12,7 @@ import { useWorkspaceTabs } from "./hooks/useWorkspaceTabs";
 import "./App.css";
 
 function App() {
-  const { settings, updateSettings } = useLocalSettings();
+  const { resolvedTheme, settings, updateSettings } = useLocalSettings();
   const [sessions, setSessions] = useState(mockSessions);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(mockSessions[0]?.id ?? null);
   const [isSessionSidebarVisible, setIsSessionSidebarVisible] = useState(true);
@@ -113,6 +113,7 @@ function App() {
                 compareModeFileCounts={compareModeFileCounts}
                 localBranches={localBranches}
                 reviewError={reviewError}
+                resolvedTheme={resolvedTheme}
                 selectedFileId={selectedFileId}
                 session={selectedSession}
                 settings={settings}
@@ -140,6 +141,7 @@ function App() {
           <section className="absolute inset-0 z-40 bg-background">
             <SettingsPanel
               settings={settings}
+              resolvedTheme={resolvedTheme}
               updateSettings={updateSettings}
               onBack={() => {
                 setShowSettings(false);

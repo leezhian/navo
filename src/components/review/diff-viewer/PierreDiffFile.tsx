@@ -1,4 +1,4 @@
-import type { AppSettings, CompareMode, DiffFile, ReviewFileAction } from "@/domain/types";
+import type { AppSettings, CompareMode, DiffFile, ResolvedTheme, ReviewFileAction } from "@/domain/types";
 import type {
   DiffLineAnnotation,
   FileDiff as PierreFileDiffInstance,
@@ -10,7 +10,7 @@ import { FileDiff } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { getLineCommentId, LocalCommentBox, type LocalCommentMetadata } from "./LineComment";
-import { pierreDiffUnsafeCss } from "./pierreDiffStyles";
+import { getPierreDiffIndicators, getPierreTheme, getPierreUnsafeCss } from "./pierreDiffOptions";
 
 type LocalCommentAnnotation = DiffLineAnnotation<LocalCommentMetadata>;
 
@@ -23,10 +23,10 @@ interface PierreDiffFileProps {
   file: DiffFile;
   /** 当前文件内需要插入的本地评论 annotation。 */
   lineAnnotations: LocalCommentAnnotation[];
-  /** 统一或分栏视图，映射到 Pierre 的 diffStyle。 */
-  viewMode: AppSettings["diffViewMode"];
-  /** 自动换行开关，映射到 Pierre 的 overflow 配置。 */
-  wrapDiffLines: boolean;
+  /** 应用主题解析后的实际浅深色模式，用于选择当前生效的 Pierre 主题。 */
+  resolvedTheme: ResolvedTheme;
+  /** 本地展示设置，映射到 Pierre 的样式、主题和交互配置。 */
+  settings: AppSettings;
   /** 关闭指定本地评论 annotation。 */
   onCommentClose: (commentId: string) => void;
   /** 点击行号 gutter 加号时打开本地评论。 */
@@ -42,8 +42,8 @@ export function PierreDiffFile({
   compareMode,
   file,
   lineAnnotations,
-  viewMode,
-  wrapDiffLines,
+  resolvedTheme,
+  settings,
   onCommentClose,
   onCommentOpen,
   onFileAction,
@@ -100,25 +100,22 @@ export function PierreDiffFile({
   const options = useMemo<FileDiffOptions<LocalCommentMetadata>>(
     () => ({
       collapsed,
-      diffIndicators: "bars",
-      diffStyle: viewMode === "split" ? "split" : "unified",
+      diffIndicators: getPierreDiffIndicators(settings.diffIndicatorMode),
+      diffStyle: settings.diffViewMode === "split" ? "split" : "unified",
       enableGutterUtility: true,
       hunkSeparators: "line-info",
       lineDiffType: "word",
       lineHoverHighlight: "disabled",
       onGutterUtilityClick: handleGutterUtilityClick,
       onPostRender: handlePostRender,
-      overflow: wrapDiffLines ? "wrap" : "scroll",
-      theme: {
-        dark: "pierre-dark",
-        light: "pierre-light",
-      },
-      themeType: "system",
+      overflow: settings.wrapDiffLines ? "wrap" : "scroll",
+      theme: getPierreTheme(settings),
+      themeType: resolvedTheme,
       stickyHeader: true,
       tokenizeMaxLineLength: 3000,
-      unsafeCSS: pierreDiffUnsafeCss,
+      unsafeCSS: getPierreUnsafeCss(settings),
     }),
-    [collapsed, handleGutterUtilityClick, handlePostRender, viewMode, wrapDiffLines],
+    [collapsed, handleGutterUtilityClick, handlePostRender, resolvedTheme, settings],
   );
 
   const renderCustomHeader = useCallback(

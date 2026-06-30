@@ -8,9 +8,15 @@ export type CompareModeFileCounts = Partial<Record<CompareMode, number>>;
 
 export type DiffViewMode = "unified" | "split";
 
+export type DiffIndicatorMode = "color" | "symbols";
+
+export type DiffThemePreset = "codex" | "github";
+
 export type ReadingMode = "continuous" | "single-file";
 
 export type ThemePreference = "system" | "light" | "dark";
+
+export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
 export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "binary";
 
@@ -41,6 +47,11 @@ export interface AppSettings {
   agentStatuses: Record<AgentType, AgentStatus>;
   theme: ThemePreference;
   diffViewMode: DiffViewMode;
+  diffUiFontSize: number;
+  diffCodeFontSize: number;
+  diffIndicatorMode: DiffIndicatorMode;
+  diffLightTheme: DiffThemePreset;
+  diffDarkTheme: DiffThemePreset;
   wrapDiffLines: boolean;
   readingMode: ReadingMode;
   targetBranch: string;
