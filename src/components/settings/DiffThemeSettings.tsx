@@ -6,8 +6,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SettingsList, SettingsRow } from "@/components/settings/settingsPrimitives";
-import { diffThemeOptions } from "@/domain/settings";
-import type { AppSettings, DiffThemePreset } from "@/domain/types";
+import { diffDarkThemeOptions, diffLightThemeOptions } from "@/domain/settings";
+import type { AppSettings, DiffDarkThemePreset, DiffLightThemePreset } from "@/domain/types";
 import type { Dispatch, SetStateAction } from "react";
 
 interface DiffThemeSettingsProps {
@@ -23,6 +23,7 @@ export function DiffThemeSettings({ settings, updateSettings }: DiffThemeSetting
       <SettingsRow title="浅色主题" description="选择浅色模式下的 diff 语法高亮主题">
         <ThemeSelect
           ariaLabel="浅色主题"
+          options={diffLightThemeOptions}
           value={settings.diffLightTheme}
           onChange={(value) => updateDiffTheme(updateSettings, "diffLightTheme", value)}
         />
@@ -30,6 +31,7 @@ export function DiffThemeSettings({ settings, updateSettings }: DiffThemeSetting
       <SettingsRow title="深色主题" description="选择深色模式下的 diff 语法高亮主题">
         <ThemeSelect
           ariaLabel="深色主题"
+          options={diffDarkThemeOptions}
           value={settings.diffDarkTheme}
           onChange={(value) => updateDiffTheme(updateSettings, "diffDarkTheme", value)}
         />
@@ -41,20 +43,22 @@ export function DiffThemeSettings({ settings, updateSettings }: DiffThemeSetting
 interface ThemeSelectProps {
   /** select 的可访问名称。 */
   ariaLabel: string;
+  /** 当前模式可选的 Pierre/Shiki 主题列表，浅色和深色分开维护以避免误选。 */
+  options: Array<{ label: string; value: DiffDarkThemePreset | DiffLightThemePreset }>;
   /** 当前主题预设。 */
-  value: DiffThemePreset;
+  value: DiffDarkThemePreset | DiffLightThemePreset;
   /** 切换主题预设时触发。 */
-  onChange: (value: DiffThemePreset) => void;
+  onChange: (value: DiffDarkThemePreset | DiffLightThemePreset) => void;
 }
 
-function ThemeSelect({ ariaLabel, value, onChange }: ThemeSelectProps) {
+function ThemeSelect({ ariaLabel, options, value, onChange }: ThemeSelectProps) {
   return (
-    <Select value={value} onValueChange={(nextValue) => onChange(nextValue as DiffThemePreset)}>
+    <Select value={value} onValueChange={(nextValue) => onChange(nextValue as DiffDarkThemePreset | DiffLightThemePreset)}>
       <SelectTrigger aria-label={ariaLabel} className="w-[180px] bg-muted/60 font-normal">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {diffThemeOptions.map((option) => (
+        {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}
           </SelectItem>
@@ -67,7 +71,7 @@ function ThemeSelect({ ariaLabel, value, onChange }: ThemeSelectProps) {
 function updateDiffTheme(
   updateSettings: Dispatch<SetStateAction<AppSettings>>,
   key: "diffLightTheme" | "diffDarkTheme",
-  value: DiffThemePreset,
+  value: DiffDarkThemePreset | DiffLightThemePreset,
 ) {
   updateSettings((current) => ({
     ...current,

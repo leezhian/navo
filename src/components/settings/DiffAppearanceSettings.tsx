@@ -1,14 +1,15 @@
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SettingsList, SettingsRow, SettingsSectionHeader } from "./settingsPrimitives";
 import {
   DIFF_CODE_FONT_SIZE_LIMITS,
-  DIFF_UI_FONT_SIZE_LIMITS,
   diffIndicatorOptions,
 } from "@/domain/settings";
 import type { AppSettings, DiffIndicatorMode } from "@/domain/types";
 import type { Dispatch, SetStateAction } from "react";
 import classNames from "classnames";
+import { motion } from "motion/react";
+
+const DIFF_INDICATOR_OPTION_WIDTH = 48;
 
 interface DiffAppearanceSettingsProps {
   /** 当前应用设置，组件只读取和更新 diff 库相关字段。 */
@@ -23,15 +24,6 @@ export function DiffAppearanceSettings({ settings, updateSettings }: DiffAppeara
       <section className="mb-10">
         <SettingsSectionHeader title="差异视图" description="调整 diff 库渲染时使用的字号和标记。" />
         <SettingsList>
-          <SettingsRow title="UI 字号" description="调整差异视图 UI 使用的基准字号">
-            <NumberUnitInput
-              ariaLabel="UI 字号"
-              max={DIFF_UI_FONT_SIZE_LIMITS.max}
-              min={DIFF_UI_FONT_SIZE_LIMITS.min}
-              value={settings.diffUiFontSize}
-              onChange={(value) => updateDiffSetting(updateSettings, "diffUiFontSize", value)}
-            />
-          </SettingsRow>
           <SettingsRow title="代码字体大小" description="调整差异视图中代码使用的基础字号">
             <NumberUnitInput
               ariaLabel="代码字体大小"
@@ -71,7 +63,7 @@ function NumberUnitInput({ ariaLabel, max, min, value, onChange }: NumberUnitInp
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Input
         aria-label={ariaLabel}
-        className="w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-16 text-center"
         inputMode="numeric"
         max={max}
         min={min}
@@ -97,21 +89,29 @@ interface DiffIndicatorControlProps {
 }
 
 function DiffIndicatorControl({ value, onChange }: DiffIndicatorControlProps) {
+  const selectedIndex = diffIndicatorOptions.findIndex((option) => option.value === value);
+
   return (
-    <div className="inline-flex rounded-full bg-muted p-0.5">
+    <div className="relative grid h-7 w-24 grid-cols-2 rounded-full bg-muted p-0.5">
+      <motion.span
+        animate={{ x: Math.max(selectedIndex, 0) * DIFF_INDICATOR_OPTION_WIDTH }}
+        className="absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-4px)] rounded-full bg-background shadow-sm"
+        initial={false}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+      />
       {diffIndicatorOptions.map((option) => (
-        <Button
+        <button
+          aria-pressed={value === option.value}
           className={classNames(
-            "h-7 rounded-full px-3 font-normal hover:bg-transparent",
-            value === option.value ? "bg-background text-foreground shadow-sm hover:bg-background" : "text-muted-foreground",
+            "relative z-10 inline-flex h-6 items-center justify-center rounded-full px-1.5 text-xs font-normal transition-colors",
+            value === option.value ? "text-foreground" : "text-muted-foreground hover:text-foreground",
           )}
           key={option.value}
           type="button"
-          variant="ghost"
           onClick={() => onChange(option.value)}
         >
           {option.label}
-        </Button>
+        </button>
       ))}
     </div>
   );

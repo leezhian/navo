@@ -256,7 +256,7 @@ function getEmptyReviewState(compareMode: CompareMode) {
   if (compareMode === "staged") {
     return {
       actionLabel: "查看分支差异",
-      body: "接受边界内容并暂存",
+      body: "接受编辑内容并暂存",
       title: "无暂存更改",
     };
   }

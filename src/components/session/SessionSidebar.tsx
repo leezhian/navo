@@ -79,7 +79,7 @@ export function SessionSidebar({
 interface SessionItemProps {
   /** 当前会话是否为正在查看的审查会话。 */
   active: boolean;
-  /** 会话摘要，用于展示项目、分支、Agent 和改动统计。 */
+  /** 会话摘要，用于展示项目、分支、Agent 和未读状态。 */
   session: ReviewSession;
   /** 点击会话卡片时触发选择。 */
   onSelect: () => void;
@@ -105,9 +105,6 @@ function SessionItem({ active, session, onSelect }: SessionItemProps) {
       </span>
       <strong className="text-sm text-foreground">{session.projectName}</strong>
       <span>{session.branchName}</span>
-      <span>
-        {session.fileCount} files · +{session.additions} -{session.deletions}
-      </span>
     </button>
   );
 }

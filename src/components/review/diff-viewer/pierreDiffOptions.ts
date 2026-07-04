@@ -1,4 +1,3 @@
-import { diffThemePresetMap } from "@/domain/settings";
 import type { AppSettings } from "@/domain/types";
 import type { DiffIndicators, ThemesType } from "@pierre/diffs";
 import { pierreDiffUnsafeCss } from "./pierreDiffStyles";
@@ -9,8 +8,8 @@ export function getPierreDiffIndicators(mode: AppSettings["diffIndicatorMode"]):
 
 export function getPierreTheme(settings: AppSettings): ThemesType {
   return {
-    dark: diffThemePresetMap[settings.diffDarkTheme].dark,
-    light: diffThemePresetMap[settings.diffLightTheme].light,
+    dark: settings.diffDarkTheme,
+    light: settings.diffLightTheme,
   };
 }
 

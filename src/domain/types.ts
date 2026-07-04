@@ -10,7 +10,23 @@ export type DiffViewMode = "unified" | "split";
 
 export type DiffIndicatorMode = "color" | "symbols";
 
-export type DiffThemePreset = "codex" | "github";
+export type DiffLightThemePreset =
+  | "pierre-light"
+  | "github-light"
+  | "gruvbox-light-hard"
+  | "light-plus"
+  | "ayu-light"
+  | "everforest-light"
+  | "vitesse-light";
+
+export type DiffDarkThemePreset =
+  | "pierre-dark"
+  | "github-dark"
+  | "gruvbox-dark-hard"
+  | "dark-plus"
+  | "ayu-dark"
+  | "everforest-dark"
+  | "vitesse-dark";
 
 export type ReadingMode = "continuous" | "single-file";
 
@@ -50,8 +66,8 @@ export interface AppSettings {
   diffUiFontSize: number;
   diffCodeFontSize: number;
   diffIndicatorMode: DiffIndicatorMode;
-  diffLightTheme: DiffThemePreset;
-  diffDarkTheme: DiffThemePreset;
+  diffLightTheme: DiffLightThemePreset;
+  diffDarkTheme: DiffDarkThemePreset;
   wrapDiffLines: boolean;
   readingMode: ReadingMode;
   targetBranch: string;

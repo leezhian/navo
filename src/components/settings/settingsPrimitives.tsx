@@ -29,10 +29,12 @@ export function SettingsSectionHeader({ title, description }: SettingsSectionHea
 interface SettingsListProps {
   /** 设置列表中的行内容。 */
   children: ReactNode;
+  /** 允许局部设置页按视觉层级调整列表容器样式。 */
+  className?: string;
 }
 
-export function SettingsList({ children }: SettingsListProps) {
-  return <div className="overflow-hidden rounded-xl border bg-card">{children}</div>;
+export function SettingsList({ children, className }: SettingsListProps) {
+  return <div className={className ?? "overflow-hidden rounded-xl border bg-card"}>{children}</div>;
 }
 
 interface SettingsRowProps {
