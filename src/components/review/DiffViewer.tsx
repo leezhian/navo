@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { AppSettings, CompareMode, DiffFile, ResolvedTheme, ReviewFileAction } from "../../domain/types";
-import { parseLineCommentId } from "./diff-viewer/LineComment";
+import { parseLineCommentId, type LocalCommentMode } from "./diff-viewer/LineComment";
+import type { LocalCommentTarget } from "./diff-viewer/commentSelection";
 import { PierreDiffFile, type LocalCommentAnnotation } from "./diff-viewer/PierreDiffFile";
+import { useLocalComments } from "./diff-viewer/useLocalComments";
 import { FileContextMenu } from "./file-actions/FileContextMenu";
 
 interface DiffViewerProps {
@@ -36,19 +38,15 @@ export function DiffViewer({
   onToggleWrap,
   onToggleFile,
 }: DiffViewerProps) {
-  const [activeCommentIds, setActiveCommentIds] = useState<Set<string>>(new Set());
-
-  function openLineComment(commentId: string) {
-    setActiveCommentIds((current) => new Set(current).add(commentId));
-  }
-
-  function closeLineComment(commentId: string) {
-    setActiveCommentIds((current) => {
-      const next = new Set(current);
-      next.delete(commentId);
-      return next;
-    });
-  }
+  const {
+    activeCommentIds,
+    hasEditingComment,
+    selectedCommentTarget,
+    closeLineComment,
+    openLineComment,
+    selectCommentTarget,
+    updateLineCommentMode,
+  } = useLocalComments();
 
   return (
     <>
@@ -58,12 +56,16 @@ export function DiffViewer({
           collapsed={collapsedFileIds.has(file.id)}
           compareMode={compareMode}
           file={file}
+          hasEditingComment={hasEditingComment}
           key={file.id}
           projectPath={projectPath}
           resolvedTheme={resolvedTheme}
+          selectedCommentTarget={selectedCommentTarget}
           settings={settings}
           onCommentClose={closeLineComment}
+          onCommentModeChange={updateLineCommentMode}
           onCommentOpen={openLineComment}
+          onCommentTargetSelect={selectCommentTarget}
           onFileAction={onFileAction}
           onToggle={() => onToggleFile(file.id)}
           onToggleWrap={onToggleWrap}
@@ -82,16 +84,24 @@ interface DiffFileViewProps {
   compareMode: CompareMode;
   /** 当前文件的应用层 diff 数据和 Pierre 元数据。 */
   file: DiffFile;
+  /** 是否存在草稿或编辑中的评论，用来切换 hover 加号和点击选行模式。 */
+  hasEditingComment: boolean;
   /** 当前项目根路径，用于文件块右键菜单。 */
   projectPath: string;
   /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
   resolvedTheme: ResolvedTheme;
+  /** 当前唯一蓝色选中的评论目标；评论框本身仍可打开多个。 */
+  selectedCommentTarget: LocalCommentTarget | null;
   /** 本地展示设置，传给 Pierre diff 文件组件。 */
   settings: AppSettings;
   /** 关闭指定本地评论框。 */
   onCommentClose: (commentId: string) => void;
+  /** 同步指定评论框的编辑状态，保存态不参与入口模式判断。 */
+  onCommentModeChange: (commentId: string, mode: LocalCommentMode) => void;
   /** 打开指定本地评论框。 */
-  onCommentOpen: (commentId: string) => void;
+  onCommentOpen: (target: LocalCommentTarget) => void;
+  /** 点击 diff 行时更新当前蓝色选中的评论目标。 */
+  onCommentTargetSelect: (target: LocalCommentTarget) => void;
   /** 执行文件级 Git 操作。 */
   onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 切换当前文件折叠状态。 */
@@ -105,11 +115,15 @@ function DiffFileView({
   collapsed,
   compareMode,
   file,
+  hasEditingComment,
   projectPath,
   resolvedTheme,
+  selectedCommentTarget,
   settings,
   onCommentClose,
+  onCommentModeChange,
   onCommentOpen,
+  onCommentTargetSelect,
   onFileAction,
   onToggle,
   onToggleWrap,
@@ -129,11 +143,15 @@ function DiffFileView({
           collapsed={collapsed}
           compareMode={compareMode}
           file={file}
+          hasEditingComment={hasEditingComment}
           lineAnnotations={lineAnnotations}
           resolvedTheme={resolvedTheme}
+          selectedCommentTarget={selectedCommentTarget}
           settings={settings}
           onCommentClose={onCommentClose}
+          onCommentModeChange={onCommentModeChange}
           onCommentOpen={onCommentOpen}
+          onCommentTargetSelect={onCommentTargetSelect}
           onFileAction={onFileAction}
           onToggle={onToggle}
         />

@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 export type CommentSide = "deletions" | "additions";
+export type LocalCommentMode = "draft" | "saved" | "editing";
 
 export interface LocalCommentMetadata {
   /** 评论框唯一 id，包含文件、左右侧和行号信息。 */
   id: string;
+  /** 评论所属文件 id，用于跨文件 diff 时准确关闭选中态。 */
+  fileId: string;
   /** Pierre annotation 需要定位的目标行号。 */
   lineNumber: number;
   /** 展示给用户的行号标签，例如 L12 或 R24。 */
@@ -21,11 +24,11 @@ interface LocalCommentBoxProps {
   lineLabel: string;
   /** 取消当前评论时关闭对应 annotation。 */
   onCancel: () => void;
+  /** 评论框状态变化时通知父层，用于判断是否存在编辑中的评论。 */
+  onModeChange: (mode: LocalCommentMode) => void;
 }
 
-type LocalCommentMode = "draft" | "saved" | "editing";
-
-export function LocalCommentBox({ lineLabel, onCancel }: LocalCommentBoxProps) {
+export function LocalCommentBox({ lineLabel, onCancel, onModeChange }: LocalCommentBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<LocalCommentMode>("draft");
   const [draftText, setDraftText] = useState("");
@@ -37,6 +40,10 @@ export function LocalCommentBox({ lineLabel, onCancel }: LocalCommentBoxProps) {
       resizeCommentTextareaElement(textareaRef.current);
     }
   }, [draftText]);
+
+  useEffect(() => {
+    onModeChange(mode);
+  }, [mode, onModeChange]);
 
   function saveComment() {
     if (!hasCommentContent) {
@@ -188,13 +195,15 @@ export function parseLineCommentId(commentId: string): LocalCommentMetadata | nu
   const side = parts[parts.length - 2];
   const rawLineNumber = parts[parts.length - 1];
   const lineNumber = Number(rawLineNumber);
+  const fileId = parts.slice(0, -2).join(":");
 
-  if ((side !== "deletions" && side !== "additions") || !Number.isFinite(lineNumber)) {
+  if (!fileId || (side !== "deletions" && side !== "additions") || !Number.isFinite(lineNumber)) {
     return null;
   }
 
   return {
     id: commentId,
+    fileId,
     lineNumber,
     lineLabel: getCommentLineLabel(side, lineNumber),
     side,

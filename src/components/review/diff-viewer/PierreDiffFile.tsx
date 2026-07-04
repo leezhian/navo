@@ -1,5 +1,6 @@
 import type { AppSettings, CompareMode, DiffFile, ResolvedTheme, ReviewFileAction } from "@/domain/types";
 import type {
+  DiffLineEventBaseProps,
   DiffLineAnnotation,
   FileDiff as PierreFileDiffInstance,
   FileDiffOptions,
@@ -8,8 +9,9 @@ import type {
 } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { getCommentSelectedLines, type LocalCommentTarget } from "./commentSelection";
 import { DiffFileHeader } from "./DiffFileHeader";
-import { getLineCommentId, LocalCommentBox, type LocalCommentMetadata } from "./LineComment";
+import { LocalCommentBox, type LocalCommentMetadata, type LocalCommentMode } from "./LineComment";
 import { getPierreDiffIndicators, getPierreTheme, getPierreUnsafeCss } from "./pierreDiffOptions";
 
 type LocalCommentAnnotation = DiffLineAnnotation<LocalCommentMetadata>;
@@ -21,16 +23,24 @@ interface PierreDiffFileProps {
   compareMode: CompareMode;
   /** 应用层文件数据，内部持有 Pierre 解析后的 fileDiff 元数据。 */
   file: DiffFile;
+  /** 是否存在草稿或编辑中的评论，用来决定加号入口由 hover 还是点击选行触发。 */
+  hasEditingComment: boolean;
   /** 当前文件内需要插入的本地评论 annotation。 */
   lineAnnotations: LocalCommentAnnotation[];
   /** 应用主题解析后的实际浅深色模式，用于选择当前生效的 Pierre 主题。 */
   resolvedTheme: ResolvedTheme;
+  /** 当前唯一蓝色选中的评论目标；不影响已打开的多个评论框。 */
+  selectedCommentTarget: LocalCommentTarget | null;
   /** 本地展示设置，映射到 Pierre 的样式、主题和交互配置。 */
   settings: AppSettings;
   /** 关闭指定本地评论 annotation。 */
   onCommentClose: (commentId: string) => void;
+  /** 同步指定评论框的状态，供父层判断是否进入点击选行模式。 */
+  onCommentModeChange: (commentId: string, mode: LocalCommentMode) => void;
   /** 点击行号 gutter 加号时打开本地评论。 */
-  onCommentOpen: (commentId: string) => void;
+  onCommentOpen: (target: LocalCommentTarget) => void;
+  /** 点击 diff 行时更新当前蓝色选中的评论目标。 */
+  onCommentTargetSelect: (target: LocalCommentTarget) => void;
   /** 执行文件头上的还原/暂存/取消暂存操作。 */
   onFileAction: (filePath: string, action: ReviewFileAction) => void;
   /** 点击自定义文件头时切换文件折叠状态。 */
@@ -41,16 +51,24 @@ export function PierreDiffFile({
   collapsed,
   compareMode,
   file,
+  hasEditingComment,
   lineAnnotations,
   resolvedTheme,
+  selectedCommentTarget,
   settings,
   onCommentClose,
+  onCommentModeChange,
   onCommentOpen,
+  onCommentTargetSelect,
   onFileAction,
   onToggle,
 }: PierreDiffFileProps) {
   const latestScrollTopRef = useRef(0);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const selectedLines = useMemo(
+    () => getCommentSelectedLines(file.id, selectedCommentTarget),
+    [file.id, selectedCommentTarget],
+  );
 
   const recordLatestScrollTop = useCallback((event: Event) => {
     const scrollContainer = event.currentTarget;
@@ -92,9 +110,28 @@ export function PierreDiffFile({
     (range: SelectedLineRange) => {
       const lineNumber = range.end;
       const side = range.endSide ?? range.side ?? "additions";
-      onCommentOpen(getLineCommentId(file.id, side, lineNumber));
+      onCommentOpen({
+        fileId: file.id,
+        lineNumber,
+        side,
+      });
     },
     [file.id, onCommentOpen],
+  );
+
+  const handleLineNumberClick = useCallback(
+    (line: DiffLineEventBaseProps) => {
+      if (!hasEditingComment) {
+        return;
+      }
+
+      onCommentTargetSelect({
+        fileId: file.id,
+        lineNumber: line.lineNumber,
+        side: line.annotationSide,
+      });
+    },
+    [file.id, hasEditingComment, onCommentTargetSelect],
   );
 
   const options = useMemo<FileDiffOptions<LocalCommentMetadata>>(
@@ -102,11 +139,12 @@ export function PierreDiffFile({
       collapsed,
       diffIndicators: getPierreDiffIndicators(settings.diffIndicatorMode),
       diffStyle: settings.diffViewMode === "split" ? "split" : "unified",
-      enableGutterUtility: true,
+      enableGutterUtility: !hasEditingComment || selectedLines != null,
       hunkSeparators: "line-info",
       lineDiffType: "word",
       lineHoverHighlight: "disabled",
       onGutterUtilityClick: handleGutterUtilityClick,
+      onLineNumberClick: hasEditingComment ? handleLineNumberClick : undefined,
       onPostRender: handlePostRender,
       overflow: settings.wrapDiffLines ? "wrap" : "scroll",
       theme: getPierreTheme(settings),
@@ -115,7 +153,16 @@ export function PierreDiffFile({
       tokenizeMaxLineLength: 3000,
       unsafeCSS: getPierreUnsafeCss(settings),
     }),
-    [collapsed, handleGutterUtilityClick, handlePostRender, resolvedTheme, settings],
+    [
+      collapsed,
+      handleGutterUtilityClick,
+      handleLineNumberClick,
+      handlePostRender,
+      hasEditingComment,
+      resolvedTheme,
+      selectedLines,
+      settings,
+    ],
   );
 
   const renderCustomHeader = useCallback(
@@ -133,9 +180,13 @@ export function PierreDiffFile({
 
   const renderAnnotation = useCallback(
     (annotation: LocalCommentAnnotation) => (
-      <LocalCommentBox lineLabel={annotation.metadata.lineLabel} onCancel={() => onCommentClose(annotation.metadata.id)} />
+      <LocalCommentBox
+        lineLabel={annotation.metadata.lineLabel}
+        onCancel={() => onCommentClose(annotation.metadata.id)}
+        onModeChange={(mode) => onCommentModeChange(annotation.metadata.id, mode)}
+      />
     ),
-    [onCommentClose],
+    [onCommentClose, onCommentModeChange],
   );
 
   return (
@@ -148,6 +199,7 @@ export function PierreDiffFile({
         options={options}
         renderAnnotation={renderAnnotation}
         renderCustomHeader={renderCustomHeader}
+        selectedLines={selectedLines}
       />
       {!collapsed && file.isBinary && <div className="p-7 text-muted-foreground">二进制文件不展示代码 diff。</div>}
     </div>

@@ -3,7 +3,6 @@ export const pierreDiffUnsafeCss = `
   --diffs-font-size: 12px;
   --diffs-gap-block: 0px;
   --diffs-gap-inline: 8px;
-  --review-comment-bg: light-dark(rgb(219 234 254 / 55%), rgb(82 103 138 / 82%));
   --diffs-bg: var(--background);
   --diffs-light-bg: var(--background);
   --diffs-dark-bg: var(--background);
@@ -43,7 +42,6 @@ export const pierreDiffUnsafeCss = `
 
 [data-line-annotation] {
   min-width: 100%;
-  background: var(--review-comment-bg);
 }
 
 [data-annotation-content] {
@@ -52,7 +50,7 @@ export const pierreDiffUnsafeCss = `
 
 /* Pierre 把 annotation 的 gutter 和内容列分开渲染，这里让本地评论行左右背景保持连续。 */
 [data-gutter-buffer="annotation"] {
-  background: var(--review-comment-bg);
+  background-color: var(--diffs-line-bg);
 }
 
 [data-utility-button] {
