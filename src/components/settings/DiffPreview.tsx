@@ -21,7 +21,6 @@ index 4d1f9ea..7c2a93b 100644
 const PREVIEW_UNSAFE_CSS = `
 :host {
   --diffs-gap-inline: 6px;
-  --diffs-line-height: 20px;
 }
 
 [data-diffs-header] {

@@ -5,7 +5,8 @@ import {
   diffIndicatorOptions,
 } from "@/domain/settings";
 import type { AppSettings, DiffIndicatorMode } from "@/domain/types";
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState } from "react";
+import type { Dispatch, KeyboardEvent, SetStateAction } from "react";
 import classNames from "classnames";
 import { motion } from "motion/react";
 
@@ -59,6 +60,37 @@ interface NumberUnitInputProps {
 }
 
 function NumberUnitInput({ ariaLabel, max, min, value, onChange }: NumberUnitInputProps) {
+  const [draftValue, setDraftValue] = useState(() => String(value));
+
+  useEffect(() => {
+    setDraftValue(String(value));
+  }, [value]);
+
+  function commitDraftValue() {
+    const nextValue = Number(draftValue);
+    const normalizedValue = Number.isNaN(nextValue) ? value : clampNumber(nextValue, min, max);
+
+    setDraftValue(String(normalizedValue));
+    onChange(normalizedValue);
+  }
+
+  function handleChange(nextDraftValue: string) {
+    setDraftValue(nextDraftValue);
+
+    const nextValue = Number(nextDraftValue);
+    // 键入过程中不能直接 clamp，否则输入 12 会先把 1 规整为 10，继续输入时变成 102。
+    if (!Number.isNaN(nextValue) && nextValue >= min && nextValue <= max) {
+      onChange(Math.round(nextValue));
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
+  }
+
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Input
@@ -68,13 +100,10 @@ function NumberUnitInput({ ariaLabel, max, min, value, onChange }: NumberUnitInp
         max={max}
         min={min}
         type="number"
-        value={value}
-        onChange={(event) => {
-          const nextValue = Number(event.target.value);
-          if (!Number.isNaN(nextValue)) {
-            onChange(clampNumber(nextValue, min, max));
-          }
-        }}
+        value={draftValue}
+        onBlur={commitDraftValue}
+        onChange={(event) => handleChange(event.target.value)}
+        onKeyDown={handleKeyDown}
       />
       <span>px</span>
     </div>
