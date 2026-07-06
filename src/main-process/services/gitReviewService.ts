@@ -11,6 +11,7 @@ import type {
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
 } from "../../shared/electronApi";
+import { readLatestPatch } from "./reviewStorage";
 
 const execFileAsync = promisify(execFile);
 
@@ -26,6 +27,10 @@ interface DiffContentSource {
 }
 
 export async function runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput> {
+  if (params.mode === "previous-session") {
+    return loadPreviousSessionDiff(params.rawDiffPath);
+  }
+
   const args = createDiffArgs(params.mode, params.targetBranch);
   const output = await runGit(params.projectPath, args);
   const fileSnapshots = await collectDiffFileSnapshots(params.projectPath, params.mode, params.targetBranch, output.stdout);
@@ -33,6 +38,20 @@ export async function runGitDiff(params: LoadReviewDiffParams): Promise<GitComma
   return {
     ...output,
     file_snapshots: fileSnapshots,
+  };
+}
+
+async function loadPreviousSessionDiff(rawDiffPath?: string): Promise<GitCommandOutput> {
+  const rawDiff = await readLatestPatch(rawDiffPath);
+
+  if (rawDiff == null) {
+    throw new Error("缺少上轮对话 diff 快照，无法展示该对比模式");
+  }
+
+  return {
+    stdout: rawDiff,
+    stderr: "",
+    file_snapshots: [],
   };
 }
 
@@ -79,7 +98,7 @@ function createDiffArgs(mode: CompareMode, targetBranch?: string): string[] {
     unstaged: ["diff"],
     staged: ["diff", "--cached"],
     branch: ["diff", `${targetBranch || "main"}...HEAD`],
-    "previous-session": ["diff"],
+    "previous-session": [],
   };
 
   return [...argsByMode[mode], "--"];

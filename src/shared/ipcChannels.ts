@@ -4,9 +4,13 @@ export const ipcChannels = {
   appOpenExternalLink: "app:open-external-link",
   reviewRunGitDiff: "review:run-git-diff",
   reviewLoadLocalBranches: "review:load-local-branches",
+  reviewLoadSessions: "review:load-sessions",
+  reviewMarkSessionRead: "review:mark-session-read",
+  reviewLoadAgentIntegrationStatuses: "review:load-agent-integration-statuses",
   reviewOpenFileInVsCode: "review:open-file-in-vscode",
   reviewRunBatchFileAction: "review:run-batch-file-action",
   reviewRunFileAction: "review:run-file-action",
+  reviewSetAgentIntegrationEnabled: "review:set-agent-integration-enabled",
   windowFullScreenChanged: "window:full-screen-changed",
   windowGetIsFullScreen: "window:get-is-full-screen",
 } as const;

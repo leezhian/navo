@@ -1,5 +1,5 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
-import type { CompareMode, ReviewBatchFileAction, ReviewFileAction } from "../domain/types";
+import type { AgentStatus, AgentType, CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
 
 export interface GitCommandOutput {
   stdout: string;
@@ -11,6 +11,7 @@ export interface LoadReviewDiffParams {
   projectPath: string;
   mode: CompareMode;
   targetBranch?: string;
+  rawDiffPath?: string;
 }
 
 export interface OpenFileInVsCodeParams {
@@ -28,6 +29,16 @@ export interface RunReviewBatchFileActionParams {
   projectPath: string;
   filePaths: string[];
   action: ReviewBatchFileAction;
+}
+
+export interface SetAgentIntegrationParams {
+  agent: AgentType;
+  enabled: boolean;
+}
+
+export interface MarkReviewSessionReadParams {
+  sessionId: string;
+  updatedAt: string;
 }
 
 export type ExternalLinkTarget = "website" | "report-bug";
@@ -58,6 +69,10 @@ export interface VibeReviewerApi {
     checkForUpdates(): Promise<CheckForUpdatesResult>;
   };
   review: {
+    loadSessions(): Promise<ReviewSession[]>;
+    markSessionRead(params: MarkReviewSessionReadParams): Promise<void>;
+    loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>>;
+    setAgentIntegrationEnabled(params: SetAgentIntegrationParams): Promise<void>;
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;
     loadLocalBranches(projectPath: string): Promise<string[]>;
     openFileInVsCode(params: OpenFileInVsCodeParams): Promise<void>;

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MacWindow, WindowWorkspaceTabs } from "./components/layout/MacWindow";
 import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
@@ -9,6 +9,7 @@ import type { ReviewSession } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
 import { useReviewData } from "./hooks/useReviewData";
 import { useWorkspaceTabs } from "./hooks/useWorkspaceTabs";
+import { loadReviewSessions, markReviewSessionRead } from "./services/reviewApi";
 import "./App.css";
 
 function App() {
@@ -54,6 +55,36 @@ function App() {
   } = useReviewData({ selectedSession, targetBranch: settings.targetBranch });
   const shouldShowWorkspaceTabs = !showSettings && hasWorkspaceTabs;
 
+  useEffect(() => {
+    let isMounted = true;
+    const refreshSessions = () => {
+      loadReviewSessions()
+        .then((loadedSessions) => {
+          if (!isMounted) {
+            return;
+          }
+
+          setSessions((currentSessions) => mergeLoadedSessions(currentSessions, loadedSessions));
+          setSelectedSessionId((currentId) => {
+            if (currentId && loadedSessions.some((session) => session.id === currentId)) {
+              return currentId;
+            }
+
+            return loadedSessions[0]?.id ?? null;
+          });
+        })
+        .catch(() => undefined);
+    };
+
+    refreshSessions();
+    const refreshTimer = window.setInterval(refreshSessions, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(refreshTimer);
+    };
+  }, []);
+
   function selectSession(session: ReviewSession) {
     setSelectedSessionId(session.id);
     setShowSettings(false);
@@ -61,6 +92,7 @@ function App() {
     setSessions((current) =>
       current.map((item) => (item.id === session.id ? { ...item, unread: false } : item)),
     );
+    markReviewSessionRead(session).catch(() => undefined);
   }
 
   function openTerminalTab() {
@@ -162,6 +194,21 @@ function useOrderedSessions(sessions: ReviewSession[]) {
       ),
     [sessions],
   );
+}
+
+function mergeLoadedSessions(currentSessions: ReviewSession[], loadedSessions: ReviewSession[]) {
+  return loadedSessions.map((loadedSession) => {
+    const currentSession = currentSessions.find((session) => session.id === loadedSession.id);
+
+    if (!currentSession || currentSession.updatedAt !== loadedSession.updatedAt) {
+      return loadedSession;
+    }
+
+    return {
+      ...loadedSession,
+      unread: currentSession.unread,
+    };
+  });
 }
 
 export default App;

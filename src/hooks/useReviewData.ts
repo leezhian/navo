@@ -36,7 +36,7 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       return;
     }
 
-    loadCompareModeFileCounts(selectedSession.projectPath, targetBranch)
+    loadCompareModeFileCounts(selectedSession, targetBranch)
       .then(setCompareModeFileCounts)
       .catch(() => setCompareModeFileCounts({}));
   }, [selectedSession, targetBranch]);
@@ -50,7 +50,7 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
     setReviewError(null);
     refreshCompareModeFileCounts();
 
-    loadReviewDiff(selectedSession.projectPath, compareMode, targetBranch)
+    loadReviewDiff({ session: selectedSession, mode: compareMode, targetBranch })
       .then((summary) => {
         if (isTrackedFileCountMode(compareMode)) {
           setCompareModeFileCounts((current) => ({ ...current, [compareMode]: summary.fileCount }));
@@ -161,13 +161,10 @@ function getActionFilePaths(files: DiffFile[]) {
   return files.map((file) => file.newPath || file.oldPath || file.displayPath);
 }
 
-async function loadCompareModeFileCounts(
-  projectPath: string,
-  targetBranch: string,
-): Promise<CompareModeFileCounts> {
+async function loadCompareModeFileCounts(session: ReviewSession, targetBranch: string): Promise<CompareModeFileCounts> {
   const [unstagedSummary, stagedSummary] = await Promise.all([
-    loadReviewDiff(projectPath, "unstaged", targetBranch),
-    loadReviewDiff(projectPath, "staged", targetBranch),
+    loadReviewDiff({ session, mode: "unstaged", targetBranch }),
+    loadReviewDiff({ session, mode: "staged", targetBranch }),
   ]);
 
   return {

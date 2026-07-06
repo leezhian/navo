@@ -1,16 +1,81 @@
 import { parseGitDiff } from "../domain/diffParser";
-import { mockRawDiff } from "../domain/mockData";
-import type { CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSummary } from "../domain/types";
+import { mockRawDiff, mockSessions } from "../domain/mockData";
+import type {
+  AgentStatus,
+  AgentType,
+  CompareMode,
+  ReviewBatchFileAction,
+  ReviewFileAction,
+  ReviewSession,
+  ReviewSummary,
+} from "../domain/types";
 
-export async function loadReviewDiff(
-  projectPath: string,
-  mode: CompareMode,
-  targetBranch: string,
-): Promise<ReviewSummary> {
+interface LoadReviewDiffOptions {
+  /** 当前审查会话，用于读取项目路径和上轮对话 patch 引用。 */
+  session: ReviewSession;
+  /** 当前选择的对比模式。 */
+  mode: CompareMode;
+  /** 分支对比模式使用的目标分支。 */
+  targetBranch: string;
+}
+
+export async function loadReviewSessions(): Promise<ReviewSession[]> {
+  try {
+    return await window.vibeReviewer.review.loadSessions();
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return mockSessions;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function markReviewSessionRead(session: ReviewSession): Promise<void> {
+  try {
+    await window.vibeReviewer.review.markSessionRead({
+      sessionId: session.id,
+      updatedAt: session.updatedAt,
+    });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>> {
+  try {
+    return await window.vibeReviewer.review.loadAgentIntegrationStatuses();
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return {};
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function setAgentIntegrationEnabled(agent: AgentType, enabled: boolean): Promise<void> {
+  try {
+    await window.vibeReviewer.review.setAgentIntegrationEnabled({ agent, enabled });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function loadReviewDiff({ session, mode, targetBranch }: LoadReviewDiffOptions): Promise<ReviewSummary> {
   try {
     const output = await window.vibeReviewer.review.runGitDiff({
-      projectPath,
+      projectPath: session.projectPath,
       mode,
+      rawDiffPath: session.rawDiffPath,
       targetBranch,
     });
 
@@ -18,7 +83,7 @@ export async function loadReviewDiff(
       return emptySummary();
     }
 
-    return parseGitDiff(output.stdout, `${projectPath}-${mode}-${targetBranch}`, output.file_snapshots);
+    return parseGitDiff(output.stdout, `${session.projectPath}-${mode}-${targetBranch}`, output.file_snapshots);
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       // 浏览器预览或 preload 未注入时使用 mock，避免纯前端调试被 Electron IPC 阻断。

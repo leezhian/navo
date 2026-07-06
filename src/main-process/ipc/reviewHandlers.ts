@@ -2,10 +2,13 @@ import { ipcMain } from "electron";
 import { ipcChannels } from "../../shared/ipcChannels";
 import type {
   LoadReviewDiffParams,
+  MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
+  SetAgentIntegrationParams,
 } from "../../shared/electronApi";
+import { loadAgentIntegrationStatuses, setAgentIntegrationEnabled } from "../services/agentHookConfigService";
 import {
   loadLocalBranches,
   openFileInVsCode,
@@ -13,8 +16,17 @@ import {
   runReviewBatchFileAction,
   runReviewFileAction,
 } from "../services/gitReviewService";
+import { loadReviewSessions, markReviewSessionRead } from "../services/reviewStorage";
 
 export function registerReviewHandlers() {
+  ipcMain.handle(ipcChannels.reviewLoadSessions, () => loadReviewSessions());
+  ipcMain.handle(ipcChannels.reviewMarkSessionRead, (_event, params: MarkReviewSessionReadParams) =>
+    markReviewSessionRead(params.sessionId, params.updatedAt),
+  );
+  ipcMain.handle(ipcChannels.reviewLoadAgentIntegrationStatuses, () => loadAgentIntegrationStatuses());
+  ipcMain.handle(ipcChannels.reviewSetAgentIntegrationEnabled, (_event, params: SetAgentIntegrationParams) =>
+    setAgentIntegrationEnabled(params.agent, params.enabled),
+  );
   ipcMain.handle(ipcChannels.reviewRunGitDiff, (_event, params: LoadReviewDiffParams) => runGitDiff(params));
   ipcMain.handle(ipcChannels.reviewLoadLocalBranches, (_event, projectPath: string) => loadLocalBranches(projectPath));
   ipcMain.handle(ipcChannels.reviewOpenFileInVsCode, (_event, params: OpenFileInVsCodeParams) =>

@@ -3,9 +3,11 @@ import type { IpcRendererEvent } from "electron";
 import type {
   ExternalLinkTarget,
   LoadReviewDiffParams,
+  MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
+  SetAgentIntegrationParams,
   VibeReviewerApi,
   WindowFullScreenListener,
 } from "./shared/electronApi";
@@ -24,6 +26,18 @@ const api: VibeReviewerApi = {
     },
   },
   review: {
+    loadSessions() {
+      return ipcRenderer.invoke(ipcChannels.reviewLoadSessions);
+    },
+    markSessionRead(params: MarkReviewSessionReadParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewMarkSessionRead, params);
+    },
+    loadAgentIntegrationStatuses() {
+      return ipcRenderer.invoke(ipcChannels.reviewLoadAgentIntegrationStatuses);
+    },
+    setAgentIntegrationEnabled(params: SetAgentIntegrationParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewSetAgentIntegrationEnabled, params);
+    },
     runGitDiff(params: LoadReviewDiffParams) {
       return ipcRenderer.invoke(ipcChannels.reviewRunGitDiff, params);
     },

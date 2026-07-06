@@ -2,6 +2,8 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 
 export type AgentType = "Claude Code" | "Codex" | "OpenCode" | "Qoder";
 
+export type ReviewProvider = "claude" | "codex";
+
 export type CompareMode = "unstaged" | "staged" | "branch" | "previous-session";
 
 export type CompareModeFileCounts = Partial<Record<CompareMode, number>>;
@@ -45,6 +47,7 @@ export type ReviewBatchFileAction = "restore-worktree-all" | "stage-all" | "unst
 export interface ReviewSession {
   id: string;
   agent: AgentType;
+  provider?: ReviewProvider;
   projectPath: string;
   projectName: string;
   branchName: string;
@@ -56,6 +59,8 @@ export interface ReviewSession {
   deletions: number;
   unread: boolean;
   hasBaseline: boolean;
+  latestTurnId?: string;
+  rawDiffPath?: string;
 }
 
 export interface AppSettings {

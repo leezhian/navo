@@ -148,8 +148,9 @@ Codex 和 Claude Code 均优先通过官方 hooks 接入，而不是轮询私有
 - Hook 输入中的 `transcript_path` 作为会话来源引用，仅保存路径，不解析大段会话内容。
 - Hook 输入中的 `cwd` 作为当前工作目录，再通过 `git rev-parse --show-toplevel` 解析项目根目录。
 - 分支名通过 `git branch --show-current` 获取；detached HEAD 场景展示短 commit hash。
+- `UserPromptSubmit` 只更新当前会话的 pending 基线，不直接生成会话列表事件。
 - 如果结束时本轮 diff 为空，不写入审查事件，也不打扰会话列表。
-- 如果 diff 非空，则写入本地事件日志，由 App 启动或文件监听逻辑合并到会话列表。
+- 如果 diff 非空，则覆盖当前会话的最新 patch，并写入本地事件日志，由 App 启动或文件监听逻辑合并到会话列表。
 
 #### 7.1.5 Hook 安装与启停
 
@@ -159,14 +160,16 @@ Codex 配置写入或合并到 Codex 支持的 hooks 配置中，Claude Code 配
 
 1. 不覆盖用户已有 hooks 配置，只做最小 merge。
 2. 首次写入前备份原配置文件。
-3. 配置项中调用 Vibe Reviewer 自带的 hook collector，例如：
+3. 注入的配置项需要带有可识别的 Vibe Reviewer 标识，便于后续精准移除。
+4. 配置项中调用 Vibe Reviewer 自带的 hook collector，例如：
 
    ```bash
    "/Applications/Vibe Reviewer.app/Contents/MacOS/Vibe Reviewer" --hook collect
    ```
 
-4. Hook collector 以无窗口模式运行，只读取 stdin JSON、执行 Git 快照和写入事件日志，不启动主窗口。
-5. 用户关闭某个 Agent 监听后，仅禁用对应 Vibe Reviewer hook，不删除用户其他 hooks。
+5. Hook collector 以无窗口模式运行，只读取 stdin JSON、执行 Git 快照和写入事件日志，不启动主窗口。
+6. 用户关闭某个 Agent 监听后，从对应 Agent 的 hooks 配置中移除 Vibe Reviewer 注入项，避免后续会话继续拉起 hook collector。
+7. 关闭监听时只移除 Vibe Reviewer 自己注入的 hook，不删除用户其他 hooks，不删除历史会话、事件日志、pending 基线或 patch 快照。
 
 #### 7.1.6 App 启动与实时会话同步
 
@@ -174,7 +177,7 @@ App 启动后由 Electron main process 读取本地审查事件日志，聚合�
 
 同步规则：
 
-1. 如果会话 ID 已存在，则更新项目、分支、更新时间、diff 引用和统计信息，并设置未读红点。
+1. 如果会话 ID 已存在，则更新项目、分支、更新时间、最新 diff 引用和统计信息，并设置未读红点。
 2. 如果会话 ID 不存在，则新增会话 item，并设置未读红点。
 3. 用户点击会话后清除该会话的未读红点。
 4. 未归档状态由 Vibe Reviewer 自己维护，不依赖 Codex 或 Claude Code 私有归档状态。
@@ -227,8 +230,10 @@ App 启动后由 Electron main process 读取本地审查事件日志，聚合�
 
 对应 Git 语义：
 
-- 主要基于 `git diff`。
+- 通过 Electron main process 在目标项目中实时执行 `git diff`。
 - 适合检查尚未加入暂存区的即时改动。
+- 不依赖 Agent hooks，不写入本地事件日志，也不生成 patch 快照。
+- 首版遵循 Git 原生命令语义，未跟踪文件可在文件状态中提示；如需展示未跟踪文件内容，后续再通过临时 index 补充。
 
 #### 7.4.2 已暂存
 
@@ -236,8 +241,10 @@ App 启动后由 Electron main process 读取本地审查事件日志，聚合�
 
 对应 Git 语义：
 
-- 主要基于 `git diff --cached`。
+- 通过 Electron main process 在目标项目中实时执行 `git diff --cached`。
 - 适合提交前确认 staged 改动。
+- 不依赖 Agent hooks，不写入本地事件日志，也不生成 patch 快照。
+- 如果同一文件在暂存后又继续修改，本模式只展示已暂存版本，未暂存模式展示后续工作区修改。
 
 #### 7.4.3 分支
 
@@ -248,22 +255,27 @@ App 启动后由 Electron main process 读取本地审查事件日志，聚合�
 - 默认目标分支为 `main` 或 `master`。
 - 如果项目同时存在 `main` 和 `master`，优先使用当前仓库默认远端 HEAD 指向的分支。
 - 用户可以点击目标分支并选择其他本地或远端分支。
+- 首版通过 Electron main process 实时执行 `git diff <targetBranch>...HEAD`，展示当前分支相对目标分支已经提交的改动。
+- 不依赖 Agent hooks，不写入本地事件日志，也不生成 patch 快照。
+- 本模式默认不包含未提交的工作区改动；用户可切换到未暂存或已暂存模式分别查看。
 
 #### 7.4.4 上轮对话
 
 展示当前会话结束后的文件状态与该会话开始前基线之间的差异。
 
-该模式用于回答：“这一轮 Agent 到底改了什么？”
+该模式用于回答：“这个 Agent 会话最近一轮到底改了什么？”
 
 如果缺少会话前基线，界面展示不可用状态，并说明原因。
 
 实现上不创建独立 worktree。首选方案是使用临时 Git index 生成 tree object：
 
-1. 在 `UserPromptSubmit` 阶段创建临时 index，读取 `HEAD`，再执行 `git add -A`，通过 `git write-tree` 得到 `baselineTree`。
+1. 在 `UserPromptSubmit` 阶段创建临时 index，读取 `HEAD`，再执行 `git add -A`，通过 `git write-tree` 得到 `baselineTree`，并覆盖写入当前会话的 pending 基线。
 2. 在 `Stop` 或兜底结束事件阶段创建另一个临时 index，同样读取 `HEAD`、执行 `git add -A`，通过 `git write-tree` 得到 `currentTree`。
 3. 执行 `git diff <baselineTree> <currentTree>` 得到这一轮对话的完整 diff。
 4. 如果 diff 为空，不生成会话更新。
-5. 如果 diff 非空，将 raw diff 写入本地 patch 文件，并将事件元数据写入事件日志。
+5. 如果 diff 非空，将 raw diff 覆盖写入该会话的 `latest.patch`，并将最新事件元数据写入事件日志。
+
+同一个 Agent session 首版只保留最新一次有效改动。也就是说，新的有效 `Stop` 事件会覆盖该 session 的 `latest.patch`，会话列表中也只保留一条记录。旧轮次不提供历史回看，以减少本地 patch 文件数量和清理成本。
 
 这种方式不会 checkout、不创建目录、不修改用户工作区；同时可以覆盖已暂存、未暂存和未跟踪文件。会话开始前已经存在的脏改动会进入 `baselineTree`，因此不会被误算为本轮 Agent 新增改动。
 
@@ -370,6 +382,8 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 - 当前监听状态。
 - 最近一次监听成功时间。
 - 最近一次错误信息。
+
+开启某个 Agent 集成时，应用写入或合并 Vibe Reviewer hook。关闭集成时，应用移除该 Agent 配置中由 Vibe Reviewer 注入的 hook 项；历史审查数据继续保留，用户仍可查看已产生的会话记录。
 
 #### 7.8.2 外观
 
@@ -486,21 +500,24 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 
 ### 10.3 审查事件日志
 
-审查事件日志用于连接 Agent hooks 和 Vibe Reviewer App。Hook collector 只追加写入，App 负责读取、聚合和展示。
+审查事件日志用于连接 Agent hooks 和 Vibe Reviewer App。Hook collector 按稳定事件 key 写入或更新轻量事件，App 负责读取、聚合和展示。
 
 建议存储位置：
 
 - 事件日志：`~/Library/Application Support/Vibe Reviewer/events.jsonl`
-- diff 快照：`~/Library/Application Support/Vibe Reviewer/diffs/<provider>/<sessionId>/<turnId>.patch`
+- 进行中基线：`~/Library/Application Support/Vibe Reviewer/pending/<provider>/<sessionId>.json`
+- 最新 diff 快照：`~/Library/Application Support/Vibe Reviewer/diffs/<provider>/<sessionId>/latest.patch`
 - 会话状态：`~/Library/Application Support/Vibe Reviewer/sessions.json`
 
-事件日志只保存轻量 metadata，raw diff 单独保存为 patch 文件。事件结构示例：
+pending 基线只用于衔接 `UserPromptSubmit` 和 `Stop`。同一个会话的新一轮 prompt 会覆盖旧 pending 基线，避免进行中状态无限增长。
+
+事件日志只保存轻量 metadata，raw diff 单独保存为该会话的 `latest.patch`。同一个 session 首版只保留最新一次有效改动，新的有效 diff 会覆盖旧 patch，并更新事件 metadata。事件结构示例：
 
 ```ts
 interface ReviewSessionEvent {
   provider: "codex" | "claude";
   sessionId: string;
-  turnId?: string;
+  latestTurnId?: string;
   transcriptPath?: string;
   projectPath: string;
   projectName: string;
@@ -515,7 +532,7 @@ interface ReviewSessionEvent {
 }
 ```
 
-为了避免重复事件，App 聚合时使用 `provider + sessionId + turnId` 作为事件唯一键；如果 Agent 没有提供 turn ID，则使用 `provider + sessionId + baselineTree + currentTree` 生成稳定 key。
+App 聚合会话时以 `provider + sessionId` 作为会话唯一键，并使用最新事件覆盖该会话的 diff 引用和统计信息。为了避免重复处理同一轮 `Stop`，collector 或 App 可以使用 `provider + sessionId + latestTurnId` 作为事件去重键；如果 Agent 没有提供 turn ID，则使用 `provider + sessionId + baselineTree + currentTree` 生成稳定 key。
 
 ### 10.4 会话状态
 
@@ -528,6 +545,7 @@ interface ReviewSessionEvent {
 - 项目路径。
 - 分支名。
 - 最近 raw diff 引用。
+- 最近 turn ID。
 - 未读状态。
 - 归档状态。
 - 最近更新时间。

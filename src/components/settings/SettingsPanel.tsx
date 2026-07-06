@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { defaultSettings } from "@/domain/mockData";
 import type { AgentType, AppSettings, ResolvedTheme } from "@/domain/types";
+import { setAgentIntegrationEnabled } from "@/services/reviewApi";
 import { SESSION_SIDEBAR_WIDTH } from "@/shared/windowLayout";
 import { ArrowLeft, Info, Palette, Search, Settings } from "lucide-react";
 
@@ -228,6 +229,7 @@ function GeneralSettingsPage({ settings, updateSettings }: GeneralSettingsPagePr
           {agents.map((agent) => (
             <SettingsSwitchRow
               checked={settings.enabledAgents[agent]}
+              description={getAgentSettingDescription(agent, settings)}
               key={agent}
               title={agent}
               onCheckedChange={(enabled) => updateAgent(agent, enabled, updateSettings)}
@@ -278,6 +280,34 @@ function updateAgent(
       [agent]: enabled ? "listening" : "disabled",
     },
   }));
+
+  setAgentIntegrationEnabled(agent, enabled).catch(() => {
+    updateSettings((current) => ({
+      ...current,
+      enabledAgents: {
+        ...current.enabledAgents,
+        [agent]: !enabled,
+      },
+      agentStatuses: {
+        ...current.agentStatuses,
+        [agent]: "failed",
+      },
+    }));
+  });
+}
+
+function getAgentSettingDescription(agent: AgentType, settings: AppSettings) {
+  const status = settings.agentStatuses[agent];
+
+  if (status === "failed") {
+    return "集成配置写入失败，请检查 Agent hooks 配置权限后重试。";
+  }
+
+  if (status === "listening") {
+    return "已写入 Vibe Reviewer hook，会话结束且产生改动时进入审查列表。";
+  }
+
+  return "关闭后会移除 Vibe Reviewer 注入的 hook，历史审查记录会保留。";
 }
 
 function filterSettingsNavigation(searchKeyword: string) {

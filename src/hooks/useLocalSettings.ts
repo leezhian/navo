@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { defaultSettings } from "../domain/mockData";
 import { normalizeAppSettings } from "../domain/settings";
 import type { AppSettings, ResolvedTheme, ThemePreference } from "../domain/types";
+import { loadAgentIntegrationStatuses } from "../services/reviewApi";
 
 const STORAGE_KEY = "vibe-reviewer-settings";
 const SYSTEM_COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
@@ -34,6 +35,39 @@ export function useLocalSettings() {
   useEffect(() => {
     applyResolvedTheme(resolvedTheme);
   }, [resolvedTheme]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    loadAgentIntegrationStatuses()
+      .then((agentStatuses) => {
+        if (!isMounted || Object.keys(agentStatuses).length === 0) {
+          return;
+        }
+
+        setSettings((current) => {
+          const enabledAgents = { ...current.enabledAgents };
+
+          for (const [agent, status] of Object.entries(agentStatuses)) {
+            enabledAgents[agent as keyof typeof enabledAgents] = status === "listening";
+          }
+
+          return {
+            ...current,
+            enabledAgents,
+            agentStatuses: {
+              ...current.agentStatuses,
+              ...agentStatuses,
+            },
+          };
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return useMemo(
     () => ({
