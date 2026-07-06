@@ -2,8 +2,13 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { AgentStatus, AgentType, ReviewProvider } from "@/domain/types";
+import {
+  createHookBridgeCommand,
+  installHookBridge,
+  removeHookBridge,
+  VIBE_REVIEWER_HOOK_MARKER,
+} from "./hookBridgeService";
 
-const VIBE_REVIEWER_HOOK_MARKER = "--vibe-reviewer-hook";
 const VIBE_REVIEWER_STATUS_MESSAGE = "记录 Vibe Reviewer 审查基线";
 const HOOK_EVENTS_BY_PROVIDER: Record<ReviewProvider, string[]> = {
   codex: ["UserPromptSubmit", "Stop"],
@@ -30,7 +35,9 @@ interface HookHandler {
 }
 
 export interface AgentHookConfigOptions {
+  bridgePath?: string;
   claudeSettingsPath?: string;
+  collectorScriptPath?: string;
   codexHooksPath?: string;
   executablePath?: string;
 }
@@ -49,11 +56,13 @@ export async function setAgentIntegrationEnabled(
 
   const configPath = getConfigPath(provider, options);
   const config = await readHookConfig(configPath);
-  const nextConfig = enabled
-    ? addVibeReviewerHooks(config, provider, options.executablePath ?? process.execPath)
-    : removeVibeReviewerHooks(config);
+  const nextConfig = enabled ? await enableVibeReviewerHooks(config, provider, options) : removeVibeReviewerHooks(config);
 
   await writeHookConfig(configPath, nextConfig);
+
+  if (!enabled) {
+    await removeHookBridgeIfUnused(options);
+  }
 }
 
 export async function loadAgentIntegrationStatuses(
@@ -67,7 +76,12 @@ export async function loadAgentIntegrationStatuses(
       }
 
       const config = await readHookConfig(getConfigPath(provider, options));
-      return [agent, hasVibeReviewerHooks(config, provider) ? "listening" : "disabled"] as const;
+      if (!hasVibeReviewerHooks(config, provider)) {
+        return [agent, "disabled"] as const;
+      }
+
+      await migrateVibeReviewerHooks(config, provider, options);
+      return [agent, "listening"] as const;
     }),
   );
 
@@ -77,9 +91,9 @@ export async function loadAgentIntegrationStatuses(
 export function addVibeReviewerHooks(
   config: HookConfigFile,
   provider: ReviewProvider,
-  executablePath: string,
+  bridgePath: string,
 ): HookConfigFile {
-  const command = createHookCommand(executablePath, provider);
+  const command = createHookBridgeCommand(bridgePath, provider);
   const nextConfig: HookConfigFile = {
     ...config,
     hooks: { ...(config.hooks ?? {}) },
@@ -130,6 +144,46 @@ export function hasVibeReviewerHooks(config: HookConfigFile, provider?: ReviewPr
       (group.hooks ?? []).some((handler) => isVibeReviewerHookHandler(handler)),
     ),
   );
+}
+
+async function enableVibeReviewerHooks(
+  config: HookConfigFile,
+  provider: ReviewProvider,
+  options: AgentHookConfigOptions,
+) {
+  const bridgePath = await installHookBridge({
+    bridgePath: options.bridgePath,
+    collectorScriptPath: options.collectorScriptPath,
+    executablePath: options.executablePath,
+  });
+
+  return addVibeReviewerHooks(config, provider, bridgePath);
+}
+
+async function migrateVibeReviewerHooks(
+  config: HookConfigFile,
+  provider: ReviewProvider,
+  options: AgentHookConfigOptions,
+) {
+  const nextConfig = await enableVibeReviewerHooks(config, provider, options);
+
+  if (JSON.stringify(config) === JSON.stringify(nextConfig)) {
+    return;
+  }
+
+  await writeHookConfig(getConfigPath(provider, options), nextConfig);
+}
+
+async function removeHookBridgeIfUnused(options: AgentHookConfigOptions) {
+  const configs = await Promise.all(
+    (["codex", "claude"] as ReviewProvider[]).map((provider) => readHookConfig(getConfigPath(provider, options))),
+  );
+
+  if (configs.some((config) => hasVibeReviewerHooks(config))) {
+    return;
+  }
+
+  await removeHookBridge({ bridgePath: options.bridgePath });
 }
 
 function removeMarkerHandlers(groups: HookGroup[]) {
@@ -194,14 +248,6 @@ function getConfigPath(provider: ReviewProvider, options: AgentHookConfigOptions
   }
 
   return options.claudeSettingsPath ?? path.join(os.homedir(), ".claude", "settings.json");
-}
-
-function createHookCommand(executablePath: string, provider: ReviewProvider) {
-  return `${quoteShellArg(executablePath)} --hook collect --provider ${provider} ${VIBE_REVIEWER_HOOK_MARKER}`;
-}
-
-function quoteShellArg(value: string) {
-  return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
 }
 
 function isVibeReviewerHookHandler(handler: HookHandler) {

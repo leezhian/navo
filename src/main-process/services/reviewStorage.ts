@@ -1,4 +1,3 @@
-import { app } from "electron";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -300,11 +299,15 @@ async function writeJsonFile(filePath: string, value: unknown) {
 }
 
 function getDefaultStorageRoot() {
-  try {
-    return path.join(app.getPath("appData"), APP_DATA_DIR_NAME);
-  } catch {
+  if (process.platform === "darwin") {
     return path.join(os.homedir(), "Library", "Application Support", APP_DATA_DIR_NAME);
   }
+
+  if (process.platform === "win32") {
+    return path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), APP_DATA_DIR_NAME);
+  }
+
+  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config"), APP_DATA_DIR_NAME);
 }
 
 function sanitizePathSegment(value: string) {

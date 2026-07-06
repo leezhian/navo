@@ -43,6 +43,8 @@ export interface MarkReviewSessionReadParams {
 
 export type ExternalLinkTarget = "website" | "report-bug";
 
+export type ReviewSessionsChangedListener = (sessions: ReviewSession[]) => void;
+
 export interface AppInfo {
   /** 展示在关于页中的应用名称。 */
   name: string;
@@ -75,6 +77,7 @@ export interface VibeReviewerApi {
     setAgentIntegrationEnabled(params: SetAgentIntegrationParams): Promise<void>;
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;
     loadLocalBranches(projectPath: string): Promise<string[]>;
+    onSessionsChanged(listener: ReviewSessionsChangedListener): () => void;
     openFileInVsCode(params: OpenFileInVsCodeParams): Promise<void>;
     runBatchFileAction(params: RunReviewBatchFileActionParams): Promise<void>;
     runFileAction(params: RunReviewFileActionParams): Promise<void>;

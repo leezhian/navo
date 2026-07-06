@@ -5,6 +5,7 @@ import type {
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
+  ReviewSessionsChangedListener,
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
   SetAgentIntegrationParams,
@@ -43,6 +44,14 @@ const api: VibeReviewerApi = {
     },
     loadLocalBranches(projectPath: string) {
       return ipcRenderer.invoke(ipcChannels.reviewLoadLocalBranches, projectPath);
+    },
+    onSessionsChanged(listener: ReviewSessionsChangedListener) {
+      const handler = (_event: IpcRendererEvent, sessions: Parameters<ReviewSessionsChangedListener>[0]) => {
+        listener(sessions);
+      };
+
+      ipcRenderer.on(ipcChannels.reviewSessionsChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.reviewSessionsChanged, handler);
     },
     openFileInVsCode(params: OpenFileInVsCodeParams) {
       return ipcRenderer.invoke(ipcChannels.reviewOpenFileInVsCode, params);

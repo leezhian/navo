@@ -5,27 +5,14 @@ import { TRAFFIC_LIGHT_POSITION } from "./shared/windowLayout";
 import { registerAppHandlers } from "./main-process/ipc/appHandlers";
 import { registerReviewHandlers } from "./main-process/ipc/reviewHandlers";
 import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
-import { runHookCollectorFromStdin } from "./main-process/services/hookCollectorService";
-import type { ReviewProvider } from "./domain/types";
-
-const hookCollectorArgs = parseHookCollectorArgs(process.argv);
-
-if (hookCollectorArgs) {
-  runHookCollectorFromStdin(hookCollectorArgs)
-    .catch((error: unknown) => {
-      console.error(error instanceof Error ? error.message : String(error));
-    })
-    .finally(() => {
-      app.exit(0);
-    });
-} else {
-  startApplication();
-}
+import { startReviewSessionWatcher, stopReviewSessionWatcher } from "./main-process/services/reviewSessionWatcher";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
+
+startApplication();
 
 const createWindow = () => {
   const usesNativeVibrancy = process.platform === "darwin";
@@ -64,7 +51,14 @@ function startApplication() {
     registerAppHandlers();
     registerReviewHandlers();
     registerWindowHandlers();
+    startReviewSessionWatcher().catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : String(error));
+    });
     createWindow();
+  });
+
+  app.on("before-quit", () => {
+    stopReviewSessionWatcher();
   });
 
   app.on("window-all-closed", () => {
@@ -78,27 +72,4 @@ function startApplication() {
       createWindow();
     }
   });
-}
-
-function parseHookCollectorArgs(argv: string[]) {
-  const hookIndex = argv.indexOf("--hook");
-  if (hookIndex < 0 || argv[hookIndex + 1] !== "collect") {
-    return null;
-  }
-
-  const provider = readArgValue(argv, "--provider");
-  if (!isReviewProvider(provider)) {
-    return null;
-  }
-
-  return { provider };
-}
-
-function readArgValue(argv: string[], name: string) {
-  const index = argv.indexOf(name);
-  return index >= 0 ? argv[index + 1] : undefined;
-}
-
-function isReviewProvider(value: unknown): value is ReviewProvider {
-  return value === "codex" || value === "claude";
 }

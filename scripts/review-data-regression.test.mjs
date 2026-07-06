@@ -32,6 +32,12 @@ const { resolveCollapsedFileIds, resolveSelectedFileId } = await importTs("src/h
 const { toCodeViewItems } = await importTs("src/components/review/diff-code-view/diffCodeViewItems.ts");
 const diffCodeViewSource = readFileSync(path.join(projectRoot, "src/components/review/diff-code-view/DiffCodeView.tsx"), "utf8");
 const diffPreviewSource = readFileSync(path.join(projectRoot, "src/components/settings/DiffPreview.tsx"), "utf8");
+const agentHookConfigSource = readFileSync(path.join(projectRoot, "src/main-process/services/agentHookConfigService.ts"), "utf8");
+const hookBridgeSource = readFileSync(path.join(projectRoot, "src/main-process/services/hookBridgeService.ts"), "utf8");
+const appSource = readFileSync(path.join(projectRoot, "src/App.tsx"), "utf8");
+const electronApiSource = readFileSync(path.join(projectRoot, "src/shared/electronApi.ts"), "utf8");
+const ipcChannelsSource = readFileSync(path.join(projectRoot, "src/shared/ipcChannels.ts"), "utf8");
+const preloadSource = readFileSync(path.join(projectRoot, "src/preload.ts"), "utf8");
 
 function createFile(id, isLarge = false) {
   return {
@@ -101,4 +107,17 @@ test("review diff 主区域启用 WorkerPool provider", () => {
 
 test("设置预览继续禁用 worker pool", () => {
   assert.match(diffPreviewSource, /<PatchDiff[^>]*disableWorkerPool/);
+});
+
+test("Agent hook 命令使用独立 bridge，避免启动 Electron 主 App", () => {
+  assert.match(hookBridgeSource, /vibe-reviewer-hook/);
+  assert.match(agentHookConfigSource, /createHookBridgeCommand/);
+  assert.doesNotMatch(agentHookConfigSource, /--hook collect/);
+});
+
+test("会话刷新使用主进程推送而不是 5 秒轮询", () => {
+  assert.doesNotMatch(appSource, /setInterval\(refreshSessions,\s*5000\)/);
+  assert.match(electronApiSource, /onSessionsChanged/);
+  assert.match(ipcChannelsSource, /reviewSessionsChanged/);
+  assert.match(preloadSource, /reviewSessionsChanged/);
 });

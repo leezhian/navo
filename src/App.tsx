@@ -10,7 +10,7 @@ import type { ReviewSession } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
 import { useReviewData } from "./hooks/useReviewData";
 import { useWorkspaceTabs } from "./hooks/useWorkspaceTabs";
-import { loadReviewSessions, markReviewSessionRead } from "./services/reviewApi";
+import { loadReviewSessions, markReviewSessionRead, onReviewSessionsChanged } from "./services/reviewApi";
 import "./App.css";
 
 function App() {
@@ -55,36 +55,38 @@ function App() {
     toggleFileCollapsed,
   } = useReviewData({ selectedSession, targetBranch: settings.targetBranch });
   const shouldShowWorkspaceTabs = !showSettings && hasWorkspaceTabs;
+  const applyLoadedSessions = useCallback((loadedSessions: ReviewSession[]) => {
+    setSessions((currentSessions) => mergeLoadedSessions(currentSessions, loadedSessions));
+    setSelectedSessionId((currentId) => {
+      if (currentId && loadedSessions.some((session) => session.id === currentId)) {
+        return currentId;
+      }
+
+      return loadedSessions[0]?.id ?? null;
+    });
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
-    const refreshSessions = () => {
-      loadReviewSessions()
-        .then((loadedSessions) => {
-          if (!isMounted) {
-            return;
-          }
+    const unsubscribe = onReviewSessionsChanged((loadedSessions) => {
+      if (isMounted) {
+        applyLoadedSessions(loadedSessions);
+      }
+    });
 
-          setSessions((currentSessions) => mergeLoadedSessions(currentSessions, loadedSessions));
-          setSelectedSessionId((currentId) => {
-            if (currentId && loadedSessions.some((session) => session.id === currentId)) {
-              return currentId;
-            }
-
-            return loadedSessions[0]?.id ?? null;
-          });
-        })
-        .catch(() => undefined);
-    };
-
-    refreshSessions();
-    const refreshTimer = window.setInterval(refreshSessions, 5000);
+    loadReviewSessions()
+      .then((loadedSessions) => {
+        if (isMounted) {
+          applyLoadedSessions(loadedSessions);
+        }
+      })
+      .catch(() => undefined);
 
     return () => {
       isMounted = false;
-      window.clearInterval(refreshTimer);
+      unsubscribe();
     };
-  }, []);
+  }, [applyLoadedSessions]);
 
   function selectSession(session: ReviewSession) {
     setSelectedSessionId(session.id);

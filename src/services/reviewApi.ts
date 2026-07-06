@@ -31,6 +31,18 @@ export async function loadReviewSessions(): Promise<ReviewSession[]> {
   }
 }
 
+export function onReviewSessionsChanged(listener: (sessions: ReviewSession[]) => void) {
+  try {
+    return window.vibeReviewer.review.onSessionsChanged(listener);
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return () => undefined;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
 export async function markReviewSessionRead(session: ReviewSession): Promise<void> {
   try {
     await window.vibeReviewer.review.markSessionRead({

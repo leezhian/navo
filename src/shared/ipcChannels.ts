@@ -10,6 +10,7 @@ export const ipcChannels = {
   reviewOpenFileInVsCode: "review:open-file-in-vscode",
   reviewRunBatchFileAction: "review:run-batch-file-action",
   reviewRunFileAction: "review:run-file-action",
+  reviewSessionsChanged: "review:sessions-changed",
   reviewSetAgentIntegrationEnabled: "review:set-agent-integration-enabled",
   windowFullScreenChanged: "window:full-screen-changed",
   windowGetIsFullScreen: "window:get-is-full-screen",
