@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getLineCommentId,
   parseLineCommentId,
@@ -26,56 +26,7 @@ export function useLocalComments() {
     }
   }, [hasEditingComment, selectedCommentTarget]);
 
-  function openLineComment(target: LocalCommentTarget) {
-    const commentId = getLineCommentId(target.fileId, target.side, target.lineNumber);
-    setSelectedCommentTarget(target);
-    setActiveCommentIds((current) => new Set(current).add(commentId));
-    setCommentModes((current) => {
-      if (current.has(commentId)) {
-        return current;
-      }
-
-      return new Map(current).set(commentId, "draft");
-    });
-  }
-
-  function closeLineComment(commentId: string) {
-    updateSelectedTargetFromComment(commentId, "clear-if-current");
-    setActiveCommentIds((current) => {
-      const next = new Set(current);
-      next.delete(commentId);
-      return next;
-    });
-    setCommentModes((current) => {
-      const next = new Map(current);
-      next.delete(commentId);
-      return next;
-    });
-  }
-
-  function updateLineCommentMode(commentId: string, mode: LocalCommentMode) {
-    if (mode === "editing") {
-      updateSelectedTargetFromComment(commentId, "select");
-    }
-
-    if (mode === "saved") {
-      updateSelectedTargetFromComment(commentId, "clear-if-current");
-    }
-
-    setCommentModes((current) => {
-      if (current.get(commentId) === mode) {
-        return current;
-      }
-
-      return new Map(current).set(commentId, mode);
-    });
-  }
-
-  function selectCommentTarget(target: LocalCommentTarget) {
-    setSelectedCommentTarget((current) => (isSameCommentTarget(current, target) ? current : target));
-  }
-
-  function updateSelectedTargetFromComment(commentId: string, action: "select" | "clear-if-current") {
+  const updateSelectedTargetFromComment = useCallback((commentId: string, action: "select" | "clear-if-current") => {
     const metadata = parseLineCommentId(commentId);
 
     if (!metadata) {
@@ -95,7 +46,70 @@ export function useLocalComments() {
 
       return isSameCommentTarget(current, target) ? null : current;
     });
-  }
+  }, []);
+
+  const openLineComment = useCallback((target: LocalCommentTarget) => {
+    const commentId = getLineCommentId(target.fileId, target.side, target.lineNumber);
+    setSelectedCommentTarget((current) => (isSameCommentTarget(current, target) ? current : target));
+    setActiveCommentIds((current) => {
+      if (current.has(commentId)) {
+        return current;
+      }
+
+      return new Set(current).add(commentId);
+    });
+    setCommentModes((current) => {
+      if (current.has(commentId)) {
+        return current;
+      }
+
+      return new Map(current).set(commentId, "draft");
+    });
+  }, []);
+
+  const closeLineComment = useCallback((commentId: string) => {
+    updateSelectedTargetFromComment(commentId, "clear-if-current");
+    setActiveCommentIds((current) => {
+      if (!current.has(commentId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.delete(commentId);
+      return next;
+    });
+    setCommentModes((current) => {
+      if (!current.has(commentId)) {
+        return current;
+      }
+
+      const next = new Map(current);
+      next.delete(commentId);
+      return next;
+    });
+  }, [updateSelectedTargetFromComment]);
+
+  const updateLineCommentMode = useCallback((commentId: string, mode: LocalCommentMode) => {
+    if (mode === "editing") {
+      updateSelectedTargetFromComment(commentId, "select");
+    }
+
+    if (mode === "saved") {
+      updateSelectedTargetFromComment(commentId, "clear-if-current");
+    }
+
+    setCommentModes((current) => {
+      if (current.get(commentId) === mode) {
+        return current;
+      }
+
+      return new Map(current).set(commentId, mode);
+    });
+  }, [updateSelectedTargetFromComment]);
+
+  const selectCommentTarget = useCallback((target: LocalCommentTarget) => {
+    setSelectedCommentTarget((current) => (isSameCommentTarget(current, target) ? current : target));
+  }, []);
 
   return {
     activeCommentIds,

@@ -83,7 +83,11 @@ export async function loadReviewDiff({ session, mode, targetBranch }: LoadReview
       return emptySummary();
     }
 
-    return parseGitDiff(output.stdout, `${session.projectPath}-${mode}-${targetBranch}`, output.file_snapshots);
+    return parseGitDiff(
+      output.stdout,
+      createDiffCacheKeyPrefix(session, mode, targetBranch, output.stdout),
+      output.file_snapshots,
+    );
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       // 浏览器预览或 preload 未注入时使用 mock，避免纯前端调试被 Electron IPC 阻断。
@@ -152,6 +156,26 @@ export async function runReviewBatchFileAction(
 
 export function mockSummary(): ReviewSummary {
   return parseGitDiff(mockRawDiff, "mock-review-diff");
+}
+
+function createDiffCacheKeyPrefix(
+  session: ReviewSession,
+  mode: CompareMode,
+  targetBranch: string,
+  rawDiff: string,
+) {
+  return `${session.id}-${mode}-${targetBranch}-${hashString(rawDiff)}`;
+}
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash).toString(36);
 }
 
 function emptySummary(): ReviewSummary {

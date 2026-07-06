@@ -18,7 +18,7 @@ export function DiffBatchActionBar({ compareMode, hasFiles, onBatchFileAction }:
   }
 
   return (
-    <div className="pointer-events-none sticky bottom-5 z-20 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center">
       <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full border bg-background/92 px-1.5 text-muted-foreground shadow-lg backdrop-blur-xl">
         {compareMode === "unstaged" ? (
           <>

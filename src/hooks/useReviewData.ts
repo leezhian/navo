@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CompareMode,
   CompareModeFileCounts,
@@ -9,6 +9,12 @@ import type {
   ReviewSummary,
 } from "@/domain/types";
 import { loadLocalBranches, loadReviewDiff, runReviewBatchFileAction, runReviewFileAction } from "@/services/reviewApi";
+import {
+  createFileIdSet,
+  getInitialCollapsedFileIds,
+  resolveCollapsedFileIds,
+  resolveSelectedFileId,
+} from "./reviewDataState";
 
 interface UseReviewDataParams {
   /** 当前选中的审查会话；为空时停止加载 diff，并清空对比方式文件数。 */
@@ -25,6 +31,8 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [localBranches, setLocalBranches] = useState<string[]>(["main", "master"]);
   const [compareModeFileCounts, setCompareModeFileCounts] = useState<CompareModeFileCounts>({});
+  const reviewScopeKeyRef = useRef<string | null>(null);
+  const reviewFileIdsRef = useRef<Set<string>>(new Set());
 
   const refreshCompareModeFileCounts = useCallback(() => {
     if (!selectedSession) {
@@ -33,6 +41,8 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       setReviewError(null);
       setSelectedFileId(null);
       setCollapsedFileIds(new Set());
+      reviewScopeKeyRef.current = null;
+      reviewFileIdsRef.current = new Set();
       return;
     }
 
@@ -44,21 +54,33 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
   const refreshReview = useCallback(() => {
     if (!selectedSession) {
       setCompareModeFileCounts({});
+      reviewScopeKeyRef.current = null;
+      reviewFileIdsRef.current = new Set();
       return;
     }
 
     setReviewError(null);
     refreshCompareModeFileCounts();
 
+    const nextScopeKey = getReviewScopeKey(selectedSession, compareMode, targetBranch);
     loadReviewDiff({ session: selectedSession, mode: compareMode, targetBranch })
       .then((summary) => {
+        const previousScopeKey = reviewScopeKeyRef.current;
+        const previousFileIds = previousScopeKey === nextScopeKey ? reviewFileIdsRef.current : new Set<string>();
+
         if (isTrackedFileCountMode(compareMode)) {
           setCompareModeFileCounts((current) => ({ ...current, [compareMode]: summary.fileCount }));
         }
 
         setReviewSummary(summary);
-        setSelectedFileId(summary.files[0]?.id ?? null);
-        setCollapsedFileIds(new Set(summary.files.filter((file) => file.isLarge).map((file) => file.id)));
+        setSelectedFileId((current) => resolveSelectedFileId(summary.files, current));
+        setCollapsedFileIds((current) =>
+          previousScopeKey === nextScopeKey
+            ? resolveCollapsedFileIds(summary.files, current, previousFileIds)
+            : getInitialCollapsedFileIds(summary.files),
+        );
+        reviewScopeKeyRef.current = nextScopeKey;
+        reviewFileIdsRef.current = createFileIdSet(summary.files);
       })
       .catch((error: unknown) => {
         setReviewError(error instanceof Error ? error.message : String(error));
@@ -79,15 +101,15 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       .catch(() => setLocalBranches(["main", "master"]));
   }, [selectedSession]);
 
-  function toggleFileCollapsed(fileId: string) {
+  const toggleFileCollapsed = useCallback((fileId: string) => {
     setCollapsedFileIds((current) => toggleSetValue(current, fileId));
-  }
+  }, []);
 
-  function toggleAllCollapsed() {
+  const toggleAllCollapsed = useCallback(() => {
     setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary));
-  }
+  }, [reviewSummary]);
 
-  function runFileAction(filePath: string, action: ReviewFileAction) {
+  const runFileAction = useCallback((filePath: string, action: ReviewFileAction) => {
     if (!selectedSession) {
       return;
     }
@@ -99,9 +121,9 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       .catch((error: unknown) => {
         setReviewError(error instanceof Error ? error.message : String(error));
       });
-  }
+  }, [refreshReview, selectedSession]);
 
-  function runBatchFileAction(action: ReviewBatchFileAction) {
+  const runBatchFileAction = useCallback((action: ReviewBatchFileAction) => {
     if (!selectedSession || !reviewSummary) {
       return;
     }
@@ -113,7 +135,7 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
       .catch((error: unknown) => {
         setReviewError(error instanceof Error ? error.message : String(error));
       });
-  }
+  }, [refreshReview, reviewSummary, selectedSession]);
 
   return {
     collapsedFileIds,
@@ -159,6 +181,10 @@ function isTrackedFileCountMode(mode: CompareMode) {
 
 function getActionFilePaths(files: DiffFile[]) {
   return files.map((file) => file.newPath || file.oldPath || file.displayPath);
+}
+
+function getReviewScopeKey(session: ReviewSession, compareMode: CompareMode, targetBranch: string) {
+  return `${session.id}:${compareMode}:${targetBranch}`;
 }
 
 async function loadCompareModeFileCounts(session: ReviewSession, targetBranch: string): Promise<CompareModeFileCounts> {

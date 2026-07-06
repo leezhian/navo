@@ -5,6 +5,7 @@ import { SessionSidebar } from "./components/session/SessionSidebar";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { TerminalWorkspace } from "./components/terminal/TerminalWorkspace";
 import { mockSessions } from "./domain/mockData";
+import { mergeLoadedSessions } from "./domain/reviewSessionMerge";
 import type { ReviewSession } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
 import { useReviewData } from "./hooks/useReviewData";
@@ -194,21 +195,6 @@ function useOrderedSessions(sessions: ReviewSession[]) {
       ),
     [sessions],
   );
-}
-
-function mergeLoadedSessions(currentSessions: ReviewSession[], loadedSessions: ReviewSession[]) {
-  return loadedSessions.map((loadedSession) => {
-    const currentSession = currentSessions.find((session) => session.id === loadedSession.id);
-
-    if (!currentSession || currentSession.updatedAt !== loadedSession.updatedAt) {
-      return loadedSession;
-    }
-
-    return {
-      ...loadedSession,
-      unread: currentSession.unread,
-    };
-  });
 }
 
 export default App;

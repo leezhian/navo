@@ -27,6 +27,21 @@ interface MenuPosition {
   y: number;
 }
 
+interface FileActionMenuContentProps {
+  /** 当前文件信息，用于展示和执行文件路径相关操作。 */
+  file: DiffFile;
+  /** 当前项目根路径，用于拼接完整文件路径。 */
+  projectPath: string;
+  /** 关闭右键菜单。 */
+  onClose: () => void;
+  /** diff 文件块需要额外展示相对路径和自动换行选项。 */
+  showWrapToggle?: boolean;
+  /** 当前自动换行状态，用于右键菜单文案互切。 */
+  wrapDiffLines?: boolean;
+  /** 点击自动换行选项时触发，仅在 showWrapToggle 为 true 时需要。 */
+  onToggleWrap?: () => void;
+}
+
 const menuWidth = 176;
 const baseMenuHeight = 76;
 const diffMenuHeight = 148;
@@ -40,7 +55,6 @@ export function FileContextMenu({
   wrapDiffLines = false,
   onToggleWrap,
 }: FileContextMenuProps) {
-  const fullPath = getFullPath(projectPath, file.displayPath);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
 
@@ -53,11 +67,6 @@ export function FileContextMenu({
 
   function closeMenu() {
     setMenuPosition(null);
-  }
-
-  function runMenuAction(action: () => void) {
-    action();
-    closeMenu();
   }
 
   useEffect(() => {
@@ -103,40 +112,14 @@ export function FileContextMenu({
             style={{ left: menuPosition.x, top: menuPosition.y }}
             onContextMenu={(event) => event.preventDefault()}
           >
-            <button
-              className={fileActionItemClassName}
-              type="button"
-              onClick={() => runMenuAction(() => openFileInVsCode(projectPath, file.displayPath))}
-            >
-              <Code2 className={fileActionIconClassName} />
-              <span>在 VS Code 中打开</span>
-            </button>
-            <div className="mx-2 my-1 h-px bg-border" />
-            <button
-              className={fileActionItemClassName}
-              type="button"
-              onClick={() => runMenuAction(() => copyFilePath(fullPath))}
-            >
-              <span>复制路径</span>
-            </button>
-            {showWrapToggle && (
-              <>
-                <button
-                  className={fileActionItemClassName}
-                  type="button"
-                  onClick={() => runMenuAction(() => copyFilePath(file.displayPath))}
-                >
-                  <span>复制相对路径</span>
-                </button>
-                <button
-                  className={fileActionItemClassName}
-                  type="button"
-                  onClick={() => runMenuAction(() => onToggleWrap?.())}
-                >
-                  <span>{wrapDiffLines ? "关闭自动换行" : "开启自动换行"}</span>
-                </button>
-              </>
-            )}
+            <FileActionMenuContent
+              file={file}
+              projectPath={projectPath}
+              showWrapToggle={showWrapToggle}
+              wrapDiffLines={wrapDiffLines}
+              onClose={closeMenu}
+              onToggleWrap={onToggleWrap}
+            />
           </div>,
           document.body,
         )}
@@ -144,7 +127,54 @@ export function FileContextMenu({
   );
 }
 
-function getMenuPosition(clientX: number, clientY: number, showWrapToggle: boolean): MenuPosition {
+export function FileActionMenuContent({
+  file,
+  projectPath,
+  showWrapToggle = false,
+  wrapDiffLines = false,
+  onClose,
+  onToggleWrap,
+}: FileActionMenuContentProps) {
+  const fullPath = getFullPath(projectPath, file.displayPath);
+
+  function runMenuAction(action: () => void) {
+    action();
+    onClose();
+  }
+
+  return (
+    <>
+      <button
+        className={fileActionItemClassName}
+        type="button"
+        onClick={() => runMenuAction(() => openFileInVsCode(projectPath, file.displayPath))}
+      >
+        <Code2 className={fileActionIconClassName} />
+        <span>在 VS Code 中打开</span>
+      </button>
+      <div className="mx-2 my-1 h-px bg-border" />
+      <button className={fileActionItemClassName} type="button" onClick={() => runMenuAction(() => copyFilePath(fullPath))}>
+        <span>复制路径</span>
+      </button>
+      {showWrapToggle && (
+        <>
+          <button
+            className={fileActionItemClassName}
+            type="button"
+            onClick={() => runMenuAction(() => copyFilePath(file.displayPath))}
+          >
+            <span>复制相对路径</span>
+          </button>
+          <button className={fileActionItemClassName} type="button" onClick={() => runMenuAction(() => onToggleWrap?.())}>
+            <span>{wrapDiffLines ? "关闭自动换行" : "开启自动换行"}</span>
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
+export function getMenuPosition(clientX: number, clientY: number, showWrapToggle: boolean): MenuPosition {
   const menuHeight = showWrapToggle ? diffMenuHeight : baseMenuHeight;
   const maxX = window.innerWidth - menuWidth - viewportPadding;
   const maxY = window.innerHeight - menuHeight - viewportPadding;

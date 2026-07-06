@@ -13,5 +13,8 @@ export default defineConfig(async () => {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
     },
+    worker: {
+      format: "es" as const,
+    },
   };
 });

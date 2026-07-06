@@ -10,14 +10,6 @@ export interface LocalCommentTarget {
   lineNumber: number;
 }
 
-export function getCommentSelectedLines(fileId: string, target: LocalCommentTarget | null): SelectedLineRange | null {
-  if (!target || target.fileId !== fileId) {
-    return null;
-  }
-
-  return getSingleRowSelection(target);
-}
-
 export function getSingleRowSelection(target: LocalCommentTarget): SelectedLineRange {
   // Pierre 在 split 模式会按行索引渲染 selection，单侧行号足以让同一 diff 行的左右两列一起高亮。
   return {

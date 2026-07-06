@@ -41,5 +41,5 @@ export function getReviewLayoutStyle(isFileTreeVisible: boolean, fileTreeWidth: 
 }
 
 export function getReviewPaneClassName(isFileTreeVisible: boolean) {
-  return classNames("min-w-0 overflow-auto overscroll-none bg-background", isFileTreeVisible && "border-r");
+  return classNames("grid min-h-0 min-w-0 grid-rows-[auto_1fr] overflow-hidden bg-background", isFileTreeVisible && "border-r");
 }

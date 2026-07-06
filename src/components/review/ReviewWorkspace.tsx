@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { buildFileTree } from "@/domain/fileTree";
 import type {
@@ -12,9 +12,11 @@ import type {
   ReviewSession,
   ReviewSummary,
 } from "@/domain/types";
+import type { CodeViewHandle } from "@pierre/diffs/react";
 import { DiffViewer } from "./DiffViewer";
 import { FileTree } from "./FileTree";
 import { ReviewToolbar } from "./ReviewToolbar";
+import type { LocalCommentMetadata } from "./diff-viewer/LineComment";
 import {
   getEffectiveReadingMode,
   getIsAllCollapsed,
@@ -87,14 +89,22 @@ export function ReviewWorkspace({
   onToggleAllCollapsed,
   onToggleFile,
 }: ReviewWorkspaceProps) {
+  const codeViewRef = useRef<CodeViewHandle<LocalCommentMetadata>>(null);
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const { fileTreeWidth, isResizing, startResize } = useResizableFileTree(() => setIsFileTreeVisible(false));
   const fileTree = useMemo(() => buildFileTree(summary?.files ?? []), [summary]);
   const effectiveReadingMode = getEffectiveReadingMode(summary, settings);
-  const visibleFiles = getVisibleFiles(summary, effectiveReadingMode, selectedFileId);
+  const visibleFiles = useMemo(
+    () => getVisibleFiles(summary, effectiveReadingMode, selectedFileId),
+    [effectiveReadingMode, selectedFileId, summary],
+  );
   const isAllCollapsed = getIsAllCollapsed(summary, collapsedFileIds);
+  const scrollToFile = useCallback((fileId: string) => {
+    codeViewRef.current?.scrollTo({ type: "item", id: fileId, align: "start", behavior: "smooth-auto" });
+  }, []);
   const { selectFile } = useFileSelection({
     readingMode: effectiveReadingMode,
+    onScrollToFile: scrollToFile,
     onSelectedFileChange,
   });
 
@@ -127,6 +137,7 @@ export function ReviewWorkspace({
             </div>
           )}
           <ReviewContent
+            codeViewRef={codeViewRef}
             compareMode={compareMode}
             collapsedFileIds={collapsedFileIds}
             files={visibleFiles}
@@ -168,6 +179,7 @@ export function ReviewWorkspace({
 }
 
 function ReviewContent({
+  codeViewRef,
   collapsedFileIds,
   compareMode,
   files,
@@ -183,6 +195,10 @@ function ReviewContent({
   onSettingsChange,
   onToggleFile,
 }: ReviewContentProps) {
+  const toggleWrapDiffLines = useCallback(() => {
+    onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }));
+  }, [onSettingsChange]);
+
   if (reviewError) {
     return <StateBlock actionLabel="刷新" body={reviewError} title="Git 命令失败" onAction={onRefresh} />;
   }
@@ -204,8 +220,9 @@ function ReviewContent({
   }
 
   return (
-    <>
+    <div className="relative h-full min-h-0">
       <DiffViewer
+        codeViewRef={codeViewRef}
         compareMode={compareMode}
         collapsedFileIds={collapsedFileIds}
         files={files}
@@ -213,15 +230,17 @@ function ReviewContent({
         resolvedTheme={resolvedTheme}
         settings={settings}
         onFileAction={onFileAction}
-        onToggleWrap={() => onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }))}
+        onToggleWrap={toggleWrapDiffLines}
         onToggleFile={onToggleFile}
       />
       <DiffBatchActionBar compareMode={compareMode} hasFiles={files.length > 0} onBatchFileAction={onBatchFileAction} />
-    </>
+    </div>
   );
 }
 
 interface ReviewContentProps {
+  /** CodeView ref，供连续模式文件树定位使用。 */
+  codeViewRef: React.RefObject<CodeViewHandle<LocalCommentMetadata> | null>;
   /** 已折叠文件 id 集合，透传给 DiffViewer 控制每个文件块。 */
   collapsedFileIds: Set<string>;
   /** 当前对比方式，用于选择空状态文案和文件头操作。 */
