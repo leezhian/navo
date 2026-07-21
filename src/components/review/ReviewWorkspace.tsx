@@ -133,27 +133,29 @@ export function ReviewWorkspace({
       >
         <section className={getReviewPaneClassName(isFileTreeVisible)}>
           {summary?.isLargeDiff && (
-            <div className="flex h-7 items-center bg-amber-50 px-5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            <div className="flex h-7 shrink-0 items-center bg-amber-50 px-5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               检测到大量差异：每次仅显示一个文件。
             </div>
           )}
-          <ReviewContent
-            codeViewRef={codeViewRef}
-            compareMode={compareMode}
-            collapsedFileIds={collapsedFileIds}
-            files={visibleFiles}
-            projectPath={session.projectPath}
-            reviewError={reviewError}
-            resolvedTheme={resolvedTheme}
-            settings={settings}
-            summary={summary}
-            onBatchFileAction={onBatchFileAction}
-            onCompareModeChange={onCompareModeChange}
-            onFileAction={onFileAction}
-            onRefresh={onRefresh}
-            onSettingsChange={onSettingsChange}
-            onToggleFile={onToggleFile}
-          />
+          <div className="relative min-h-0 flex-1">
+            <ReviewContent
+              codeViewRef={codeViewRef}
+              compareMode={compareMode}
+              collapsedFileIds={collapsedFileIds}
+              files={visibleFiles}
+              projectPath={session.projectPath}
+              reviewError={reviewError}
+              resolvedTheme={resolvedTheme}
+              settings={settings}
+              summary={summary}
+              onBatchFileAction={onBatchFileAction}
+              onCompareModeChange={onCompareModeChange}
+              onFileAction={onFileAction}
+              onRefresh={onRefresh}
+              onSettingsChange={onSettingsChange}
+              onToggleFile={onToggleFile}
+            />
+          </div>
         </section>
         <AnimatePresence initial={false}>
           {isFileTreeVisible && (

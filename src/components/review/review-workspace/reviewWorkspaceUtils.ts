@@ -41,5 +41,10 @@ export function getReviewLayoutStyle(isFileTreeVisible: boolean, fileTreeWidth: 
 }
 
 export function getReviewPaneClassName(isFileTreeVisible: boolean) {
-  return classNames("grid min-h-0 min-w-0 grid-rows-[auto_1fr] overflow-hidden bg-background", isFileTreeVisible && "border-r");
+  // 用纵向 flex 保证内容区始终占满剩余高度；原先 grid auto/1fr 在没有大 diff 提示条时，
+  // 唯一子节点会落在 auto 行并随内容收缩，导致 absolute bottom 的批量操作条跟着上移。
+  return classNames(
+    "flex min-h-0 min-w-0 flex-col overflow-hidden bg-background",
+    isFileTreeVisible && "border-r",
+  );
 }
