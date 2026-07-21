@@ -1,4 +1,5 @@
 import { getPierreDiffIndicators, getPierreTheme, getPierreUnsafeCss } from "@/components/review/diff-viewer/pierreDiffOptions";
+import { getLineDiffType } from "@/components/review/diff-code-view/diffWorkerPool";
 import type { AppSettings, ResolvedTheme } from "@/domain/types";
 import type { FileDiffOptions } from "@pierre/diffs";
 import { PatchDiff } from "@pierre/diffs/react";
@@ -46,7 +47,7 @@ export function DiffPreview({ resolvedTheme, settings }: DiffPreviewProps) {
       diffStyle: settings.diffViewMode === "split" ? "split" : "unified",
       disableFileHeader: true,
       hunkSeparators: "line-info-basic",
-      lineDiffType: "word",
+      lineDiffType: getLineDiffType(settings.enableTextDiff),
       lineHoverHighlight: "disabled",
       overflow: "wrap",
       theme: getPierreTheme(settings),

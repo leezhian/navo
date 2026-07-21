@@ -1,6 +1,6 @@
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import type { AppSettings, CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "@/domain/types";
-import { FolderClosed, FolderOpen, Rows3, SplitSquareHorizontal } from "lucide-react";
+import { FolderClosed, FolderOpen, ListCollapse, ListTree, Rows3, SplitSquareHorizontal } from "lucide-react";
 import { useState } from "react";
 import { BranchMenu } from "./review-toolbar/BranchMenu";
 import { CompareModeMenu } from "./review-toolbar/CompareModeMenu";
@@ -14,7 +14,7 @@ interface ReviewToolbarProps {
   compareMode: CompareMode;
   /** 未暂存/已暂存文件数角标数据。 */
   compareModeFileCounts: CompareModeFileCounts;
-  /** 当前所有文件是否都处于折叠状态，用于查看选项文案互切。 */
+  /** 当前所有文件是否都处于折叠状态，用于折叠按钮文案与图标互切。 */
   isAllCollapsed: boolean;
   /** 文件树面板是否显示，用于按钮图标和激活态。 */
   isFileTreeVisible: boolean;
@@ -28,9 +28,11 @@ interface ReviewToolbarProps {
   summary: ReviewSummary | null;
   /** 选择新的对比方式后通知上层重新加载 diff。 */
   onCompareModeChange: (mode: CompareMode) => void;
+  /** 重新加载当前对比方式的 diff。 */
+  onRefresh: () => void;
   /** 更新本地展示设置，例如目标分支或差异视图。 */
   onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
-  /** 查看选项中触发全部折叠/全部展开。 */
+  /** 在全部折叠和全部展开之间切换。 */
   onToggleAllCollapsed: () => void;
   /** 显示或隐藏右侧文件树面板。 */
   onToggleFileTree: () => void;
@@ -46,6 +48,7 @@ export function ReviewToolbar({
   settings,
   summary,
   onCompareModeChange,
+  onRefresh,
   onSettingsChange,
   onToggleAllCollapsed,
   onToggleFileTree,
@@ -92,11 +95,16 @@ export function ReviewToolbar({
 
         <div className="flex items-start gap-2">
           <ViewOptionsMenu
-            isAllCollapsed={isAllCollapsed}
             settings={settings}
+            onRefresh={onRefresh}
             onSettingsChange={onSettingsChange}
-            onToggleAllCollapsed={onToggleAllCollapsed}
           />
+          <IconTooltip
+            label={isAllCollapsed ? "展开全部差异" : "折叠全部差异"}
+            onClick={onToggleAllCollapsed}
+          >
+            {isAllCollapsed ? <ListTree className="size-4" /> : <ListCollapse className="size-4" />}
+          </IconTooltip>
           <IconTooltip
             label={settings.diffViewMode === "split" ? "切换到统一视图" : "切换到分栏视图"}
             onClick={() => toggleDiffView(onSettingsChange)}

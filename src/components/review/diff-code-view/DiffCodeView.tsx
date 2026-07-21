@@ -1,13 +1,22 @@
 import type { AppSettings, CompareMode, DiffFile, ResolvedTheme, ReviewFileAction } from "@/domain/types";
 import type { CodeViewItem, CodeViewOptions, DiffLineAnnotation, LineAnnotation } from "@pierre/diffs";
-import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { useCallback, useMemo, type RefObject } from "react";
+import {
+  CodeView,
+  type CodeViewHandle,
+  useWorkerPool,
+  WorkerPoolContextProvider,
+} from "@pierre/diffs/react";
+import { useCallback, useEffect, useMemo, type RefObject } from "react";
 import { DiffFileHeader } from "../diff-viewer/DiffFileHeader";
 import { LocalCommentBox, type LocalCommentMetadata } from "../diff-viewer/LineComment";
 import { DiffCodeViewContextMenu, getDiffCodeViewFileIdAttribute } from "./DiffCodeViewContextMenu";
 import { getDiffCodeViewOptions } from "./diffCodeViewOptions";
 import { createDiffFileMap, toCodeViewItems } from "./diffCodeViewItems";
-import { diffWorkerHighlighterOptions, diffWorkerPoolOptions } from "./diffWorkerPool";
+import {
+  diffWorkerHighlighterOptions,
+  diffWorkerPoolOptions,
+  getLineDiffType,
+} from "./diffWorkerPool";
 import { useDiffCodeViewComments } from "./useDiffCodeViewComments";
 
 interface DiffCodeViewProps {
@@ -112,6 +121,7 @@ export function DiffCodeView({
       settings.diffLightTheme,
       settings.diffUiFontSize,
       settings.diffViewMode,
+      settings.enableTextDiff,
       settings.wrapDiffLines,
     ],
   );
@@ -164,6 +174,8 @@ export function DiffCodeView({
       onToggleWrap={onToggleWrap}
     >
       <WorkerPoolContextProvider highlighterOptions={diffWorkerHighlighterOptions} poolOptions={diffWorkerPoolOptions}>
+        {/* Worker 池不会读取 CodeView options.lineDiffType，需要单独同步。 */}
+        <DiffWorkerLineDiffSync enableTextDiff={settings.enableTextDiff} />
         <CodeView<LocalCommentMetadata>
           className="h-full min-h-0 overflow-auto overscroll-none bg-background"
           items={codeViewItems}
@@ -176,4 +188,32 @@ export function DiffCodeView({
       </WorkerPoolContextProvider>
     </DiffCodeViewContextMenu>
   );
+}
+
+interface DiffWorkerLineDiffSyncProps {
+  /** 是否启用行内文字差异，对应 worker renderOptions.lineDiffType。 */
+  enableTextDiff: boolean;
+}
+
+/**
+ * Pierre 在启用 WorkerPool 时，行内 diff 算法取自 worker 的 renderOptions，
+ * 而不是 CodeView 的 options.lineDiffType。切换文字差异后必须主动 setRenderOptions，
+ * 才会清 AST 缓存并触发重新高亮。
+ */
+function DiffWorkerLineDiffSync({ enableTextDiff }: DiffWorkerLineDiffSyncProps) {
+  const workerPool = useWorkerPool();
+
+  useEffect(() => {
+    if (workerPool == null) {
+      return;
+    }
+
+    void workerPool
+      .setRenderOptions({
+        lineDiffType: getLineDiffType(enableTextDiff),
+      })
+      .catch(() => undefined);
+  }, [enableTextDiff, workerPool]);
+
+  return null;
 }

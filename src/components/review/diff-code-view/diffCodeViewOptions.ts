@@ -2,6 +2,7 @@ import type { AppSettings, ResolvedTheme } from "@/domain/types";
 import type { CodeViewOptions } from "@pierre/diffs";
 import type { LocalCommentMetadata } from "../diff-viewer/LineComment";
 import { getDiffCodeLineHeight, getPierreDiffIndicators, getPierreTheme, getPierreUnsafeCss } from "../diff-viewer/pierreDiffOptions";
+import { getLineDiffType } from "./diffWorkerPool";
 
 type DiffCodeViewOptions = CodeViewOptions<LocalCommentMetadata>;
 
@@ -51,7 +52,7 @@ export function getDiffCodeViewOptions({
       paddingBottom: DIFF_BOTTOM_PADDING,
       paddingTop: 0,
     },
-    lineDiffType: "word",
+    lineDiffType: getLineDiffType(settings.enableTextDiff),
     lineHoverHighlight: "disabled",
     onGutterUtilityClick,
     onLineNumberClick: hasEditingComment ? onLineNumberClick : undefined,

@@ -7,26 +7,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AppSettings } from "@/domain/types";
-import { Settings2 } from "lucide-react";
-import { updateWrapDiffLines } from "./settingsActions";
+import { RefreshCw, Settings2, WholeWord, WrapText } from "lucide-react";
+import { updateEnableTextDiff, updateWrapDiffLines } from "./settingsActions";
 import { useDropdownTooltip } from "./useDropdownTooltip";
 
 interface ViewOptionsMenuProps {
-  /** 当前是否所有文件都已折叠，用于“折叠全部/全部展开”文案互切。 */
-  isAllCollapsed: boolean;
-  /** 本地展示设置，读取差异换行状态。 */
+  /** 本地展示设置，读取差异换行与文字差异状态。 */
   settings: AppSettings;
   /** 更新本地展示设置，例如开启或关闭差异换行。 */
   onSettingsChange: React.Dispatch<React.SetStateAction<AppSettings>>;
-  /** 点击折叠选项时切换全部文件折叠状态。 */
-  onToggleAllCollapsed: () => void;
+  /** 重新加载当前对比方式的 diff。 */
+  onRefresh: () => void;
 }
 
 export function ViewOptionsMenu({
-  isAllCollapsed,
   settings,
   onSettingsChange,
-  onToggleAllCollapsed,
+  onRefresh,
 }: ViewOptionsMenuProps) {
   const tooltip = useDropdownTooltip();
 
@@ -47,12 +44,18 @@ export function ViewOptionsMenu({
         </TooltipTrigger>
         <TooltipContent side="top">查看选项</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem onSelect={() => updateWrapDiffLines(onSettingsChange)}>
-          {settings.wrapDiffLines ? "关闭差异换行" : "开启差异换行"}
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem onSelect={onRefresh}>
+          <RefreshCw className="size-4 text-muted-foreground" />
+          <span>刷新</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onToggleAllCollapsed}>
-          {isAllCollapsed ? "全部展开" : "折叠全部"}
+        <DropdownMenuItem onSelect={() => updateWrapDiffLines(onSettingsChange)}>
+          <WrapText className="size-4 text-muted-foreground" />
+          <span>{settings.wrapDiffLines ? "关闭差异换行" : "开启差异换行"}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => updateEnableTextDiff(onSettingsChange)}>
+          <WholeWord className="size-4 text-muted-foreground" />
+          <span>{settings.enableTextDiff ? "禁用文字差异" : "启用文字差异"}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

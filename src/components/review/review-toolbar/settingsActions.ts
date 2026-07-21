@@ -4,6 +4,10 @@ export function updateWrapDiffLines(updateSettings: React.Dispatch<React.SetStat
   updateSettings((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }));
 }
 
+export function updateEnableTextDiff(updateSettings: React.Dispatch<React.SetStateAction<AppSettings>>) {
+  updateSettings((current) => ({ ...current, enableTextDiff: !current.enableTextDiff }));
+}
+
 export function toggleDiffView(updateSettings: React.Dispatch<React.SetStateAction<AppSettings>>) {
   updateSettings((current) => ({
     ...current,

@@ -18,6 +18,7 @@ export const defaultSettings: AppSettings = {
   theme: "system",
   diffViewMode: "split",
   wrapDiffLines: false,
+  enableTextDiff: true,
   readingMode: "continuous",
   targetBranch: "origin/main",
 };

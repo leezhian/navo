@@ -74,6 +74,8 @@ export interface AppSettings {
   diffLightTheme: DiffLightThemePreset;
   diffDarkTheme: DiffDarkThemePreset;
   wrapDiffLines: boolean;
+  /** 是否启用行内文字差异高亮；开启为 word-alt，关闭为 none。 */
+  enableTextDiff: boolean;
   readingMode: ReadingMode;
   targetBranch: string;
 }

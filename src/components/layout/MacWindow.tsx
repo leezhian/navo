@@ -192,19 +192,19 @@ function WindowTab({ active, title, onClose, onSelect }: WindowTabProps) {
       )}
     >
       <button
+        className="min-w-0 truncate"
+        type="button"
+        onClick={onSelect}
+      >
+        {title}
+      </button>
+      <button
         aria-label={`关闭${title}`}
         className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground"
         type="button"
         onClick={onClose}
       >
         <X className="size-3.5" />
-      </button>
-      <button
-        className="min-w-0 truncate"
-        type="button"
-        onClick={onSelect}
-      >
-        {title}
       </button>
     </div>
   );

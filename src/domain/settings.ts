@@ -95,6 +95,8 @@ export function normalizeAppSettings(value: AppSettings): AppSettings {
     diffLightTheme: normalizeDiffLightTheme(value.diffLightTheme),
     diffDarkTheme: normalizeDiffDarkTheme(value.diffDarkTheme),
     diffUiFontSize: clampNumber(value.diffUiFontSize, defaultDiffSettings.diffUiFontSize, DIFF_UI_FONT_SIZE_LIMITS),
+    // 旧本地配置可能没有该字段，默认开启文字差异（word-alt）。
+    enableTextDiff: value.enableTextDiff !== false,
   };
 }
 

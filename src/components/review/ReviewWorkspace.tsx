@@ -120,6 +120,7 @@ export function ReviewWorkspace({
         settings={settings}
         summary={summary}
         onCompareModeChange={onCompareModeChange}
+        onRefresh={onRefresh}
         onSettingsChange={onSettingsChange}
         onToggleAllCollapsed={onToggleAllCollapsed}
         onToggleFileTree={() => setIsFileTreeVisible((visible) => !visible)}
