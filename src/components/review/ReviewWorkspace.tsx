@@ -27,6 +27,7 @@ import {
 } from "./review-workspace/reviewWorkspaceUtils";
 import { useFileSelection } from "./review-workspace/useFileSelection";
 import { useResizableFileTree } from "./review-workspace/useResizableFileTree";
+import { ReviewCommentsProvider } from "./diff-viewer/reviewCommentsContext";
 import { DiffBatchActionBar } from "./review-workspace/DiffBatchActionBar";
 import { StateBlock } from "./StateBlock";
 
@@ -109,75 +110,77 @@ export function ReviewWorkspace({
   });
 
   return (
-    <section className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr]">
-      <ReviewToolbar
-        compareMode={compareMode}
-        compareModeFileCounts={compareModeFileCounts}
-        isFileTreeVisible={isFileTreeVisible}
-        isAllCollapsed={isAllCollapsed}
-        localBranches={localBranches}
-        session={session}
-        settings={settings}
-        summary={summary}
-        onCompareModeChange={onCompareModeChange}
-        onRefresh={onRefresh}
-        onSettingsChange={onSettingsChange}
-        onToggleAllCollapsed={onToggleAllCollapsed}
-        onToggleFileTree={() => setIsFileTreeVisible((visible) => !visible)}
-      />
+    <ReviewCommentsProvider>
+      <section className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr]">
+        <ReviewToolbar
+          compareMode={compareMode}
+          compareModeFileCounts={compareModeFileCounts}
+          isFileTreeVisible={isFileTreeVisible}
+          isAllCollapsed={isAllCollapsed}
+          localBranches={localBranches}
+          session={session}
+          settings={settings}
+          summary={summary}
+          onCompareModeChange={onCompareModeChange}
+          onRefresh={onRefresh}
+          onSettingsChange={onSettingsChange}
+          onToggleAllCollapsed={onToggleAllCollapsed}
+          onToggleFileTree={() => setIsFileTreeVisible((visible) => !visible)}
+        />
 
-      <motion.div
-        animate={getReviewLayoutStyle(isFileTreeVisible, fileTreeWidth)}
-        className={getReviewLayoutClassName()}
-        transition={isResizing ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
-      >
-        <section className={getReviewPaneClassName(isFileTreeVisible)}>
-          {summary?.isLargeDiff && (
-            <div className="flex h-7 shrink-0 items-center bg-amber-50 px-5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-              检测到大量差异：每次仅显示一个文件。
-            </div>
-          )}
-          <div className="relative min-h-0 flex-1">
-            <ReviewContent
-              codeViewRef={codeViewRef}
-              compareMode={compareMode}
-              collapsedFileIds={collapsedFileIds}
-              files={visibleFiles}
-              projectPath={session.projectPath}
-              reviewError={reviewError}
-              resolvedTheme={resolvedTheme}
-              settings={settings}
-              summary={summary}
-              onBatchFileAction={onBatchFileAction}
-              onCompareModeChange={onCompareModeChange}
-              onFileAction={onFileAction}
-              onRefresh={onRefresh}
-              onSettingsChange={onSettingsChange}
-              onToggleFile={onToggleFile}
-            />
-          </div>
-        </section>
-        <AnimatePresence initial={false}>
-          {isFileTreeVisible && (
-            <motion.div
-              animate={{ opacity: 1, x: 0 }}
-              className="min-h-0 min-w-0 overflow-hidden"
-              exit={{ opacity: 0, x: 28 }}
-              initial={{ opacity: 0, x: 28 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-            >
-              <FileTree
-                nodes={fileTree}
+        <motion.div
+          animate={getReviewLayoutStyle(isFileTreeVisible, fileTreeWidth)}
+          className={getReviewLayoutClassName()}
+          transition={isResizing ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
+        >
+          <section className={getReviewPaneClassName(isFileTreeVisible)}>
+            {summary?.isLargeDiff && (
+              <div className="flex h-7 shrink-0 items-center bg-amber-50 px-5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                检测到大量差异：每次仅显示一个文件。
+              </div>
+            )}
+            <div className="relative min-h-0 flex-1">
+              <ReviewContent
+                codeViewRef={codeViewRef}
+                compareMode={compareMode}
+                collapsedFileIds={collapsedFileIds}
+                files={visibleFiles}
                 projectPath={session.projectPath}
-                selectedFileId={selectedFileId}
-                onResizeStart={startResize}
-                onSelectFile={selectFile}
+                reviewError={reviewError}
+                resolvedTheme={resolvedTheme}
+                settings={settings}
+                summary={summary}
+                onBatchFileAction={onBatchFileAction}
+                onCompareModeChange={onCompareModeChange}
+                onFileAction={onFileAction}
+                onRefresh={onRefresh}
+                onSettingsChange={onSettingsChange}
+                onToggleFile={onToggleFile}
               />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-    </section>
+            </div>
+          </section>
+          <AnimatePresence initial={false}>
+            {isFileTreeVisible && (
+              <motion.div
+                animate={{ opacity: 1, x: 0 }}
+                className="min-h-0 min-w-0 overflow-hidden"
+                exit={{ opacity: 0, x: 28 }}
+                initial={{ opacity: 0, x: 28 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+              >
+                <FileTree
+                  nodes={fileTree}
+                  projectPath={session.projectPath}
+                  selectedFileId={selectedFileId}
+                  onResizeStart={startResize}
+                  onSelectFile={selectFile}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </section>
+    </ReviewCommentsProvider>
   );
 }
 

@@ -1,13 +1,24 @@
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import type { AppSettings, CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "@/domain/types";
-import { FolderClosed, FolderOpen, ListCollapse, ListTree, Rows3, SplitSquareHorizontal } from "lucide-react";
-import { useState } from "react";
+import {
+  Check,
+  ClipboardCopy,
+  FolderClosed,
+  FolderOpen,
+  ListCollapse,
+  ListTree,
+  Rows3,
+  SplitSquareHorizontal,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useReviewComments } from "./diff-viewer/reviewCommentsContext";
 import { BranchMenu } from "./review-toolbar/BranchMenu";
 import { CompareModeMenu } from "./review-toolbar/CompareModeMenu";
 import { toggleDiffView } from "./review-toolbar/settingsActions";
 import { ViewOptionsMenu } from "./review-toolbar/ViewOptionsMenu";
 
 const CHANGE_COUNT_FORMATTER = new Intl.NumberFormat("en-US");
+const COPY_FEEDBACK_MS = 1600;
 
 interface ReviewToolbarProps {
   /** 当前对比方式，驱动对比方式选择器和分支选择区域是否展示。 */
@@ -53,12 +64,32 @@ export function ReviewToolbar({
   onToggleAllCollapsed,
   onToggleFileTree,
 }: ReviewToolbarProps) {
+  const { commentBodies, getExportableComments, copyExportTemplate } = useReviewComments();
   const [branchSearch, setBranchSearch] = useState("");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "empty">("idle");
   const branchOptions = localBranches.filter((branch) =>
     branch.toLowerCase().includes(branchSearch.trim().toLowerCase()),
   );
   const additions = summary?.additions ?? session.additions;
   const deletions = summary?.deletions ?? session.deletions;
+  const hasExportableComments = useMemo(
+    () => getExportableComments(summary?.files ?? []).length > 0,
+    [getExportableComments, summary?.files, commentBodies],
+  );
+
+  useEffect(() => {
+    if (copyState === "idle") {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setCopyState("idle"), COPY_FEEDBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
+
+  async function handleCopyComments() {
+    const copied = await copyExportTemplate(summary?.files ?? []).catch(() => false);
+    setCopyState(copied ? "copied" : "empty");
+  }
 
   return (
     <header className="border-b bg-background pt-12">
@@ -100,6 +131,14 @@ export function ReviewToolbar({
             onSettingsChange={onSettingsChange}
           />
           <IconTooltip
+            label={getCopyCommentsLabel(copyState, hasExportableComments)}
+            onClick={() => {
+              void handleCopyComments();
+            }}
+          >
+            {copyState === "copied" ? <Check className="size-4" /> : <ClipboardCopy className="size-4" />}
+          </IconTooltip>
+          <IconTooltip
             label={isAllCollapsed ? "展开全部差异" : "折叠全部差异"}
             onClick={onToggleAllCollapsed}
           >
@@ -126,6 +165,18 @@ export function ReviewToolbar({
       </div>
     </header>
   );
+}
+
+function getCopyCommentsLabel(copyState: "idle" | "copied" | "empty", hasExportableComments: boolean) {
+  if (copyState === "copied") {
+    return "已复制审查评论";
+  }
+
+  if (copyState === "empty" || !hasExportableComments) {
+    return "暂无已保存的评论";
+  }
+
+  return "复制审查评论";
 }
 
 function formatChangeCount(count: number) {

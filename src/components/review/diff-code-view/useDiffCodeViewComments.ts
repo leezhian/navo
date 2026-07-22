@@ -2,11 +2,11 @@ import type { CodeViewLineSelection } from "@pierre/diffs";
 import { useMemo } from "react";
 import { getSingleRowSelection } from "../diff-viewer/commentSelection";
 import { parseLineCommentId } from "../diff-viewer/LineComment";
-import { useLocalComments } from "../diff-viewer/useLocalComments";
+import { useReviewComments } from "../diff-viewer/reviewCommentsContext";
 import type { DiffCodeViewAnnotation } from "./diffCodeViewItems";
 
 export function useDiffCodeViewComments() {
-  const comments = useLocalComments();
+  const comments = useReviewComments();
   const annotationsByFile = useMemo(() => getAnnotationsByFile(comments.activeCommentIds), [comments.activeCommentIds]);
   const selectedLines = useMemo<CodeViewLineSelection | null>(() => {
     if (!comments.selectedCommentTarget) {

@@ -11,6 +11,7 @@ import {
 
 export function useLocalComments() {
   const [activeCommentIds, setActiveCommentIds] = useState<Set<string>>(new Set());
+  const [commentBodies, setCommentBodies] = useState<Map<string, string>>(new Map());
   const [commentModes, setCommentModes] = useState<Map<string, LocalCommentMode>>(new Map());
   const [selectedCommentTarget, setSelectedCommentTarget] = useState<LocalCommentTarget | null>(null);
 
@@ -78,6 +79,15 @@ export function useLocalComments() {
       next.delete(commentId);
       return next;
     });
+    setCommentBodies((current) => {
+      if (!current.has(commentId)) {
+        return current;
+      }
+
+      const next = new Map(current);
+      next.delete(commentId);
+      return next;
+    });
     setCommentModes((current) => {
       if (!current.has(commentId)) {
         return current;
@@ -88,6 +98,17 @@ export function useLocalComments() {
       return next;
     });
   }, [updateSelectedTargetFromComment]);
+
+  const saveCommentBody = useCallback((commentId: string, body: string) => {
+    const nextBody = body.trim();
+    setCommentBodies((current) => {
+      if (current.get(commentId) === nextBody) {
+        return current;
+      }
+
+      return new Map(current).set(commentId, nextBody);
+    });
+  }, []);
 
   const updateLineCommentMode = useCallback((commentId: string, mode: LocalCommentMode) => {
     if (mode === "editing") {
@@ -113,10 +134,12 @@ export function useLocalComments() {
 
   return {
     activeCommentIds,
+    commentBodies,
     hasEditingComment,
     selectedCommentTarget: activeSelectedCommentTarget,
     closeLineComment,
     openLineComment,
+    saveCommentBody,
     selectCommentTarget,
     updateLineCommentMode,
   };

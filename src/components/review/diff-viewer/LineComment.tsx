@@ -26,9 +26,11 @@ interface LocalCommentBoxProps {
   onCancel: () => void;
   /** 评论框状态变化时通知父层，用于判断是否存在编辑中的评论。 */
   onModeChange: (mode: LocalCommentMode) => void;
+  /** 保存评论正文时同步给上层，供导出模板使用。 */
+  onSaveBody: (body: string) => void;
 }
 
-export function LocalCommentBox({ lineLabel, onCancel, onModeChange }: LocalCommentBoxProps) {
+export function LocalCommentBox({ lineLabel, onCancel, onModeChange, onSaveBody }: LocalCommentBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<LocalCommentMode>("draft");
   const [draftText, setDraftText] = useState("");
@@ -53,6 +55,7 @@ export function LocalCommentBox({ lineLabel, onCancel, onModeChange }: LocalComm
     const nextText = draftText.trim();
     setDraftText(nextText);
     setSavedText(nextText);
+    onSaveBody(nextText);
     setMode("saved");
     textareaRef.current?.blur();
   }
@@ -76,14 +79,16 @@ export function LocalCommentBox({ lineLabel, onCancel, onModeChange }: LocalComm
   return (
     <div className="p-2">
       <div className="overflow-hidden rounded-xl bg-white shadow-sm dark:bg-card">
-        <div className="flex h-12 items-center justify-between border-b border-border/50 px-4">
-          <div className="flex items-center gap-2.5 font-sans text-sm font-normal">
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 px-4 py-2">
+          <div className="flex shrink-0 items-center gap-2.5 font-sans text-sm font-normal">
             <span className="inline-flex size-6 items-center justify-center rounded-full bg-muted">
               <MessageCircle className="size-3" />
             </span>
             <span>本地评论</span>
           </div>
-          <span className="font-sans text-xs text-muted-foreground">对第 {lineLabel} 行发表评论</span>
+          <span className="shrink-0 font-sans text-xs text-muted-foreground">
+            对第 {lineLabel} 行发表评论
+          </span>
         </div>
         <textarea
           ref={textareaRef}

@@ -64,6 +64,7 @@ export function DiffCodeView({
     selectedLines,
     closeLineComment,
     openLineComment,
+    saveCommentBody,
     selectCommentTarget,
     updateLineCommentMode,
   } = useDiffCodeViewComments();
@@ -159,10 +160,11 @@ export function DiffCodeView({
           lineLabel={metadata.lineLabel}
           onCancel={() => closeLineComment(metadata.id)}
           onModeChange={(mode) => updateLineCommentMode(metadata.id, mode)}
+          onSaveBody={(body) => saveCommentBody(metadata.id, body)}
         />
       );
     },
-    [closeLineComment, updateLineCommentMode],
+    [closeLineComment, saveCommentBody, updateLineCommentMode],
   );
 
   return (
