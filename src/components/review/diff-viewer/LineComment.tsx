@@ -78,7 +78,7 @@ export function LocalCommentBox({ lineLabel, onCancel, onModeChange, onSaveBody 
 
   return (
     <div className="p-2">
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm dark:bg-card">
+      <div className="w-full max-w-[756px] overflow-hidden rounded-xl bg-white shadow-sm dark:bg-card">
         <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 px-4 py-2">
           <div className="flex shrink-0 items-center gap-2.5 font-sans text-sm font-normal">
             <span className="inline-flex size-6 items-center justify-center rounded-full bg-muted">
