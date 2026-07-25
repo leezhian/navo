@@ -9,10 +9,27 @@ export function toCodeViewItems(
   files: DiffFile[],
   collapsedFileIds: Set<string>,
   annotationsByFile: Map<string, DiffCodeViewAnnotation[]>,
+  previousItems: DiffCodeViewItem[] = [],
 ): DiffCodeViewItem[] {
+  const previousById = new Map(previousItems.map((item) => [item.id, item]));
+
   return files.map((file) => {
     const annotations = annotationsByFile.get(file.id);
     const collapsed = collapsedFileIds.has(file.id);
+    const version = getDiffCodeViewItemVersion(file, collapsed, annotations);
+    const previous = previousById.get(file.id);
+
+    // 版本与 fileDiff 引用都未变时复用旧 item，便于 CodeView 跳过全量 setItems。
+    if (
+      previous &&
+      previous.type === "diff" &&
+      previous.version === version &&
+      previous.collapsed === collapsed &&
+      previous.fileDiff === file.pierreFile &&
+      previous.annotations === annotations
+    ) {
+      return previous;
+    }
 
     return {
       annotations,
@@ -20,7 +37,7 @@ export function toCodeViewItems(
       fileDiff: file.pierreFile,
       id: file.id,
       type: "diff",
-      version: getDiffCodeViewItemVersion(file, collapsed, annotations),
+      version,
     };
   });
 }

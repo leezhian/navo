@@ -5,6 +5,8 @@ export interface GitCommandOutput {
   stdout: string;
   stderr: string;
   file_snapshots: GitFileSnapshot[];
+  /** 当前 diff 内容签名；用于检测工作区改动后是否需要刷新。 */
+  signature: string;
 }
 
 export interface LoadReviewDiffParams {
@@ -45,6 +47,13 @@ export type ExternalLinkTarget = "website" | "report-bug";
 
 export type ReviewSessionsChangedListener = (sessions: ReviewSession[]) => void;
 
+export type ReviewProjectChangedListener = (projectPath: string) => void;
+
+export interface ProjectPathParams {
+  /** 需要监听或查询的本地 Git 项目根路径。 */
+  projectPath: string;
+}
+
 export interface AppInfo {
   /** 展示在关于页中的应用名称。 */
   name: string;
@@ -76,8 +85,18 @@ export interface VibeReviewerApi {
     loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>>;
     setAgentIntegrationEnabled(params: SetAgentIntegrationParams): Promise<void>;
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;
+    /** 读取当前对比方式 diff 内容签名，用于检测工作区是否变化。 */
+    getGitDiffSignature(params: LoadReviewDiffParams): Promise<string>;
+    /** 统计未跟踪文件数（尊重 gitignore），供提示条使用。 */
+    getUntrackedFileCount(params: ProjectPathParams): Promise<number>;
     loadLocalBranches(projectPath: string): Promise<string[]>;
     onSessionsChanged(listener: ReviewSessionsChangedListener): () => void;
+    /** 监听项目工作区 / Git 元数据变化；返回取消监听函数。 */
+    onProjectChanged(listener: ReviewProjectChangedListener): () => void;
+    /** 开始监听指定项目的文件与 Git 元数据变化。 */
+    watchProject(params: ProjectPathParams): Promise<void>;
+    /** 停止监听指定项目（引用计数归零后关闭 watcher）。 */
+    unwatchProject(params: ProjectPathParams): Promise<void>;
     openFileInVsCode(params: OpenFileInVsCodeParams): Promise<void>;
     runBatchFileAction(params: RunReviewBatchFileActionParams): Promise<void>;
     runFileAction(params: RunReviewFileActionParams): Promise<void>;

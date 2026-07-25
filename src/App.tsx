@@ -48,11 +48,13 @@ function App() {
     reviewSummary,
     runBatchFileAction,
     runFileAction,
+    scrollCacheKey,
     selectedFileId,
     setCompareMode,
     setSelectedFileId,
     toggleAllCollapsed,
     toggleFileCollapsed,
+    untrackedFileCount,
   } = useReviewData({ selectedSession, targetBranch: settings.targetBranch });
   const shouldShowWorkspaceTabs = !showSettings && hasWorkspaceTabs;
   const applyLoadedSessions = useCallback((loadedSessions: ReviewSession[]) => {
@@ -149,10 +151,12 @@ function App() {
                 localBranches={localBranches}
                 reviewError={reviewError}
                 resolvedTheme={resolvedTheme}
+                scrollCacheKey={scrollCacheKey}
                 selectedFileId={selectedFileId}
                 session={selectedSession}
                 settings={settings}
                 summary={reviewSummary}
+                untrackedFileCount={untrackedFileCount}
                 onBatchFileAction={runBatchFileAction}
                 onCompareModeChange={setCompareMode}
                 onFileAction={runFileAction}

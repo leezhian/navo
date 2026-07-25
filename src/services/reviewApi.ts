@@ -82,7 +82,14 @@ export async function setAgentIntegrationEnabled(agent: AgentType, enabled: bool
   }
 }
 
-export async function loadReviewDiff({ session, mode, targetBranch }: LoadReviewDiffOptions): Promise<ReviewSummary> {
+export interface ReviewDiffLoadResult {
+  /** 解析后的 diff 汇总。 */
+  summary: ReviewSummary;
+  /** 与主进程一致的 diff 内容签名，用于检测工作区是否变化。 */
+  signature: string;
+}
+
+export async function loadReviewDiff({ session, mode, targetBranch }: LoadReviewDiffOptions): Promise<ReviewDiffLoadResult> {
   try {
     const output = await window.vibeReviewer.review.runGitDiff({
       projectPath: session.projectPath,
@@ -92,18 +99,97 @@ export async function loadReviewDiff({ session, mode, targetBranch }: LoadReview
     });
 
     if (!output.stdout.trim()) {
-      return emptySummary();
+      return {
+        summary: emptySummary(),
+        signature: output.signature,
+      };
     }
 
-    return parseGitDiff(
-      output.stdout,
-      createDiffCacheKeyPrefix(session, mode, targetBranch, output.stdout),
-      output.file_snapshots,
-    );
+    return {
+      summary: parseGitDiff(
+        output.stdout,
+        createDiffCacheKeyPrefix(session, mode, targetBranch),
+        output.file_snapshots,
+      ),
+      signature: output.signature,
+    };
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       // 浏览器预览或 preload 未注入时使用 mock，避免纯前端调试被 Electron IPC 阻断。
-      return mockSummary();
+      const summary = mockSummary();
+      return {
+        summary,
+        signature: `mock:${summary.fileCount}`,
+      };
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function loadReviewDiffSignature({
+  session,
+  mode,
+  targetBranch,
+}: LoadReviewDiffOptions): Promise<string> {
+  try {
+    return await window.vibeReviewer.review.getGitDiffSignature({
+      projectPath: session.projectPath,
+      mode,
+      rawDiffPath: session.rawDiffPath,
+      targetBranch,
+    });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return `mock:${mode}`;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function loadUntrackedFileCount(projectPath: string): Promise<number> {
+  try {
+    return await window.vibeReviewer.review.getUntrackedFileCount({ projectPath });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return 0;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export function watchProject(projectPath: string): Promise<void> {
+  try {
+    return window.vibeReviewer.review.watchProject({ projectPath });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return Promise.resolve();
+    }
+
+    return Promise.reject(new Error(error instanceof Error ? error.message : String(error)));
+  }
+}
+
+export function unwatchProject(projectPath: string): Promise<void> {
+  try {
+    return window.vibeReviewer.review.unwatchProject({ projectPath });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return Promise.resolve();
+    }
+
+    return Promise.reject(new Error(error instanceof Error ? error.message : String(error)));
+  }
+}
+
+export function onProjectChanged(listener: (projectPath: string) => void) {
+  try {
+    return window.vibeReviewer.review.onProjectChanged(listener);
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return () => undefined;
     }
 
     throw new Error(error instanceof Error ? error.message : String(error));
@@ -170,24 +256,12 @@ export function mockSummary(): ReviewSummary {
   return parseGitDiff(mockRawDiff, "mock-review-diff");
 }
 
-function createDiffCacheKeyPrefix(
-  session: ReviewSession,
-  mode: CompareMode,
-  targetBranch: string,
-  rawDiff: string,
-) {
-  return `${session.id}-${mode}-${targetBranch}-${hashString(rawDiff)}`;
-}
-
-function hashString(value: string) {
-  let hash = 0;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(index);
-    hash |= 0;
-  }
-
-  return Math.abs(hash).toString(36);
+/**
+ * 稳定前缀：只含会话与对比方式。
+ * 单文件内容变化由 parseGitDiff 内按文件 patch 再哈希，避免整表 cacheKey 抖动。
+ */
+function createDiffCacheKeyPrefix(session: ReviewSession, mode: CompareMode, targetBranch: string) {
+  return `${session.id}-${mode}-${targetBranch}`;
 }
 
 function emptySummary(): ReviewSummary {

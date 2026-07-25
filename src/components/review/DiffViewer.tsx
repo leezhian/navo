@@ -17,6 +17,8 @@ interface DiffViewerProps {
   projectPath: string;
   /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
   resolvedTheme: ResolvedTheme;
+  /** 用于跨刷新恢复滚动位置的缓存键。 */
+  scrollCacheKey: string | null;
   /** 本地展示设置，包含 diff 布局、字号、主题和标记方式。 */
   settings: AppSettings;
   /** 执行文件头上的还原/暂存/取消暂存操作。 */
@@ -34,6 +36,7 @@ export function DiffViewer({
   files,
   projectPath,
   resolvedTheme,
+  scrollCacheKey,
   settings,
   onFileAction,
   onToggleWrap,
@@ -47,6 +50,7 @@ export function DiffViewer({
       files={files}
       projectPath={projectPath}
       resolvedTheme={resolvedTheme}
+      scrollCacheKey={scrollCacheKey}
       settings={settings}
       onFileAction={onFileAction}
       onToggleFile={onToggleFile}

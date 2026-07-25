@@ -6,12 +6,13 @@ import {
   useWorkerPool,
   WorkerPoolContextProvider,
 } from "@pierre/diffs/react";
-import { useCallback, useEffect, useMemo, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
+import { readDiffViewScrollTop, writeDiffViewScrollTop } from "@/hooks/diffViewSessionCache";
 import { DiffFileHeader } from "../diff-viewer/DiffFileHeader";
 import { LocalCommentBox, type LocalCommentMetadata } from "../diff-viewer/LineComment";
 import { DiffCodeViewContextMenu, getDiffCodeViewFileIdAttribute } from "./DiffCodeViewContextMenu";
 import { getDiffCodeViewOptions } from "./diffCodeViewOptions";
-import { createDiffFileMap, toCodeViewItems } from "./diffCodeViewItems";
+import { createDiffFileMap, toCodeViewItems, type DiffCodeViewItem } from "./diffCodeViewItems";
 import {
   diffWorkerHighlighterOptions,
   diffWorkerPoolOptions,
@@ -32,6 +33,8 @@ interface DiffCodeViewProps {
   projectPath: string;
   /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
   resolvedTheme: ResolvedTheme;
+  /** 用于跨刷新/HMR 恢复滚动位置的缓存键。 */
+  scrollCacheKey: string | null;
   /** 本地展示设置，包含 diff 布局、字号、主题和标记方式。 */
   settings: AppSettings;
   /** 执行文件头上的还原/暂存/取消暂存操作。 */
@@ -52,12 +55,25 @@ export function DiffCodeView({
   files,
   projectPath,
   resolvedTheme,
+  scrollCacheKey,
   settings,
   onFileAction,
   onToggleWrap,
   onToggleFile,
 }: DiffCodeViewProps) {
-  const filesById = useMemo(() => createDiffFileMap(files), [files]);
+  // 父级短暂传入空列表时，继续渲染上一份文件，避免 CodeView.setItems([]) 白屏 reset。
+  // 切换会话 / 对比方式（scrollCacheKey 变化）时必须丢弃，防止闪出上一会话内容。
+  const stableFilesRef = useRef(files);
+  const stableFilesCacheKeyRef = useRef(scrollCacheKey);
+  if (stableFilesCacheKeyRef.current !== scrollCacheKey) {
+    stableFilesCacheKeyRef.current = scrollCacheKey;
+    stableFilesRef.current = files.length > 0 ? files : [];
+  } else if (files.length > 0) {
+    stableFilesRef.current = files;
+  }
+  const renderFiles = files.length > 0 ? files : stableFilesRef.current;
+
+  const filesById = useMemo(() => createDiffFileMap(renderFiles), [renderFiles]);
   const {
     annotationsByFile,
     hasEditingComment,
@@ -68,9 +84,77 @@ export function DiffCodeView({
     selectCommentTarget,
     updateLineCommentMode,
   } = useDiffCodeViewComments();
-  const codeViewItems = useMemo(
-    () => toCodeViewItems(files, collapsedFileIds, annotationsByFile),
-    [annotationsByFile, collapsedFileIds, files],
+  const previousCodeViewItemsRef = useRef<DiffCodeViewItem[]>([]);
+  const lastScrollTopRef = useRef(scrollCacheKey ? readDiffViewScrollTop(scrollCacheKey) : 0);
+  const codeViewItems = useMemo(() => {
+    const nextItems = toCodeViewItems(
+      renderFiles,
+      collapsedFileIds,
+      annotationsByFile,
+      previousCodeViewItemsRef.current,
+    );
+
+    // 全部 item 引用未变时返回旧数组，触发 CodeView 的 areItemListsEqual 快路径。
+    if (
+      nextItems.length === previousCodeViewItemsRef.current.length &&
+      nextItems.every((item, index) => item === previousCodeViewItemsRef.current[index])
+    ) {
+      return previousCodeViewItemsRef.current;
+    }
+
+    previousCodeViewItemsRef.current = nextItems;
+    return nextItems;
+  }, [annotationsByFile, collapsedFileIds, renderFiles]);
+
+  const restoreScrollTop = useCallback(() => {
+    const savedScrollTop = scrollCacheKey
+      ? readDiffViewScrollTop(scrollCacheKey)
+      : lastScrollTopRef.current;
+    if (savedScrollTop <= 0) {
+      return;
+    }
+
+    const instance = codeViewRef.current?.getInstance();
+    if (!instance) {
+      return;
+    }
+
+    const currentScrollTop = instance.getScrollTop();
+    if (Math.abs(currentScrollTop - savedScrollTop) < 2) {
+      return;
+    }
+
+    codeViewRef.current?.scrollTo({
+      type: "position",
+      position: savedScrollTop,
+      behavior: "instant",
+    });
+  }, [codeViewRef, scrollCacheKey]);
+
+  // items 更新后恢复滚动；双 rAF 等到 CodeView 布局完成。
+  useLayoutEffect(() => {
+    restoreScrollTop();
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        restoreScrollTop();
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [codeViewItems, restoreScrollTop]);
+
+  // 挂载时从模块缓存恢复滚动（应对 HMR 重挂载）。
+  useEffect(() => {
+    restoreScrollTop();
+  }, [restoreScrollTop, scrollCacheKey]);
+
+  const handleScroll = useCallback(
+    (scrollTop: number) => {
+      lastScrollTopRef.current = scrollTop;
+      if (scrollCacheKey) {
+        writeDiffViewScrollTop(scrollCacheKey, scrollTop);
+      }
+    },
+    [scrollCacheKey],
   );
   const handleGutterUtilityClick = useCallback<NonNullable<DiffCodeViewOptions["onGutterUtilityClick"]>>(
     (range, context) => {
@@ -170,7 +254,7 @@ export function DiffCodeView({
   return (
     <DiffCodeViewContextMenu
       codeViewRef={codeViewRef}
-      files={files}
+      files={renderFiles}
       projectPath={projectPath}
       wrapDiffLines={settings.wrapDiffLines}
       onToggleWrap={onToggleWrap}
@@ -186,6 +270,7 @@ export function DiffCodeView({
           renderAnnotation={renderAnnotation}
           renderCustomHeader={renderCustomHeader}
           selectedLines={selectedLines}
+          onScroll={handleScroll}
         />
       </WorkerPoolContextProvider>
     </DiffCodeViewContextMenu>

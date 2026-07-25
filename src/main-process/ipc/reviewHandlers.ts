@@ -4,18 +4,22 @@ import type {
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
+  ProjectPathParams,
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
   SetAgentIntegrationParams,
 } from "../../shared/electronApi";
 import { loadAgentIntegrationStatuses, setAgentIntegrationEnabled } from "../services/agentHookConfigService";
 import {
+  getGitDiffSignature,
+  getUntrackedFileCount,
   loadLocalBranches,
   openFileInVsCode,
   runGitDiff,
   runReviewBatchFileAction,
   runReviewFileAction,
 } from "../services/gitReviewService";
+import { unwatchProject, watchProject } from "../services/projectChangeWatcher";
 import { loadReviewSessions, markReviewSessionRead } from "../services/reviewStorage";
 
 export function registerReviewHandlers() {
@@ -28,6 +32,18 @@ export function registerReviewHandlers() {
     setAgentIntegrationEnabled(params.agent, params.enabled),
   );
   ipcMain.handle(ipcChannels.reviewRunGitDiff, (_event, params: LoadReviewDiffParams) => runGitDiff(params));
+  ipcMain.handle(ipcChannels.reviewGetGitDiffSignature, (_event, params: LoadReviewDiffParams) =>
+    getGitDiffSignature(params),
+  );
+  ipcMain.handle(ipcChannels.reviewGetUntrackedFileCount, (_event, params: ProjectPathParams) =>
+    getUntrackedFileCount(params.projectPath),
+  );
+  ipcMain.handle(ipcChannels.reviewWatchProject, (_event, params: ProjectPathParams) => {
+    watchProject(params.projectPath);
+  });
+  ipcMain.handle(ipcChannels.reviewUnwatchProject, (_event, params: ProjectPathParams) => {
+    unwatchProject(params.projectPath);
+  });
   ipcMain.handle(ipcChannels.reviewLoadLocalBranches, (_event, projectPath: string) => loadLocalBranches(projectPath));
   ipcMain.handle(ipcChannels.reviewOpenFileInVsCode, (_event, params: OpenFileInVsCodeParams) =>
     openFileInVsCode(params),

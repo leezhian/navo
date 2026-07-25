@@ -29,7 +29,11 @@ import { useFileSelection } from "./review-workspace/useFileSelection";
 import { useResizableFileTree } from "./review-workspace/useResizableFileTree";
 import { ReviewCommentsProvider } from "./diff-viewer/reviewCommentsContext";
 import { DiffBatchActionBar } from "./review-workspace/DiffBatchActionBar";
+import { ReviewNoticeBar } from "./ReviewNoticeBar";
 import { StateBlock } from "./StateBlock";
+
+/** 未跟踪文件达到该数量才展示提示条，避免小数目打扰（对齐 Codex 风格）。 */
+const UNTRACKED_NOTICE_THRESHOLD = 50;
 
 interface ReviewWorkspaceProps {
   /** 已折叠的文件 id 集合，由 App 维护以支持跨模式保持折叠状态。 */
@@ -52,6 +56,10 @@ interface ReviewWorkspaceProps {
   settings: AppSettings;
   /** 当前对比方式解析出的 diff 汇总数据。 */
   summary: ReviewSummary | null;
+  /** 用于跨刷新/HMR 恢复滚动位置的缓存键。 */
+  scrollCacheKey: string | null;
+  /** 未跟踪文件数量；大于 0 时展示「仅跟踪改动」提示条。 */
+  untrackedFileCount: number;
   /** 切换对比方式后由上层重新加载 diff。 */
   onCompareModeChange: (mode: CompareMode) => void;
   /** 点击 diff 悬浮条批量操作按钮时执行当前 diff 文件集合的 Git 操作。 */
@@ -77,10 +85,12 @@ export function ReviewWorkspace({
   localBranches,
   reviewError,
   resolvedTheme,
+  scrollCacheKey,
   selectedFileId,
   session,
   settings,
   summary,
+  untrackedFileCount,
   onCompareModeChange,
   onBatchFileAction,
   onFileAction,
@@ -134,10 +144,11 @@ export function ReviewWorkspace({
           transition={isResizing ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
         >
           <section className={getReviewPaneClassName(isFileTreeVisible)}>
-            {summary?.isLargeDiff && (
-              <div className="flex h-7 shrink-0 items-center bg-amber-50 px-5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                检测到大量差异：每次仅显示一个文件。
-              </div>
+            {summary?.isLargeDiff && <ReviewNoticeBar>检测到大量差异：每次仅显示一个文件。</ReviewNoticeBar>}
+            {untrackedFileCount >= UNTRACKED_NOTICE_THRESHOLD && (
+              <ReviewNoticeBar>
+                仅展示已跟踪文件的改动：已跳过 {untrackedFileCount} 个未跟踪文件。若为生成物请清理后刷新。
+              </ReviewNoticeBar>
             )}
             <div className="relative min-h-0 flex-1">
               <ReviewContent
@@ -148,6 +159,7 @@ export function ReviewWorkspace({
                 projectPath={session.projectPath}
                 reviewError={reviewError}
                 resolvedTheme={resolvedTheme}
+                scrollCacheKey={scrollCacheKey}
                 settings={settings}
                 summary={summary}
                 onBatchFileAction={onBatchFileAction}
@@ -192,6 +204,7 @@ function ReviewContent({
   projectPath,
   reviewError,
   resolvedTheme,
+  scrollCacheKey,
   settings,
   summary,
   onBatchFileAction,
@@ -225,6 +238,11 @@ function ReviewContent({
     );
   }
 
+  // summary 仍在加载且没有文件时，保持占位而不是挂载空 CodeView（空 items 会 reset 白屏）。
+  if (!summary || files.length === 0) {
+    return <div className="h-full min-h-0 bg-background" />;
+  }
+
   return (
     <div className="relative h-full min-h-0">
       <DiffViewer
@@ -234,6 +252,7 @@ function ReviewContent({
         files={files}
         projectPath={projectPath}
         resolvedTheme={resolvedTheme}
+        scrollCacheKey={scrollCacheKey}
         settings={settings}
         onFileAction={onFileAction}
         onToggleWrap={toggleWrapDiffLines}
@@ -259,6 +278,8 @@ interface ReviewContentProps {
   reviewError: string | null;
   /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
   resolvedTheme: ResolvedTheme;
+  /** 用于跨刷新恢复滚动位置的缓存键。 */
+  scrollCacheKey: string | null;
   /** 本地展示设置，提供 diff 布局和换行状态。 */
   settings: AppSettings;
   /** 当前 diff 汇总，用于判断是否展示空状态。 */

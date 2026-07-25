@@ -5,6 +5,8 @@ import type {
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
+  ProjectPathParams,
+  ReviewProjectChangedListener,
   ReviewSessionsChangedListener,
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
@@ -42,6 +44,12 @@ const api: VibeReviewerApi = {
     runGitDiff(params: LoadReviewDiffParams) {
       return ipcRenderer.invoke(ipcChannels.reviewRunGitDiff, params);
     },
+    getGitDiffSignature(params: LoadReviewDiffParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewGetGitDiffSignature, params);
+    },
+    getUntrackedFileCount(params: ProjectPathParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewGetUntrackedFileCount, params);
+    },
     loadLocalBranches(projectPath: string) {
       return ipcRenderer.invoke(ipcChannels.reviewLoadLocalBranches, projectPath);
     },
@@ -52,6 +60,23 @@ const api: VibeReviewerApi = {
 
       ipcRenderer.on(ipcChannels.reviewSessionsChanged, handler);
       return () => ipcRenderer.removeListener(ipcChannels.reviewSessionsChanged, handler);
+    },
+    onProjectChanged(listener: ReviewProjectChangedListener) {
+      const handler = (
+        _event: IpcRendererEvent,
+        payload: { projectPath: string },
+      ) => {
+        listener(payload.projectPath);
+      };
+
+      ipcRenderer.on(ipcChannels.reviewProjectChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.reviewProjectChanged, handler);
+    },
+    watchProject(params: ProjectPathParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewWatchProject, params);
+    },
+    unwatchProject(params: ProjectPathParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewUnwatchProject, params);
     },
     openFileInVsCode(params: OpenFileInVsCodeParams) {
       return ipcRenderer.invoke(ipcChannels.reviewOpenFileInVsCode, params);

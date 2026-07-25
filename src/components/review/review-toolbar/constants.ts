@@ -4,5 +4,5 @@ export const compareModeLabels: Record<CompareMode, string> = {
   unstaged: "未暂存",
   staged: "已暂存",
   branch: "分支",
-  "previous-session": "上轮对话",
+  "previous-session": "上一轮",
 };

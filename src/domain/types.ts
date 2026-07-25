@@ -100,3 +100,11 @@ export interface ReviewSummary {
   fileCount: number;
   isLargeDiff: boolean;
 }
+
+/**
+ * 工作区提示信息：主 diff 只含 tracked 改动时，用于提示被跳过的未跟踪文件。
+ */
+export interface WorktreeChangeHint {
+  /** 未跟踪文件数量（已应用 git exclude-standard）。 */
+  untrackedCount: number;
+}

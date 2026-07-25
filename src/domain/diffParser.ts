@@ -21,17 +21,24 @@ export function parseGitDiff(
   cacheKeyPrefix = "review-diff",
   fileSnapshots: GitFileSnapshot[] = [],
 ): ReviewSummary {
+  // cacheKeyPrefix 只承载会话/模式等稳定前缀，不要混入整份 rawDiff hash；
+  // 否则任一文件改动会导致所有文件 cacheKey 失效，CodeView 全量重建并滚回顶部。
   const parsedPatches = parsePatchFiles(rawDiff, cacheKeyPrefix);
   const rawDiffFiles = splitRawDiffFiles(rawDiff);
   const snapshotMap = createSnapshotMap(fileSnapshots);
   const binaryFilePaths = getBinaryFilePaths(rawDiff);
+  let globalFileIndex = 0;
   const files = parsedPatches.flatMap((patch) =>
-    patch.files.map((file, fileIndex) =>
-      toDiffFile(
-        resolveExpandablePierreFile(file, rawDiffFiles[fileIndex], snapshotMap, `${cacheKeyPrefix}-${fileIndex}`),
+    patch.files.map((file) => {
+      const rawDiffFile = rawDiffFiles[globalFileIndex];
+      globalFileIndex += 1;
+      const fileCacheKey = createFileCacheKey(cacheKeyPrefix, file, rawDiffFile);
+
+      return toDiffFile(
+        resolveExpandablePierreFile(file, rawDiffFile, snapshotMap, fileCacheKey),
         binaryFilePaths,
-      ),
-    ),
+      );
+    }),
   );
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
@@ -52,14 +59,17 @@ function resolveExpandablePierreFile(
   snapshotMap: Map<string, GitFileSnapshot>,
   cacheKey: string,
 ) {
+  // 即使无法展开上下文，也要写回稳定 cacheKey，供 CodeView item version 做增量更新。
+  const withStableKey = assignCacheKey(fallbackFile, cacheKey);
+
   if (!rawDiffFile) {
-    return fallbackFile;
+    return withStableKey;
   }
 
   const snapshot = snapshotMap.get(fallbackFile.name) ?? snapshotMap.get(fallbackFile.prevName ?? "");
 
   if (!snapshot || snapshot.old_content == null || snapshot.new_content == null) {
-    return fallbackFile;
+    return withStableKey;
   }
 
   // Pierre 只有拿到完整的新旧文件内容时，才能展开 diff 中折叠的未修改行。
@@ -69,8 +79,36 @@ function resolveExpandablePierreFile(
       isGitDiff: true,
       newFile: createFileContents(snapshot.new_path ?? fallbackFile.name, snapshot.new_content),
       oldFile: createFileContents(snapshot.old_path ?? fallbackFile.prevName ?? fallbackFile.name, snapshot.old_content),
-    }) ?? fallbackFile
+    }) ?? withStableKey
   );
+}
+
+/** 按文件路径 + 该文件 patch 内容生成 cacheKey，未改动的文件在软刷新后可复用。 */
+function createFileCacheKey(prefix: string, file: FileDiffMetadata, rawDiffFile: string | undefined) {
+  const pathPart = file.name || file.prevName || "file";
+  return `${prefix}:${pathPart}:${hashString(rawDiffFile ?? "")}`;
+}
+
+function assignCacheKey(file: FileDiffMetadata, cacheKey: string): FileDiffMetadata {
+  if (file.cacheKey === cacheKey) {
+    return file;
+  }
+
+  return {
+    ...file,
+    cacheKey,
+  };
+}
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash).toString(36);
 }
 
 function createFileContents(name: string, contents: string): FileContents {

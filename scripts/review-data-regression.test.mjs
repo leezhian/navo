@@ -28,7 +28,9 @@ async function importTs(relativePath) {
 }
 
 const { mergeLoadedSessions } = await importTs("src/domain/reviewSessionMerge.ts");
-const { resolveCollapsedFileIds, resolveSelectedFileId } = await importTs("src/hooks/reviewDataState.ts");
+const { mergeSoftRefreshSummary, resolveCollapsedFileIds, resolveSelectedFileId } = await importTs(
+  "src/hooks/reviewDataState.ts",
+);
 const { toCodeViewItems } = await importTs("src/components/review/diff-code-view/diffCodeViewItems.ts");
 const diffCodeViewSource = readFileSync(path.join(projectRoot, "src/components/review/diff-code-view/DiffCodeView.tsx"), "utf8");
 const diffPreviewSource = readFileSync(path.join(projectRoot, "src/components/settings/DiffPreview.tsx"), "utf8");
@@ -39,12 +41,16 @@ const electronApiSource = readFileSync(path.join(projectRoot, "src/shared/electr
 const ipcChannelsSource = readFileSync(path.join(projectRoot, "src/shared/ipcChannels.ts"), "utf8");
 const preloadSource = readFileSync(path.join(projectRoot, "src/preload.ts"), "utf8");
 
-function createFile(id, isLarge = false) {
+function createFile(id, isLarge = false, cacheKey = `cache-${id}`) {
   return {
     id,
     displayPath: `${id}.ts`,
     isLarge,
-    pierreFile: { cacheKey: `cache-${id}` },
+    status: "modified",
+    additions: 1,
+    deletions: 0,
+    isBinary: false,
+    pierreFile: { cacheKey },
   };
 }
 
@@ -120,4 +126,101 @@ test("会话刷新使用主进程推送而不是 5 秒轮询", () => {
   assert.match(electronApiSource, /onSessionsChanged/);
   assert.match(ipcChannelsSource, /reviewSessionsChanged/);
   assert.match(preloadSource, /reviewSessionsChanged/);
+});
+
+test("diff 自动刷新走项目监听与签名 IPC，而不是定时轮询", () => {
+  const useReviewDataSource = readFileSync(path.join(projectRoot, "src/hooks/useReviewData.ts"), "utf8");
+  const liveSyncSource = readFileSync(path.join(projectRoot, "src/hooks/useLiveProjectDiffSync.ts"), "utf8");
+  const projectWatcherSource = readFileSync(
+    path.join(projectRoot, "src/main-process/services/projectChangeWatcher.ts"),
+    "utf8",
+  );
+  const gitReviewServiceSource = readFileSync(
+    path.join(projectRoot, "src/main-process/services/gitReviewService.ts"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(useReviewDataSource, /setInterval/);
+  assert.doesNotMatch(liveSyncSource, /setInterval/);
+  assert.match(liveSyncSource, /onProjectChanged/);
+  assert.match(liveSyncSource, /watchProject/);
+  assert.match(liveSyncSource, /loadReviewDiffSignature/);
+  assert.match(useReviewDataSource, /useLiveProjectDiffSync/);
+  assert.match(useReviewDataSource, /getHardReloadKey/);
+  assert.match(projectWatcherSource, /reviewProjectChanged/);
+  assert.match(gitReviewServiceSource, /getGitDiffSignature/);
+  assert.match(gitReviewServiceSource, /getUntrackedFileCount/);
+  assert.match(electronApiSource, /onProjectChanged/);
+  assert.match(electronApiSource, /watchProject/);
+  assert.match(ipcChannelsSource, /reviewProjectChanged/);
+  assert.match(preloadSource, /onProjectChanged/);
+});
+
+test("硬刷新依赖键区分 live 与 previous-session", async () => {
+  const { getHardReloadKey, isLiveCompareMode } = await importTs("src/hooks/reviewCompareMode.ts");
+  const session = {
+    id: "s1",
+    projectPath: "/repo",
+    updatedAt: "t1",
+    rawDiffPath: "/patch",
+  };
+
+  assert.equal(isLiveCompareMode("unstaged"), true);
+  assert.equal(isLiveCompareMode("previous-session"), false);
+
+  const liveKey = getHardReloadKey(session, "unstaged", "main");
+  const liveBranchKey = getHardReloadKey(session, "unstaged", "dev");
+  const previousKey = getHardReloadKey(session, "previous-session", "main");
+  const previousUpdated = getHardReloadKey({ ...session, updatedAt: "t2" }, "previous-session", "main");
+
+  assert.notEqual(liveKey, liveBranchKey);
+  assert.notEqual(liveKey, previousKey);
+  assert.notEqual(previousKey, previousUpdated);
+  // previous-session 不跟目标分支绑定
+  assert.equal(previousKey, getHardReloadKey(session, "previous-session", "dev"));
+});
+
+test("对比方式存储只接受合法枚举", async () => {
+  const { readStoredCompareMode, writeStoredCompareMode } = await importTs("src/hooks/compareModeStorage.ts");
+
+  writeStoredCompareMode("unstaged");
+  assert.equal(readStoredCompareMode(), "unstaged");
+
+  writeStoredCompareMode("staged");
+  assert.equal(readStoredCompareMode(), "staged");
+});
+
+test("软刷新复用未改动文件引用，只替换内容变化的文件", () => {
+  const kept = createFile("kept", false, "cache-kept-v1");
+  const changedPrevious = createFile("changed", false, "cache-changed-v1");
+  const previous = {
+    files: [kept, changedPrevious],
+    additions: 2,
+    deletions: 0,
+    fileCount: 2,
+    isLargeDiff: false,
+  };
+
+  const changedNext = createFile("changed", false, "cache-changed-v2");
+  const next = {
+    files: [createFile("kept", false, "cache-kept-v1"), changedNext],
+    additions: 3,
+    deletions: 0,
+    fileCount: 2,
+    isLargeDiff: false,
+  };
+
+  const merged = mergeSoftRefreshSummary(previous, next);
+
+  assert.equal(merged.files[0], kept);
+  assert.equal(merged.files[1], changedNext);
+  assert.equal(merged.additions, 3);
+});
+
+test("CodeView item 在 version 不变时复用旧对象", () => {
+  const file = createFile("stable");
+  const first = toCodeViewItems([file], new Set(), new Map());
+  const second = toCodeViewItems([file], new Set(), new Map(), first);
+
+  assert.equal(second[0], first[0]);
 });

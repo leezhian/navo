@@ -38,20 +38,65 @@ export async function runGitDiff(params: LoadReviewDiffParams): Promise<GitComma
   return {
     ...output,
     file_snapshots: fileSnapshots,
+    signature: hashDiffContent(output.stdout),
   };
+}
+
+/**
+ * 只计算当前对比方式的 diff 内容签名，不读取文件快照。
+ * 供渲染进程在工作区事件后判断是否需要全量 refresh。
+ */
+export async function getGitDiffSignature(params: LoadReviewDiffParams): Promise<string> {
+  if (params.mode === "previous-session") {
+    const rawDiff = await readLatestPatch(params.rawDiffPath);
+    return hashDiffContent(rawDiff ?? "");
+  }
+
+  const args = createDiffArgs(params.mode, params.targetBranch);
+  const output = await runGit(params.projectPath, args);
+  return hashDiffContent(output.stdout);
+}
+
+/**
+ * 统计尊重 gitignore 的未跟踪文件数。
+ * 主 diff 仍只展示 tracked 改动；该计数仅用于提示条，避免把生成目录灌进审查列表。
+ */
+export async function getUntrackedFileCount(projectPath: string): Promise<number> {
+  try {
+    const output = await runGit(projectPath, ["ls-files", "--others", "--exclude-standard"]);
+    return output.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean).length;
+  } catch {
+    return 0;
+  }
+}
+
+function hashDiffContent(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  // 长度参与签名，降低纯哈希碰撞时漏刷新的概率。
+  return `${value.length}:${Math.abs(hash).toString(36)}`;
 }
 
 async function loadPreviousSessionDiff(rawDiffPath?: string): Promise<GitCommandOutput> {
   const rawDiff = await readLatestPatch(rawDiffPath);
 
   if (rawDiff == null) {
-    throw new Error("缺少上轮对话 diff 快照，无法展示该对比模式");
+    throw new Error("缺少上一轮 diff 快照，无法展示该对比模式");
   }
 
   return {
     stdout: rawDiff,
     stderr: "",
     file_snapshots: [],
+    signature: hashDiffContent(rawDiff),
   };
 }
 
@@ -136,6 +181,7 @@ async function runGit(projectPath: string, args: string[]): Promise<GitCommandOu
       stdout,
       stderr,
       file_snapshots: [],
+      signature: hashDiffContent(stdout),
     };
   } catch (error) {
     throw new Error(getCommandErrorMessage(error, "Git command failed"));
