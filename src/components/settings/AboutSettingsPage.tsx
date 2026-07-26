@@ -75,7 +75,7 @@ export function AboutSettingsPage() {
           description="清理不在会话列表中的本地缓存，包括已归档会话的 diff 快照、过期的进行中基线和历史日志。"
         />
         <SettingsList>
-          <div className="flex min-h-14 items-center justify-between gap-4 px-4 text-sm">
+          <div className="flex min-h-14 items-center justify-between gap-4 px-4 py-2.5 text-sm">
             <span className="text-muted-foreground">{cleanMessage ?? "会话列表中的数据不受影响。"}</span>
             <Button
               className="shrink-0 font-normal"
@@ -124,7 +124,7 @@ interface AboutInfoRowProps {
 
 function AboutInfoRow({ label, value }: AboutInfoRowProps) {
   return (
-    <div className="flex min-h-14 items-center justify-between gap-4 border-b px-4 text-sm last:border-b-0">
+    <div className="flex min-h-14 items-center justify-between gap-4 border-b px-4 py-2.5 text-sm last:border-b-0">
       <span className="text-muted-foreground">{label}</span>
       <span className="text-foreground">{value}</span>
     </div>
