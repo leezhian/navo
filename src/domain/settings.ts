@@ -1,4 +1,4 @@
-import type { AppSettings, DiffDarkThemePreset, DiffIndicatorMode, DiffLightThemePreset } from "./types";
+import type { AgentType, AppSettings, DiffDarkThemePreset, DiffIndicatorMode, DiffLightThemePreset } from "./types";
 
 export const DIFF_UI_FONT_SIZE_LIMITS = {
   max: 22,
@@ -86,6 +86,9 @@ export const diffDarkThemeOptions: Array<{ label: string; value: DiffDarkThemePr
 export function normalizeAppSettings(value: AppSettings): AppSettings {
   return {
     ...value,
+    // 旧版本以「Codex」作为该 Agent 的显示名持久化，读取时迁移为新名「ChatGPT」，避免开关状态丢失。
+    enabledAgents: renameLegacyCodexKey(value.enabledAgents),
+    agentStatuses: renameLegacyCodexKey(value.agentStatuses),
     diffCodeFontSize: clampNumber(
       value.diffCodeFontSize,
       defaultDiffSettings.diffCodeFontSize,
@@ -118,13 +121,13 @@ export const defaultSettings: AppSettings = {
   ...defaultDiffSettings,
   enabledAgents: {
     "Claude Code": true,
-    Codex: true,
+    ChatGPT: true,
     OpenCode: false,
     Qoder: false,
   },
   agentStatuses: {
     "Claude Code": "listening",
-    Codex: "listening",
+    ChatGPT: "listening",
     OpenCode: "disabled",
     Qoder: "disabled",
   },
@@ -135,6 +138,17 @@ export const defaultSettings: AppSettings = {
   readingMode: "continuous",
   targetBranch: "origin/main",
 };
+
+/** 本地存储旧键名迁移：ChatGPT 曾以「Codex」命名，存在旧键且无新键时原值搬迁。 */
+function renameLegacyCodexKey<T>(record: Record<AgentType, T>): Record<AgentType, T> {
+  const entries = record as Record<string, T>;
+  if (!("Codex" in entries) || "ChatGPT" in entries) {
+    return record;
+  }
+
+  const { Codex: legacyValue, ...rest } = entries;
+  return { ...rest, ChatGPT: legacyValue } as Record<AgentType, T>;
+}
 
 function clampNumber(
   value: number | undefined,

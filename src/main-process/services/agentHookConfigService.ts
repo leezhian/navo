@@ -69,7 +69,7 @@ export async function loadAgentIntegrationStatuses(
   options: AgentHookConfigOptions = {},
 ): Promise<AgentIntegrationStatuses> {
   const entries = await Promise.all(
-    (["Codex", "Claude Code"] as AgentType[]).map(async (agent) => {
+    (["ChatGPT", "Claude Code"] as AgentType[]).map(async (agent) => {
       const provider = getProviderByAgent(agent);
       if (!provider) {
         return [agent, "disabled"] as const;
@@ -255,7 +255,7 @@ function isVibeReviewerHookHandler(handler: HookHandler) {
 }
 
 function getProviderByAgent(agent: AgentType): ReviewProvider | null {
-  if (agent === "Codex") {
+  if (agent === "ChatGPT") {
     return "codex";
   }
 

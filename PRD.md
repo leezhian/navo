@@ -8,7 +8,7 @@ Vibe Reviewer 是一个面向本地开发者的桌面代码审查工具。它通
 
 ## 2. 目标用户
 
-- 高频使用 Claude Code、Codex、OpenCode、Qoder 等 Agent 的开发者。
+- 高频使用 Claude Code、ChatGPT、OpenCode、Qoder 等 Agent 的开发者。
 - 需要在提交前检查 AI 生成代码质量、改动范围和潜在问题的个人开发者。
 - 同时使用多个 Agent，希望统一查看每轮 Agent 产出结果的工程师。
 - 对本地隐私敏感，不希望代码 diff 默认上传到云端的团队成员。
@@ -50,7 +50,7 @@ Vibe Reviewer 是一个面向本地开发者的桌面代码审查工具。它通
 
 Agent 会话是 Vibe Reviewer 的主要入口。一次会话代表某个 Agent 在一个本地项目中完成的一轮任务。会话至少包含：
 
-- 会话来源 Agent，例如 Claude Code、Codex、OpenCode、Qoder。
+- 会话来源 Agent，例如 Claude Code、ChatGPT、OpenCode、Qoder。
 - 所属项目路径。
 - 会话开始时间和结束时间。
 - 会话结束后检测到的 Git 改动摘要。
@@ -103,7 +103,7 @@ Agent 会话是 Vibe Reviewer 的主要入口。一次会话代表某个 Agent �
 首版支持以下 Agent 的监听配置：
 
 - Claude Code
-- Codex
+- ChatGPT（基于 Codex CLI 接入，界面统一展示为 ChatGPT）
 - OpenCode
 - Qoder
 
@@ -195,7 +195,8 @@ App 启动后由 Electron main process 读取本地审查事件日志，聚合�
 - 项目分组以项目路径为唯一键，组头展示文件夹图标、项目名和组内未读会话数角标（为 0 时不展示）。
 - 分组支持折叠/展开，折叠状态本地持久化，重启后保留。
 - 分组折叠且组内包含当前选中会话时，组头展示选中态。
-- 每个会话 item 单行展示：Agent tag、分支名（带分支图标）和未读红点；分支名超长时截断并提供完整提示。
+- 每个会话 item 两行展示：第一行为会话标题和未读红点，第二行为 Agent 名称与分支名（带分支图标）；标题与分支名超长时截断并提供完整提示。
+- 会话标题取该会话首轮用户 prompt 的首行，生成后保持不变；无法获取标题的历史会话首行回退展示分支名。
 
 #### 7.2.2 列表排序
 
@@ -205,7 +206,7 @@ App 启动后由 Electron main process 读取本地审查事件日志，聚合�
 
 会话列表顶部提供过滤栏：
 
-- 搜索框按项目名或分支名模糊过滤。
+- 搜索框按标题、项目名或分支名模糊过滤。
 - Agent 筛选菜单支持多选，默认全选。
 - 过滤生效期间强制展开所有匹配分组；无匹配结果时展示空结果提示。
 - 过滤状态不持久化，重新打开应用后恢复全量展示。
@@ -402,7 +403,7 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 
 ### 7.8 设置
 
-设置页包含两个模块。
+设置页包含三个模块。
 
 #### 7.8.1 集成
 
@@ -428,6 +429,19 @@ Diff 区域位于审查区主体左侧，是主要阅读区域。
 支持 diff 阅读偏好配置，包括浅色/深色 diff 主题、界面与代码字号、差异标识样式和行内文字差异开关，并提供实时预览。
 
 设置切换应立即生效，并持久化到本地配置。
+
+#### 7.8.3 关于
+
+展示应用名称、当前版本、更新检查入口和外部链接（官网、报告 Bug）。
+
+提供「清理缓存」入口，清理不在会话列表中的本地遗留数据：
+
+- 无主的 diff 快照目录。
+- 超过 48 小时的进行中基线。
+- 超过 7 天的日志文件。
+- 历史多行事件记录压缩为每会话一条。
+
+清理不影响会话列表中的数据；完成后展示清理条数与释放的空间。
 
 ## 8. 交互流程
 
@@ -553,6 +567,7 @@ interface ReviewSessionEvent {
   sessionId: string;
   latestTurnId?: string;
   transcriptPath?: string;
+  title?: string;
   projectPath: string;
   projectName: string;
   branchName: string;
@@ -654,7 +669,7 @@ App 聚合会话时以 `provider + sessionId` 作为会话唯一键，并使用�
 
 ### 13.4 设置
 
-- 可以分别开启或关闭 Claude Code、Codex、OpenCode、Qoder 的监听。
+- 可以分别开启或关闭 Claude Code、ChatGPT、OpenCode、Qoder 的监听。
 - 可以在跟随系统、浅色、深色之间切换主题。
 - 设置重启后仍然保留。
 

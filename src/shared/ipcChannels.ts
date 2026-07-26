@@ -3,6 +3,7 @@ export const ipcChannels = {
   appGetInfo: "app:get-info",
   appOpenExternalLink: "app:open-external-link",
   reviewArchiveSession: "review:archive-session",
+  reviewCleanStorage: "review:clean-storage",
   reviewRunGitDiff: "review:run-git-diff",
   reviewGetGitDiffSignature: "review:get-git-diff-signature",
   reviewGetUntrackedFileCount: "review:get-untracked-file-count",

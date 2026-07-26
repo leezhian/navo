@@ -48,6 +48,13 @@ export interface ArchiveReviewSessionParams {
   sessionId: string;
 }
 
+export interface CleanReviewStorageResult {
+  /** 本次清理删除的文件、目录与记录条数合计。 */
+  removedItems: number;
+  /** 释放的磁盘空间字节数。 */
+  freedBytes: number;
+}
+
 export type ExternalLinkTarget = "website" | "report-bug";
 
 export type ReviewSessionsChangedListener = (sessions: ReviewSession[]) => void;
@@ -89,6 +96,8 @@ export interface VibeReviewerApi {
     markSessionRead(params: MarkReviewSessionReadParams): Promise<void>;
     /** 归档会话：删除该会话的本地审查记录（事件、patch 与已读状态）；进行中轮次结束后会重新入列。 */
     archiveSession(params: ArchiveReviewSessionParams): Promise<void>;
+    /** 清理不在会话列表中的本地缓存（孤儿 diff、超龄 pending 基线与日志等）。 */
+    cleanStorage(): Promise<CleanReviewStorageResult>;
     loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>>;
     setAgentIntegrationEnabled(params: SetAgentIntegrationParams): Promise<void>;
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;

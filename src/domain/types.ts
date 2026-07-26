@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 
 /** 全部支持的 Agent 类型，顺序即设置页与筛选菜单的展示顺序；AgentType 由该列表推导，二者不会漂移。 */
-export const AGENT_TYPES = ["Claude Code", "Codex", "OpenCode", "Qoder"] as const;
+export const AGENT_TYPES = ["Claude Code", "ChatGPT", "OpenCode", "Qoder"] as const;
 
 export type AgentType = (typeof AGENT_TYPES)[number];
 
@@ -50,6 +50,8 @@ export type ReviewBatchFileAction = "restore-worktree-all" | "stage-all" | "unst
 export interface ReviewSession {
   id: string;
   agent: AgentType;
+  /** 会话标题：取首轮用户 prompt 首行，生成后保持不变；历史数据可能缺失。 */
+  title?: string;
   projectPath: string;
   projectName: string;
   branchName: string;

@@ -21,7 +21,12 @@ import {
   runReviewFileAction,
 } from "../services/gitReviewService";
 import { unwatchProject, watchProject } from "../services/projectChangeWatcher";
-import { archiveReviewSession, loadReviewSessions, markReviewSessionRead } from "../services/reviewStorage";
+import {
+  archiveReviewSession,
+  cleanupReviewStorage,
+  loadReviewSessions,
+  markReviewSessionRead,
+} from "../services/reviewStorage";
 
 export function registerReviewHandlers() {
   ipcMain.handle(ipcChannels.reviewLoadSessions, () => loadReviewSessions());
@@ -31,6 +36,7 @@ export function registerReviewHandlers() {
   ipcMain.handle(ipcChannels.reviewArchiveSession, (_event, params: ArchiveReviewSessionParams) =>
     archiveReviewSession(params.sessionId),
   );
+  ipcMain.handle(ipcChannels.reviewCleanStorage, () => cleanupReviewStorage());
   ipcMain.handle(ipcChannels.reviewLoadAgentIntegrationStatuses, () => loadAgentIntegrationStatuses());
   ipcMain.handle(ipcChannels.reviewSetAgentIntegrationEnabled, (_event, params: SetAgentIntegrationParams) =>
     setAgentIntegrationEnabled(params.agent, params.enabled),

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -7,11 +7,13 @@ import type { ReviewProvider } from "@/domain/types";
 import {
   deletePendingBaseline,
   readPendingBaseline,
+  readReviewEvents,
   saveReviewEvent,
   writeLatestPatch,
   writePendingBaseline,
   type ReviewStorageOptions,
 } from "./reviewStorage";
+import { extractFirstUserPromptFromTranscript, normalizePromptTitle } from "./sessionTitleService";
 
 const execFileAsync = promisify(execFile);
 const EMPTY_HOOK_OUTPUT = "";
@@ -27,6 +29,8 @@ interface NormalizedHookInput {
   sessionId: string;
   turnId?: string;
   transcriptPath?: string;
+  /** UserPromptSubmit 载荷中的用户 prompt 原文，用于生成会话标题。 */
+  prompt?: string;
   cwd: string;
 }
 
@@ -86,6 +90,7 @@ function normalizeHookInput(rawInput: string): NormalizedHookInput | null {
     cwd,
     transcriptPath: getString(value, "transcript_path") ?? getString(value, "transcriptPath"),
     turnId: getString(value, "turn_id") ?? getString(value, "turnId"),
+    prompt: getString(value, "prompt"),
   };
 }
 
@@ -102,6 +107,7 @@ async function collectStartEvent(input: NormalizedHookInput, options: HookCollec
       sessionId: input.sessionId,
       turnId: input.turnId,
       transcriptPath: input.transcriptPath,
+      promptTitle: normalizePromptTitle(input.prompt),
       projectPath: snapshot.projectPath,
       projectName: snapshot.projectName,
       branchName: snapshot.branchName,
@@ -132,13 +138,16 @@ async function collectEndEvent(input: NormalizedHookInput, options: HookCollecto
   const rawDiffPath = await writeLatestPatch(options.provider, input.sessionId, rawDiff, options);
   const stats = collectDiffStats(rawDiff);
   const now = new Date().toISOString();
+  const transcriptPath = input.transcriptPath ?? pending.transcriptPath;
+  const title = await resolveSessionTitle(input.sessionId, transcriptPath, pending.promptTitle, options);
 
   await saveReviewEvent(
     {
       provider: options.provider,
       sessionId: input.sessionId,
       latestTurnId: input.turnId ?? pending.turnId,
-      transcriptPath: input.transcriptPath ?? pending.transcriptPath,
+      transcriptPath,
+      title,
       projectPath: snapshot.projectPath,
       projectName: snapshot.projectName,
       branchName: snapshot.branchName,
@@ -153,6 +162,28 @@ async function collectEndEvent(input: NormalizedHookInput, options: HookCollecto
     options,
   );
   await deletePendingBaseline(options.provider, input.sessionId, options);
+}
+
+/**
+ * 会话标题「首轮固定」：已有标题原样沿用；否则优先取 transcript 首条用户消息（真实首轮），
+ * 读取失败时回退本轮 prompt——会话首轮时两者等价。
+ */
+async function resolveSessionTitle(
+  sessionId: string,
+  transcriptPath: string | undefined,
+  promptTitle: string | undefined,
+  options: HookCollectorOptions,
+): Promise<string | undefined> {
+  const events = await readReviewEvents(options);
+  const existingTitle = events.find(
+    (event) => event.provider === options.provider && event.sessionId === sessionId,
+  )?.title;
+
+  if (existingTitle) {
+    return existingTitle;
+  }
+
+  return (await extractFirstUserPromptFromTranscript(options.provider, transcriptPath)) ?? promptTitle;
 }
 
 async function createGitSnapshot(cwd: string): Promise<GitSnapshot | null> {
@@ -277,9 +308,4 @@ function getString(value: Record<string, unknown>, key: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export async function readHookFixture(filePath: string) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  return readFile(filePath, "utf8");
 }

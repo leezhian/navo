@@ -1,4 +1,5 @@
 import { parseGitDiff } from "../domain/diffParser";
+import type { CleanReviewStorageResult } from "../shared/electronApi";
 import type {
   AgentStatus,
   AgentType,
@@ -68,6 +69,19 @@ export async function archiveReviewSession(session: ReviewSession): Promise<void
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** 清理本地缓存；浏览器预览环境下返回空结果。 */
+export async function cleanReviewStorage(): Promise<CleanReviewStorageResult> {
+  try {
+    return await window.vibeReviewer.review.cleanStorage();
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return { removedItems: 0, freedBytes: 0 };
     }
 
     throw new Error(error instanceof Error ? error.message : String(error));

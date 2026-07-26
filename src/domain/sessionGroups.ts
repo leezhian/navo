@@ -41,7 +41,7 @@ export function groupSessionsByProject(orderedSessions: ReviewSession[]): Sessio
   return groups;
 }
 
-/** 按关键字（项目名/分支名模糊匹配）和启用的 Agent 集合过滤会话。 */
+/** 按关键字（标题/项目名/分支名模糊匹配）和启用的 Agent 集合过滤会话。 */
 export function filterSessions(
   sessions: ReviewSession[],
   searchText: string,
@@ -58,7 +58,8 @@ export function filterSessions(
     }
     return (
       session.projectName.toLowerCase().includes(keyword) ||
-      session.branchName.toLowerCase().includes(keyword)
+      session.branchName.toLowerCase().includes(keyword) ||
+      (session.title ?? "").toLowerCase().includes(keyword)
     );
   });
 }

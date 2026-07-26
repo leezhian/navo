@@ -39,6 +39,9 @@ const api: VibeReviewerApi = {
     archiveSession(params: ArchiveReviewSessionParams) {
       return ipcRenderer.invoke(ipcChannels.reviewArchiveSession, params);
     },
+    cleanStorage() {
+      return ipcRenderer.invoke(ipcChannels.reviewCleanStorage);
+    },
     loadAgentIntegrationStatuses() {
       return ipcRenderer.invoke(ipcChannels.reviewLoadAgentIntegrationStatuses);
     },

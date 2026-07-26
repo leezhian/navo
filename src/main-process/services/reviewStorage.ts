@@ -1,15 +1,24 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { AgentType, ReviewProvider, ReviewSession } from "@/domain/types";
+import type { CleanReviewStorageResult } from "@/shared/electronApi";
 
 const APP_DATA_DIR_NAME = "Vibe Reviewer";
+
+/** 进行中基线的最长保留时长：超过视为轮次已死；近期基线保留以支撑归档后重新入列。 */
+const STALE_PENDING_BASELINE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+/** 日志文件保留时长。 */
+const STALE_LOG_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface ReviewSessionEvent {
   provider: ReviewProvider;
   sessionId: string;
   latestTurnId?: string;
   transcriptPath?: string;
+  /** 会话标题：首轮用户 prompt，一经写入后续事件原样沿用。 */
+  title?: string;
   projectPath: string;
   projectName: string;
   branchName: string;
@@ -27,6 +36,8 @@ export interface PendingReviewBaseline {
   sessionId: string;
   turnId?: string;
   transcriptPath?: string;
+  /** 本轮用户 prompt 归一后的标题，供会话首轮事件生成标题。 */
+  promptTitle?: string;
   projectPath: string;
   projectName: string;
   branchName: string;
@@ -41,6 +52,7 @@ export interface ReviewStoragePaths {
   sessionsPath: string;
   pendingDir: string;
   diffsDir: string;
+  logsDir: string;
 }
 
 interface ReviewSessionState {
@@ -62,6 +74,7 @@ export function getReviewStoragePaths(options: ReviewStorageOptions = {}): Revie
     sessionsPath: path.join(rootDir, "sessions.json"),
     pendingDir: path.join(rootDir, "pending"),
     diffsDir: path.join(rootDir, "diffs"),
+    logsDir: path.join(rootDir, "logs"),
   };
 }
 
@@ -182,12 +195,18 @@ async function writeReviewEvents(events: ReviewSessionEvent[], options: ReviewSt
   await writeFile(paths.eventsPath, content ? `${content}\n` : "", "utf8");
 }
 
-// 读取侧仍按「同会话取 updatedAt 最新」聚合：兼容旧版本按 turn 存多行的 events.jsonl，
-// 旧的多余行会在对应会话下次产生新事件时被写入侧压缩掉。
 export function aggregateReviewSessions(
   events: ReviewSessionEvent[],
   states: Map<string, ReviewSessionState> = new Map(),
 ): ReviewSession[] {
+  return pickLatestSessionEvents(events)
+    .map((event) => toReviewSession(event, states.get(getReviewSessionKey(event.provider, event.sessionId))))
+    .sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime());
+}
+
+// 每个会话取 updatedAt 最新的一条：兼容旧版本按 turn 存多行的 events.jsonl，
+// 旧的多余行会在写入侧压缩或缓存清理时移除。
+function pickLatestSessionEvents(events: ReviewSessionEvent[]): ReviewSessionEvent[] {
   const sessions = new Map<string, ReviewSessionEvent>();
 
   for (const event of events) {
@@ -199,9 +218,7 @@ export function aggregateReviewSessions(
     }
   }
 
-  return [...sessions.values()]
-    .map((event) => toReviewSession(event, states.get(getReviewSessionKey(event.provider, event.sessionId))))
-    .sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime());
+  return [...sessions.values()];
 }
 
 export async function loadReviewSessions(options: ReviewStorageOptions = {}) {
@@ -253,6 +270,132 @@ export async function archiveReviewSession(sessionId: string, options: ReviewSto
   }
 }
 
+/**
+ * 清理不再对应会话列表的本地缓存：孤儿 diff 目录、超龄 pending 基线、
+ * 孤儿已读状态、旧版多行事件与超龄日志。列表中的会话数据不受影响。
+ */
+export async function cleanupReviewStorage(
+  options: ReviewStorageOptions = {},
+): Promise<CleanReviewStorageResult> {
+  const paths = await ensureReviewStorage(options);
+  let removedItems = 0;
+  let freedBytes = 0;
+
+  // 压缩旧版按 turn 存多行的事件日志，并以压缩结果作为存活会话集合。
+  const events = await readReviewEvents(options);
+  const latestEvents = pickLatestSessionEvents(events);
+  if (latestEvents.length !== events.length) {
+    await writeReviewEvents(latestEvents, options);
+    removedItems += events.length - latestEvents.length;
+  }
+
+  // 删除不属于任何存活会话的 diff 目录。
+  const liveDiffDirs = new Set(
+    latestEvents.map((event) => path.dirname(getLatestPatchPath(event.provider, event.sessionId, options))),
+  );
+  for (const providerName of await listDirectory(paths.diffsDir)) {
+    const providerDir = path.join(paths.diffsDir, providerName);
+    for (const sessionDirName of await listDirectory(providerDir)) {
+      const sessionDir = path.join(providerDir, sessionDirName);
+      if (liveDiffDirs.has(sessionDir)) {
+        continue;
+      }
+      freedBytes += await getPathSize(sessionDir);
+      await rm(sessionDir, { force: true, recursive: true });
+      removedItems += 1;
+    }
+  }
+
+  // 删除超龄 pending 基线；近期基线可能属于进行中的轮次，一律保留。
+  const stalePendingResult = await removeStaleFiles(paths.pendingDir, STALE_PENDING_BASELINE_MAX_AGE_MS);
+  removedItems += stalePendingResult.removedCount;
+  freedBytes += stalePendingResult.freedBytes;
+
+  // 剔除不再对应任何会话的已读状态。
+  const liveSessionKeys = new Set(
+    latestEvents.map((event) => getReviewSessionKey(event.provider, event.sessionId)),
+  );
+  const states = await readReviewSessionStates(options);
+  const staleStateIds = [...states.keys()].filter((id) => !liveSessionKeys.has(id));
+  if (staleStateIds.length > 0) {
+    for (const id of staleStateIds) {
+      states.delete(id);
+    }
+    await writeReviewSessionStates(states, options);
+    removedItems += staleStateIds.length;
+  }
+
+  // 删除超龄日志。
+  const staleLogsResult = await removeStaleFiles(paths.logsDir, STALE_LOG_MAX_AGE_MS);
+  removedItems += staleLogsResult.removedCount;
+  freedBytes += staleLogsResult.freedBytes;
+
+  return { removedItems, freedBytes };
+}
+
+/** 递归删除目录下修改时间超龄的文件，返回删除数量与释放的字节数。 */
+async function removeStaleFiles(
+  dirPath: string,
+  maxAgeMs: number,
+): Promise<{ removedCount: number; freedBytes: number }> {
+  const deadline = Date.now() - maxAgeMs;
+  let removedCount = 0;
+  let freedBytes = 0;
+
+  for (const entryName of await listDirectory(dirPath)) {
+    const entryPath = path.join(dirPath, entryName);
+    const entryStat = await stat(entryPath).catch(() => null);
+
+    if (!entryStat) {
+      continue;
+    }
+
+    if (entryStat.isDirectory()) {
+      const childResult = await removeStaleFiles(entryPath, maxAgeMs);
+      removedCount += childResult.removedCount;
+      freedBytes += childResult.freedBytes;
+      continue;
+    }
+
+    if (entryStat.isFile() && entryStat.mtimeMs < deadline) {
+      freedBytes += entryStat.size;
+      await rm(entryPath, { force: true });
+      removedCount += 1;
+    }
+  }
+
+  return { removedCount, freedBytes };
+}
+
+async function listDirectory(dirPath: string): Promise<string[]> {
+  try {
+    return await readdir(dirPath);
+  } catch {
+    return [];
+  }
+}
+
+async function getPathSize(targetPath: string): Promise<number> {
+  const targetStat = await stat(targetPath).catch(() => null);
+  if (!targetStat) {
+    return 0;
+  }
+
+  if (targetStat.isFile()) {
+    return targetStat.size;
+  }
+
+  if (!targetStat.isDirectory()) {
+    return 0;
+  }
+
+  let totalSize = 0;
+  for (const childName of await listDirectory(targetPath)) {
+    totalSize += await getPathSize(path.join(targetPath, childName));
+  }
+  return totalSize;
+}
+
 export function getReviewSessionKey(provider: ReviewProvider, sessionId: string) {
   return `${provider}:${sessionId}`;
 }
@@ -264,6 +407,7 @@ function toReviewSession(event: ReviewSessionEvent, state?: ReviewSessionState):
   return {
     id,
     agent: getAgentType(event.provider),
+    title: event.title,
     projectPath: event.projectPath,
     projectName: event.projectName,
     branchName: event.branchName,
@@ -294,7 +438,7 @@ async function writeReviewSessionStates(
 }
 
 function getAgentType(provider: ReviewProvider): AgentType {
-  return provider === "codex" ? "Codex" : "Claude Code";
+  return provider === "codex" ? "ChatGPT" : "Claude Code";
 }
 
 function parseReviewEventLine(line: string): ReviewSessionEvent[] {
