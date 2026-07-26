@@ -9,7 +9,12 @@ import type { ReviewSession } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
 import { useReviewData } from "./hooks/useReviewData";
 import { useWorkspaceTabs } from "./hooks/useWorkspaceTabs";
-import { loadReviewSessions, markReviewSessionRead, onReviewSessionsChanged } from "./services/reviewApi";
+import {
+  archiveReviewSession,
+  loadReviewSessions,
+  markReviewSessionRead,
+  onReviewSessionsChanged,
+} from "./services/reviewApi";
 import "./App.css";
 
 function App() {
@@ -100,6 +105,12 @@ function App() {
     markReviewSessionRead(session).catch(() => undefined);
   }
 
+  function archiveSession(session: ReviewSession) {
+    // 乐观移除：复用与广播刷新同一套列表应用逻辑（含「选中项失效则回落首个」），主进程删除后由文件监听对齐。
+    applyLoadedSessions(orderedSessions.filter((item) => item.id !== session.id));
+    archiveReviewSession(session).catch(() => undefined);
+  }
+
   function openTerminalTab() {
     setShowSettings(false);
     addTerminalTab();
@@ -136,6 +147,7 @@ function App() {
             isVisible={isSessionSidebarVisible}
             orderedSessions={orderedSessions}
             selectedSessionId={selectedSessionId}
+            onArchiveSession={archiveSession}
             onOpenSettings={() => {
               setShowSettings(true);
             }}

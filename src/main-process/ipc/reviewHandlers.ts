@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { ipcChannels } from "../../shared/ipcChannels";
 import type {
+  ArchiveReviewSessionParams,
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
@@ -20,12 +21,15 @@ import {
   runReviewFileAction,
 } from "../services/gitReviewService";
 import { unwatchProject, watchProject } from "../services/projectChangeWatcher";
-import { loadReviewSessions, markReviewSessionRead } from "../services/reviewStorage";
+import { archiveReviewSession, loadReviewSessions, markReviewSessionRead } from "../services/reviewStorage";
 
 export function registerReviewHandlers() {
   ipcMain.handle(ipcChannels.reviewLoadSessions, () => loadReviewSessions());
   ipcMain.handle(ipcChannels.reviewMarkSessionRead, (_event, params: MarkReviewSessionReadParams) =>
     markReviewSessionRead(params.sessionId, params.updatedAt),
+  );
+  ipcMain.handle(ipcChannels.reviewArchiveSession, (_event, params: ArchiveReviewSessionParams) =>
+    archiveReviewSession(params.sessionId),
   );
   ipcMain.handle(ipcChannels.reviewLoadAgentIntegrationStatuses, () => loadAgentIntegrationStatuses());
   ipcMain.handle(ipcChannels.reviewSetAgentIntegrationEnabled, (_event, params: SetAgentIntegrationParams) =>

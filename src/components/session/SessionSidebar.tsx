@@ -5,7 +5,7 @@ import { AGENT_TYPES, type AgentType, type ReviewSession } from "@/domain/types"
 import { Button } from "@/components/ui/button";
 import { useSessionGroupCollapse } from "@/hooks/useSessionGroupCollapse";
 import { SESSION_SIDEBAR_TRANSITION, SESSION_SIDEBAR_WIDTH } from "@/shared/windowLayout";
-import { Folder, FolderOpen, GitBranch, Settings } from "lucide-react";
+import { Archive, Folder, FolderOpen, GitBranch, Settings } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import classNames from "classnames";
 import { SessionFilterBar } from "./SessionFilterBar";
@@ -17,6 +17,8 @@ interface SessionSidebarProps {
   orderedSessions: ReviewSession[];
   /** 当前打开的会话 id，用于高亮对应列表项。 */
   selectedSessionId: string | null;
+  /** 归档会话：从列表移除并删除其本地审查记录。 */
+  onArchiveSession: (session: ReviewSession) => void;
   /** 打开偏好设置面板，同时由上层负责关闭当前审查内容。 */
   onOpenSettings: () => void;
   /** 选择会话后进入对应审查页，并清理未读状态。 */
@@ -27,6 +29,7 @@ export function SessionSidebar({
   isVisible,
   orderedSessions,
   selectedSessionId,
+  onArchiveSession,
   onOpenSettings,
   onSelectSession,
 }: SessionSidebarProps) {
@@ -91,6 +94,7 @@ export function SessionSidebar({
                         group={group}
                         key={group.projectPath}
                         selectedSessionId={selectedSessionId}
+                        onArchiveSession={onArchiveSession}
                         onSelectSession={onSelectSession}
                         onToggleCollapse={() => toggleGroup(group.projectPath)}
                       />
@@ -124,6 +128,8 @@ interface SessionGroupSectionProps {
   group: SessionGroup;
   /** 当前打开的会话 id，用于组内条目高亮和折叠时的组头高亮。 */
   selectedSessionId: string | null;
+  /** 归档组内会话。 */
+  onArchiveSession: (session: ReviewSession) => void;
   /** 选择组内会话。 */
   onSelectSession: (session: ReviewSession) => void;
   /** 切换分组折叠状态。 */
@@ -134,6 +140,7 @@ function SessionGroupSection({
   collapsed,
   group,
   selectedSessionId,
+  onArchiveSession,
   onSelectSession,
   onToggleCollapse,
 }: SessionGroupSectionProps) {
@@ -171,6 +178,7 @@ function SessionGroupSection({
               active={session.id === selectedSessionId}
               key={session.id}
               session={session}
+              onArchive={() => onArchiveSession(session)}
               onSelect={() => onSelectSession(session)}
             />
           ))}
@@ -185,21 +193,32 @@ interface SessionItemProps {
   active: boolean;
   /** 会话摘要，展示 Agent 标签、分支名和未读状态。 */
   session: ReviewSession;
+  /** 归档当前会话；仅在条目 hover 时按钮可见，点击不触发会话选中。 */
+  onArchive: () => void;
   /** 点击会话条目时触发选择。 */
   onSelect: () => void;
 }
 
-function SessionItem({ active, session, onSelect }: SessionItemProps) {
+function SessionItem({ active, session, onArchive, onSelect }: SessionItemProps) {
   return (
-    <button
+    // 条目内含归档按钮，button 不允许嵌套，改用带按钮语义的 div 承载整行选中。
+    <div
       className={classNames(
-        "flex h-8 w-full items-center justify-between gap-2 rounded-lg py-1 pr-2 pl-7 text-left text-sm text-muted-foreground dark:text-sidebar-foreground/70",
+        "group relative flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg py-1 pr-2 pl-7 text-left text-sm text-muted-foreground dark:text-sidebar-foreground/70",
         active
           ? "bg-secondary text-foreground"
           : "hover:bg-muted dark:hover:bg-muted/50",
       )}
-      type="button"
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(keyboardEvent) => {
+        // 恢复原生 button 的键盘可达性：Enter / 空格触发选中。
+        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+          keyboardEvent.preventDefault();
+          onSelect();
+        }
+      }}
     >
       <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-muted px-2 text-xs font-medium text-foreground">
         {session.agent}
@@ -209,6 +228,27 @@ function SessionItem({ active, session, onSelect }: SessionItemProps) {
         <GitBranch className="size-3.5 shrink-0" />
         {session.unread && <span className="size-2 shrink-0 rounded-full bg-destructive" />}
       </span>
-    </button>
+      {/* 悬浮操作条：默认不占位不可点，hover 或键盘聚焦时浮现并盖在条目右侧。
+          不透明底色放在容器而非按钮上，避免后续新增按钮时从间隙透出下层内容。 */}
+      <div
+        className={classNames(
+          "pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-lg pr-1 pl-1.5 opacity-0 transition-opacity",
+          "group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
+          active ? "bg-secondary" : "bg-muted",
+        )}
+      >
+        <button
+          className="inline-flex size-6 items-center justify-center hover:text-foreground"
+          title="归档会话"
+          type="button"
+          onClick={(mouseEvent) => {
+            mouseEvent.stopPropagation();
+            onArchive();
+          }}
+        >
+          <Archive className="size-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type {
+  ArchiveReviewSessionParams,
   ExternalLinkTarget,
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
@@ -34,6 +35,9 @@ const api: VibeReviewerApi = {
     },
     markSessionRead(params: MarkReviewSessionReadParams) {
       return ipcRenderer.invoke(ipcChannels.reviewMarkSessionRead, params);
+    },
+    archiveSession(params: ArchiveReviewSessionParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewArchiveSession, params);
     },
     loadAgentIntegrationStatuses() {
       return ipcRenderer.invoke(ipcChannels.reviewLoadAgentIntegrationStatuses);

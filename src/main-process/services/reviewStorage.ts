@@ -44,7 +44,6 @@ export interface ReviewStoragePaths {
 }
 
 interface ReviewSessionState {
-  archived?: boolean;
   id: string;
   unread: boolean;
   updatedAt: string;
@@ -153,14 +152,12 @@ export async function saveReviewEvent(
   event: ReviewSessionEvent,
   options: ReviewStorageOptions = {},
 ) {
-  const paths = await ensureReviewStorage(options);
   const events = await readReviewEvents(options);
   const eventKey = getReviewSessionKey(event.provider, event.sessionId);
   const otherEvents = events.filter(
     (item) => getReviewSessionKey(item.provider, item.sessionId) !== eventKey,
   );
-  const nextContent = [...otherEvents, event].map((item) => JSON.stringify(item)).join("\n");
-  await writeFile(paths.eventsPath, `${nextContent}\n`, "utf8");
+  await writeReviewEvents([...otherEvents, event], options);
 }
 
 export async function readReviewEvents(options: ReviewStorageOptions = {}): Promise<ReviewSessionEvent[]> {
@@ -176,6 +173,13 @@ export async function readReviewEvents(options: ReviewStorageOptions = {}): Prom
   } catch {
     return [];
   }
+}
+
+/** 事件日志的唯一写入出口，统一序列化格式与空文件边界处理。 */
+async function writeReviewEvents(events: ReviewSessionEvent[], options: ReviewStorageOptions = {}) {
+  const paths = await ensureReviewStorage(options);
+  const content = events.map((event) => JSON.stringify(event)).join("\n");
+  await writeFile(paths.eventsPath, content ? `${content}\n` : "", "utf8");
 }
 
 // 读取侧仍按「同会话取 updatedAt 最新」聚合：兼容旧版本按 turn 存多行的 events.jsonl，
@@ -197,7 +201,6 @@ export function aggregateReviewSessions(
 
   return [...sessions.values()]
     .map((event) => toReviewSession(event, states.get(getReviewSessionKey(event.provider, event.sessionId))))
-    .filter((session) => !states.get(session.id)?.archived)
     .sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime());
 }
 
@@ -221,6 +224,35 @@ export async function markReviewSessionRead(
   await writeReviewSessionStates(states, options);
 }
 
+/**
+ * 归档会话：删除该会话的本地记录（事件行、diff 目录与已读状态）。
+ * 特意保留 pending 基线：归档时若有进行中的对话轮次，该轮结束后产生的有效改动
+ * 会作为新记录重新入列，保证归档瞬间尚未完成的改动不会逃过审查。
+ */
+export async function archiveReviewSession(sessionId: string, options: ReviewStorageOptions = {}) {
+  const events = await readReviewEvents(options);
+  // 同一会话的事件行共享 provider 与原始 sessionId，取任意一条即可定位 diff 目录。
+  const archivedEvent = events.find(
+    (event) => getReviewSessionKey(event.provider, event.sessionId) === sessionId,
+  );
+
+  if (archivedEvent) {
+    const remainingEvents = events.filter(
+      (event) => getReviewSessionKey(event.provider, event.sessionId) !== sessionId,
+    );
+    await writeReviewEvents(remainingEvents, options);
+    await rm(path.dirname(getLatestPatchPath(archivedEvent.provider, archivedEvent.sessionId, options)), {
+      force: true,
+      recursive: true,
+    });
+  }
+
+  const states = await readReviewSessionStates(options);
+  if (states.delete(sessionId)) {
+    await writeReviewSessionStates(states, options);
+  }
+}
+
 export function getReviewSessionKey(provider: ReviewProvider, sessionId: string) {
   return `${provider}:${sessionId}`;
 }
@@ -232,7 +264,6 @@ function toReviewSession(event: ReviewSessionEvent, state?: ReviewSessionState):
   return {
     id,
     agent: getAgentType(event.provider),
-    provider: event.provider,
     projectPath: event.projectPath,
     projectName: event.projectName,
     branchName: event.branchName,
@@ -243,8 +274,6 @@ function toReviewSession(event: ReviewSessionEvent, state?: ReviewSessionState):
     additions: event.additions,
     deletions: event.deletions,
     unread: isSameVersion ? state.unread : true,
-    hasBaseline: true,
-    latestTurnId: event.latestTurnId,
     rawDiffPath: event.rawDiffPath,
   };
 }

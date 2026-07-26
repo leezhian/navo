@@ -43,6 +43,11 @@ export interface MarkReviewSessionReadParams {
   updatedAt: string;
 }
 
+export interface ArchiveReviewSessionParams {
+  /** 复合会话 id（provider:sessionId），与会话列表条目 id 一致。 */
+  sessionId: string;
+}
+
 export type ExternalLinkTarget = "website" | "report-bug";
 
 export type ReviewSessionsChangedListener = (sessions: ReviewSession[]) => void;
@@ -82,6 +87,8 @@ export interface VibeReviewerApi {
   review: {
     loadSessions(): Promise<ReviewSession[]>;
     markSessionRead(params: MarkReviewSessionReadParams): Promise<void>;
+    /** 归档会话：删除该会话的本地审查记录（事件、patch 与已读状态）；进行中轮次结束后会重新入列。 */
+    archiveSession(params: ArchiveReviewSessionParams): Promise<void>;
     loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>>;
     setAgentIntegrationEnabled(params: SetAgentIntegrationParams): Promise<void>;
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;

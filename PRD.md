@@ -174,14 +174,14 @@ Codex 配置写入或合并到 Codex 支持的 hooks 配置中，Claude Code 配
 
 #### 7.1.6 App 启动与实时会话同步
 
-App 启动后由 Electron main process 读取本地审查事件日志，聚合出所有未归档会话并发送给 renderer。运行期间继续监听事件日志变化，有新事件时实时推送给会话列表。
+App 启动后由 Electron main process 读取本地审查事件日志，聚合出全部会话并发送给 renderer。运行期间继续监听事件日志变化，有新事件时实时推送给会话列表。
 
 同步规则：
 
 1. 如果会话 ID 已存在，则更新项目、分支、更新时间、最新 diff 引用和统计信息，并设置未读红点。
 2. 如果会话 ID 不存在，则新增会话 item，并设置未读红点。
 3. 用户点击会话后清除该会话的未读红点。
-4. 未归档状态由 Vibe Reviewer 自己维护，不依赖 Codex 或 Claude Code 私有归档状态。
+4. 归档能力由 Vibe Reviewer 自己维护：归档即删除本地会话记录，不依赖 Codex 或 Claude Code 私有归档状态。
 5. 如果未来需要导入历史会话，可以额外扫描 transcript 目录作为补充能力，但不作为首版实时监听主路径。
 
 ### 7.2 会话列表
@@ -217,6 +217,13 @@ App 启动后由 Electron main process 读取本地审查事件日志，聚合�
 - 提示用户开启 Agent 监听。
 - 提示用户在支持的 Agent 中完成一次代码修改。
 - 提供进入配置页的入口。
+
+#### 7.2.5 会话归档
+
+- 会话 item hover 时展示归档按钮，点击直接归档，无确认弹层。
+- 归档即删除该会话的本地审查记录（事件、patch 快照与已读状态），会话立即从列表移除。
+- 归档的是正在查看的会话时，自动切换到列表首个会话；列表为空时回到空状态。
+- 已归档会话之后再次产生有效改动时，作为新会话记录重新出现。归档时正在进行中的对话轮次同样适用：该轮结束后若有有效改动，会话重新入列，确保任何改动都不会跳过审查。
 
 ### 7.3 代码审查区
 
@@ -559,11 +566,11 @@ interface ReviewSessionEvent {
 }
 ```
 
-App 聚合会话时以 `provider + sessionId` 作为会话唯一键，并使用最新事件覆盖该会话的 diff 引用和统计信息。为了避免重复处理同一轮 `Stop`，collector 或 App 可以使用 `provider + sessionId + latestTurnId` 作为事件去重键；如果 Agent 没有提供 turn ID，则使用 `provider + sessionId + baselineTree + currentTree` 生成稳定 key。
+App 聚合会话时以 `provider + sessionId` 作为会话唯一键，并使用最新事件覆盖该会话的 diff 引用和统计信息。事件日志按同样的键去重：每个会话只保留最新一条事件，新的有效事件直接覆盖旧行，避免日志随对话轮数无限增长。
 
 ### 10.4 会话状态
 
-会话状态由 Vibe Reviewer 自己维护，用于支持未读红点、归档状态和最近选择。它不直接依赖 Codex 或 Claude Code 的私有 UI 状态。
+会话状态由 Vibe Reviewer 自己维护，用于支持未读红点和最近选择。它不直接依赖 Codex 或 Claude Code 的私有 UI 状态。归档不作为状态保存：归档即删除该会话的本地记录。
 
 会话状态包含：
 
@@ -574,7 +581,6 @@ App 聚合会话时以 `provider + sessionId` 作为会话唯一键，并使用�
 - 最近 raw diff 引用。
 - 最近 turn ID。
 - 未读状态。
-- 归档状态。
 - 最近更新时间。
 
 ### 10.5 隐私原则

@@ -50,7 +50,6 @@ export type ReviewBatchFileAction = "restore-worktree-all" | "stage-all" | "unst
 export interface ReviewSession {
   id: string;
   agent: AgentType;
-  provider?: ReviewProvider;
   projectPath: string;
   projectName: string;
   branchName: string;
@@ -61,8 +60,6 @@ export interface ReviewSession {
   additions: number;
   deletions: number;
   unread: boolean;
-  hasBaseline: boolean;
-  latestTurnId?: string;
   rawDiffPath?: string;
 }
 

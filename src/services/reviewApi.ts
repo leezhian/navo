@@ -61,6 +61,19 @@ export async function markReviewSessionRead(session: ReviewSession): Promise<voi
   }
 }
 
+/** 归档会话：删除其本地审查记录；浏览器预览环境下保持 no-op。 */
+export async function archiveReviewSession(session: ReviewSession): Promise<void> {
+  try {
+    await window.vibeReviewer.review.archiveSession({ sessionId: session.id });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
 export async function loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>> {
   try {
     return await window.vibeReviewer.review.loadAgentIntegrationStatuses();
