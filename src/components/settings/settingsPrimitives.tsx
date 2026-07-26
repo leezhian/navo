@@ -21,7 +21,7 @@ export function SettingsSectionHeader({ title, description }: SettingsSectionHea
   return (
     <header className="mb-5">
       <h2 className="mb-1 text-sm font-normal">{title}</h2>
-      {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
     </header>
   );
 }
@@ -51,7 +51,7 @@ export function SettingsRow({ children, description, title }: SettingsRowProps) 
     <div className="flex min-h-18 items-center justify-between gap-6 border-b px-4 last:border-b-0">
       <div className="min-w-0">
         <h3 className="text-sm font-normal">{title}</h3>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
