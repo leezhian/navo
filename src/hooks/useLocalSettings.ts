@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { defaultSettings } from "../domain/mockData";
-import { normalizeAppSettings } from "../domain/settings";
+import { defaultSettings, normalizeAppSettings } from "../domain/settings";
 import type { AppSettings, ResolvedTheme, ThemePreference } from "../domain/types";
 import { loadAgentIntegrationStatuses } from "../services/reviewApi";
 

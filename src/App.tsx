@@ -4,7 +4,6 @@ import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { TerminalWorkspace } from "./components/terminal/TerminalWorkspace";
-import { mockSessions } from "./domain/mockData";
 import { mergeLoadedSessions } from "./domain/reviewSessionMerge";
 import type { ReviewSession } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
@@ -15,8 +14,9 @@ import "./App.css";
 
 function App() {
   const { resolvedTheme, settings, updateSettings } = useLocalSettings();
-  const [sessions, setSessions] = useState(mockSessions);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(mockSessions[0]?.id ?? null);
+  // 启动时列表为空，等待主进程会话数据加载后再选中首个会话，避免闪现无效会话。
+  const [sessions, setSessions] = useState<ReviewSession[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [isSessionSidebarVisible, setIsSessionSidebarVisible] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const toggleSessionSidebar = useCallback(() => {

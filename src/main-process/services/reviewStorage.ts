@@ -20,8 +20,6 @@ export interface ReviewSessionEvent {
   startedAt: string;
   endedAt: string;
   updatedAt: string;
-  baselineTree?: string;
-  currentTree?: string;
 }
 
 export interface PendingReviewBaseline {
@@ -149,15 +147,20 @@ export async function readLatestPatch(rawDiffPath?: string): Promise<string | nu
   }
 }
 
-export async function appendReviewEvent(
+// 每个会话只保留最新一条事件：历史 turn 的 diff 已被 latest.patch 覆盖，
+// 列表展示也只消费最新事件，按 turn 保留历史行只会让文件无上限增长。
+export async function saveReviewEvent(
   event: ReviewSessionEvent,
   options: ReviewStorageOptions = {},
 ) {
   const paths = await ensureReviewStorage(options);
   const events = await readReviewEvents(options);
-  const nextEvents = upsertReviewEvent(events, event);
-  const nextContent = nextEvents.map((item) => JSON.stringify(item)).join("\n");
-  await writeFile(paths.eventsPath, nextContent ? `${nextContent}\n` : "", "utf8");
+  const eventKey = getReviewSessionKey(event.provider, event.sessionId);
+  const otherEvents = events.filter(
+    (item) => getReviewSessionKey(item.provider, item.sessionId) !== eventKey,
+  );
+  const nextContent = [...otherEvents, event].map((item) => JSON.stringify(item)).join("\n");
+  await writeFile(paths.eventsPath, `${nextContent}\n`, "utf8");
 }
 
 export async function readReviewEvents(options: ReviewStorageOptions = {}): Promise<ReviewSessionEvent[]> {
@@ -175,13 +178,8 @@ export async function readReviewEvents(options: ReviewStorageOptions = {}): Prom
   }
 }
 
-export function upsertReviewEvent(events: ReviewSessionEvent[], nextEvent: ReviewSessionEvent) {
-  const nextEventKey = getReviewEventKey(nextEvent);
-  const filteredEvents = events.filter((event) => getReviewEventKey(event) !== nextEventKey);
-
-  return [...filteredEvents, nextEvent];
-}
-
+// 读取侧仍按「同会话取 updatedAt 最新」聚合：兼容旧版本按 turn 存多行的 events.jsonl，
+// 旧的多余行会在对应会话下次产生新事件时被写入侧压缩掉。
 export function aggregateReviewSessions(
   events: ReviewSessionEvent[],
   states: Map<string, ReviewSessionState> = new Map(),
@@ -225,14 +223,6 @@ export async function markReviewSessionRead(
 
 export function getReviewSessionKey(provider: ReviewProvider, sessionId: string) {
   return `${provider}:${sessionId}`;
-}
-
-function getReviewEventKey(event: ReviewSessionEvent) {
-  if (event.latestTurnId) {
-    return `${event.provider}:${event.sessionId}:${event.latestTurnId}`;
-  }
-
-  return `${event.provider}:${event.sessionId}:${event.baselineTree ?? ""}:${event.currentTree ?? ""}`;
 }
 
 function toReviewSession(event: ReviewSessionEvent, state?: ReviewSessionState): ReviewSession {

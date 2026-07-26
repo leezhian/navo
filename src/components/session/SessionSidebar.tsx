@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { filterSessions, groupSessionsByProject, AGENT_TYPES } from "@/domain/sessionGroups";
+import { filterSessions, groupSessionsByProject } from "@/domain/sessionGroups";
 import type { SessionGroup } from "@/domain/sessionGroups";
-import type { AgentType, ReviewSession } from "../../domain/types";
+import { AGENT_TYPES, type AgentType, type ReviewSession } from "@/domain/types";
 import { Button } from "@/components/ui/button";
 import { useSessionGroupCollapse } from "@/hooks/useSessionGroupCollapse";
 import { SESSION_SIDEBAR_TRANSITION, SESSION_SIDEBAR_WIDTH } from "@/shared/windowLayout";

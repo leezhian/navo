@@ -1,5 +1,4 @@
 import { parseGitDiff } from "../domain/diffParser";
-import { mockRawDiff, mockSessions } from "../domain/mockData";
 import type {
   AgentStatus,
   AgentType,
@@ -9,6 +8,9 @@ import type {
   ReviewSession,
   ReviewSummary,
 } from "../domain/types";
+
+/** 浏览器预览（无 Electron 主进程）时的固定 diff 签名，恒定值可避免触发多余的刷新。 */
+const BROWSER_PREVIEW_SIGNATURE = "browser-preview";
 
 interface LoadReviewDiffOptions {
   /** 当前审查会话，用于读取项目路径和上轮对话 patch 引用。 */
@@ -24,7 +26,8 @@ export async function loadReviewSessions(): Promise<ReviewSession[]> {
     return await window.vibeReviewer.review.loadSessions();
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
-      return mockSessions;
+      // 浏览器预览没有主进程会话数据，回退为空列表。
+      return [];
     }
 
     throw new Error(error instanceof Error ? error.message : String(error));
@@ -115,11 +118,10 @@ export async function loadReviewDiff({ session, mode, targetBranch }: LoadReview
     };
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
-      // 浏览器预览或 preload 未注入时使用 mock，避免纯前端调试被 Electron IPC 阻断。
-      const summary = mockSummary();
+      // 浏览器预览或 preload 未注入时回退为空 diff，避免纯前端调试被 Electron IPC 阻断。
       return {
-        summary,
-        signature: `mock:${summary.fileCount}`,
+        summary: emptySummary(),
+        signature: BROWSER_PREVIEW_SIGNATURE,
       };
     }
 
@@ -141,7 +143,7 @@ export async function loadReviewDiffSignature({
     });
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
-      return `mock:${mode}`;
+      return BROWSER_PREVIEW_SIGNATURE;
     }
 
     throw new Error(error instanceof Error ? error.message : String(error));
@@ -203,7 +205,7 @@ export async function loadLocalBranches(projectPath: string): Promise<string[]> 
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       // 本地预览没有 Electron API 时提供固定分支，保证分支菜单仍可交互。
-      return ["main", "master", "feature/review-ui", "live-play-route"];
+      return ["main", "master"];
     }
 
     throw new Error(error instanceof Error ? error.message : String(error));
@@ -250,10 +252,6 @@ export async function runReviewBatchFileAction(
 
     throw new Error(error instanceof Error ? error.message : String(error));
   }
-}
-
-export function mockSummary(): ReviewSummary {
-  return parseGitDiff(mockRawDiff, "mock-review-diff");
 }
 
 /**

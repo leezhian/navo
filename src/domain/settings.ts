@@ -105,12 +105,35 @@ type DiffSettings = Pick<
   "diffCodeFontSize" | "diffDarkTheme" | "diffIndicatorMode" | "diffLightTheme" | "diffUiFontSize"
 >;
 
-export const defaultDiffSettings: DiffSettings = {
+const defaultDiffSettings: DiffSettings = {
   diffCodeFontSize: 12,
   diffDarkTheme: "pierre-dark",
   diffIndicatorMode: "color",
   diffLightTheme: "pierre-light",
   diffUiFontSize: 14,
+};
+
+/** 应用默认配置：本地无存储或解析失败时的兜底，也是新安装后的初始值。 */
+export const defaultSettings: AppSettings = {
+  ...defaultDiffSettings,
+  enabledAgents: {
+    "Claude Code": true,
+    Codex: true,
+    OpenCode: false,
+    Qoder: false,
+  },
+  agentStatuses: {
+    "Claude Code": "listening",
+    Codex: "listening",
+    OpenCode: "disabled",
+    Qoder: "disabled",
+  },
+  theme: "system",
+  diffViewMode: "split",
+  wrapDiffLines: false,
+  enableTextDiff: true,
+  readingMode: "continuous",
+  targetBranch: "origin/main",
 };
 
 function clampNumber(

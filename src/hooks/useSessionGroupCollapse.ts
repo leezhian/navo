@@ -7,16 +7,14 @@ export function useSessionGroupCollapse() {
   const [collapsedProjectPaths, setCollapsedProjectPaths] = useState<Set<string>>(readStoredCollapsedPaths);
 
   function toggleGroup(projectPath: string) {
-    setCollapsedProjectPaths((current) => {
-      const next = new Set(current);
-      if (next.has(projectPath)) {
-        next.delete(projectPath);
-      } else {
-        next.add(projectPath);
-      }
-      writeStoredCollapsedPaths(next);
-      return next;
-    });
+    const next = new Set(collapsedProjectPaths);
+    if (next.has(projectPath)) {
+      next.delete(projectPath);
+    } else {
+      next.add(projectPath);
+    }
+    writeStoredCollapsedPaths(next);
+    setCollapsedProjectPaths(next);
   }
 
   return {

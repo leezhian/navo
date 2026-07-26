@@ -1,6 +1,9 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 
-export type AgentType = "Claude Code" | "Codex" | "OpenCode" | "Qoder";
+/** 全部支持的 Agent 类型，顺序即设置页与筛选菜单的展示顺序；AgentType 由该列表推导，二者不会漂移。 */
+export const AGENT_TYPES = ["Claude Code", "Codex", "OpenCode", "Qoder"] as const;
+
+export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type ReviewProvider = "claude" | "codex";
 

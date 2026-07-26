@@ -1,8 +1,5 @@
 import type { AgentType, ReviewSession } from "./types";
 
-/** 会话筛选支持的全部 Agent 类型，顺序即筛选菜单展示顺序。 */
-export const AGENT_TYPES: AgentType[] = ["Claude Code", "Codex", "OpenCode", "Qoder"];
-
 export interface SessionGroup {
   /** 分组唯一键，使用项目绝对路径避免同名项目误合并。 */
   projectPath: string;

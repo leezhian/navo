@@ -5,9 +5,9 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { ReviewProvider } from "@/domain/types";
 import {
-  appendReviewEvent,
   deletePendingBaseline,
   readPendingBaseline,
+  saveReviewEvent,
   writeLatestPatch,
   writePendingBaseline,
   type ReviewStorageOptions,
@@ -133,7 +133,7 @@ async function collectEndEvent(input: NormalizedHookInput, options: HookCollecto
   const stats = collectDiffStats(rawDiff);
   const now = new Date().toISOString();
 
-  await appendReviewEvent(
+  await saveReviewEvent(
     {
       provider: options.provider,
       sessionId: input.sessionId,
@@ -149,8 +149,6 @@ async function collectEndEvent(input: NormalizedHookInput, options: HookCollecto
       startedAt: pending.startedAt,
       endedAt: now,
       updatedAt: now,
-      baselineTree: pending.baselineTree,
-      currentTree: snapshot.tree,
     },
     options,
   );

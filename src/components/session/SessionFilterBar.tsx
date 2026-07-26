@@ -6,8 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { AGENT_TYPES } from "@/domain/sessionGroups";
-import type { AgentType } from "@/domain/types";
+import { AGENT_TYPES, type AgentType } from "@/domain/types";
 import { ListFilter, Search } from "lucide-react";
 import classNames from "classnames";
 

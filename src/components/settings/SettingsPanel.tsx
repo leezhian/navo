@@ -22,8 +22,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { defaultSettings } from "@/domain/mockData";
-import type { AgentType, AppSettings, ResolvedTheme } from "@/domain/types";
+import { AGENT_TYPES, type AgentType, type AppSettings, type ResolvedTheme } from "@/domain/types";
 import { setAgentIntegrationEnabled } from "@/services/reviewApi";
 import { SESSION_SIDEBAR_WIDTH } from "@/shared/windowLayout";
 import { ArrowLeft, Info, Palette, Search, Settings } from "lucide-react";
@@ -214,8 +213,6 @@ interface GeneralSettingsPageProps {
 }
 
 function GeneralSettingsPage({ settings, updateSettings }: GeneralSettingsPageProps) {
-  const agents = Object.keys(defaultSettings.enabledAgents) as AgentType[];
-
   return (
     <>
       <SettingsPageHeader title="常规" />
@@ -226,7 +223,7 @@ function GeneralSettingsPage({ settings, updateSettings }: GeneralSettingsPagePr
           description="选择需要监听的本地 Agent，会话结束后自动进入审查列表。"
         />
         <SettingsList>
-          {agents.map((agent) => (
+          {AGENT_TYPES.map((agent) => (
             <SettingsSwitchRow
               checked={settings.enabledAgents[agent]}
               description={getAgentSettingDescription(agent, settings)}
