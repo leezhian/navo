@@ -5,7 +5,9 @@ import { promisify } from "node:util";
 import type { GitFileSnapshot } from "@/domain/diffParser";
 import type { CompareMode } from "@/domain/types";
 import type {
+  CommitChangesParams,
   GitCommandOutput,
+  GitCommitStatus,
   LoadReviewDiffParams,
   OpenFileInVsCodeParams,
   RunReviewBatchFileActionParams,
@@ -168,6 +170,94 @@ function createBatchFileActionArgs(action: RunReviewBatchFileActionParams["actio
   };
 
   return argsByAction[action];
+}
+
+/** 读取提交面板所需的 Git 状态：一条 porcelain v2 拿分支/暂存/未推送，两条 shortstat 拿增删行数。 */
+export async function getCommitStatus(projectPath: string): Promise<GitCommitStatus> {
+  const [statusOutput, stagedStatOutput, unstagedStatOutput] = await Promise.all([
+    runGit(projectPath, ["status", "--porcelain=v2", "--branch"]),
+    runGit(projectPath, ["diff", "--cached", "--shortstat"]),
+    runGit(projectPath, ["diff", "--shortstat"]),
+  ]);
+
+  const stagedStat = parseShortstat(stagedStatOutput.stdout);
+  const unstagedStat = parseShortstat(unstagedStatOutput.stdout);
+
+  return {
+    ...parsePorcelainStatus(statusOutput.stdout),
+    stagedAdditions: stagedStat.additions,
+    stagedDeletions: stagedStat.deletions,
+    unstagedAdditions: unstagedStat.additions,
+    unstagedDeletions: unstagedStat.deletions,
+  };
+}
+
+export async function commitChanges({ projectPath, message, includeUnstaged }: CommitChangesParams): Promise<void> {
+  if (includeUnstaged) {
+    await runGit(projectPath, ["add", "-A"]);
+  }
+
+  await runGit(projectPath, ["commit", "-m", message]);
+}
+
+export async function pushCommits(projectPath: string): Promise<void> {
+  const status = await getCommitStatus(projectPath);
+
+  if (status.hasUpstream) {
+    await runGit(projectPath, ["push"]);
+    return;
+  }
+
+  // 首次推送自动建立 upstream，避免用户手动处理 tracking 分支。
+  await runGit(projectPath, ["push", "-u", "origin", status.branchName]);
+}
+
+function parsePorcelainStatus(stdout: string) {
+  let branchName = "";
+  let isDetached = false;
+  let hasUpstream = false;
+  let aheadCount = 0;
+  let stagedFileCount = 0;
+  let unstagedFileCount = 0;
+
+  for (const line of stdout.split("\n")) {
+    if (line.startsWith("# branch.head ")) {
+      branchName = line.slice("# branch.head ".length).trim();
+      isDetached = branchName === "(detached)";
+      continue;
+    }
+    if (line.startsWith("# branch.upstream ")) {
+      hasUpstream = true;
+      continue;
+    }
+    if (line.startsWith("# branch.ab ")) {
+      aheadCount = Number(/\+(\d+)/.exec(line)?.[1] ?? 0);
+      continue;
+    }
+    // 1/2 开头为普通/重命名条目，XY 两位分别表示暂存区与工作区状态。
+    if (line.startsWith("1 ") || line.startsWith("2 ")) {
+      if (line[2] !== ".") {
+        stagedFileCount += 1;
+      }
+      if (line[3] !== ".") {
+        unstagedFileCount += 1;
+      }
+      continue;
+    }
+    // 冲突（u）与未跟踪（?）文件都按未暂存改动计入。
+    if (line.startsWith("u ") || line.startsWith("? ")) {
+      unstagedFileCount += 1;
+    }
+  }
+
+  return { branchName, isDetached, hasUpstream, aheadCount, stagedFileCount, unstagedFileCount };
+}
+
+function parseShortstat(stdout: string) {
+  return {
+    additions: Number(/(\d+) insertion/.exec(stdout)?.[1] ?? 0),
+    deletions: Number(/(\d+) deletion/.exec(stdout)?.[1] ?? 0),
+  };
 }
 
 async function runGit(projectPath: string, args: string[]): Promise<GitCommandOutput> {

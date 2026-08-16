@@ -2,6 +2,7 @@ import { ipcMain } from "electron";
 import { ipcChannels } from "../../shared/ipcChannels";
 import type {
   ArchiveReviewSessionParams,
+  CommitChangesParams,
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
@@ -12,10 +13,13 @@ import type {
 } from "../../shared/electronApi";
 import { loadAgentIntegrationStatuses, setAgentIntegrationEnabled } from "../services/agentHookConfigService";
 import {
+  commitChanges,
+  getCommitStatus,
   getGitDiffSignature,
   getUntrackedFileCount,
   loadLocalBranches,
   openFileInVsCode,
+  pushCommits,
   runGitDiff,
   runReviewBatchFileAction,
   runReviewFileAction,
@@ -37,6 +41,13 @@ export function registerReviewHandlers() {
     archiveReviewSession(params.sessionId),
   );
   ipcMain.handle(ipcChannels.reviewCleanStorage, () => cleanupReviewStorage());
+  ipcMain.handle(ipcChannels.reviewGetCommitStatus, (_event, params: ProjectPathParams) =>
+    getCommitStatus(params.projectPath),
+  );
+  ipcMain.handle(ipcChannels.reviewCommitChanges, (_event, params: CommitChangesParams) => commitChanges(params));
+  ipcMain.handle(ipcChannels.reviewPushCommits, (_event, params: ProjectPathParams) =>
+    pushCommits(params.projectPath),
+  );
   ipcMain.handle(ipcChannels.reviewLoadAgentIntegrationStatuses, () => loadAgentIntegrationStatuses());
   ipcMain.handle(ipcChannels.reviewSetAgentIntegrationEnabled, (_event, params: SetAgentIntegrationParams) =>
     setAgentIntegrationEnabled(params.agent, params.enabled),

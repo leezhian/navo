@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type {
   ArchiveReviewSessionParams,
+  CommitChangesParams,
   ExternalLinkTarget,
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
@@ -41,6 +42,15 @@ const api: VibeReviewerApi = {
     },
     cleanStorage() {
       return ipcRenderer.invoke(ipcChannels.reviewCleanStorage);
+    },
+    getCommitStatus(params: ProjectPathParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewGetCommitStatus, params);
+    },
+    commitChanges(params: CommitChangesParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewCommitChanges, params);
+    },
+    pushCommits(params: ProjectPathParams) {
+      return ipcRenderer.invoke(ipcChannels.reviewPushCommits, params);
     },
     loadAgentIntegrationStatuses() {
       return ipcRenderer.invoke(ipcChannels.reviewLoadAgentIntegrationStatuses);

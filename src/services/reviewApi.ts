@@ -1,5 +1,5 @@
 import { parseGitDiff } from "../domain/diffParser";
-import type { CleanReviewStorageResult } from "../shared/electronApi";
+import type { CleanReviewStorageResult, GitCommitStatus } from "../shared/electronApi";
 import type {
   AgentStatus,
   AgentType,
@@ -73,6 +73,40 @@ export async function archiveReviewSession(session: ReviewSession): Promise<void
 
     throw new Error(error instanceof Error ? error.message : String(error));
   }
+}
+
+/** 浏览器预览没有 Git 能力时的提交面板状态：全部为零，入口自然置灰。 */
+const EMPTY_COMMIT_STATUS: GitCommitStatus = {
+  branchName: "",
+  isDetached: false,
+  hasUpstream: false,
+  aheadCount: 0,
+  stagedFileCount: 0,
+  unstagedFileCount: 0,
+  stagedAdditions: 0,
+  stagedDeletions: 0,
+  unstagedAdditions: 0,
+  unstagedDeletions: 0,
+};
+
+export async function loadGitCommitStatus(projectPath: string): Promise<GitCommitStatus> {
+  try {
+    return await window.vibeReviewer.review.getCommitStatus({ projectPath });
+  } catch (error) {
+    if (isElectronApiUnavailable(error)) {
+      return EMPTY_COMMIT_STATUS;
+    }
+
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function commitGitChanges(projectPath: string, message: string, includeUnstaged: boolean): Promise<void> {
+  await window.vibeReviewer.review.commitChanges({ projectPath, message, includeUnstaged });
+}
+
+export async function pushGitCommits(projectPath: string): Promise<void> {
+  await window.vibeReviewer.review.pushCommits({ projectPath });
 }
 
 /** 清理本地缓存；浏览器预览环境下返回空结果。 */

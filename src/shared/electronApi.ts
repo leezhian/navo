@@ -48,6 +48,30 @@ export interface ArchiveReviewSessionParams {
   sessionId: string;
 }
 
+export interface GitCommitStatus {
+  /** 当前分支名；detached 状态下为 git 返回的占位值。 */
+  branchName: string;
+  isDetached: boolean;
+  hasUpstream: boolean;
+  /** 领先 upstream 的未推送提交数；无 upstream 时为 0。 */
+  aheadCount: number;
+  stagedFileCount: number;
+  /** 未暂存文件数，含未跟踪与冲突文件。 */
+  unstagedFileCount: number;
+  /** 已跟踪文件口径的增删行数，供提交弹窗展示。 */
+  stagedAdditions: number;
+  stagedDeletions: number;
+  unstagedAdditions: number;
+  unstagedDeletions: number;
+}
+
+export interface CommitChangesParams {
+  projectPath: string;
+  message: string;
+  /** 为 true 时提交前先暂存全部改动（含未跟踪文件）。 */
+  includeUnstaged: boolean;
+}
+
 export interface CleanReviewStorageResult {
   /** 本次清理删除的文件、目录与记录条数合计。 */
   removedItems: number;
@@ -98,6 +122,12 @@ export interface VibeReviewerApi {
     archiveSession(params: ArchiveReviewSessionParams): Promise<void>;
     /** 清理不在会话列表中的本地缓存（孤儿 diff、超龄 pending 基线与日志等）。 */
     cleanStorage(): Promise<CleanReviewStorageResult>;
+    /** 读取提交面板所需的 Git 状态（暂存/未暂存/未推送/分支）。 */
+    getCommitStatus(params: ProjectPathParams): Promise<GitCommitStatus>;
+    /** 提交更改；includeUnstaged 时先暂存全部改动。 */
+    commitChanges(params: CommitChangesParams): Promise<void>;
+    /** 推送未推送提交；无 upstream 时自动 -u origin 当前分支。 */
+    pushCommits(params: ProjectPathParams): Promise<void>;
     loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>>;
     setAgentIntegrationEnabled(params: SetAgentIntegrationParams): Promise<void>;
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;

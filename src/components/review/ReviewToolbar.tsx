@@ -1,4 +1,5 @@
 import { IconTooltip } from "@/components/ui/icon-tooltip";
+import { CommitButtonGroup } from "./CommitButtonGroup";
 import type { AppSettings, CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "@/domain/types";
 import {
   Check,
@@ -161,6 +162,7 @@ export function ReviewToolbar({
           >
             {isFileTreeVisible ? <FolderOpen className="size-4" /> : <FolderClosed className="size-4" />}
           </IconTooltip>
+          <CommitButtonGroup projectPath={session.projectPath} />
         </div>
       </div>
     </header>
