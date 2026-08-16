@@ -25,11 +25,18 @@ interface CommitButtonGroupProps {
  * 无改动但有未推送提交时变为直接推送；两者皆无则置灰。
  */
 export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
-  const { status, refresh, error: statusError } = useGitCommitStatus(projectPath);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isOpeningDialog, setIsOpeningDialog] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [directPushError, setDirectPushError] = useState<string | null>(null);
+  const {
+    status,
+    refresh,
+    refreshWithDiffStats,
+    error: statusError,
+  } = useGitCommitStatus(projectPath, {
+    includeDiffStats: isDialogOpen || isOpeningDialog,
+  });
 
   const { hasLocalChanges, canPush, hasAvailableAction } = getCommitStatusCapabilities(status);
   const showPushMode = !hasLocalChanges && canPush;
@@ -50,7 +57,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
 
     try {
       // 点击入口时再读一次真实 Git 状态，避免弹窗沿用按钮渲染时的旧快照。
-      const latestStatus = await refresh();
+      const latestStatus = await refreshWithDiffStats();
 
       if (latestStatus && getCommitStatusCapabilities(latestStatus).hasAvailableAction) {
         setIsDialogOpen(true);

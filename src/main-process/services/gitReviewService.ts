@@ -6,6 +6,7 @@ import type { GitFileSnapshot } from "@/domain/diffParser";
 import type { CompareMode } from "@/domain/types";
 import type {
   CommitChangesParams,
+  GetCommitStatusParams,
   GitCommandOutput,
   GitCommitStatus,
   LoadReviewDiffParams,
@@ -172,16 +173,19 @@ function createBatchFileActionArgs(action: RunReviewBatchFileActionParams["actio
   return argsByAction[action];
 }
 
-/** 读取提交面板所需的 Git 状态：porcelain v2 拿分支/暂存，shortstat 拿增删行数，无 upstream 时补读本地提交数。 */
-export async function getCommitStatus(projectPath: string): Promise<GitCommitStatus> {
-  const [statusOutput, stagedStatOutput, unstagedStatOutput] = await Promise.all([
+/**
+ * 读取提交按钮与弹窗所需的 Git 状态。
+ * 后台监听默认只执行 porcelain 状态查询；弹窗需要展示增删数时才额外读取两个 shortstat。
+ */
+export async function getCommitStatus({
+  projectPath,
+  includeDiffStats = false,
+}: GetCommitStatusParams): Promise<GitCommitStatus> {
+  const [statusOutput, diffStats] = await Promise.all([
     runGit(projectPath, ["status", "--porcelain=v2", "--branch"]),
-    runGit(projectPath, ["diff", "--cached", "--shortstat"]),
-    runGit(projectPath, ["diff", "--shortstat"]),
+    includeDiffStats ? loadCommitDiffStats(projectPath) : Promise.resolve(EMPTY_COMMIT_DIFF_STATS),
   ]);
 
-  const stagedStat = parseShortstat(stagedStatOutput.stdout);
-  const unstagedStat = parseShortstat(unstagedStatOutput.stdout);
   const parsedStatus = parsePorcelainStatus(statusOutput.stdout);
   // 没有 upstream 时 branch.ab 不存在，用当前分支提交数作为首次推送候选数。
   const aheadCount = parsedStatus.hasUpstream
@@ -191,10 +195,27 @@ export async function getCommitStatus(projectPath: string): Promise<GitCommitSta
   return {
     ...parsedStatus,
     aheadCount,
-    stagedAdditions: stagedStat.additions,
-    stagedDeletions: stagedStat.deletions,
-    unstagedAdditions: unstagedStat.additions,
-    unstagedDeletions: unstagedStat.deletions,
+    stagedAdditions: diffStats.staged.additions,
+    stagedDeletions: diffStats.staged.deletions,
+    unstagedAdditions: diffStats.unstaged.additions,
+    unstagedDeletions: diffStats.unstaged.deletions,
+  };
+}
+
+const EMPTY_COMMIT_DIFF_STATS = {
+  staged: { additions: 0, deletions: 0 },
+  unstaged: { additions: 0, deletions: 0 },
+};
+
+async function loadCommitDiffStats(projectPath: string) {
+  const [stagedStatOutput, unstagedStatOutput] = await Promise.all([
+    runGit(projectPath, ["diff", "--cached", "--shortstat"]),
+    runGit(projectPath, ["diff", "--shortstat"]),
+  ]);
+
+  return {
+    staged: parseShortstat(stagedStatOutput.stdout),
+    unstaged: parseShortstat(unstagedStatOutput.stdout),
   };
 }
 
@@ -217,7 +238,7 @@ export async function commitChanges({ projectPath, message, includeUnstaged }: C
 }
 
 export async function pushCommits(projectPath: string): Promise<void> {
-  const status = await getCommitStatus(projectPath);
+  const status = await getCommitStatus({ projectPath });
 
   if (status.hasUpstream) {
     await runGit(projectPath, ["push"]);

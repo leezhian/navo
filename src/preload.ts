@@ -4,6 +4,7 @@ import type {
   ArchiveReviewSessionParams,
   CommitChangesParams,
   ExternalLinkTarget,
+  GetCommitStatusParams,
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
@@ -43,7 +44,7 @@ const api: VibeReviewerApi = {
     cleanStorage() {
       return ipcRenderer.invoke(ipcChannels.reviewCleanStorage);
     },
-    getCommitStatus(params: ProjectPathParams) {
+    getCommitStatus(params: GetCommitStatusParams) {
       return ipcRenderer.invoke(ipcChannels.reviewGetCommitStatus, params);
     },
     commitChanges(params: CommitChangesParams) {

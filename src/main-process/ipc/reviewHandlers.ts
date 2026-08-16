@@ -3,6 +3,7 @@ import { ipcChannels } from "../../shared/ipcChannels";
 import type {
   ArchiveReviewSessionParams,
   CommitChangesParams,
+  GetCommitStatusParams,
   LoadReviewDiffParams,
   MarkReviewSessionReadParams,
   OpenFileInVsCodeParams,
@@ -41,9 +42,7 @@ export function registerReviewHandlers() {
     archiveReviewSession(params.sessionId),
   );
   ipcMain.handle(ipcChannels.reviewCleanStorage, () => cleanupReviewStorage());
-  ipcMain.handle(ipcChannels.reviewGetCommitStatus, (_event, params: ProjectPathParams) =>
-    getCommitStatus(params.projectPath),
-  );
+  ipcMain.handle(ipcChannels.reviewGetCommitStatus, (_event, params: GetCommitStatusParams) => getCommitStatus(params));
   ipcMain.handle(ipcChannels.reviewCommitChanges, (_event, params: CommitChangesParams) => commitChanges(params));
   ipcMain.handle(ipcChannels.reviewPushCommits, (_event, params: ProjectPathParams) =>
     pushCommits(params.projectPath),

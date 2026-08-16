@@ -90,6 +90,13 @@ export interface ProjectPathParams {
   projectPath: string;
 }
 
+export interface GetCommitStatusParams {
+  /** 需要读取状态的本地 Git 项目根路径。 */
+  projectPath: string;
+  /** 是否同时读取增删行统计；提交按钮组刷新时可关闭以减少 Git diff 扫描。 */
+  includeDiffStats?: boolean;
+}
+
 export interface AppInfo {
   /** 展示在关于页中的应用名称。 */
   name: string;
@@ -123,7 +130,7 @@ export interface VibeReviewerApi {
     /** 清理不在会话列表中的本地缓存（孤儿 diff、超龄 pending 基线与日志等）。 */
     cleanStorage(): Promise<CleanReviewStorageResult>;
     /** 读取提交面板所需的 Git 状态（暂存/未暂存/未推送/分支）。 */
-    getCommitStatus(params: ProjectPathParams): Promise<GitCommitStatus>;
+    getCommitStatus(params: GetCommitStatusParams): Promise<GitCommitStatus>;
     /** 提交更改；includeUnstaged 时先暂存全部改动。 */
     commitChanges(params: CommitChangesParams): Promise<void>;
     /** 推送未推送提交；无 upstream 时自动 -u origin 当前分支。 */

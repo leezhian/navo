@@ -89,9 +89,20 @@ const EMPTY_COMMIT_STATUS: GitCommitStatus = {
   unstagedDeletions: 0,
 };
 
-export async function loadGitCommitStatus(projectPath: string): Promise<GitCommitStatus> {
+interface LoadGitCommitStatusOptions {
+  /** 提交弹窗需要的增删统计；按钮组后台刷新时关闭。 */
+  includeDiffStats?: boolean;
+}
+
+export async function loadGitCommitStatus(
+  projectPath: string,
+  options: LoadGitCommitStatusOptions = {},
+): Promise<GitCommitStatus> {
   try {
-    return await window.vibeReviewer.review.getCommitStatus({ projectPath });
+    return await window.vibeReviewer.review.getCommitStatus({
+      projectPath,
+      includeDiffStats: options.includeDiffStats,
+    });
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return EMPTY_COMMIT_STATUS;
