@@ -4,6 +4,7 @@ import started from "electron-squirrel-startup";
 import { TRAFFIC_LIGHT_POSITION } from "./shared/windowLayout";
 import { registerAppHandlers } from "./main-process/ipc/appHandlers";
 import { registerReviewHandlers } from "./main-process/ipc/reviewHandlers";
+import { destroyAllTerminals, registerTerminalHandlers } from "./main-process/ipc/terminalHandlers";
 import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
 import { stopAllProjectWatchers } from "./main-process/services/projectChangeWatcher";
 import { startReviewSessionWatcher, stopReviewSessionWatcher } from "./main-process/services/reviewSessionWatcher";
@@ -51,6 +52,7 @@ function startApplication() {
   app.on("ready", () => {
     registerAppHandlers();
     registerReviewHandlers();
+    registerTerminalHandlers();
     registerWindowHandlers();
     startReviewSessionWatcher().catch((error: unknown) => {
       console.error(error instanceof Error ? error.message : String(error));
@@ -61,6 +63,7 @@ function startApplication() {
   app.on("before-quit", () => {
     stopReviewSessionWatcher();
     stopAllProjectWatchers();
+    destroyAllTerminals();
   });
 
   app.on("window-all-closed", () => {

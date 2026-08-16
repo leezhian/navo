@@ -1,14 +1,43 @@
+import { useEffect } from "react";
+import type { CSSProperties } from "react";
+import { useTerminalSession } from "./useTerminalSession";
+
 interface TerminalWorkspaceProps {
-  /** 当前终端 tab 标题，用于占位页提示用户正在查看哪个终端页。 */
+  /** 当前终端 Tab 标题，用作终端区域的无障碍名称。 */
   title: string;
+  /** 终端 Tab 的稳定 id，不能在 Tab 生命周期内变化。 */
+  sessionId: string;
+  /** 新建终端时使用的默认工作目录。 */
+  cwd?: string;
 }
 
-export function TerminalWorkspace({ title }: TerminalWorkspaceProps) {
+export function TerminalWorkspace({ title, sessionId, cwd }: TerminalWorkspaceProps) {
+  const { html, handleKeyDown, handlePaste, paletteStyle, status, terminalRef } = useTerminalSession({
+    cwd,
+    sessionId,
+  });
+  const shouldShowStartingMessage = !html && (status === "starting" || status === "ready");
+
+  useEffect(() => {
+    terminalRef.current?.focus();
+  }, [sessionId, terminalRef]);
+
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-background pt-12">
-      <div className="border-b px-5 py-2.5 text-sm text-muted-foreground">{title}</div>
-      <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
-        终端页已创建，后续可在这里接入内嵌终端。
+      <div
+        ref={terminalRef}
+        aria-label={`${title}终端`}
+        className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-none bg-[#111318] px-3 py-2 font-mono text-[13px] leading-4 text-[#f4f4f5] outline-none"
+        role="textbox"
+        style={paletteStyle as CSSProperties}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+      >
+        {shouldShowStartingMessage && <div>正在启动终端...</div>}
+        {!html && status === "exited" && <div>终端已退出</div>}
+        {!html && status === "error" && <div className="text-destructive">终端启动失败</div>}
+        {html && <div dangerouslySetInnerHTML={{ __html: html }} />}
       </div>
     </section>
   );

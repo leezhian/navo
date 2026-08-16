@@ -31,11 +31,12 @@ export function useWorkspaceTabs({ hasReview }: UseWorkspaceTabsParams) {
     setActiveWorkspace("terminal");
   }
 
-  function addTerminalTab() {
+  function addTerminalTab(cwd?: string) {
     terminalCounterRef.current += 1;
     const nextTab = {
+      cwd,
       id: `terminal-${Date.now()}-${terminalCounterRef.current}`,
-      title: `终端 ${terminalCounterRef.current}`,
+      title: cwd ?? "终端",
     };
 
     setTerminalTabs((current) => [...current, nextTab]);

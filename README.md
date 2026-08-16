@@ -1,6 +1,6 @@
 # Vibe Reviewer
 
-Vibe Reviewer 是一个面向本地代码审查的桌面应用。当前版本基于 Electron Forge、Vite、React、Tailwind CSS 和 shadcn 构建，主要用于查看项目 Git 差异、切换审查视图、浏览文件树，并在 diff 行上添加本地评论。
+Vibe Reviewer 是一个面向本地代码审查的桌面应用。当前版本基于 Electron Forge、Vite、React、Tailwind CSS 和 shadcn 构建，主要用于查看项目 Git 差异、浏览文件树、添加本地评论，并在当前项目中继续执行终端命令。
 
 ## 功能概览
 
@@ -12,6 +12,7 @@ Vibe Reviewer 是一个面向本地代码审查的桌面应用。当前版本基
 - 支持在 diff 行号处打开多个本地评论框。
 - 支持浅色、深色和跟随系统主题。
 - 支持 macOS 风格窗口布局和工作区 tab。
+- 支持在当前审查项目中创建多个内嵌终端，切换 tab 保留 Shell 状态，关闭 tab 回收进程。
 
 ## 技术栈
 
@@ -23,11 +24,13 @@ Vibe Reviewer 是一个面向本地代码审查的桌面应用。当前版本基
 - lucide-react：图标。
 - @pierre/diffs：Git diff 解析和 diff 内容渲染。
 - motion：界面动效。
+- node-pty：创建和管理真实 Shell 伪终端。
+- libghostty-vt：解析终端 VT 序列并生成终端画面。
 
 ## 环境要求
 
 - Node.js
-- npm
+- pnpm
 - Git
 - macOS 本地预览需要安装 Electron 运行所需环境。
 - “在 VS Code 中打开”功能需要安装 VS Code，并可使用 `code` 命令，或 macOS 已安装 Visual Studio Code 应用。
@@ -35,10 +38,10 @@ Vibe Reviewer 是一个面向本地代码审查的桌面应用。当前版本基
 ## 安装依赖
 
 ```bash
-npm install
+pnpm install
 ```
 
-项目中同时存在 `package-lock.json` 和 `pnpm-lock.yaml`，当前脚本以 `npm` 为准。如果后续统一到 pnpm，需要同步更新 README 和锁文件策略。
+项目使用 `pnpm-lock.yaml` 锁定依赖。脚本仍可通过 `npm run <script>` 执行，但新增或更新依赖时应使用 pnpm，避免锁文件漂移。
 
 ## 本地开发
 
@@ -111,8 +114,10 @@ src/
     review/                       审查工作区、工具栏、文件树和 diff 渲染
     session/                      会话列表
     settings/                     偏好设置
-    terminal/                     终端工作区占位
+    terminal/                     终端工作区、会话管理和 Ghostty VT 适配
     ui/                           shadcn 基础组件和项目通用 UI
+  assets/terminal/                固定版本的 libghostty-vt WASM 产物
+vendor/ghostty-vt/                Ghostty 来源、构建信息和第三方许可证
 ```
 
 ## Electron 通信
@@ -128,6 +133,8 @@ window.vibeReviewer
 - `review.runGitDiff`：执行 Git diff 并返回 diff 内容和文件快照。
 - `review.loadLocalBranches`：读取当前项目本地分支。
 - `review.openFileInVsCode`：在 VS Code 中打开文件。
+- `terminal.create/write/resize/destroy`：管理与当前窗口绑定的 PTY 会话。
+- `terminal.onData/onExit`：订阅 Shell 输出和退出状态。
 
 IPC 通道定义位于 `src/shared/ipcChannels.ts`，类型定义位于 `src/shared/electronApi.ts`。
 
@@ -145,6 +152,24 @@ ReviewWorkspace
 ```
 
 `@pierre/diffs` 负责 patch 解析和 diff 内容渲染。应用层继续保留文件树、文件头、右键菜单、本地评论、折叠、大 diff 单文件模式等外围能力。
+
+## 内嵌终端
+
+终端数据流如下：
+
+```text
+TerminalWorkspace
+  -> terminalSessionManager
+  -> window.vibeReviewer.terminal
+  -> Electron IPC
+  -> node-pty / 用户默认 Shell
+  -> Ghostty Worker / libghostty-vt WASM
+  -> 安全 HTML 终端画面
+```
+
+每个终端 tab 拥有独立 PTY 和 Ghostty 状态。切换 tab 时会话继续运行，后台输出由渲染进程的共享路由持续送入 Worker；关闭 tab 时同时释放 PTY 和 Ghostty 状态。
+
+`node-pty` 是原生模块，主进程 Vite 配置会将其 externalize，Electron Forge 使用 `AutoUnpackNativesPlugin` 将原生文件保留在 asar 外。Ghostty WASM 已作为固定构建产物提交，正常开发和打包不要求安装 Zig；来源与复现命令见 `vendor/ghostty-vt/README.md`。
 
 ## UI 组件
 

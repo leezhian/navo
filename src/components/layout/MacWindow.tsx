@@ -118,7 +118,7 @@ interface WindowWorkspaceTabsProps {
   hasReview: boolean;
   /** 审查页是否为当前展示的工作区。 */
   isReviewActive: boolean;
-  /** 已创建的终端页列表，当前版本只负责 tab 和占位页管理。 */
+  /** 已创建的终端页列表；此处负责 tab 交互，PTY 生命周期由终端会话管理器维护。 */
   terminalTabs: WindowTerminalTab[];
   /** 当前激活的终端页 id。 */
   activeTerminalId: string | null;
@@ -139,6 +139,8 @@ export interface WindowTerminalTab {
   id: string;
   /** 展示在顶部 tab 中的终端页名称。 */
   title: string;
+  /** 创建终端时使用的工作目录；Tab 切换期间保持不变。 */
+  cwd?: string;
 }
 
 export function WindowWorkspaceTabs({
@@ -194,6 +196,7 @@ function WindowTab({ active, title, onClose, onSelect }: WindowTabProps) {
     >
       <button
         className="min-w-0 truncate"
+        title={title}
         type="button"
         onClick={onSelect}
       >

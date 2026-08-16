@@ -18,6 +18,12 @@ import type {
   WindowFullScreenListener,
 } from "./shared/electronApi";
 import { ipcChannels } from "./shared/ipcChannels";
+import type {
+  CreateTerminalParams,
+  ResizeTerminalParams,
+  TerminalSessionParams,
+  WriteTerminalParams,
+} from "./shared/terminalTypes";
 
 const api: VibeReviewerApi = {
   app: {
@@ -104,6 +110,36 @@ const api: VibeReviewerApi = {
     },
     runFileAction(params: RunReviewFileActionParams) {
       return ipcRenderer.invoke(ipcChannels.reviewRunFileAction, params);
+    },
+  },
+  terminal: {
+    create(params: CreateTerminalParams) {
+      return ipcRenderer.invoke(ipcChannels.terminalCreate, params);
+    },
+    write(params: WriteTerminalParams) {
+      return ipcRenderer.invoke(ipcChannels.terminalWrite, params);
+    },
+    resize(params: ResizeTerminalParams) {
+      return ipcRenderer.invoke(ipcChannels.terminalResize, params);
+    },
+    destroy(params: TerminalSessionParams) {
+      return ipcRenderer.invoke(ipcChannels.terminalDestroy, params);
+    },
+    onData(listener) {
+      const handler = (_event: IpcRendererEvent, payload: Parameters<typeof listener>[0]) => {
+        listener(payload);
+      };
+
+      ipcRenderer.on(ipcChannels.terminalData, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.terminalData, handler);
+    },
+    onExit(listener) {
+      const handler = (_event: IpcRendererEvent, payload: Parameters<typeof listener>[0]) => {
+        listener(payload);
+      };
+
+      ipcRenderer.on(ipcChannels.terminalExit, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.terminalExit, handler);
     },
   },
   window: {

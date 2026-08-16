@@ -1,5 +1,13 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
 import type { AgentStatus, AgentType, CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
+import type {
+  CreateTerminalParams,
+  ResizeTerminalParams,
+  TerminalDataListener,
+  TerminalExitListener,
+  TerminalSessionParams,
+  WriteTerminalParams,
+} from "./terminalTypes";
 
 export interface GitCommandOutput {
   stdout: string;
@@ -153,6 +161,20 @@ export interface VibeReviewerApi {
     openFileInVsCode(params: OpenFileInVsCodeParams): Promise<void>;
     runBatchFileAction(params: RunReviewBatchFileActionParams): Promise<void>;
     runFileAction(params: RunReviewFileActionParams): Promise<void>;
+  };
+  terminal: {
+    /** 创建一个与窗口绑定的 PTY 会话。 */
+    create(params: CreateTerminalParams): Promise<void>;
+    /** 向指定 PTY 写入键盘或粘贴输入。 */
+    write(params: WriteTerminalParams): Promise<void>;
+    /** 更新指定 PTY 的列数和行数。 */
+    resize(params: ResizeTerminalParams): Promise<void>;
+    /** 销毁指定 PTY 会话并释放主进程资源。 */
+    destroy(params: TerminalSessionParams): Promise<void>;
+    /** 订阅 PTY 输出；返回取消订阅函数。 */
+    onData(listener: TerminalDataListener): () => void;
+    /** 订阅 Shell 退出事件；返回取消订阅函数。 */
+    onExit(listener: TerminalExitListener): () => void;
   };
   window: {
     /** 读取当前窗口是否处于 macOS 系统全屏。 */

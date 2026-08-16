@@ -22,6 +22,12 @@ export const ipcChannels = {
   reviewSetAgentIntegrationEnabled: "review:set-agent-integration-enabled",
   reviewUnwatchProject: "review:unwatch-project",
   reviewWatchProject: "review:watch-project",
+  terminalCreate: "terminal:create",
+  terminalData: "terminal:data",
+  terminalDestroy: "terminal:destroy",
+  terminalExit: "terminal:exit",
+  terminalResize: "terminal:resize",
+  terminalWrite: "terminal:write",
   windowFullScreenChanged: "window:full-screen-changed",
   windowGetIsFullScreen: "window:get-is-full-screen",
 } as const;

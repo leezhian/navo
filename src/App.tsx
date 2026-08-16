@@ -4,6 +4,7 @@ import { ReviewWorkspace } from "./components/review/ReviewWorkspace";
 import { SessionSidebar } from "./components/session/SessionSidebar";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { TerminalWorkspace } from "./components/terminal/TerminalWorkspace";
+import { destroyManagedTerminalSession } from "./components/terminal/terminalSessionManager";
 import { mergeLoadedSessions } from "./domain/reviewSessionMerge";
 import type { ReviewSession } from "./domain/types";
 import { useLocalSettings } from "./hooks/useLocalSettings";
@@ -36,7 +37,7 @@ function App() {
     activeWorkspace,
     addTerminalTab,
     closeReviewWorkspace,
-    closeTerminalTab,
+    closeTerminalTab: removeTerminalTab,
     hasWorkspaceTabs,
     isReviewActive,
     selectReviewWorkspace,
@@ -113,7 +114,12 @@ function App() {
 
   function openTerminalTab() {
     setShowSettings(false);
-    addTerminalTab();
+    addTerminalTab(selectedSession?.projectPath);
+  }
+
+  function closeTerminalTab(tabId: string) {
+    void destroyManagedTerminalSession(tabId);
+    removeTerminalTab(tabId);
   }
 
   function closeReviewTab() {
@@ -183,7 +189,11 @@ function App() {
 
           {!showSettings && activeTerminal && activeWorkspace === "terminal" && (
             <section className="min-h-0 min-w-0 flex-1 bg-background">
-              <TerminalWorkspace title={activeTerminal.title} />
+              <TerminalWorkspace
+                cwd={activeTerminal.cwd}
+                sessionId={activeTerminal.id}
+                title={activeTerminal.title}
+              />
             </section>
           )}
         </div>
