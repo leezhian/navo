@@ -13,14 +13,12 @@ import type {
   SetAgentIntegrationParams,
 } from "../../shared/electronApi";
 import { loadAgentIntegrationStatuses, setAgentIntegrationEnabled } from "../services/agentHookConfigService";
+import { commitChanges, getCommitStatus, pushCommits } from "../services/gitCommitService";
 import {
-  commitChanges,
-  getCommitStatus,
   getGitDiffSignature,
   getUntrackedFileCount,
   loadLocalBranches,
   openFileInVsCode,
-  pushCommits,
   runGitDiff,
   runReviewBatchFileAction,
   runReviewFileAction,

@@ -1,9 +1,8 @@
 import type { GhosttyTypeLayout, GhosttyWasmExports } from "./ghosttyVtTypes";
+import { TERMINAL_CELL_HEIGHT_PX, TERMINAL_CELL_WIDTH_PX } from "../terminalConstants";
 
 const GHOSTTY_SUCCESS = 0;
 const GHOSTTY_FORMATTER_FORMAT_HTML = 2;
-const CELL_WIDTH_PX = 8;
-const CELL_HEIGHT_PX = 16;
 
 /**
  * 对官方 WASM C API 做最小封装。
@@ -41,8 +40,8 @@ export class GhosttyVtSession {
       this.terminal,
       cols,
       rows,
-      CELL_WIDTH_PX,
-      CELL_HEIGHT_PX,
+      TERMINAL_CELL_WIDTH_PX,
+      TERMINAL_CELL_HEIGHT_PX,
     );
     if (result !== GHOSTTY_SUCCESS) {
       throw new Error(`Ghostty 终端调整尺寸失败，错误码：${result}`);

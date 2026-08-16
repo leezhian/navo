@@ -9,9 +9,8 @@ import {
   subscribeManagedTerminalStatus,
   writeManagedTerminalSession,
 } from "./terminalSessionManager";
+import { TERMINAL_CELL_HEIGHT_PX, TERMINAL_CELL_WIDTH_PX } from "./terminalConstants";
 
-const CELL_WIDTH_PX = 8;
-const CELL_HEIGHT_PX = 16;
 const DEFAULT_COLUMNS = 80;
 const DEFAULT_ROWS = 24;
 const MIN_COLUMNS = 2;
@@ -54,8 +53,8 @@ export function useTerminalSession({ sessionId, cwd }: UseTerminalSessionParams)
         return;
       }
 
-      const cols = getTerminalDimension(element.clientWidth, CELL_WIDTH_PX, MIN_COLUMNS, DEFAULT_COLUMNS);
-      const rows = getTerminalDimension(element.clientHeight, CELL_HEIGHT_PX, MIN_ROWS, DEFAULT_ROWS);
+      const cols = getTerminalDimension(element.clientWidth, TERMINAL_CELL_WIDTH_PX, MIN_COLUMNS, DEFAULT_COLUMNS);
+      const rows = getTerminalDimension(element.clientHeight, TERMINAL_CELL_HEIGHT_PX, MIN_ROWS, DEFAULT_ROWS);
       if (lastSize?.cols === cols && lastSize.rows === rows) {
         return;
       }

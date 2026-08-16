@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from "react";
+import { isApplePlatform } from "@/utils/platform";
 
 const SPECIAL_KEYS: Record<string, string> = {
   ArrowDown: "\u001b[B",
@@ -32,6 +33,17 @@ export function encodeTerminalKey(event: KeyboardEvent): string | null {
   const specialKey = SPECIAL_KEYS[event.key];
   if (specialKey && !event.ctrlKey && !event.metaKey) {
     return specialKey;
+  }
+
+  // Windows/Linux 的粘贴快捷键交给浏览器触发 paste 事件；macOS 仍保留 Ctrl+V 控制字符语义。
+  if (
+    !isApplePlatform()
+    && event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+    && event.key.toLowerCase() === "v"
+  ) {
+    return null;
   }
 
   if (event.ctrlKey && !event.metaKey && event.key.length === 1) {
