@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, CloudUpload, GitCommitHorizontal, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog } from "@/components/ui/dialog";
+import { getCommitStatusCapabilities } from "@/domain/commitStatus";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { useGitCommitStatus } from "@/hooks/useGitCommitStatus";
 import { pushGitCommits } from "@/services/reviewApi";
@@ -24,15 +25,19 @@ interface CommitButtonGroupProps {
  * 无改动但有未推送提交时变为直接推送；两者皆无则置灰。
  */
 export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
-  const { status, refresh } = useGitCommitStatus(projectPath);
+  const { status, refresh, error: statusError } = useGitCommitStatus(projectPath);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [directPushError, setDirectPushError] = useState<string | null>(null);
 
-  const hasLocalChanges = status !== null && status.stagedFileCount + status.unstagedFileCount > 0;
-  const canPush = status !== null && status.aheadCount > 0 && !status.isDetached;
+  const { hasLocalChanges, canPush, hasAvailableAction } = getCommitStatusCapabilities(status);
   const showPushMode = !hasLocalChanges && canPush;
-  const hasAvailableAction = hasLocalChanges || canPush;
+
+  useEffect(() => {
+    if (statusError) {
+      setIsDialogOpen(false);
+    }
+  }, [statusError]);
 
   function openDialog() {
     setDirectPushError(null);
@@ -40,6 +45,10 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
   }
 
   async function pushDirectly() {
+    if (!canPush || isPushing) {
+      return;
+    }
+
     setIsPushing(true);
 
     try {
@@ -60,8 +69,8 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
       <ButtonGroup>
         {showPushMode ? (
           <IconTooltip
-            disabled={isPushing}
-            label={`推送 ${status?.aheadCount ?? 0} 个未推送提交`}
+            disabled={isPushing || statusError !== null}
+            label={statusError ? "无法读取 Git 状态" : `推送 ${status?.aheadCount ?? 0} 个未推送提交`}
             variant="outline"
             onClick={() => {
               void pushDirectly();
@@ -70,7 +79,12 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
             {isPushing ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4" />}
           </IconTooltip>
         ) : (
-          <IconTooltip disabled={!hasLocalChanges} label="提交更改" variant="outline" onClick={openDialog}>
+          <IconTooltip
+            disabled={!hasLocalChanges || statusError !== null}
+            label={statusError ? "无法读取 Git 状态" : "提交更改"}
+            variant="outline"
+            onClick={openDialog}
+          >
             <GitCommitHorizontal className="size-4" />
           </IconTooltip>
         )}
@@ -79,6 +93,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
             <Button
               aria-label="更多提交操作"
               className="w-5 text-muted-foreground hover:text-foreground"
+              disabled={!hasAvailableAction || isPushing || statusError !== null}
               size="icon-sm"
               type="button"
               variant="outline"

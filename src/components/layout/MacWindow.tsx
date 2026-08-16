@@ -4,6 +4,7 @@ import { useWindowFullScreen } from "@/hooks/useWindowFullScreen";
 import { PanelLeftClose, PanelLeftOpen, Plus, X } from "lucide-react";
 import { motion } from "motion/react";
 import classNames from "classnames";
+import { isApplePlatform } from "@/utils/platform";
 import {
   FULL_SCREEN_SIDEBAR_TOGGLE_OFFSET,
   FULL_SCREEN_WINDOW_CONTROLS_WIDTH,
@@ -223,10 +224,6 @@ function isSidebarShortcut(event: KeyboardEvent) {
 
 function getSidebarShortcutLabel() {
   return isApplePlatform() ? "⌘B" : "Ctrl+B";
-}
-
-function isApplePlatform() {
-  return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 
 function isEditableTarget(target: EventTarget | null) {

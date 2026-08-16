@@ -53,7 +53,7 @@ export interface GitCommitStatus {
   branchName: string;
   isDetached: boolean;
   hasUpstream: boolean;
-  /** 领先 upstream 的未推送提交数；无 upstream 时为 0。 */
+  /** 可推送的本地提交数；有 upstream 时为领先数，无 upstream 时为当前分支提交总数。 */
   aheadCount: number;
   stagedFileCount: number;
   /** 未暂存文件数，含未跟踪与冲突文件。 */

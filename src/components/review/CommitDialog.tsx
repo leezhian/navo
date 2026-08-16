@@ -4,11 +4,15 @@ import { CloudUpload, GitBranch, GitCommitHorizontal, Loader2 } from "lucide-rea
 import classNames from "classnames";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { getCommitStatusCapabilities } from "@/domain/commitStatus";
 import { Separator } from "@/components/ui/separator";
 import type { GitCommitStatus } from "@/shared/electronApi";
 import { commitGitChanges, pushGitCommits } from "@/services/reviewApi";
+import { isApplePlatform } from "@/utils/platform";
 
 type CommitAction = "commit" | "commitAndPush" | "push";
+
+const COMMIT_ACTION_ORDER: CommitAction[] = ["commit", "commitAndPush", "push"];
 
 interface CommitDialogProps {
   /** Git 操作作用的项目根路径。 */
@@ -24,24 +28,39 @@ interface CommitDialogProps {
 }
 
 export function CommitDialog({ projectPath, status, externalError, onStatusChanged, onClose }: CommitDialogProps) {
-  const hasLocalChanges = status.stagedFileCount + status.unstagedFileCount > 0;
+  const { hasStagedChanges, hasUnstagedChanges, hasLocalChanges, canPush } = getCommitStatusCapabilities(status);
+  const usesAppleShortcut = isApplePlatform();
+  const actionShortcutLabel = usesAppleShortcut ? "⌘↵" : "Ctrl+Enter";
   const [message, setMessage] = useState("");
   const [includeUnstaged, setIncludeUnstaged] = useState(true);
-  // 当前高亮动作行：⌘↩ 的触发目标，hover 可用行时跟随移动。
-  const [activeAction, setActiveAction] = useState<CommitAction>(hasLocalChanges ? "commitAndPush" : "push");
+  // 当前高亮动作行：⌘↩ 或 Ctrl+Enter 的触发目标，默认优先选择普通提交。
+  const [activeAction, setActiveAction] = useState<CommitAction>(hasLocalChanges ? "commit" : "push");
   const [pendingAction, setPendingAction] = useState<CommitAction | null>(null);
   const [error, setError] = useState<string | null>(externalError);
 
-  const hasCommitScope = status.stagedFileCount > 0 || (includeUnstaged && status.unstagedFileCount > 0);
-  const canCommit = message.trim().length > 0 && hasCommitScope && pendingAction === null;
+  const hasCommitMessage = message.trim().length > 0 && pendingAction === null;
+  // 普通提交允许在没有 staged 文件时提交全部本地改动；提交并推送则要求存在可控的 staged 范围。
+  const hasCommitScope = hasStagedChanges || (includeUnstaged && hasUnstagedChanges);
+  const commitIncludesUnstaged = includeUnstaged || !hasStagedChanges;
   const isActionEnabled: Record<CommitAction, boolean> = {
-    commit: hasLocalChanges && canCommit,
-    commitAndPush: hasLocalChanges && canCommit && !status.isDetached,
-    push: status.aheadCount > 0 && !status.isDetached && pendingAction === null,
+    commit: hasLocalChanges && hasCommitMessage,
+    commitAndPush: hasCommitScope && hasCommitMessage && !status.isDetached,
+    push: canPush && pendingAction === null,
   };
-  // 增删统计随「包含未暂存」勾选联动，口径为已跟踪文件。
-  const additions = status.stagedAdditions + (includeUnstaged ? status.unstagedAdditions : 0);
-  const deletions = status.stagedDeletions + (includeUnstaged ? status.unstagedDeletions : 0);
+  // 增删统计跟随普通提交最终纳入的范围，口径为已跟踪文件。
+  const additions = status.stagedAdditions + (commitIncludesUnstaged ? status.unstagedAdditions : 0);
+  const deletions = status.stagedDeletions + (commitIncludesUnstaged ? status.unstagedDeletions : 0);
+
+  function moveActiveAction(direction: "up" | "down") {
+    const nextAction = getAdjacentEnabledAction(activeAction, direction, isActionEnabled);
+
+    if (nextAction === null || nextAction === activeAction) {
+      return false;
+    }
+
+    setActiveAction(nextAction);
+    return true;
+  }
 
   useEffect(() => {
     setActiveAction((currentAction) => {
@@ -49,9 +68,17 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
         return "push";
       }
 
-      return currentAction === "push" ? "commitAndPush" : currentAction;
+      if (currentAction === "commitAndPush" && (!hasCommitScope || status.isDetached)) {
+        return "commit";
+      }
+
+      if (currentAction === "push" && !canPush) {
+        return "commit";
+      }
+
+      return currentAction;
     });
-  }, [hasLocalChanges]);
+  }, [canPush, hasCommitScope, hasLocalChanges, status.isDetached]);
 
   async function runAction(action: CommitAction) {
     if (!isActionEnabled[action]) {
@@ -63,7 +90,8 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
 
     try {
       if (action !== "push") {
-        await commitGitChanges(projectPath, message.trim(), includeUnstaged);
+        // 没有 staged 文件且仅选择普通提交时，先纳入工作区改动，保证按钮可用且提交能成功执行。
+        await commitGitChanges(projectPath, message.trim(), commitIncludesUnstaged);
       }
       if (action !== "commit") {
         await pushGitCommits(projectPath);
@@ -83,10 +111,31 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
       className="w-96 gap-0 p-0"
       showCloseButton={false}
       onKeyDown={(keyboardEvent) => {
-        // ⌘↩ 等价于点击当前高亮动作行（输入框聚焦时同样生效）。
-        if (keyboardEvent.metaKey && keyboardEvent.key === "Enter") {
+        // macOS 使用 ⌘↩，Windows/Linux 使用 Ctrl+Enter，均执行当前高亮动作。
+        const hasPrimaryModifier = usesAppleShortcut
+          ? keyboardEvent.metaKey && !keyboardEvent.ctrlKey
+          : keyboardEvent.ctrlKey && !keyboardEvent.metaKey;
+
+        if (hasPrimaryModifier && !keyboardEvent.altKey && !keyboardEvent.shiftKey && keyboardEvent.key === "Enter") {
           keyboardEvent.preventDefault();
           void runAction(activeAction);
+          return;
+        }
+
+        // 输入框聚焦时，上下键用于选择动作；没有可切换动作时保留文本框默认行为。
+        if (
+          keyboardEvent.target instanceof HTMLTextAreaElement &&
+          !keyboardEvent.metaKey &&
+          !keyboardEvent.ctrlKey &&
+          !keyboardEvent.altKey &&
+          !keyboardEvent.shiftKey &&
+          (keyboardEvent.key === "ArrowUp" || keyboardEvent.key === "ArrowDown")
+        ) {
+          const direction = keyboardEvent.key === "ArrowUp" ? "up" : "down";
+
+          if (moveActiveAction(direction)) {
+            keyboardEvent.preventDefault();
+          }
         }
       }}
     >
@@ -116,7 +165,14 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
               <Checkbox
                 checked={includeUnstaged}
                 disabled={status.unstagedFileCount === 0}
-                onCheckedChange={(checked) => setIncludeUnstaged(checked === true)}
+                onCheckedChange={(checked) => {
+                  const nextIncludeUnstaged = checked === true;
+                  setIncludeUnstaged(nextIncludeUnstaged);
+
+                  if (!nextIncludeUnstaged && !hasStagedChanges) {
+                    setActiveAction("commit");
+                  }
+                }}
               />
               <span className="truncate">包含未暂存的更改</span>
             </label>
@@ -136,6 +192,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           icon={<GitCommitHorizontal className="size-4" />}
           label="提交"
           pending={pendingAction === "commit"}
+          shortcutLabel={actionShortcutLabel}
           onHover={() => setActiveAction("commit")}
           onSelect={() => void runAction("commit")}
         />
@@ -145,6 +202,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           icon={<CloudUpload className="size-4" />}
           label="提交并推送"
           pending={pendingAction === "commitAndPush"}
+          shortcutLabel={actionShortcutLabel}
           onHover={() => setActiveAction("commitAndPush")}
           onSelect={() => void runAction("commitAndPush")}
         />
@@ -154,6 +212,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           icon={<CloudUpload className="size-4" />}
           label="推送"
           pending={pendingAction === "push"}
+          shortcutLabel={actionShortcutLabel}
           onHover={() => setActiveAction("push")}
           onSelect={() => void runAction("push")}
         />
@@ -162,20 +221,59 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
   );
 }
 
+/**
+ * 按动作顺序寻找下一个可用项，越过禁用动作并在列表两端循环。
+ * 返回 null 表示当前状态没有任何可切换的动作。
+ */
+function getAdjacentEnabledAction(
+  currentAction: CommitAction,
+  direction: "up" | "down",
+  enabledActions: Record<CommitAction, boolean>,
+): CommitAction | null {
+  const currentIndex = COMMIT_ACTION_ORDER.indexOf(currentAction);
+  const step = direction === "up" ? -1 : 1;
+
+  for (let offset = 1; offset <= COMMIT_ACTION_ORDER.length; offset += 1) {
+    const nextIndex =
+      (currentIndex + step * offset + COMMIT_ACTION_ORDER.length) % COMMIT_ACTION_ORDER.length;
+    const nextAction = COMMIT_ACTION_ORDER[nextIndex];
+
+    if (enabledActions[nextAction]) {
+      return nextAction;
+    }
+  }
+
+  return null;
+}
+
 interface CommitActionRowProps {
-  /** 是否为当前高亮行（⌘↩ 的触发目标），高亮时展示快捷键角标。 */
+  /** 是否为当前高亮行（⌘↩ 或 Ctrl+Enter 的触发目标），高亮时展示快捷键角标。 */
   active: boolean;
+  /** 当前动作是否不可执行。 */
   disabled: boolean;
+  /** 动作图标。 */
   icon: ReactNode;
+  /** 动作名称。 */
   label: string;
   /** 执行中以 loading 图标替换动作图标。 */
   pending: boolean;
+  /** 当前系统对应的执行快捷键文案。 */
+  shortcutLabel: string;
   /** hover 到可用行时将其设为高亮行。 */
   onHover: () => void;
   onSelect: () => void;
 }
 
-function CommitActionRow({ active, disabled, icon, label, pending, onHover, onSelect }: CommitActionRowProps) {
+function CommitActionRow({
+  active,
+  disabled,
+  icon,
+  label,
+  pending,
+  shortcutLabel,
+  onHover,
+  onSelect,
+}: CommitActionRowProps) {
   return (
     <button
       className={classNames(
@@ -195,7 +293,9 @@ function CommitActionRow({ active, disabled, icon, label, pending, onHover, onSe
       {pending ? <Loader2 className="size-4 animate-spin" /> : icon}
       <span className="flex-1">{label}</span>
       {active && !disabled && (
-        <span className="rounded-sm border px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">⌘↵</span>
+        <span className="rounded-sm border px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+          {shortcutLabel}
+        </span>
       )}
     </button>
   );

@@ -172,7 +172,7 @@ function createBatchFileActionArgs(action: RunReviewBatchFileActionParams["actio
   return argsByAction[action];
 }
 
-/** 读取提交面板所需的 Git 状态：一条 porcelain v2 拿分支/暂存/未推送，两条 shortstat 拿增删行数。 */
+/** 读取提交面板所需的 Git 状态：porcelain v2 拿分支/暂存，shortstat 拿增删行数，无 upstream 时补读本地提交数。 */
 export async function getCommitStatus(projectPath: string): Promise<GitCommitStatus> {
   const [statusOutput, stagedStatOutput, unstagedStatOutput] = await Promise.all([
     runGit(projectPath, ["status", "--porcelain=v2", "--branch"]),
@@ -182,14 +182,30 @@ export async function getCommitStatus(projectPath: string): Promise<GitCommitSta
 
   const stagedStat = parseShortstat(stagedStatOutput.stdout);
   const unstagedStat = parseShortstat(unstagedStatOutput.stdout);
+  const parsedStatus = parsePorcelainStatus(statusOutput.stdout);
+  // 没有 upstream 时 branch.ab 不存在，用当前分支提交数作为首次推送候选数。
+  const aheadCount = parsedStatus.hasUpstream
+    ? parsedStatus.aheadCount
+    : await getLocalCommitCount(projectPath);
 
   return {
-    ...parsePorcelainStatus(statusOutput.stdout),
+    ...parsedStatus,
+    aheadCount,
     stagedAdditions: stagedStat.additions,
     stagedDeletions: stagedStat.deletions,
     unstagedAdditions: unstagedStat.additions,
     unstagedDeletions: unstagedStat.deletions,
   };
+}
+
+async function getLocalCommitCount(projectPath: string): Promise<number> {
+  try {
+    const output = await runGit(projectPath, ["rev-list", "--count", "HEAD"]);
+    return Number(output.stdout.trim()) || 0;
+  } catch {
+    // 空仓库没有 HEAD，不能视为存在可推送提交。
+    return 0;
+  }
 }
 
 export async function commitChanges({ projectPath, message, includeUnstaged }: CommitChangesParams): Promise<void> {
