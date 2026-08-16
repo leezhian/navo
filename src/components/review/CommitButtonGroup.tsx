@@ -32,6 +32,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
   const hasLocalChanges = status !== null && status.stagedFileCount + status.unstagedFileCount > 0;
   const canPush = status !== null && status.aheadCount > 0 && !status.isDetached;
   const showPushMode = !hasLocalChanges && canPush;
+  const hasAvailableAction = hasLocalChanges || canPush;
 
   function openDialog() {
     setDirectPushError(null);
@@ -86,20 +87,10 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled={!hasLocalChanges} onSelect={openDialog}>
-              <GitCommitHorizontal className="size-4" />
-              提交更改…
+            <DropdownMenuItem disabled={!hasAvailableAction} onSelect={openDialog}>
+              {showPushMode ? <CloudUpload className="size-4" /> : <GitCommitHorizontal className="size-4" />}
+              提交或推送
             </DropdownMenuItem>
-            {canPush && (
-              <DropdownMenuItem
-                onSelect={() => {
-                  void pushDirectly();
-                }}
-              >
-                <CloudUpload className="size-4" />
-                推送
-              </DropdownMenuItem>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </ButtonGroup>

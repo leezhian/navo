@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { CloudUpload, GitBranch, GitCommitHorizontal, Loader2 } from "lucide-react";
 import classNames from "classnames";
@@ -24,23 +24,34 @@ interface CommitDialogProps {
 }
 
 export function CommitDialog({ projectPath, status, externalError, onStatusChanged, onClose }: CommitDialogProps) {
+  const hasLocalChanges = status.stagedFileCount + status.unstagedFileCount > 0;
   const [message, setMessage] = useState("");
   const [includeUnstaged, setIncludeUnstaged] = useState(true);
   // 当前高亮动作行：⌘↩ 的触发目标，hover 可用行时跟随移动。
-  const [activeAction, setActiveAction] = useState<CommitAction>("commitAndPush");
+  const [activeAction, setActiveAction] = useState<CommitAction>(hasLocalChanges ? "commitAndPush" : "push");
   const [pendingAction, setPendingAction] = useState<CommitAction | null>(null);
   const [error, setError] = useState<string | null>(externalError);
 
   const hasCommitScope = status.stagedFileCount > 0 || (includeUnstaged && status.unstagedFileCount > 0);
   const canCommit = message.trim().length > 0 && hasCommitScope && pendingAction === null;
   const isActionEnabled: Record<CommitAction, boolean> = {
-    commit: canCommit,
-    commitAndPush: canCommit && !status.isDetached,
+    commit: hasLocalChanges && canCommit,
+    commitAndPush: hasLocalChanges && canCommit && !status.isDetached,
     push: status.aheadCount > 0 && !status.isDetached && pendingAction === null,
   };
   // 增删统计随「包含未暂存」勾选联动，口径为已跟踪文件。
   const additions = status.stagedAdditions + (includeUnstaged ? status.unstagedAdditions : 0);
   const deletions = status.stagedDeletions + (includeUnstaged ? status.unstagedDeletions : 0);
+
+  useEffect(() => {
+    setActiveAction((currentAction) => {
+      if (!hasLocalChanges) {
+        return "push";
+      }
+
+      return currentAction === "push" ? "commitAndPush" : currentAction;
+    });
+  }, [hasLocalChanges]);
 
   async function runAction(action: CommitAction) {
     if (!isActionEnabled[action]) {
@@ -81,32 +92,41 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
     >
       {/* Radix Dialog 要求提供标题；视觉上分支行已承担标题职责，故仅保留无障碍标题。 */}
       <DialogTitle className="sr-only">提交更改</DialogTitle>
-      <div className="flex items-center justify-between gap-3 px-4 pt-3.5 text-sm">
-        <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-          <GitBranch className="size-4 shrink-0" />
-          <span className="truncate">{status.branchName}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-xs">
-          {additions > 0 && <span className="text-green-600 dark:text-green-400">+{additions}</span>}
-          {deletions > 0 && <span className="text-red-600 dark:text-red-400">-{deletions}</span>}
-        </span>
+      <div
+        className={classNames(
+          "flex items-center gap-2 px-4 pt-3.5 text-sm text-muted-foreground",
+          !hasLocalChanges && "pb-3.5",
+        )}
+      >
+        <GitBranch className="size-4 shrink-0" />
+        <span className="truncate">{status.branchName}</span>
       </div>
-      <textarea
-        autoFocus
-        className="min-h-20 w-full resize-none bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/50"
-        placeholder="提交信息"
-        rows={3}
-        value={message}
-        onChange={(changeEvent) => setMessage(changeEvent.target.value)}
-      />
-      <label className="flex w-fit cursor-pointer items-center gap-2 px-4 pb-3.5 text-sm">
-        <Checkbox
-          checked={includeUnstaged}
-          disabled={status.unstagedFileCount === 0}
-          onCheckedChange={(checked) => setIncludeUnstaged(checked === true)}
-        />
-        包含未暂存的更改
-      </label>
+      {hasLocalChanges && (
+        <>
+          <textarea
+            autoFocus
+            className="min-h-20 w-full resize-none bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/50"
+            placeholder="提交信息"
+            rows={3}
+            value={message}
+            onChange={(changeEvent) => setMessage(changeEvent.target.value)}
+          />
+          <div className="flex items-center justify-between gap-3 px-4 pb-3.5 text-sm">
+            <label className="flex min-w-0 cursor-pointer items-center gap-2">
+              <Checkbox
+                checked={includeUnstaged}
+                disabled={status.unstagedFileCount === 0}
+                onCheckedChange={(checked) => setIncludeUnstaged(checked === true)}
+              />
+              <span className="truncate">包含未暂存的更改</span>
+            </label>
+            <span className="flex shrink-0 items-center gap-1.5 text-xs">
+              {additions > 0 && <span className="text-green-600 dark:text-green-400">+{additions}</span>}
+              {deletions > 0 && <span className="text-red-600 dark:text-red-400">-{deletions}</span>}
+            </span>
+          </div>
+        </>
+      )}
       {error && <p className="px-4 pb-3 text-xs break-all text-destructive">{error}</p>}
       <Separator />
       <div className="p-1.5">
