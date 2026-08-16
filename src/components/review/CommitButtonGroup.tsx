@@ -27,6 +27,7 @@ interface CommitButtonGroupProps {
 export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
   const { status, refresh, error: statusError } = useGitCommitStatus(projectPath);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isOpeningDialog, setIsOpeningDialog] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [directPushError, setDirectPushError] = useState<string | null>(null);
 
@@ -39,9 +40,24 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
     }
   }, [statusError]);
 
-  function openDialog() {
-    setDirectPushError(null);
-    setIsDialogOpen(true);
+  async function openDialog(dialogError: string | null = null) {
+    if (isOpeningDialog || statusError) {
+      return;
+    }
+
+    setDirectPushError(dialogError);
+    setIsOpeningDialog(true);
+
+    try {
+      // 点击入口时再读一次真实 Git 状态，避免弹窗沿用按钮渲染时的旧快照。
+      const latestStatus = await refresh();
+
+      if (latestStatus && getCommitStatusCapabilities(latestStatus).hasAvailableAction) {
+        setIsDialogOpen(true);
+      }
+    } finally {
+      setIsOpeningDialog(false);
+    }
   }
 
   async function pushDirectly() {
@@ -56,8 +72,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
       setDirectPushError(null);
     } catch (error) {
       // 直接推送失败时打开弹窗展示错误，错误提示有唯一的家。
-      setDirectPushError(error instanceof Error ? error.message : String(error));
-      setIsDialogOpen(true);
+      await openDialog(error instanceof Error ? error.message : String(error));
     } finally {
       setIsPushing(false);
       refresh();
@@ -69,7 +84,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
       <ButtonGroup>
         {showPushMode ? (
           <IconTooltip
-            disabled={isPushing || statusError !== null}
+            disabled={isPushing || isOpeningDialog || statusError !== null}
             label={statusError ? "无法读取 Git 状态" : `推送 ${status?.aheadCount ?? 0} 个未推送提交`}
             variant="outline"
             onClick={() => {
@@ -80,12 +95,14 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
           </IconTooltip>
         ) : (
           <IconTooltip
-            disabled={!hasLocalChanges || statusError !== null}
+            disabled={!hasLocalChanges || isOpeningDialog || statusError !== null}
             label={statusError ? "无法读取 Git 状态" : "提交更改"}
             variant="outline"
-            onClick={openDialog}
+            onClick={() => {
+              void openDialog();
+            }}
           >
-            <GitCommitHorizontal className="size-4" />
+            {isOpeningDialog ? <Loader2 className="size-4 animate-spin" /> : <GitCommitHorizontal className="size-4" />}
           </IconTooltip>
         )}
         <DropdownMenu>
@@ -93,7 +110,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
             <Button
               aria-label="更多提交操作"
               className="w-5 text-muted-foreground hover:text-foreground"
-              disabled={!hasAvailableAction || isPushing || statusError !== null}
+              disabled={!hasAvailableAction || isPushing || isOpeningDialog || statusError !== null}
               size="icon-sm"
               type="button"
               variant="outline"
@@ -102,7 +119,12 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled={!hasAvailableAction} onSelect={openDialog}>
+            <DropdownMenuItem
+              disabled={!hasAvailableAction || isOpeningDialog}
+              onSelect={() => {
+                void openDialog();
+              }}
+            >
               {showPushMode ? <CloudUpload className="size-4" /> : <GitCommitHorizontal className="size-4" />}
               提交或推送
             </DropdownMenuItem>

@@ -1,5 +1,5 @@
 import { BrowserWindow } from "electron";
-import { watch, type FSWatcher } from "node:fs";
+import { readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import path from "node:path";
 import { ipcChannels } from "../../shared/ipcChannels";
 
@@ -14,6 +14,23 @@ const IGNORED_PATH_SEGMENTS = ["/node_modules/", "/.git/objects/", "/.git/logs/"
 
 const IGNORED_BASENAME_SUFFIXES = [".swp", ".swo", "~"];
 const IGNORED_BASENAMES = new Set([".ds_store", "thumbs.db"]);
+/**
+ * 需要刷新提交状态的 Git 根目录文件。
+ * objects/logs 等目录会产生大量事件，但不会直接改变提交按钮的可用性，因此不监听。
+ */
+const GIT_METADATA_FILE_NAMES = new Set([
+  "head",
+  "commit_editmsg",
+  "fetch_head",
+  "orig_head",
+  "merge_head",
+  "cherry_pick_head",
+  "revert_head",
+  "index",
+  "packed-refs",
+  "config",
+  "shallow",
+]);
 
 interface ProjectWatchEntry {
   refCount: number;
@@ -56,12 +73,9 @@ export function watchProject(projectPath: string): void {
     }),
   );
 
-  // staged / 提交 / 切分支等不会改工作区文件，但会改 Git 元数据。
-  addWatcher(createWatcher(path.join(normalizedPath, ".git", "index"), {}, () => scheduleProjectChanged(normalizedPath)));
-  addWatcher(createWatcher(path.join(normalizedPath, ".git", "HEAD"), {}, () => scheduleProjectChanged(normalizedPath)));
-  addWatcher(
-    createWatcher(path.join(normalizedPath, ".git", "refs"), { recursive: true }, () => scheduleProjectChanged(normalizedPath)),
-  );
+  // staged / 提交 / 推送 / 切分支等不会改工作区文件，但会改 Git 元数据。
+  // 监听 Git 根目录而不是只监听单个文件，兼容 Git 用临时文件原子替换 index/HEAD 的写入方式。
+  addGitMetadataWatchers(normalizedPath, addWatcher, () => scheduleProjectChanged(normalizedPath));
 
   projectWatchEntries.set(normalizedPath, {
     refCount: 1,
@@ -111,6 +125,94 @@ function createWatcher(
     // 非 git 仓库或缺文件时静默跳过，避免阻断审查页。
     return null;
   }
+}
+
+function addGitMetadataWatchers(
+  projectPath: string,
+  addWatcher: (watcher: FSWatcher | null) => void,
+  onChange: () => void,
+) {
+  const gitPath = path.join(projectPath, ".git");
+  const gitMetadataDirectories = resolveGitMetadataDirectories(projectPath);
+  const isGitFile = isRegularFile(gitPath);
+
+  // linked worktree 的 .git 是一个指向实际 gitdir 的文件，本身被替换时需要重新读取路径。
+  if (isGitFile) {
+    addWatcher(createWatcher(gitPath, {}, onChange));
+  }
+
+  for (const gitDirectory of gitMetadataDirectories) {
+    addWatcher(
+      createWatcher(gitDirectory, {}, (relativePath) => {
+        if (relativePath == null || isRelevantGitMetadataPath(relativePath)) {
+          onChange();
+        }
+      }),
+    );
+    addWatcher(createWatcher(path.join(gitDirectory, "refs"), { recursive: true }, onChange));
+  }
+}
+
+/**
+ * 解析普通仓库与 linked worktree 的实际 gitdir。
+ * linked worktree 的 refs 通常位于 commondir，HEAD/index 则位于 worktree 专属目录。
+ */
+function resolveGitMetadataDirectories(projectPath: string): string[] {
+  const gitPath = path.join(projectPath, ".git");
+
+  try {
+    if (statSync(gitPath).isDirectory()) {
+      return [gitPath];
+    }
+
+    if (!statSync(gitPath).isFile()) {
+      return [];
+    }
+
+    const gitFileContent = readFileSync(gitPath, "utf8").trim();
+    const gitDirectoryValue = /^gitdir:\s*(.+)$/i.exec(gitFileContent)?.[1];
+
+    if (!gitDirectoryValue) {
+      return [];
+    }
+
+    const worktreeGitDirectory = path.resolve(projectPath, gitDirectoryValue);
+    const directories = [worktreeGitDirectory];
+    const commonDirectoryFile = path.join(worktreeGitDirectory, "commondir");
+
+    try {
+      const commonDirectoryValue = readFileSync(commonDirectoryFile, "utf8").trim();
+
+      if (commonDirectoryValue) {
+        directories.push(path.resolve(worktreeGitDirectory, commonDirectoryValue));
+      }
+    } catch {
+      // 普通 gitdir 没有 commondir 时只需要监听自身目录。
+    }
+
+    return [...new Set(directories)];
+  } catch {
+    // 项目尚未初始化 Git 时不阻断工作区文件监听。
+    return [];
+  }
+}
+
+function isRegularFile(filePath: string) {
+  try {
+    return statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function isRelevantGitMetadataPath(relativePath: string) {
+  const normalizedPath = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+
+  if (normalizedPath === "refs" || normalizedPath.startsWith("refs/")) {
+    return true;
+  }
+
+  return GIT_METADATA_FILE_NAMES.has(normalizedPath.toLowerCase());
 }
 
 function scheduleProjectChanged(projectPath: string) {

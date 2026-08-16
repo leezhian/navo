@@ -162,9 +162,9 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           />
           <div className="flex items-center justify-between gap-3 px-4 pb-3.5 text-sm">
             <label className="flex min-w-0 cursor-pointer items-center gap-2">
+              {/* 这是提交范围开关，不代表当前是否存在未暂存文件，因此始终允许切换。 */}
               <Checkbox
                 checked={includeUnstaged}
-                disabled={status.unstagedFileCount === 0}
                 onCheckedChange={(checked) => {
                   const nextIncludeUnstaged = checked === true;
                   setIncludeUnstaged(nextIncludeUnstaged);
