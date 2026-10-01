@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -31,6 +32,7 @@ interface LocalCommentBoxProps {
 }
 
 export function LocalCommentBox({ lineLabel, onCancel, onModeChange, onSaveBody }: LocalCommentBoxProps) {
+  const { t: translate } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<LocalCommentMode>("draft");
   const [draftText, setDraftText] = useState("");
@@ -84,16 +86,16 @@ export function LocalCommentBox({ lineLabel, onCancel, onModeChange, onSaveBody 
             <span className="inline-flex size-6 items-center justify-center rounded-full bg-muted">
               <MessageCircle className="size-3" />
             </span>
-            <span>本地评论</span>
+            <span>{translate("本地评论")}</span>
           </div>
           <span className="shrink-0 font-sans text-xs text-muted-foreground">
-            对第 {lineLabel} 行发表评论
+            {translate("对第 {{line}} 行发表评论", { line: lineLabel })}
           </span>
         </div>
         <textarea
           ref={textareaRef}
           className="min-h-9 w-full resize-none overflow-hidden bg-transparent px-4 py-2 font-sans text-sm outline-none placeholder:text-muted-foreground/60"
-          placeholder="请求更改"
+          placeholder={translate("请求更改")}
           rows={1}
           value={draftText}
           onChange={(event) => setDraftText(event.target.value)}
@@ -135,12 +137,12 @@ interface LocalCommentActionsProps {
 }
 
 function LocalCommentActions({ canSave, mode, onCancel, onDelete, onSave }: LocalCommentActionsProps) {
+  const { t: translate } = useTranslation();
   if (mode === "saved") {
     return (
       <div className="flex justify-end px-4 pb-3">
         <Button className="font-normal text-muted-foreground" size="sm" type="button" variant="ghost" onClick={onDelete}>
-          删除
-        </Button>
+          {translate("删除")}</Button>
       </div>
     );
   }
@@ -149,17 +151,15 @@ function LocalCommentActions({ canSave, mode, onCancel, onDelete, onSave }: Loca
     <div className="flex justify-between gap-2 px-4 pb-3">
       {mode === "editing" ? (
         <Button className="font-normal" size="sm" type="button" variant="destructive" onClick={onDelete}>
-          删除
-        </Button>
+          {translate("删除")}</Button>
       ) : (
         <span />
       )}
       <span className="flex gap-2">
         <Button className="font-normal text-muted-foreground" size="sm" type="button" variant="ghost" onClick={onCancel}>
-          取消
-        </Button>
+          {translate("取消")}</Button>
         <Button className="font-normal" disabled={!canSave} size="sm" type="button" onClick={onSave}>
-          {mode === "editing" ? "保存" : "注释"}
+          {mode === "editing" ? translate("保存") : translate("注释")}
         </Button>
       </span>
     </div>
@@ -172,9 +172,10 @@ interface LocalCommentButtonProps {
 }
 
 export function LocalCommentButton({ onClick }: LocalCommentButtonProps) {
+  const { t: translate } = useTranslation();
   return (
     <button
-      aria-label="添加本地评论"
+      aria-label={translate("添加本地评论")}
       className="relative z-30 flex size-[1lh] items-center justify-center rounded bg-foreground text-background shadow-sm hover:bg-foreground/90"
       type="button"
       onClick={(event) => {

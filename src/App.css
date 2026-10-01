@@ -45,14 +45,14 @@
 }
 
 .dark {
-  --shell-background: #19191c;
-  --ade-column: #29292c;
-  --ade-hover: #303034;
-  --background: oklch(0.215 0 0);
+  --shell-background: #15161a;
+  --ade-column: #24252b;
+  --ade-hover: #2b2c33;
+  --background: #222329;
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.26 0 0);
+  --card: #25262d;
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.26 0 0);
+  --popover: #2c2d34;
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);

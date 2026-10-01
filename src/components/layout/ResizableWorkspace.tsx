@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { TASK_PANEL_GAP, useResizableWorkspace } from "@/hooks/useResizableWorkspace";
 
@@ -14,6 +15,7 @@ interface ResizableWorkspaceProps {
 }
 
 export function ResizableWorkspace({ children, details, detailsHeadingId, listLabel }: ResizableWorkspaceProps) {
+  const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
   const { workspaceRef, detailsWidth, isResizing, boardPercentage, separatorHandlers } = useResizableWorkspace();
   const transition = { duration: reducedMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] as const };
@@ -24,9 +26,9 @@ export function ResizableWorkspace({ children, details, detailsHeadingId, listLa
       <AnimatePresence initial={false}>
         {details && (
           <motion.div key="workspace-separator" role="separator" tabIndex={0}
-            aria-label={"调整" + listLabel + "与详情宽度"} aria-orientation="vertical"
+            aria-label={t("调整{{label}}与详情宽度", { label: listLabel })} aria-orientation="vertical"
             aria-valuemin={0} aria-valuemax={100} aria-valuenow={boardPercentage}
-            aria-valuetext={listLabel + " " + boardPercentage + "%，详情 " + (100 - boardPercentage) + "%"}
+            aria-valuetext={t("{{label}} {{percent}}%，详情 {{details}}%", { label: listLabel, percent: boardPercentage, details: 100 - boardPercentage })}
             className="task-panel-separator" initial={{ width: 0 }} animate={{ width: TASK_PANEL_GAP }} exit={{ width: 0 }}
             transition={transition} {...separatorHandlers} />
         )}

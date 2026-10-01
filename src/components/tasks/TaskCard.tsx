@@ -1,4 +1,6 @@
 import type { Task } from "@/domain/tasks";
+import { formatDate } from "@/i18n";
+import { useTranslation } from "react-i18next";
 
 interface TaskCardProps {
   /** 卡片仅展示任务标题、日期与项目名称。 */
@@ -15,7 +17,8 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, selected = false, onSelect, selectOnClick = false, showDate = true, showProject = true }: TaskCardProps) {
-  const formattedDate = task.date.replace(/-/g, ".");
+  const { t } = useTranslation();
+  const formattedDate = formatDate(task.date);
 
   return (
     <article
@@ -25,7 +28,7 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
       aria-pressed={onSelect ? selected : undefined}
-      aria-label={onSelect ? `查看任务：${task.title}` : undefined}
+      aria-label={onSelect ? t("查看任务：{{title}}", { title: task.title }) : undefined}
       onClick={(event) => { if (selectOnClick || event.detail === 0) onSelect?.(); }}
       onKeyDown={(event) => {
         if (!onSelect || (event.key !== "Enter" && event.key !== " ")) return;

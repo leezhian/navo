@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Select,
   SelectContent,
@@ -5,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SettingsList, SettingsRow } from "@/components/settings/settingsPrimitives";
+import { SettingsRow } from "@/components/settings/settingsPrimitives";
 import { diffDarkThemeOptions, diffLightThemeOptions } from "@/domain/settings";
 import type { AppSettings, DiffDarkThemePreset, DiffLightThemePreset } from "@/domain/types";
 import type { Dispatch, SetStateAction } from "react";
@@ -18,25 +19,26 @@ interface DiffThemeSettingsProps {
 }
 
 export function DiffThemeSettings({ settings, updateSettings }: DiffThemeSettingsProps) {
+  const { t: translate } = useTranslation();
   return (
-    <SettingsList>
-      <SettingsRow title="浅色主题" description="选择浅色模式下的 diff 语法高亮主题">
+    <>
+      <SettingsRow title={translate("浅色代码主题")} description={translate("浅色模式下的代码语法高亮配色")}>
         <ThemeSelect
-          ariaLabel="浅色主题"
+          ariaLabel={translate("浅色主题")}
           options={diffLightThemeOptions}
           value={settings.diffLightTheme}
           onChange={(value) => updateDiffTheme(updateSettings, "diffLightTheme", value)}
         />
       </SettingsRow>
-      <SettingsRow title="深色主题" description="选择深色模式下的 diff 语法高亮主题">
+      <SettingsRow title={translate("深色代码主题")} description={translate("深色模式下的代码语法高亮配色")}>
         <ThemeSelect
-          ariaLabel="深色主题"
+          ariaLabel={translate("深色主题")}
           options={diffDarkThemeOptions}
           value={settings.diffDarkTheme}
           onChange={(value) => updateDiffTheme(updateSettings, "diffDarkTheme", value)}
         />
       </SettingsRow>
-    </SettingsList>
+    </>
   );
 }
 
@@ -54,12 +56,12 @@ interface ThemeSelectProps {
 function ThemeSelect({ ariaLabel, options, value, onChange }: ThemeSelectProps) {
   return (
     <Select value={value} onValueChange={(nextValue) => onChange(nextValue as DiffDarkThemePreset | DiffLightThemePreset)}>
-      <SelectTrigger aria-label={ariaLabel} className="w-[180px] bg-muted/60 font-normal">
+      <SelectTrigger aria-label={ariaLabel} className="h-8 w-[180px] rounded-lg bg-background text-xs font-normal shadow-none">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-xl p-2">
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
+          <SelectItem key={option.value} className="text-xs" value={option.value}>
             {option.label}
           </SelectItem>
         ))}

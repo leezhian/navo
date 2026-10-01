@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import type { IssueItem } from "@/domain/issues";
@@ -23,10 +24,11 @@ interface IssueToolbarProps {
 }
 
 export function IssueToolbar({ issues, filters, display, projectNames, hasFilters, onFiltersChange, onDisplayChange, onClearFilters }: IssueToolbarProps) {
+  const { t: translate } = useTranslation();
   return (
-    <div className="workspace-toolbar" role="toolbar" aria-label="Issue 列表工具栏">
+    <div className="workspace-toolbar" role="toolbar" aria-label={translate("Issue 列表工具栏")}>
       <div className="ml-auto flex items-center gap-2">
-        {hasFilters && <Button className="h-6 px-2 text-xs font-normal text-muted-foreground" size="xs" variant="ghost" onClick={onClearFilters}>重置</Button>}
+        {hasFilters && <Button className="h-6 px-2 text-xs font-normal text-muted-foreground" size="xs" variant="ghost" onClick={onClearFilters}>{translate("重置")}</Button>}
         <IssueFilterMenu issues={issues} filters={filters} projectNames={projectNames} hasFilters={hasFilters} onFiltersChange={onFiltersChange} onClear={onClearFilters} />
         <IssueDisplayMenu display={display} onDisplayChange={onDisplayChange} />
       </div>

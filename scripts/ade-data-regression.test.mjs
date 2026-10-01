@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { EventEmitter } from "node:events";
 import { test } from "node:test";
 import ts from "typescript";
 
@@ -14,9 +15,34 @@ const { navigateTo, stepNavigation } = await importTs("src/domain/navigation.ts"
 const { isTask, isIssueItem, parseStoredItems } = await importTs("src/utils/adeDataValidation.ts");
 const { filterTasks, orderTasks } = await importTs("src/utils/taskView.ts");
 const { filterIssues, orderIssues } = await importTs("src/utils/issueView.ts");
+const { bindDevelopmentTools } = await importTs("src/main-process/developmentTools.ts");
 const first = { id: "first", title: "任务一", date: "2026-09-30", projectName: "navo", status: "TODO" };
 const second = { ...first, id: "second", title: "任务二" };
 const third = { ...first, id: "third", status: "DONE" };
+
+test("开发模式的 DevTools 快捷键不依赖菜单，按键只切换一次", () => {
+  const webContents = new EventEmitter();
+  let toggles = 0;
+  let prevented = 0;
+  webContents.toggleDevTools = () => { toggles += 1; };
+  bindDevelopmentTools({ webContents }, true);
+  const event = { preventDefault: () => { prevented += 1; } };
+  const shortcut = { code: "KeyI", key: "i", meta: process.platform === "darwin", alt: process.platform === "darwin", control: process.platform !== "darwin", shift: process.platform !== "darwin" };
+  webContents.emit("before-input-event", event, { ...shortcut, type: "keyDown" });
+  webContents.emit("before-input-event", event, { ...shortcut, type: "keyUp" });
+  webContents.emit("before-input-event", event, { ...shortcut, type: "keyDown", isAutoRepeat: true });
+  webContents.emit("before-input-event", event, { type: "keyDown", key: "F12", code: "F12" });
+  webContents.emit("before-input-event", event, { type: "keyDown", key: "i", code: "KeyI" });
+  assert.equal(toggles, 2);
+  assert.equal(prevented, 2);
+});
+
+test("非开发模式不绑定 DevTools 快捷键，窗口创建时按开发地址启用", () => {
+  const webContents = new EventEmitter();
+  bindDevelopmentTools({ webContents }, false);
+  assert.equal(webContents.listenerCount("before-input-event"), 0);
+  assert.match(readFileSync("src/main.ts", "utf8"), /bindDevelopmentTools\(mainWindow, Boolean\(MAIN_WINDOW_VITE_DEV_SERVER_URL\)\)/);
+});
 
 test("同列前后排序保留状态、元数据和唯一任务", () => {
   const tasks = [first, second, third];

@@ -83,13 +83,20 @@ export const diffDarkThemeOptions: Array<{ label: string; value: DiffDarkThemePr
   },
 ];
 
-export function normalizeAppSettings(value: AppSettings): AppSettings {
+export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
   return {
-    theme: value.theme,
-    diffViewMode: value.diffViewMode,
-    wrapDiffLines: value.wrapDiffLines,
-    readingMode: value.readingMode,
-    targetBranch: value.targetBranch,
+    locale: value.locale === "zh-CN" ? "zh-CN" : "en",
+    repositoriesDirectory: normalizePath(value.repositoriesDirectory, "~/Navo/repos"),
+    worktreesDirectory: normalizePath(value.worktreesDirectory, "~/Navo/worktrees"),
+    defaultTaskMode: value.defaultTaskMode === "new-branch" || value.defaultTaskMode === "current-branch" ? value.defaultTaskMode : "worktree",
+    branchPrefix: typeof value.branchPrefix === "string" ? value.branchPrefix.trim() : "navo/",
+    keepAwakeDuringAgent: value.keepAwakeDuringAgent === true,
+    logFilePath: normalizePath(value.logFilePath, ""),
+    theme: value.theme === "light" || value.theme === "dark" ? value.theme : "system",
+    diffViewMode: value.diffViewMode === "unified" ? "unified" : "split",
+    wrapDiffLines: value.wrapDiffLines === true,
+    readingMode: value.readingMode === "single-file" ? "single-file" : "continuous",
+    targetBranch: typeof value.targetBranch === "string" ? value.targetBranch : "origin/main",
     diffCodeFontSize: clampNumber(
       value.diffCodeFontSize,
       defaultDiffSettings.diffCodeFontSize,
@@ -120,6 +127,13 @@ const defaultDiffSettings: DiffSettings = {
 /** 应用默认配置：本地无存储或解析失败时的兜底，也是新安装后的初始值。 */
 export const defaultSettings: AppSettings = {
   ...defaultDiffSettings,
+  locale: "en",
+  repositoriesDirectory: "~/Navo/repos",
+  worktreesDirectory: "~/Navo/worktrees",
+  defaultTaskMode: "worktree",
+  branchPrefix: "navo/",
+  keepAwakeDuringAgent: false,
+  logFilePath: "",
   theme: "system",
   diffViewMode: "split",
   wrapDiffLines: false,
@@ -128,12 +142,16 @@ export const defaultSettings: AppSettings = {
   targetBranch: "origin/main",
 };
 
+function normalizePath(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
 function clampNumber(
   value: number | undefined,
   fallback: number,
   limits: { max: number; min: number },
 ) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
 

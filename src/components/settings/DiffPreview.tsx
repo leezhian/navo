@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { getPierreDiffIndicators, getPierreTheme, getPierreUnsafeCss } from "@/components/review/diff-viewer/pierreDiffOptions";
 import { getLineDiffType } from "@/components/review/diff-code-view/diffWorkerPool";
 import type { AppSettings, ResolvedTheme } from "@/domain/types";
@@ -41,6 +42,7 @@ interface DiffPreviewProps {
 }
 
 export function DiffPreview({ resolvedTheme, settings }: DiffPreviewProps) {
+  const { t: translate } = useTranslation();
   const options = useMemo<FileDiffOptions<undefined>>(
     () => ({
       diffIndicators: getPierreDiffIndicators(settings.diffIndicatorMode),
@@ -59,7 +61,8 @@ export function DiffPreview({ resolvedTheme, settings }: DiffPreviewProps) {
   );
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
+    <div className="settings-preview">
+      <div className="settings-preview-header"><span>{translate("实时预览")}</span><span>config.ts</span></div>
       <PatchDiff className="block max-h-[220px] overflow-hidden" disableWorkerPool options={options} patch={PREVIEW_PATCH} />
     </div>
   );

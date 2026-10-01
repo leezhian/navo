@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowLeft, ArrowRight, CircleDot, ListTodo, Settings } from "lucide-react";
@@ -47,25 +48,26 @@ function RailButton({ active, label, icon: Icon, onClick }: RailButtonProps) {
 }
 
 export function ApplicationShell({ section, children, canGoBack, canGoForward, onSelectSection, onGoBack, onGoForward }: ApplicationShellProps) {
+  const { t: translate } = useTranslation();
   return (
     <MacWindow headerActions={
       <>
-        <nav className="window-no-drag flex shrink-0 items-center gap-1" aria-label="页面历史">
-          <Button aria-label="后退" className="size-7 text-muted-foreground" disabled={!canGoBack} size="icon" variant="ghost" onClick={onGoBack}><ArrowLeft aria-hidden="true" size={17} /></Button>
-          <Button aria-label="前进" className="size-7 text-muted-foreground" disabled={!canGoForward} size="icon" variant="ghost" onClick={onGoForward}><ArrowRight aria-hidden="true" size={17} /></Button>
+        <nav className="window-no-drag flex shrink-0 items-center gap-1" aria-label={translate("页面历史")}>
+          <Button aria-label={translate("后退")} className="size-7 text-muted-foreground" disabled={!canGoBack} size="icon" variant="ghost" onClick={onGoBack}><ArrowLeft aria-hidden="true" size={17} /></Button>
+          <Button aria-label={translate("前进")} className="size-7 text-muted-foreground" disabled={!canGoForward} size="icon" variant="ghost" onClick={onGoForward}><ArrowRight aria-hidden="true" size={17} /></Button>
         </nav>
         <WorkspaceHeaderTabs />
       </>
     }>
       <div className="navo-window-body">
-        <nav className="navo-navigation-rail" aria-label="应用导航">
+        <nav className="navo-navigation-rail" aria-label={translate("应用导航")}>
           <div className="flex flex-col gap-2">
             <RailButton active={section === "tasks"} label="Tasks" icon={ListTodo} onClick={() => onSelectSection("tasks")} />
             <RailButton active={section === "issue"} label="Issue" icon={CircleDot} onClick={() => onSelectSection("issue")} />
           </div>
-          <div className="mt-auto"><RailButton active={section === "settings"} label="设置" icon={Settings} onClick={() => onSelectSection("settings")} /></div>
+          <div className="mt-auto"><RailButton active={section === "settings"} label={translate("设置")} icon={Settings} onClick={() => onSelectSection("settings")} /></div>
         </nav>
-        <main className="navo-main-workspace" aria-label={section === "tasks" ? "任务面板" : section === "issue" ? "PR 与 ISSUE 列表" : "设置"}>{children}</main>
+        <main className="navo-main-workspace" aria-label={section === "tasks" ? translate("任务面板") : section === "issue" ? translate("PR 与 ISSUE 列表") : translate("设置")}>{children}</main>
       </div>
     </MacWindow>
   );

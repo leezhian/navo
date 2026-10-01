@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { DiffFile } from "@/domain/types";
 import { Code2 } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
@@ -135,6 +136,7 @@ export function FileActionMenuContent({
   onClose,
   onToggleWrap,
 }: FileActionMenuContentProps) {
+  const { t: translate } = useTranslation();
   const fullPath = getFullPath(projectPath, file.displayPath);
 
   function runMenuAction(action: () => void) {
@@ -150,11 +152,11 @@ export function FileActionMenuContent({
         onClick={() => runMenuAction(() => openFileInVsCode(projectPath, file.displayPath))}
       >
         <Code2 className={fileActionIconClassName} />
-        <span>在 VS Code 中打开</span>
+        <span>{translate("在 VS Code 中打开")}</span>
       </button>
       <div className="mx-2 my-1 h-px bg-border" />
       <button className={fileActionItemClassName} type="button" onClick={() => runMenuAction(() => copyFilePath(fullPath))}>
-        <span>复制路径</span>
+        <span>{translate("复制路径")}</span>
       </button>
       {showWrapToggle && (
         <>
@@ -163,10 +165,10 @@ export function FileActionMenuContent({
             type="button"
             onClick={() => runMenuAction(() => copyFilePath(file.displayPath))}
           >
-            <span>复制相对路径</span>
+            <span>{translate("复制相对路径")}</span>
           </button>
           <button className={fileActionItemClassName} type="button" onClick={() => runMenuAction(() => onToggleWrap?.())}>
-            <span>{wrapDiffLines ? "关闭自动换行" : "开启自动换行"}</span>
+            <span>{wrapDiffLines ? translate("关闭自动换行") : translate("开启自动换行")}</span>
           </button>
         </>
       )}

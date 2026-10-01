@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { defaultSettings, normalizeAppSettings } from "../domain/settings";
-import type { AppSettings, ResolvedTheme, ThemePreference } from "../domain/types";
+import type { ResolvedTheme, ThemePreference } from "../domain/types";
+import { useSettingsStore } from "@/stores/settingsStore";
 
-const STORAGE_KEY = "navo-settings";
-const LEGACY_STORAGE_KEY = "vibe-reviewer-settings";
 const SYSTEM_COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
 export function useLocalSettings() {
-  const [settings, setSettings] = useState<AppSettings>(() => readSettings());
+  const settings = useSettingsStore((state) => state.settings);
+  const updateSettings = useSettingsStore((state) => state.update);
+  const bootstrap = useSettingsStore((state) => state.bootstrap);
   const [isSystemDark, setIsSystemDark] = useState(() => getIsSystemDark());
   const resolvedTheme = resolveTheme(settings.theme, isSystemDark);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  }, [settings]);
+    void bootstrap();
+  }, [bootstrap]);
 
   useEffect(() => {
     const colorSchemeQuery = window.matchMedia(SYSTEM_COLOR_SCHEME_QUERY);
@@ -39,26 +39,10 @@ export function useLocalSettings() {
     () => ({
       resolvedTheme,
       settings,
-      updateSettings: setSettings,
+      updateSettings,
     }),
-    [resolvedTheme, settings],
+    [resolvedTheme, settings, updateSettings],
   );
-}
-
-function readSettings(): AppSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!raw) {
-      return defaultSettings;
-    }
-
-    return normalizeAppSettings({
-      ...defaultSettings,
-      ...JSON.parse(raw),
-    });
-  } catch {
-    return defaultSettings;
-  }
 }
 
 function applyResolvedTheme(resolvedTheme: ResolvedTheme) {

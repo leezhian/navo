@@ -1,3 +1,5 @@
+import { t as translate } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { CommitButtonGroup } from "./CommitButtonGroup";
 import type { AppSettings, CompareMode, CompareModeFileCounts, ReviewSession, ReviewSummary } from "@/domain/types";
@@ -65,6 +67,7 @@ export function ReviewToolbar({
   onToggleAllCollapsed,
   onToggleFileTree,
 }: ReviewToolbarProps) {
+  const { t: translate } = useTranslation();
   const { commentBodies, getExportableComments, copyExportTemplate } = useReviewComments();
   const [branchSearch, setBranchSearch] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "copied" | "empty">("idle");
@@ -140,13 +143,13 @@ export function ReviewToolbar({
             {copyState === "copied" ? <Check className="size-4" /> : <ClipboardCopy className="size-4" />}
           </IconTooltip>
           <IconTooltip
-            label={isAllCollapsed ? "展开全部差异" : "折叠全部差异"}
+            label={isAllCollapsed ? translate("展开全部差异") : translate("折叠全部差异")}
             onClick={onToggleAllCollapsed}
           >
             {isAllCollapsed ? <ListTree className="size-4" /> : <ListCollapse className="size-4" />}
           </IconTooltip>
           <IconTooltip
-            label={settings.diffViewMode === "split" ? "切换到统一视图" : "切换到分栏视图"}
+            label={settings.diffViewMode === "split" ? translate("切换到统一视图") : translate("切换到分栏视图")}
             onClick={() => toggleDiffView(onSettingsChange)}
           >
             {settings.diffViewMode === "split" ? (
@@ -157,7 +160,7 @@ export function ReviewToolbar({
           </IconTooltip>
           <IconTooltip
             className={isFileTreeVisible ? "bg-muted text-foreground" : undefined}
-            label={isFileTreeVisible ? "隐藏文件树" : "显示文件树"}
+            label={isFileTreeVisible ? translate("隐藏文件树") : translate("显示文件树")}
             onClick={onToggleFileTree}
           >
             {isFileTreeVisible ? <FolderOpen className="size-4" /> : <FolderClosed className="size-4" />}
@@ -171,14 +174,14 @@ export function ReviewToolbar({
 
 function getCopyCommentsLabel(copyState: "idle" | "copied" | "empty", hasExportableComments: boolean) {
   if (copyState === "copied") {
-    return "已复制审查评论";
+    return translate("已复制审查评论");
   }
 
   if (copyState === "empty" || !hasExportableComments) {
-    return "暂无已保存的评论";
+    return translate("暂无已保存的评论");
   }
 
-  return "复制审查评论";
+  return translate("复制审查评论");
 }
 
 function formatChangeCount(count: number) {

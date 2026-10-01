@@ -1,48 +1,55 @@
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { SettingsList, SettingsRow, SettingsSectionHeader } from "./settingsPrimitives";
 import {
   DIFF_CODE_FONT_SIZE_LIMITS,
   diffIndicatorOptions,
 } from "@/domain/settings";
-import type { AppSettings, DiffIndicatorMode } from "@/domain/types";
+import type { AppSettings, ResolvedTheme } from "@/domain/types";
 import { useEffect, useState } from "react";
 import type { Dispatch, KeyboardEvent, SetStateAction } from "react";
-import classNames from "classnames";
-import { motion } from "motion/react";
-
-const DIFF_INDICATOR_OPTION_WIDTH = 48;
+import { SettingsChoiceControl } from "./SettingsChoiceControl";
+import { DiffThemeSettings } from "./DiffThemeSettings";
+import { DiffPreview } from "./DiffPreview";
 
 interface DiffAppearanceSettingsProps {
   /** 当前应用设置，组件只读取和更新 diff 库相关字段。 */
   settings: AppSettings;
+  /** 当前实际外观，用于实时预览浅色或深色代码主题。 */
+  resolvedTheme: ResolvedTheme;
   /** 更新本地设置并触发 diff 视图重新应用 Pierre options。 */
   updateSettings: Dispatch<SetStateAction<AppSettings>>;
 }
 
-export function DiffAppearanceSettings({ settings, updateSettings }: DiffAppearanceSettingsProps) {
+export function DiffAppearanceSettings({ resolvedTheme, settings, updateSettings }: DiffAppearanceSettingsProps) {
+  const { t: translate } = useTranslation();
   return (
-    <>
-      <section className="mb-10">
-        <SettingsSectionHeader title="差异视图" description="调整 diff 库渲染时使用的字号和标记。" />
-        <SettingsList>
-          <SettingsRow title="代码字体大小" description="调整差异视图中代码使用的基础字号">
-            <NumberUnitInput
-              ariaLabel="代码字体大小"
-              max={DIFF_CODE_FONT_SIZE_LIMITS.max}
-              min={DIFF_CODE_FONT_SIZE_LIMITS.min}
-              value={settings.diffCodeFontSize}
-              onChange={(value) => updateDiffSetting(updateSettings, "diffCodeFontSize", value)}
-            />
-          </SettingsRow>
-          <SettingsRow title="差异标记" description="使用颜色或 +/- 标记显示更改">
-            <DiffIndicatorControl
-              value={settings.diffIndicatorMode}
-              onChange={(value) => updateDiffSetting(updateSettings, "diffIndicatorMode", value)}
-            />
-          </SettingsRow>
-        </SettingsList>
-      </section>
-    </>
+    <section>
+      <SettingsSectionHeader title={translate("代码差异")} description={translate("调整代码配色、字号和差异标记，效果即时预览。")} />
+      <SettingsList>
+        <DiffThemeSettings settings={settings} updateSettings={updateSettings} />
+        <SettingsRow title={translate("代码字体大小")} description={translate("调整差异视图中代码使用的基础字号")}>
+          <NumberUnitInput
+            ariaLabel={translate("代码字体大小")}
+            max={DIFF_CODE_FONT_SIZE_LIMITS.max}
+            min={DIFF_CODE_FONT_SIZE_LIMITS.min}
+            value={settings.diffCodeFontSize}
+            onChange={(value) => updateDiffSetting(updateSettings, "diffCodeFontSize", value)}
+          />
+        </SettingsRow>
+        <SettingsRow title={translate("差异标记")} description={translate("使用颜色或 +/- 标记显示更改")}>
+          <SettingsChoiceControl
+            label={translate("差异标记")}
+            options={diffIndicatorOptions.map((option) => ({ ...option, label: translate(option.label) }))}
+            value={settings.diffIndicatorMode}
+            onValueChange={(value) => updateDiffSetting(updateSettings, "diffIndicatorMode", value)}
+          />
+        </SettingsRow>
+      </SettingsList>
+      <div className="mt-4">
+        <DiffPreview resolvedTheme={resolvedTheme} settings={settings} />
+      </div>
+    </section>
   );
 }
 
@@ -92,10 +99,10 @@ function NumberUnitInput({ ariaLabel, max, min, value, onChange }: NumberUnitInp
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
       <Input
         aria-label={ariaLabel}
-        className="w-16 text-center"
+        className="h-8 w-16 rounded-lg bg-background text-center text-xs shadow-none"
         inputMode="numeric"
         max={max}
         min={min}
@@ -106,42 +113,6 @@ function NumberUnitInput({ ariaLabel, max, min, value, onChange }: NumberUnitInp
         onKeyDown={handleKeyDown}
       />
       <span>px</span>
-    </div>
-  );
-}
-
-interface DiffIndicatorControlProps {
-  /** 当前差异标记方式。 */
-  value: DiffIndicatorMode;
-  /** 切换差异标记方式时触发。 */
-  onChange: (value: DiffIndicatorMode) => void;
-}
-
-function DiffIndicatorControl({ value, onChange }: DiffIndicatorControlProps) {
-  const selectedIndex = diffIndicatorOptions.findIndex((option) => option.value === value);
-
-  return (
-    <div className="relative grid h-7 w-24 grid-cols-2 rounded-full bg-muted p-0.5">
-      <motion.span
-        animate={{ x: Math.max(selectedIndex, 0) * DIFF_INDICATOR_OPTION_WIDTH }}
-        className="absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-4px)] rounded-full bg-background shadow-sm"
-        initial={false}
-        transition={{ duration: 0.18, ease: "easeOut" }}
-      />
-      {diffIndicatorOptions.map((option) => (
-        <button
-          aria-pressed={value === option.value}
-          className={classNames(
-            "relative z-10 inline-flex h-6 items-center justify-center rounded-full px-1.5 text-xs font-normal transition-colors",
-            value === option.value ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-          )}
-          key={option.value}
-          type="button"
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
     </div>
   );
 }

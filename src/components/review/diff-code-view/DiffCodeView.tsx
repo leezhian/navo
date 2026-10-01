@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AppSettings, CompareMode, DiffFile, ResolvedTheme, ReviewFileAction } from "@/domain/types";
 import type { CodeViewItem, CodeViewOptions, DiffLineAnnotation, LineAnnotation } from "@pierre/diffs";
 import {
@@ -61,6 +62,7 @@ export function DiffCodeView({
   onToggleWrap,
   onToggleFile,
 }: DiffCodeViewProps) {
+  const { t: translate } = useTranslation();
   // 父级短暂传入空列表时，继续渲染上一份文件，避免 CodeView.setItems([]) 白屏 reset。
   // 切换会话 / 对比方式（scrollCacheKey 变化）时必须丢弃，防止闪出上一会话内容。
   const stableFilesRef = useRef(files);
@@ -229,7 +231,7 @@ export function DiffCodeView({
             onFileAction={onFileAction}
             onToggle={() => onToggleFile(file.id)}
           />
-          {!collapsed && file.isBinary && <div className="p-7 text-muted-foreground">二进制文件不展示代码 diff。</div>}
+          {!collapsed && file.isBinary && <div className="p-7 text-muted-foreground">{translate("二进制文件不展示代码 diff。")}</div>}
         </div>
       );
     },

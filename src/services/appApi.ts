@@ -36,7 +36,7 @@ export async function checkForAppUpdates(): Promise<CheckForUpdatesResult> {
     if (isElectronApiUnavailable(error)) {
       return {
         hasUpdate: false,
-        message: "浏览器预览模式暂不支持检查更新。",
+        message: "UPDATES_UNAVAILABLE",
       };
     }
 

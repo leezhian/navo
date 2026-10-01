@@ -24,6 +24,6 @@ export function registerAppHandlers() {
 
   ipcMain.handle(ipcChannels.appCheckForUpdates, () => ({
     hasUpdate: false,
-    message: "当前版本已是最新。",
+    message: "UPDATES_UNAVAILABLE",
   }));
 }

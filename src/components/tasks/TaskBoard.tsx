@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
 import { Fragment, useState } from "react";
 import { createPortal } from "react-dom";
@@ -45,6 +46,7 @@ interface TaskColumnProps {
 }
 
 function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectTask, display, filtered }: TaskColumnProps) {
+  const { t: translate } = useTranslation();
   const StatusIcon = column.icon;
   const headingId = "task-column-" + column.status.toLowerCase();
   const visibleTasks = column.tasks.filter((task) => task.id !== dragPreview?.task.id);
@@ -63,7 +65,7 @@ function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectT
       <header className="task-column-header">
         <StatusIcon aria-hidden="true" className="column-status-icon" size={17} strokeWidth={1.65} />
         <h2 id={headingId}>{column.status}</h2>
-        <span aria-label={column.tasks.length + " 个任务"} className="column-task-count">{column.tasks.length}</span>
+        <span aria-label={translate("{{count}} 个任务", { count: column.tasks.length })} className="column-task-count">{column.tasks.length}</span>
       </header>
       <motion.div className="task-column-content" layoutScroll>
         {visibleTasks.map((task) => (
@@ -76,13 +78,14 @@ function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectT
           </Fragment>
         ))}
         {dropTarget && dropTarget.beforeTaskId === null && placeholder}
-        {column.tasks.length === 0 && !dragPreview && <p className="ade-empty-state">{filtered ? "暂无匹配任务" : "暂无任务"}</p>}
+        {column.tasks.length === 0 && !dragPreview && <p className="ade-empty-state">{filtered ? translate("暂无匹配任务") : translate("暂无任务")}</p>}
       </motion.div>
     </section>
   );
 }
 
 export function TaskBoard() {
+  const { t: translate } = useTranslation();
   const { tasks, setTasks } = useTasks();
   const view = useTaskView(tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -101,7 +104,7 @@ export function TaskBoard() {
         <ResizableWorkspace
           details={selectedTask ? <TaskDetails task={selectedTask} onClose={() => setSelectedTaskId(null)} /> : null}
           detailsHeadingId="task-details-heading"
-          listLabel="任务面板"
+          listLabel={translate("任务面板")}
         >
           <div className="task-panel-content">
             <TaskToolbar tasks={tasks} filters={view.filters} display={view.display}

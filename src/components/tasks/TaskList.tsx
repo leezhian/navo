@@ -1,3 +1,5 @@
+import { formatDate } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { Task } from "@/domain/tasks";
 import type { TaskDisplayOptions } from "@/domain/taskView";
@@ -15,6 +17,7 @@ interface TaskListProps {
 }
 
 export function TaskList({ tasks, display, selectedTaskId, onSelectTask }: TaskListProps) {
+  const { t: translate } = useTranslation();
   return (
     <div className="task-list">
       {taskColumns.map(({ status, icon: StatusIcon }) => {
@@ -27,16 +30,16 @@ export function TaskList({ tasks, display, selectedTaskId, onSelectTask }: TaskL
               <h2 id={headingId}>{status}</h2><span className="text-muted-foreground">{groupTasks.length}</span>
             </header>
             {groupTasks.map((task) => (
-              <Button key={task.id} aria-label={"查看任务：" + task.title} aria-pressed={selectedTaskId === task.id} className="task-list-row"
+              <Button key={task.id} aria-label={translate("查看任务：{{title}}", { title: task.title })} aria-pressed={selectedTaskId === task.id} className="task-list-row"
                 data-selected={selectedTaskId === task.id} variant="ghost" onClick={() => onSelectTask(task.id)}>
                 <span className="min-w-0 truncate" title={task.title}>{task.title}</span>
                 <span className="task-list-metadata">
                   {display.showProject && <span className="task-project" title={task.projectName}>{task.projectName}</span>}
-                  {display.showDate && <time dateTime={task.date}>{task.date.replace(/-/g, ".")}</time>}
+                  {display.showDate && <time dateTime={task.date}>{formatDate(task.date)}</time>}
                 </span>
               </Button>
             ))}
-            {groupTasks.length === 0 && <p className="ade-empty-state">暂无任务</p>}
+            {groupTasks.length === 0 && <p className="ade-empty-state">{translate("暂无任务")}</p>}
           </section>
         );
       })}

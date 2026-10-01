@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { Dispatch, SetStateAction } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { AppSettings, ResolvedTheme, ReviewSession } from "@/domain/types";
@@ -20,11 +21,12 @@ interface ReviewDialogProps {
 }
 
 export function ReviewDialog({ session, open, onOpenChange, ...preferences }: ReviewDialogProps) {
+  const { t: translate } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[88vh] w-[92vw] max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-none">
-        <DialogTitle className="sr-only">代码差异审查</DialogTitle>
-        <DialogDescription className="sr-only">查看未暂存、已暂存或分支差异，保留文件导航、评论及 Git 操作。</DialogDescription>
+        <DialogTitle className="sr-only">{translate("代码差异审查")}</DialogTitle>
+        <DialogDescription className="sr-only">{translate("查看未暂存、已暂存或分支差异，保留文件导航、评论及 Git 操作。")}</DialogDescription>
         {open && session && <ReviewDialogContent session={session} {...preferences} />}
       </DialogContent>
     </Dialog>

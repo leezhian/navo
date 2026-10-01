@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,6 +34,7 @@ export function BranchMenu({
   onSearchChange,
   onSettingsChange,
 }: BranchMenuProps) {
+  const { t: translate } = useTranslation();
   const tooltip = useDropdownTooltip();
 
   return (
@@ -64,12 +66,12 @@ export function BranchMenu({
           <Search className="size-3.5" />
           <Input
             className="h-7 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-            placeholder="搜索分支"
+            placeholder={translate("搜索分支")}
             value={branchSearch}
             onChange={(event) => onSearchChange(event.target.value)}
           />
         </div>
-        <DropdownMenuLabel>分支</DropdownMenuLabel>
+        <DropdownMenuLabel>{translate("分支")}</DropdownMenuLabel>
         {branchOptions.map((branch) => (
           <BranchOption
             active={settings.targetBranch === branch}

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { CompareMode, ReviewBatchFileAction } from "@/domain/types";
 import { Minus, Plus, Undo2 } from "lucide-react";
@@ -13,6 +14,7 @@ interface DiffBatchActionBarProps {
 }
 
 export function DiffBatchActionBar({ compareMode, hasFiles, onBatchFileAction }: DiffBatchActionBarProps) {
+  const { t: translate } = useTranslation();
   if (!hasFiles || (compareMode !== "unstaged" && compareMode !== "staged")) {
     return null;
   }
@@ -22,15 +24,15 @@ export function DiffBatchActionBar({ compareMode, hasFiles, onBatchFileAction }:
       <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full border bg-background/92 px-1.5 text-muted-foreground shadow-lg backdrop-blur-xl">
         {compareMode === "unstaged" ? (
           <>
-            <BatchActionButton label="还原全部" onClick={() => onBatchFileAction("restore-worktree-all")}>
+            <BatchActionButton label={translate("还原全部")} onClick={() => onBatchFileAction("restore-worktree-all")}>
               <Undo2 className="size-4" />
             </BatchActionButton>
-            <BatchActionButton label="暂存全部" onClick={() => onBatchFileAction("stage-all")}>
+            <BatchActionButton label={translate("暂存全部")} onClick={() => onBatchFileAction("stage-all")}>
               <Plus className="size-4" />
             </BatchActionButton>
           </>
         ) : (
-          <BatchActionButton label="对全部取消暂存" onClick={() => onBatchFileAction("unstage-all")}>
+          <BatchActionButton label={translate("对全部取消暂存")} onClick={() => onBatchFileAction("unstage-all")}>
             <Minus className="size-4" />
           </BatchActionButton>
         )}

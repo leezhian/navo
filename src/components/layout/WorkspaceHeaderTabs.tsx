@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Tabs } from "radix-ui";
@@ -23,6 +24,8 @@ interface WorkspaceHeaderTabProps {
 }
 
 function WorkspaceHeaderTab({ tab, active, listRef, onClose }: WorkspaceHeaderTabProps) {
+  const { t: translate } = useTranslation();
+  const title = translate(tab.title);
   const controls = useDragControls();
   const reducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
@@ -33,11 +36,11 @@ function WorkspaceHeaderTab({ tab, active, listRef, onClose }: WorkspaceHeaderTa
       data-dragging={isDragging} dragControls={controls} dragListener={false} dragConstraints={listRef} dragElastic={0} dragMomentum={false}
       onDragStart={() => setIsDragging(true)} onDragEnd={() => setIsDragging(false)}
       transition={{ duration: reducedMotion ? 0 : 0.18 }}>
-      <Tabs.Trigger className="navo-workspace-tab-trigger" value={tab.id} title={tab.title} draggable={false}
+      <Tabs.Trigger className="navo-workspace-tab-trigger" value={tab.id} title={title} draggable={false}
         onPointerDown={(event) => { if (event.button === 0 && event.isPrimary) controls.start(event); }}>
-        <Icon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{tab.title}</span>
+        <Icon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{title}</span>
       </Tabs.Trigger>
-      <Button aria-label={"关闭标签：" + tab.title} className="navo-workspace-tab-close text-muted-foreground hover:text-foreground" size="icon-xs" type="button" variant="ghost" onClick={onClose}>
+      <Button aria-label={translate("关闭标签：{{title}}", { title })} className="navo-workspace-tab-close text-muted-foreground hover:text-foreground" size="icon-xs" type="button" variant="ghost" onClick={onClose}>
         <X aria-hidden="true" className="size-3" />
       </Button>
     </Reorder.Item>
@@ -46,6 +49,7 @@ function WorkspaceHeaderTab({ tab, active, listRef, onClose }: WorkspaceHeaderTa
 
 /** 标签支持本地选中、关闭和横向拖拽排序，不连接业务工作区生命周期。 */
 export function WorkspaceHeaderTabs() {
+  const { t: translate } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const [tabs, setTabs] = useState(placeholderTabs);
   const [activeTab, setActiveTab] = useState(placeholderTabs[0].id);
@@ -63,12 +67,12 @@ export function WorkspaceHeaderTabs() {
   return (
     <MotionConfig reducedMotion="user">
       <Tabs.Root className="min-w-0 flex-1" value={activeTab} onValueChange={setActiveTab}>
-        <Tabs.List aria-label="工作区标签（占位）" asChild>
+        <Tabs.List aria-label={translate("工作区标签（占位）")} asChild>
           <Reorder.Group ref={listRef} as="div" axis="x" values={tabs} onReorder={setTabs} layoutScroll className="window-no-drag navo-workspace-tabs">
             {tabs.map((tab) => <WorkspaceHeaderTab key={tab.id} tab={tab} active={activeTab === tab.id} listRef={listRef} onClose={() => closeTab(tab.id)} />)}
           </Reorder.Group>
         </Tabs.List>
-        {tabs.map(({ id, title }) => <Tabs.Content key={id} value={id} className="sr-only">{title}：标签结构占位，暂未接入内容切换。</Tabs.Content>)}
+        {tabs.map(({ id, title }) => <Tabs.Content key={id} value={id} className="sr-only">{translate("{{title}}：标签结构占位，暂未接入内容切换。", { title: translate(title) })}</Tabs.Content>)}
       </Tabs.Root>
     </MotionConfig>
   );

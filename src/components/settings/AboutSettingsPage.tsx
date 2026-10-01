@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { SettingsList, SettingsPageHeader, SettingsSectionHeader } from "./settingsPrimitives";
+import { SettingsList, SettingsPageHeader, SettingsRow, SettingsSectionHeader } from "./settingsPrimitives";
 import type { AppInfo, CheckForUpdatesResult, ExternalLinkTarget } from "@/shared/electronApi";
 import { checkForAppUpdates, loadAppInfo, openAppExternalLink } from "@/services/appApi";
 import { Bug, ExternalLink, RefreshCw } from "lucide-react";
 import classNames from "classnames";
+import { useTranslation } from "react-i18next";
 
 export function AboutSettingsPage() {
+  const { t } = useTranslation();
+  const translate = t;
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [updateResult, setUpdateResult] = useState<CheckForUpdatesResult | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
   useEffect(() => {
-    loadAppInfo().then(setAppInfo).catch(() => setAppInfo({ name: "Navo", version: "未知" }));
+    loadAppInfo().then(setAppInfo).catch(() => setAppInfo({ name: "Navo", version: "" }));
   }, []);
 
   async function handleCheckForUpdates() {
@@ -26,7 +29,7 @@ export function AboutSettingsPage() {
     } catch (error) {
       setUpdateResult({
         hasUpdate: false,
-        message: error instanceof Error ? error.message : String(error),
+        message: "检查更新失败",
       });
     } finally {
       setIsCheckingUpdates(false);
@@ -35,57 +38,35 @@ export function AboutSettingsPage() {
 
   return (
     <>
-      <SettingsPageHeader title="关于" />
+      <SettingsPageHeader title={translate("关于")} />
 
-      <section className="mb-10">
+      <section className="mb-6">
         <SettingsSectionHeader
           title={appInfo?.name ?? "Navo"}
-          description="本地 Agent 开发环境（ADE）"
         />
         <SettingsList>
-          <AboutInfoRow label="当前版本" value={appInfo ? `v${appInfo.version}` : "读取中"} />
-          <AboutInfoRow label="更新状态" value={updateResult?.message ?? "尚未检查更新"} />
+          <SettingsRow title={appInfo ? appInfo.version ? `v${appInfo.version}` : t("未知") : t("读取中")} description={updateResult ? t(updateResult.message === "UPDATES_UNAVAILABLE" ? "更新服务尚未接入。" : updateResult.message) : undefined}>
+            <Button className="h-8 rounded-lg px-3 text-xs font-normal" disabled={isCheckingUpdates} type="button" variant="secondary" onClick={handleCheckForUpdates}>
+              <RefreshCw aria-hidden="true" className={classNames("size-3.5", isCheckingUpdates && "animate-spin")} />
+              {isCheckingUpdates ? translate("检查中") : translate("检查更新")}
+            </Button>
+          </SettingsRow>
         </SettingsList>
       </section>
 
 
-      <div className="flex flex-wrap gap-2.5">
-        <Button
-          className="font-normal"
-          disabled={isCheckingUpdates}
-          type="button"
-          variant="secondary"
-          onClick={handleCheckForUpdates}
-        >
-          <RefreshCw className={classNames("size-4", isCheckingUpdates && "animate-spin")} />
-          {isCheckingUpdates ? "检查中" : "检查更新"}
-        </Button>
-        <ExternalLinkButton target="website">
-          <ExternalLink className="size-4" />
-          官网
-        </ExternalLinkButton>
-        <ExternalLinkButton target="report-bug">
-          <Bug className="size-4" />
-          报告 Bug
-        </ExternalLinkButton>
-      </div>
+      <section>
+        <SettingsSectionHeader title={translate("支持")} description={translate("了解产品或反馈使用中遇到的问题。")} />
+        <SettingsList>
+          <SettingsRow title={translate("官网")} description={translate("查看 Navo 的产品信息")}>
+            <ExternalLinkButton target="website"><ExternalLink aria-hidden="true" className="size-3.5" />{translate("打开官网")}</ExternalLinkButton>
+          </SettingsRow>
+          <SettingsRow title={translate("问题反馈")} description={translate("报告问题，帮助改进使用体验")}>
+            <ExternalLinkButton target="report-bug"><Bug aria-hidden="true" className="size-3.5" />{translate("报告 Bug")}</ExternalLinkButton>
+          </SettingsRow>
+        </SettingsList>
+      </section>
     </>
-  );
-}
-
-interface AboutInfoRowProps {
-  /** 左侧信息项名称。 */
-  label: string;
-  /** 右侧信息项内容。 */
-  value: string;
-}
-
-function AboutInfoRow({ label, value }: AboutInfoRowProps) {
-  return (
-    <div className="flex min-h-14 items-center justify-between gap-4 border-b px-4 py-2.5 text-sm last:border-b-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-foreground">{value}</span>
-    </div>
   );
 }
 
@@ -98,7 +79,7 @@ interface ExternalLinkButtonProps {
 
 function ExternalLinkButton({ target, children }: ExternalLinkButtonProps) {
   return (
-    <Button className="font-normal" type="button" variant="outline" onClick={() => void openAppExternalLink(target)}>
+    <Button className="h-8 rounded-lg px-3 text-xs font-normal" type="button" variant="secondary" onClick={() => void openAppExternalLink(target)}>
       {children}
     </Button>
   );

@@ -1,5 +1,6 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
-import type { CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
+import type { CloneProgress, CloneResourceParams, ResourceRecord, SaveResourceParams, SettingsBootstrap } from "./settingsTypes";
+import type { AppSettings, CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
 import type {
   CreateTerminalParams,
   ResizeTerminalParams,
@@ -116,6 +117,31 @@ export interface CheckForUpdatesResult {
 export type WindowFullScreenListener = (isFullScreen: boolean) => void;
 
 export interface NavoApi {
+  settings: {
+    /** 读取磁盘配置及主进程提供的当前日志文件路径。 */
+    load(): Promise<SettingsBootstrap>;
+    /** 原子写入配置，失败时拒绝而非伪造成功。 */
+    save(settings: AppSettings): Promise<AppSettings>;
+    chooseDirectory(): Promise<string | null>;
+    /** 选择日志所在目录，返回保留当前文件名的新路径；取消时返回 null。 */
+    chooseLogFile(): Promise<string | null>;
+    /** 在系统文件管理器中定位当前日志文件。 */
+    revealLogFile(): Promise<void>;
+    /** 清空当前诊断日志文件，不删除目录和其他文件。 */
+    clearLogs(): Promise<void>;
+    /** 查询诊断日志写入是否失败，不暴露日志正文。 */
+    getLogsStatus(): Promise<{ failed: boolean }>;
+  };
+  resources: {
+    list(): Promise<ResourceRecord[]>;
+    save(params: SaveResourceParams): Promise<ResourceRecord>;
+    remove(id: string): Promise<void>;
+    clone(params: CloneResourceParams): Promise<ResourceRecord>;
+    cancelClone(operationId: string): Promise<void>;
+    onCloneProgress(listener: (progress: CloneProgress) => void): () => void;
+    /** 在 preload 解析拖入文件的真实路径，不向渲染进程开放 fs。 */
+    getDroppedPath(file: File): string;
+  };
   app: {
     /** 读取关于页所需的应用基础信息。 */
     getInfo(): Promise<AppInfo>;

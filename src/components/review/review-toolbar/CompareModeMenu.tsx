@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ interface CompareModeMenuProps {
 }
 
 export function CompareModeMenu({ compareMode, fileCounts, onCompareModeChange }: CompareModeMenuProps) {
+  const { t } = useTranslation();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -27,7 +29,7 @@ export function CompareModeMenu({ compareMode, fileCounts, onCompareModeChange }
           type="button"
           variant="ghost"
         >
-          <span>{compareModeLabels[compareMode]}</span>
+          <span>{t(compareModeLabels[compareMode])}</span>
           <CompareModeFileCountBadge count={getVisibleFileCount(compareMode, fileCounts)} />
           <ChevronDown className="size-3.5 text-muted-foreground" />
         </Button>
@@ -39,7 +41,7 @@ export function CompareModeMenu({ compareMode, fileCounts, onCompareModeChange }
             key={value}
             onSelect={() => onCompareModeChange(value as CompareMode)}
           >
-            <span>{label}</span>
+            <span>{t(label)}</span>
             <span className="ml-auto inline-flex items-center gap-2">
               <CompareModeFileCountBadge count={getVisibleFileCount(value as CompareMode, fileCounts)} />
               {compareMode === value && <Check className="size-4" />}

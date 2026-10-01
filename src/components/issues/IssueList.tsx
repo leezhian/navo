@@ -1,3 +1,5 @@
+import { formatDate } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, CircleDot, GitPullRequest } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
@@ -45,20 +47,21 @@ interface IssueSectionProps {
 }
 
 function IssueRow({ issue, selected, onSelect, display }: IssueRowProps) {
-  const status = issueStatuses[issue.status];
+  const { t: translate } = useTranslation();
+  const status = translate(issueStatuses[issue.status]);
   const showMetadata = display.showProject || display.showStatus || display.showDate;
 
   return (
     <li>
-      <Button className="issue-row" variant="ghost" aria-pressed={selected} aria-label={`查看${issue.group}：${issue.title}`} data-selected={selected} onClick={onSelect}>
+      <Button className="issue-row" variant="ghost" aria-pressed={selected} aria-label={translate("查看{{group}}：{{title}}", { group: issue.group, title: issue.title })} data-selected={selected} onClick={onSelect}>
       <span className="issue-row-main">
-        {display.showTag && <span className="issue-tag" data-tag={issue.tag}>{issueTags[issue.tag]}</span>}
+        {display.showTag && <span className="issue-tag" data-tag={issue.tag}>{translate(issueTags[issue.tag])}</span>}
         <span className="issue-row-title" title={issue.title}>{issue.title}</span>
       </span>
       {showMetadata && <span className="issue-row-metadata">
         {display.showProject && <span className="issue-project" title={issue.projectName}>{issue.projectName}</span>}
         {display.showStatus && <span className="issue-status" data-status={issue.status}>{status}</span>}
-        {display.showDate && <time dateTime={issue.date}>{issue.date.replace(/-/g, ".")}</time>}
+        {display.showDate && <time dateTime={issue.date}>{formatDate(issue.date)}</time>}
       </span>}
       </Button>
     </li>
@@ -66,6 +69,7 @@ function IssueRow({ issue, selected, onSelect, display }: IssueRowProps) {
 }
 
 function IssueSection({ group, icon: GroupIcon, issues, visible, display, filtered, selectedIssueId, onSelectIssue }: IssueSectionProps) {
+  const { t: translate } = useTranslation();
   const headingId = "issue-group-" + group.toLowerCase();
   const [isOpen, setIsOpen] = useState(true);
   const reducedMotion = useReducedMotion();
@@ -75,11 +79,11 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
       <section className="issue-group" aria-labelledby={headingId} hidden={!visible}>
         <h2 className="issue-group-heading" id={headingId}>
           <Collapsible.Trigger asChild>
-            <Button className="issue-group-header" variant="ghost" aria-label={`${group} 分组`}>
+            <Button className="issue-group-header" variant="ghost" aria-label={translate("{{group}} 分组", { group })}>
               <ChevronDown aria-hidden="true" className="issue-group-chevron" size={14} strokeWidth={1.65} />
               <GroupIcon aria-hidden="true" size={17} strokeWidth={1.65} />
               <span className="issue-group-title">{group}</span>
-              <span className="issue-group-count" aria-label={`${issues.length} 个条目`}>{issues.length}</span>
+              <span className="issue-group-count" aria-label={translate("{{count}} 个条目", { count: issues.length })}>{issues.length}</span>
             </Button>
           </Collapsible.Trigger>
         </h2>
@@ -95,7 +99,7 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
                 transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
               >
                 <ul className="issue-group-list">
-                  {issues.length === 0 && <li className="ade-empty-state">{filtered ? "暂无匹配条目" : `暂无 ${group}`}</li>}
+                  {issues.length === 0 && <li className="ade-empty-state">{filtered ? translate("暂无匹配条目") : translate("暂无 {{group}}", { group })}</li>}
                   {issues.map((issue) => (
                     <IssueRow key={issue.id} issue={issue} selected={selectedIssueId === issue.id} onSelect={() => onSelectIssue(issue.id)} display={display} />
                   ))}
@@ -110,6 +114,7 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
 }
 
 export function IssueList() {
+  const { t: translate } = useTranslation();
   const [issues] = useState(loadIssueItems);
   const view = useIssueView(issues);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -122,7 +127,7 @@ export function IssueList() {
   return (
     <ResizableWorkspace
       details={selectedIssue ? <IssueDetails issue={selectedIssue} onClose={() => setSelectedIssueId(null)} /> : null}
-      detailsHeadingId="issue-details-heading" listLabel="列表">
+      detailsHeadingId="issue-details-heading" listLabel={translate("列表")}>
       <div className="issue-panel-content">
         <IssueToolbar issues={issues} filters={view.filters} display={view.display} projectNames={view.projectNames} hasFilters={view.hasFilters}
           onFiltersChange={view.setFilters} onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} />

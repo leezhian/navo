@@ -1,0 +1,77 @@
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import path from "node:path";
+import { ipcChannels } from "../../shared/ipcChannels";
+import type { CloneResourceParams, SaveResourceParams } from "../../shared/settingsTypes";
+import { loadSettings, saveSettings } from "../services/settingsService";
+import { ResourceService } from "../services/resourceService";
+import { clearDiagnosticLog, getDiagnosticLogFilePath, getDiagnosticLogStatus, prepareDiagnosticLogFile, writeDiagnosticEvent } from "../services/diagnosticLogService";
+import { validateDiagnosticLogPath } from "../services/diagnosticLogPath";
+import { updateApplicationMenu } from "../applicationMenu";
+
+let resources: ResourceService | null = null;
+
+export async function stopResourceOperations() { await resources?.cancelAll(); }
+
+export function registerSettingsHandlers() {
+  const service = new ResourceService(path.join(app.getPath("userData"), "resources.json"));
+  const boundOwners = new Set<number>();
+  resources = service;
+  ipcMain.handle(ipcChannels.settingsLoad, async () => ({ ...await loadSettings(), logFilePath: getDiagnosticLogFilePath() }));
+  ipcMain.handle(ipcChannels.settingsLogsStatus, () => getDiagnosticLogStatus());
+  ipcMain.handle(ipcChannels.settingsSave, async (_event, value: unknown) => {
+    const settings = await saveSettings(value);
+    updateApplicationMenu(settings.locale);
+    void writeDiagnosticEvent("settings-saved");
+    return settings;
+  });
+  ipcMain.handle(ipcChannels.settingsChooseDirectory, async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new Error("WINDOW_UNAVAILABLE");
+    const result = await dialog.showOpenDialog(window, { properties: ["openDirectory", "createDirectory"] });
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  ipcMain.handle(ipcChannels.settingsClearLogs, () => clearDiagnosticLog());
+  ipcMain.handle(ipcChannels.settingsChooseLogFile, async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new Error("WINDOW_UNAVAILABLE");
+    const currentPath = getDiagnosticLogFilePath();
+    const result = await dialog.showOpenDialog(window, {
+      defaultPath: path.dirname(currentPath),
+      properties: ["openDirectory", "createDirectory"],
+    });
+    const directory = result.filePaths?.[0];
+    return result.canceled || !directory ? null : validateDiagnosticLogPath(path.join(directory, path.basename(currentPath)));
+  });
+  ipcMain.handle(ipcChannels.settingsRevealLogFile, async () => {
+    shell.showItemInFolder(await prepareDiagnosticLogFile());
+  });
+  ipcMain.handle(ipcChannels.resourcesList, () => service.list());
+  ipcMain.handle(ipcChannels.resourcesSave, async (_event, params: SaveResourceParams) => {
+    const record = await service.save(params);
+    void writeDiagnosticEvent("resource-added");
+    return record;
+  });
+  ipcMain.handle(ipcChannels.resourcesRemove, async (_event, id: string) => {
+    await service.remove(id);
+    void writeDiagnosticEvent("resource-removed");
+  });
+  ipcMain.handle(ipcChannels.resourcesClone, async (event, params: CloneResourceParams) => {
+    const ownerId = event.sender.id;
+    if (!boundOwners.has(ownerId)) {
+      boundOwners.add(ownerId);
+      event.sender.once("destroyed", () => { void service.cancelAll(ownerId); boundOwners.delete(ownerId); });
+    }
+    void writeDiagnosticEvent("clone-start");
+    try {
+      const record = await service.clone(params, ownerId, (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send(ipcChannels.resourcesCloneProgress, progress);
+      });
+      void writeDiagnosticEvent("clone-success");
+      return record;
+    } catch (error) {
+      void writeDiagnosticEvent(error instanceof Error && error.message === "CLONE_CANCELLED" ? "clone-cancelled" : "clone-failure");
+      throw error;
+    }
+  });
+  ipcMain.handle(ipcChannels.resourcesCancelClone, (event, operationId: string) => service.cancel(operationId, event.sender.id));
+}

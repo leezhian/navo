@@ -3,11 +3,16 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { TRAFFIC_LIGHT_POSITION } from "./shared/windowLayout";
+import { bindDevelopmentTools } from "./main-process/developmentTools";
 import { registerAppHandlers } from "./main-process/ipc/appHandlers";
 import { registerReviewHandlers } from "./main-process/ipc/reviewHandlers";
 import { destroyAllTerminals, registerTerminalHandlers } from "./main-process/ipc/terminalHandlers";
 import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
 import { stopAllProjectWatchers } from "./main-process/services/projectChangeWatcher";
+import { registerSettingsHandlers, stopResourceOperations } from "./main-process/ipc/settingsHandlers";
+import { writeDiagnosticEvent } from "./main-process/services/diagnosticLogService";
+import { getCurrentSettings, loadSettings } from "./main-process/services/settingsService";
+import { updateApplicationMenu } from "./main-process/applicationMenu";
 import { startReviewSessionWatcher, stopReviewSessionWatcher } from "./main-process/services/reviewSessionWatcher";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -45,6 +50,7 @@ const createWindow = () => {
   });
 
   bindWindowStateEvents(mainWindow);
+  bindDevelopmentTools(mainWindow, Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL));
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -56,7 +62,11 @@ const createWindow = () => {
 };
 
 function startApplication() {
-  app.on("ready", () => {
+  app.on("ready", async () => {
+    try { await loadSettings(); } catch { console.error("Settings could not be loaded"); }
+    updateApplicationMenu(getCurrentSettings().locale);
+    registerSettingsHandlers();
+    void writeDiagnosticEvent("app-start");
     registerAppHandlers();
     registerReviewHandlers();
     registerTerminalHandlers();
@@ -67,10 +77,22 @@ function startApplication() {
     createWindow();
   });
 
-  app.on("before-quit", () => {
+  let shutdownComplete = false;
+  let shutdownStarted = false;
+  app.on("before-quit", (event) => {
+    if (shutdownComplete) return;
+    event.preventDefault();
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    const stoppedResources = stopResourceOperations();
     stopReviewSessionWatcher();
     stopAllProjectWatchers();
     destroyAllTerminals();
+    // 日志队列完成后再退出，避免丢失关闭事件；磁盘异常不阻塞无限等待。
+    void Promise.race([Promise.all([stoppedResources, writeDiagnosticEvent("app-stop")]), new Promise((resolve) => setTimeout(resolve, 5000))]).finally(() => {
+      shutdownComplete = true;
+      app.quit();
+    });
   });
 
   app.on("window-all-closed", () => {

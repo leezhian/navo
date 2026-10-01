@@ -1,4 +1,6 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { AppSettings } from "./domain/types";
+import type { CloneProgress, CloneResourceParams, SaveResourceParams } from "./shared/settingsTypes";
 import type { IpcRendererEvent } from "electron";
 import type {
   ArchiveReviewSessionParams,
@@ -25,6 +27,28 @@ import type {
 } from "./shared/terminalTypes";
 
 const api: NavoApi = {
+  settings: {
+    load: () => ipcRenderer.invoke(ipcChannels.settingsLoad),
+    save: (settings: AppSettings) => ipcRenderer.invoke(ipcChannels.settingsSave, settings),
+    chooseDirectory: () => ipcRenderer.invoke(ipcChannels.settingsChooseDirectory),
+    clearLogs: () => ipcRenderer.invoke(ipcChannels.settingsClearLogs),
+    chooseLogFile: () => ipcRenderer.invoke(ipcChannels.settingsChooseLogFile),
+    revealLogFile: () => ipcRenderer.invoke(ipcChannels.settingsRevealLogFile),
+    getLogsStatus: () => ipcRenderer.invoke(ipcChannels.settingsLogsStatus),
+  },
+  resources: {
+    list: () => ipcRenderer.invoke(ipcChannels.resourcesList),
+    save: (params: SaveResourceParams) => ipcRenderer.invoke(ipcChannels.resourcesSave, params),
+    remove: (id: string) => ipcRenderer.invoke(ipcChannels.resourcesRemove, id),
+    clone: (params: CloneResourceParams) => ipcRenderer.invoke(ipcChannels.resourcesClone, params),
+    cancelClone: (operationId: string) => ipcRenderer.invoke(ipcChannels.resourcesCancelClone, operationId),
+    getDroppedPath: (file: File) => webUtils.getPathForFile(file),
+    onCloneProgress(listener) {
+      const handler = (_event: IpcRendererEvent, progress: CloneProgress) => listener(progress);
+      ipcRenderer.on(ipcChannels.resourcesCloneProgress, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.resourcesCloneProgress, handler);
+    },
+  },
   app: {
     getInfo() {
       return ipcRenderer.invoke(ipcChannels.appGetInfo);

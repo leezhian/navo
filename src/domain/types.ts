@@ -64,6 +64,18 @@ export interface ReviewSession {
 }
 
 export interface AppSettings {
+  /** 界面语言，首次使用默认英文。 */
+  locale: "en" | "zh-CN";
+  /** 新克隆和未来 worktree 的默认位置，支持用户目录缩写。 */
+  repositoriesDirectory: string;
+  worktreesDirectory: string;
+  /** 保存默认策略，实际任务创建能力接入后消费。 */
+  defaultTaskMode: "worktree" | "new-branch" | "current-branch";
+  branchPrefix: string;
+  /** Agent 生命周期尚未接入，本阶段只保存偏好。 */
+  keepAwakeDuringAgent: boolean;
+  /** 诊断日志文件位置；空值使用应用用户目录下的默认日志。 */
+  logFilePath: string;
   theme: ThemePreference;
   diffViewMode: DiffViewMode;
   diffUiFontSize: number;

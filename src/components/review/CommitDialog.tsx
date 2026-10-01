@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { CloudUpload, GitBranch, GitCommitHorizontal, Loader2 } from "lucide-react";
@@ -28,6 +29,7 @@ interface CommitDialogProps {
 }
 
 export function CommitDialog({ projectPath, status, externalError, onStatusChanged, onClose }: CommitDialogProps) {
+  const { t: translate } = useTranslation();
   const { hasStagedChanges, hasUnstagedChanges, hasLocalChanges, canPush } = getCommitStatusCapabilities(status);
   const usesAppleShortcut = isApplePlatform();
   const actionShortcutLabel = usesAppleShortcut ? "⌘↵" : "Ctrl+Enter";
@@ -140,7 +142,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
       }}
     >
       {/* Radix Dialog 要求提供标题；视觉上分支行已承担标题职责，故仅保留无障碍标题。 */}
-      <DialogTitle className="sr-only">提交更改</DialogTitle>
+      <DialogTitle className="sr-only">{translate("提交更改")}</DialogTitle>
       <div
         className={classNames(
           "flex items-center gap-2 px-4 pt-3.5 text-sm text-muted-foreground",
@@ -155,7 +157,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           <textarea
             autoFocus
             className="min-h-20 w-full resize-none bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/50"
-            placeholder="提交信息"
+            placeholder={translate("提交信息")}
             rows={3}
             value={message}
             onChange={(changeEvent) => setMessage(changeEvent.target.value)}
@@ -174,7 +176,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
                   }
                 }}
               />
-              <span className="truncate">包含未暂存的更改</span>
+              <span className="truncate">{translate("包含未暂存的更改")}</span>
             </label>
             <span className="flex shrink-0 items-center gap-1.5 text-xs">
               {additions > 0 && <span className="text-green-600 dark:text-green-400">+{additions}</span>}
@@ -190,7 +192,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           active={activeAction === "commit"}
           disabled={!isActionEnabled.commit}
           icon={<GitCommitHorizontal className="size-4" />}
-          label="提交"
+          label={translate("提交")}
           pending={pendingAction === "commit"}
           shortcutLabel={actionShortcutLabel}
           onHover={() => setActiveAction("commit")}
@@ -200,7 +202,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           active={activeAction === "commitAndPush"}
           disabled={!isActionEnabled.commitAndPush}
           icon={<CloudUpload className="size-4" />}
-          label="提交并推送"
+          label={translate("提交并推送")}
           pending={pendingAction === "commitAndPush"}
           shortcutLabel={actionShortcutLabel}
           onHover={() => setActiveAction("commitAndPush")}
@@ -210,7 +212,7 @@ export function CommitDialog({ projectPath, status, externalError, onStatusChang
           active={activeAction === "push"}
           disabled={!isActionEnabled.push}
           icon={<CloudUpload className="size-4" />}
-          label="推送"
+          label={translate("推送")}
           pending={pendingAction === "push"}
           shortcutLabel={actionShortcutLabel}
           onHover={() => setActiveAction("push")}
