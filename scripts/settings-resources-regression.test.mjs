@@ -41,6 +41,47 @@ async function temporaryDirectory(context) {
 const load = createLoader();
 const { defaultSettings, normalizeAppSettings } = load("src/domain/settings.ts");
 const { resolveResourcePath, validateCloneUrl, validateRepositoryName, redactCloneOutput } = load("src/main-process/services/resourcePaths.ts");
+const { getRepositoryName, getFolderName } = load("src/utils/resourceNames.ts");
+
+test("仓库名称从 HTTPS、SSH 和 SCP 地址自动提取", () => {
+  for (const url of ["https://github.com/team/navo.git", "https://github.com/team/navo", "https://github.com/team/navo.git/", "ssh://git@example.com:2222/team/navo.git", "git@example.com:team/navo.git"]) {
+    assert.equal(getRepositoryName(url), "navo");
+  }
+  assert.equal(getRepositoryName("https://example.com/team/%E9%A1%B9%E7%9B%AE.git"), "项目");
+  assert.throws(() => getRepositoryName("https://example.com/"), /INVALID_REPOSITORY_URL/);
+  assert.throws(() => getRepositoryName("https://example.com/bad%ZZ.git"), /INVALID_REPOSITORY_URL/);
+  assert.throws(() => validateRepositoryName(getRepositoryName("https://example.com/team/bad%2Fname.git")), /INVALID_REPOSITORY_NAME/);
+  assert.equal(getFolderName("/Users/kim/Project/navo/"), "navo");
+  assert.equal(getFolderName("C:\\Projects\\navo"), "navo");
+  assert.equal(getFolderName("/"), "/");
+});
+
+test("选择本地目录后直接添加，取消不写入，失败向调用方报告", async () => {
+  const originalWindow = globalThis.window;
+  const saved = [];
+  let chosenPath = null;
+  let failure = null;
+  globalThis.window = { navo: {
+    settings: { chooseDirectory: async () => chosenPath },
+    resources: { save: async (params) => {
+      if (failure) throw failure;
+      saved.push(params);
+      return { ...params, id: "folder-id", available: true };
+    } },
+  } };
+  try {
+    const { resourceApi } = createLoader()("src/services/resourceApi.ts");
+    assert.equal(await resourceApi.chooseAndAddFolder(), null);
+    assert.equal(saved.length, 0);
+    chosenPath = "/Users/kim/Project/navo";
+    const record = await resourceApi.chooseAndAddFolder();
+    assert.deepEqual(saved[0], { kind: "folder", name: "navo", localPath: chosenPath });
+    assert.equal(record.id, "folder-id");
+    failure = new Error("DUPLICATE_RESOURCE");
+    await assert.rejects(resourceApi.chooseAndAddFolder(), /DUPLICATE_RESOURCE/);
+    assert.equal(saved.length, 1);
+  } finally { globalThis.window = originalWindow; }
+});
 
 test("设置默认英文与隔离工作区，保留旧外观并移除旧日志配置", () => {
   const settings = normalizeAppSettings({ theme: "dark", diffCodeFontSize: 18, branchPrefix: "" });
@@ -344,12 +385,13 @@ test("拒绝已有其他日志文件时，不改变已保存路径或文件内�
 
 test("日志路径使用可取消的目录选择器，保留文件名并支持文件管理器定位", async (context) => {
   const directory = await temporaryDirectory(context);
+  const homeDirectory = path.join(directory, "home");
   const handlers = new Map();
   let dialogResult = { canceled: true };
   let dialogOptions;
   let revealedPath;
   const electron = {
-    app: { getPath: () => directory },
+    app: { getPath: (name) => name === "home" ? homeDirectory : directory },
     ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
     BrowserWindow: { fromWebContents: () => ({}) },
     dialog: { showOpenDialog: async (_window, options) => { dialogOptions = options; return dialogResult; } },
@@ -358,6 +400,9 @@ test("日志路径使用可取消的目录选择器，保留文件名并支持�
   const load = createLoader({ electron });
   load("src/main-process/ipc/settingsHandlers.ts").registerSettingsHandlers();
   const { ipcChannels } = load("src/shared/ipcChannels.ts");
+  assert.equal(await handlers.get(ipcChannels.settingsChooseDirectory)({ sender: {} }), null);
+  assert.equal(dialogOptions.defaultPath, homeDirectory);
+  assert.deepEqual(dialogOptions.properties, ["openDirectory", "createDirectory"]);
   const bootstrap = await handlers.get(ipcChannels.settingsLoad)();
   assert.equal(bootstrap.logFilePath, path.join(directory, "logs", "navo.log"));
   assert.equal(await handlers.get(ipcChannels.settingsChooseLogFile)({ sender: {} }), null);

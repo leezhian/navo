@@ -27,7 +27,10 @@ export function registerSettingsHandlers() {
   ipcMain.handle(ipcChannels.settingsChooseDirectory, async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) throw new Error("WINDOW_UNAVAILABLE");
-    const result = await dialog.showOpenDialog(window, { properties: ["openDirectory", "createDirectory"] });
+    const result = await dialog.showOpenDialog(window, {
+      defaultPath: app.getPath("home"),
+      properties: ["openDirectory", "createDirectory"],
+    });
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
   ipcMain.handle(ipcChannels.settingsClearLogs, () => clearDiagnosticLog());

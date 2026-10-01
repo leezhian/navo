@@ -4,23 +4,21 @@ import type { ResourceRecord } from "@/shared/settingsTypes";
 import { resourceApi } from "@/services/resourceApi";
 import { settingsApi } from "@/services/settingsApi";
 import { useResourceStore } from "@/stores/resourceStore";
+import { getRepositoryName } from "@/utils/resourceNames";
 
 interface ResourceFormOptions {
-  /** 已有资源表示编辑，否则按 initialKind 新增。 */
+  /** 已有资源表示编辑，否则新增仓库。 */
   record?: ResourceRecord;
-  initialKind: ResourceRecord["kind"];
   /** 仓库克隆的父目录默认值。 */
   repositoriesDirectory: string;
   /** 保存成功后关闭弹窗，不在失败时伪造成功。 */
   onSaved: () => void;
 }
 
-export function useResourceForm({ record, initialKind, repositoriesDirectory, onSaved }: ResourceFormOptions) {
-  const [kind, setKind] = useState(record?.kind ?? initialKind);
+export function useResourceForm({ record, repositoriesDirectory, onSaved }: ResourceFormOptions) {
   const [name, setName] = useState(record?.name ?? "");
   const [localPath, setLocalPath] = useState(record?.localPath ?? "");
   const [url, setUrl] = useState("");
-  const [directory, setDirectory] = useState(repositoriesDirectory);
   const [busy, setBusy] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [choosing, setChoosing] = useState(false);
@@ -28,7 +26,7 @@ export function useResourceForm({ record, initialKind, repositoriesDirectory, on
   const [error, setError] = useState<unknown>(null);
   const operationId = useRef<string | null>(null);
   const upsert = useResourceStore((state) => state.upsert);
-  const isClone = !record && kind === "repo";
+  const isClone = !record;
 
   useEffect(() => {
     const unsubscribe = window.navo.resources.onCloneProgress((value) => {
@@ -40,32 +38,35 @@ export function useResourceForm({ record, initialKind, repositoriesDirectory, on
     };
   }, []);
 
-  function applyFolder(path: string) {
-    setLocalPath(path);
-    if (!record) setKind("folder");
-    const parts = path.split(/[\\/]/).filter(Boolean);
-    if (!name) setName(parts[parts.length - 1] ?? "");
-  }
-
-  async function chooseFolder(forCloneDirectory = false) {
+  async function chooseFolder() {
+    if (busy || choosing) return;
     setChoosing(true);
     setError(null);
     try {
-      const path = await settingsApi.chooseDirectory();
-      if (path) { if (forCloneDirectory) setDirectory(path); else applyFolder(path); }
+      if (record) {
+        const path = await settingsApi.chooseDirectory();
+        if (path) setLocalPath(path);
+      } else {
+        const saved = await resourceApi.chooseAndAddFolder();
+        if (saved) { upsert(saved); onSaved(); }
+      }
     } catch (failure) { setError(failure); }
     finally { setChoosing(false); }
   }
 
-  function handleDrop(event: DragEvent) {
+  async function handleDrop(event: DragEvent) {
     event.preventDefault();
     if (busy || choosing || event.dataTransfer.files.length !== 1) return;
+    setChoosing(true);
+    setError(null);
     try {
       const path = window.navo.resources.getDroppedPath(event.dataTransfer.files[0]);
       if (!path) throw new Error("INVALID_DIRECTORY");
-      applyFolder(path);
-      setError(null);
+      const saved = await resourceApi.addFolder(path);
+      upsert(saved);
+      onSaved();
     } catch (failure) { setError(failure); }
+    finally { setChoosing(false); }
   }
 
   async function submit() {
@@ -75,8 +76,8 @@ export function useResourceForm({ record, initialKind, repositoriesDirectory, on
     setProgress("");
     try {
       const saved = isClone
-        ? await resourceApi.clone({ operationId: operationId.current = crypto.randomUUID(), url: url.trim(), name: name.trim(), directory: directory.trim() })
-        : await resourceApi.save({ id: record?.id, name: name.trim(), kind, localPath: localPath.trim() });
+        ? await resourceApi.clone({ operationId: operationId.current = crypto.randomUUID(), url: url.trim(), name: getRepositoryName(url.trim()), directory: repositoriesDirectory })
+        : await resourceApi.save({ id: record.id, name: name.trim(), kind: record.kind, localPath: localPath.trim() });
       operationId.current = null;
       upsert(saved);
       onSaved();
@@ -92,7 +93,7 @@ export function useResourceForm({ record, initialKind, repositoriesDirectory, on
   }
 
   return {
-    kind, name, setName, localPath, setLocalPath, url, setUrl, directory, setDirectory,
+    name, setName, localPath, setLocalPath, url, setUrl,
     busy, choosing, cancelling, progress, error, isClone, chooseFolder, handleDrop, submit, cancelClone,
   };
 }

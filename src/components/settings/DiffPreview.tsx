@@ -1,10 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { getPierreDiffIndicators, getPierreTheme, getPierreUnsafeCss } from "@/components/review/diff-viewer/pierreDiffOptions";
 import { getLineDiffType } from "@/components/review/diff-code-view/diffWorkerPool";
+import { Button } from "@/components/ui/button";
 import type { AppSettings, ResolvedTheme } from "@/domain/types";
+import { preloadHighlighter } from "@pierre/diffs";
 import type { FileDiffOptions } from "@pierre/diffs";
 import { PatchDiff } from "@pierre/diffs/react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const PREVIEW_PATCH = `diff --git a/src/config.ts b/src/config.ts
 index 4d1f9ea..7c2a93b 100644
@@ -43,6 +45,22 @@ interface DiffPreviewProps {
 
 export function DiffPreview({ resolvedTheme, settings }: DiffPreviewProps) {
   const { t: translate } = useTranslation();
+  const { diffLightTheme, diffDarkTheme } = settings;
+  const themeKey = `${diffLightTheme}/${diffDarkTheme}`;
+  const [preparation, setPreparation] = useState<{ themeKey: string; status: "ready" | "error" } | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const status = preparation?.themeKey === themeKey ? preparation.status : "loading";
+
+  useEffect(() => {
+    let cancelled = false;
+    // 冷启动时先加载主题和语法，避免 StrictMode 重挂载复用 Pierre 尚未填充的代码节点。
+    void preloadHighlighter({ themes: [diffLightTheme, diffDarkTheme], langs: ["typescript"] }).then(
+      () => { if (!cancelled) setPreparation({ themeKey, status: "ready" }); },
+      () => { if (!cancelled) setPreparation({ themeKey, status: "error" }); },
+    );
+    return () => { cancelled = true; };
+  }, [diffLightTheme, diffDarkTheme, themeKey, retryAttempt]);
+
   const options = useMemo<FileDiffOptions<undefined>>(
     () => ({
       diffIndicators: getPierreDiffIndicators(settings.diffIndicatorMode),
@@ -63,7 +81,11 @@ export function DiffPreview({ resolvedTheme, settings }: DiffPreviewProps) {
   return (
     <div className="settings-preview">
       <div className="settings-preview-header"><span>{translate("实时预览")}</span><span>config.ts</span></div>
-      <PatchDiff className="block max-h-[220px] overflow-hidden" disableWorkerPool options={options} patch={PREVIEW_PATCH} />
+      {status === "ready" ? <PatchDiff key={themeKey} className="block max-h-[220px] overflow-hidden" disableWorkerPool options={options} patch={PREVIEW_PATCH} />
+        : <div className="flex min-h-28 items-center justify-center gap-2 px-4 text-xs text-muted-foreground" role={status === "error" ? "alert" : "status"}>
+          <span>{translate(status === "error" ? "预览加载失败" : "读取中")}</span>
+          {status === "error" && <Button variant="ghost" size="sm" onClick={() => { setPreparation(null); setRetryAttempt((current) => current + 1); }}>{translate("重试")}</Button>}
+        </div>}
     </div>
   );
 }

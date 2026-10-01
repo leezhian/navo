@@ -122,6 +122,7 @@ export interface NavoApi {
     load(): Promise<SettingsBootstrap>;
     /** 原子写入配置，失败时拒绝而非伪造成功。 */
     save(settings: AppSettings): Promise<AppSettings>;
+    /** 从当前用户主目录打开系统目录选择器，取消时返回 null。 */
     chooseDirectory(): Promise<string | null>;
     /** 选择日志所在目录，返回保留当前文件名的新路径；取消时返回 null。 */
     chooseLogFile(): Promise<string | null>;
