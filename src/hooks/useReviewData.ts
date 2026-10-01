@@ -44,7 +44,7 @@ interface UseReviewDataParams {
 }
 
 export function useReviewData({ selectedSession, targetBranch }: UseReviewDataParams) {
-  // 从 sessionStorage / 内存恢复，避免 HMR 重挂载后弹回默认「上一轮」。
+  // 恢复实时 Git 对比偏好，避免 HMR 重挂载后丢失当前选择。
   const [compareMode, setCompareModeState] = useState<CompareMode>(readStoredCompareMode);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [collapsedFileIds, setCollapsedFileIds] = useState<Set<string>>(new Set());
@@ -322,7 +322,7 @@ export function useReviewData({ selectedSession, targetBranch }: UseReviewDataPa
     setSelectedFileId((selected) => resolveSelectedFileId(cached.summary.files, selected));
   }, [compareMode, selectedSessionId, targetBranch]);
 
-  // 单一硬刷新入口：依赖键变化时全量加载（live / previous-session 共用）。
+  // 审查项目、实时对比方式或目标分支变化时全量加载。
   useEffect(() => {
     if (!hardReloadKey) {
       clearReviewState();

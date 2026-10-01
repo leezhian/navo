@@ -10,7 +10,6 @@ import type {
   RunReviewFileActionParams,
 } from "../../shared/electronApi";
 import { commandSucceeds, hashDiffContent, runGit } from "./gitCommandService";
-import { readLatestPatch } from "./reviewStorage";
 
 interface DiffFilePath {
   oldPath: string | null;
@@ -24,10 +23,6 @@ interface DiffContentSource {
 }
 
 export async function runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput> {
-  if (params.mode === "previous-session") {
-    return loadPreviousSessionDiff(params.rawDiffPath);
-  }
-
   const args = createDiffArgs(params.mode, params.targetBranch);
   const output = await runGit(params.projectPath, args);
   const fileSnapshots = await collectDiffFileSnapshots(params.projectPath, params.mode, params.targetBranch, output.stdout);
@@ -44,11 +39,6 @@ export async function runGitDiff(params: LoadReviewDiffParams): Promise<GitComma
  * 供渲染进程在工作区事件后判断是否需要全量 refresh。
  */
 export async function getGitDiffSignature(params: LoadReviewDiffParams): Promise<string> {
-  if (params.mode === "previous-session") {
-    const rawDiff = await readLatestPatch(params.rawDiffPath);
-    return hashDiffContent(rawDiff ?? "");
-  }
-
   const args = createDiffArgs(params.mode, params.targetBranch);
   const output = await runGit(params.projectPath, args);
   return hashDiffContent(output.stdout);
@@ -68,21 +58,6 @@ export async function getUntrackedFileCount(projectPath: string): Promise<number
   } catch {
     return 0;
   }
-}
-
-async function loadPreviousSessionDiff(rawDiffPath?: string): Promise<GitCommandOutput> {
-  const rawDiff = await readLatestPatch(rawDiffPath);
-
-  if (rawDiff == null) {
-    throw new Error("缺少上一轮 diff 快照，无法展示该对比模式");
-  }
-
-  return {
-    stdout: rawDiff,
-    stderr: "",
-    file_snapshots: [],
-    signature: hashDiffContent(rawDiff),
-  };
 }
 
 export async function loadLocalBranches(projectPath: string): Promise<string[]> {
@@ -128,8 +103,11 @@ function createDiffArgs(mode: CompareMode, targetBranch?: string): string[] {
     unstaged: ["diff"],
     staged: ["diff", "--cached"],
     branch: ["diff", `${targetBranch || "main"}...HEAD`],
-    "previous-session": [],
   };
+
+  if (!Object.prototype.hasOwnProperty.call(argsByMode, mode)) {
+    throw new Error("不支持的 Git 对比方式");
+  }
 
   return [...argsByMode[mode], "--"];
 }

@@ -2,10 +2,14 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "./components/layout/ade-workspace.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --shell-background: #f0f0f1;
+  --ade-column: #fcfcfd;
+  --ade-hover: #fafafb;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -41,6 +45,9 @@
 }
 
 .dark {
+  --shell-background: #19191c;
+  --ade-column: #29292c;
+  --ade-hover: #303034;
   --background: oklch(0.215 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.26 0 0);

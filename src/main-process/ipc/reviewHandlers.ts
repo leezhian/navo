@@ -10,9 +10,7 @@ import type {
   ProjectPathParams,
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
-  SetAgentIntegrationParams,
 } from "../../shared/electronApi";
-import { loadAgentIntegrationStatuses, setAgentIntegrationEnabled } from "../services/agentHookConfigService";
 import { commitChanges, getCommitStatus, pushCommits } from "../services/gitCommitService";
 import {
   getGitDiffSignature,
@@ -44,10 +42,6 @@ export function registerReviewHandlers() {
   ipcMain.handle(ipcChannels.reviewCommitChanges, (_event, params: CommitChangesParams) => commitChanges(params));
   ipcMain.handle(ipcChannels.reviewPushCommits, (_event, params: ProjectPathParams) =>
     pushCommits(params.projectPath),
-  );
-  ipcMain.handle(ipcChannels.reviewLoadAgentIntegrationStatuses, () => loadAgentIntegrationStatuses());
-  ipcMain.handle(ipcChannels.reviewSetAgentIntegrationEnabled, (_event, params: SetAgentIntegrationParams) =>
-    setAgentIntegrationEnabled(params.agent, params.enabled),
   );
   ipcMain.handle(ipcChannels.reviewRunGitDiff, (_event, params: LoadReviewDiffParams) => runGitDiff(params));
   ipcMain.handle(ipcChannels.reviewGetGitDiffSignature, (_event, params: LoadReviewDiffParams) =>

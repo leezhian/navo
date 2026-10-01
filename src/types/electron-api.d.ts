@@ -1,8 +1,8 @@
-import type { VibeReviewerApi } from "@/shared/electronApi";
+import type { NavoApi } from "@/shared/electronApi";
 
 declare global {
   interface Window {
-    vibeReviewer: VibeReviewerApi;
+    navo: NavoApi;
   }
 }
 

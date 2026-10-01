@@ -4,7 +4,7 @@ export function useWindowFullScreen() {
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   useEffect(() => {
-    const windowApi = window.vibeReviewer?.window;
+    const windowApi = window.navo?.window;
 
     if (!windowApi) {
       return;

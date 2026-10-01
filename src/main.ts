@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from "electron";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { TRAFFIC_LIGHT_POSITION } from "./shared/windowLayout";
@@ -14,6 +15,12 @@ if (started) {
   app.quit();
 }
 
+// 更名后沿用已有用户目录，保留本地偏好；新安装使用 Navo 的默认目录。
+const legacyUserDataPath = path.join(app.getPath("appData"), "vibe-reviewer");
+if (!existsSync(app.getPath("userData")) && existsSync(legacyUserDataPath)) {
+  app.setPath("userData", legacyUserDataPath);
+}
+
 startApplication();
 
 const createWindow = () => {
@@ -27,7 +34,7 @@ const createWindow = () => {
     transparent: usesNativeVibrancy,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: TRAFFIC_LIGHT_POSITION,
-    title: "Vibe Reviewer",
+    title: "Navo",
     vibrancy: usesNativeVibrancy ? "sidebar" : undefined,
     visualEffectState: usesNativeVibrancy ? "active" : undefined,
     webPreferences: {

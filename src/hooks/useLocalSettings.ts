@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { defaultSettings, normalizeAppSettings } from "../domain/settings";
 import type { AppSettings, ResolvedTheme, ThemePreference } from "../domain/types";
-import { loadAgentIntegrationStatuses } from "../services/reviewApi";
 
-const STORAGE_KEY = "vibe-reviewer-settings";
+const STORAGE_KEY = "navo-settings";
+const LEGACY_STORAGE_KEY = "vibe-reviewer-settings";
 const SYSTEM_COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
 export function useLocalSettings() {
@@ -35,39 +35,6 @@ export function useLocalSettings() {
     applyResolvedTheme(resolvedTheme);
   }, [resolvedTheme]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    loadAgentIntegrationStatuses()
-      .then((agentStatuses) => {
-        if (!isMounted || Object.keys(agentStatuses).length === 0) {
-          return;
-        }
-
-        setSettings((current) => {
-          const enabledAgents = { ...current.enabledAgents };
-
-          for (const [agent, status] of Object.entries(agentStatuses)) {
-            enabledAgents[agent as keyof typeof enabledAgents] = status === "listening";
-          }
-
-          return {
-            ...current,
-            enabledAgents,
-            agentStatuses: {
-              ...current.agentStatuses,
-              ...agentStatuses,
-            },
-          };
-        });
-      })
-      .catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   return useMemo(
     () => ({
       resolvedTheme,
@@ -80,7 +47,7 @@ export function useLocalSettings() {
 
 function readSettings(): AppSettings {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) {
       return defaultSettings;
     }

@@ -1,13 +1,13 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 
-/** 全部支持的 Agent 类型，顺序即设置页与筛选菜单的展示顺序；AgentType 由该列表推导，二者不会漂移。 */
+/** 历史会话的 Agent 来源，顺序即筛选菜单的展示顺序。 */
 export const AGENT_TYPES = ["Claude Code", "ChatGPT", "OpenCode", "Qoder"] as const;
 
 export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type ReviewProvider = "claude" | "codex";
 
-export type CompareMode = "unstaged" | "staged" | "branch" | "previous-session";
+export type CompareMode = "unstaged" | "staged" | "branch";
 
 export type CompareModeFileCounts = Partial<Record<CompareMode, number>>;
 
@@ -41,8 +41,6 @@ export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
 export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "binary";
 
-export type AgentStatus = "listening" | "disabled" | "failed";
-
 export type ReviewFileAction = "restore-worktree" | "restore-file" | "stage" | "unstage";
 
 export type ReviewBatchFileAction = "restore-worktree-all" | "stage-all" | "unstage-all";
@@ -66,8 +64,6 @@ export interface ReviewSession {
 }
 
 export interface AppSettings {
-  enabledAgents: Record<AgentType, boolean>;
-  agentStatuses: Record<AgentType, AgentStatus>;
   theme: ThemePreference;
   diffViewMode: DiffViewMode;
   diffUiFontSize: number;

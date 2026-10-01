@@ -1,0 +1,72 @@
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleDot, ListTodo, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { AppSection } from "@/domain/navigation";
+import { MacWindow } from "./MacWindow";
+import { WorkspaceHeaderTabs } from "./WorkspaceHeaderTabs";
+
+interface ApplicationShellProps {
+  /** 当前选中的一级模块，设置入口固定在导航底部。 */
+  section: AppSection;
+  /** 模块内容，在窗口拖动区之外展示。 */
+  children: ReactNode;
+  /** 历史导航边界，禁用不可执行的方向。 */
+  canGoBack: boolean;
+  canGoForward: boolean;
+  /** 切换 Tasks、Issue 或设置，不触发浏览器页面导航。 */
+  onSelectSection: (section: AppSection) => void;
+  /** 顶部后退与前进操作。 */
+  onGoBack: () => void;
+  onGoForward: () => void;
+}
+
+interface RailButtonProps {
+  /** 当前模块是否已激活。 */
+  active: boolean;
+  /** 图标按钮的可访问名称与悬浮提示。 */
+  label: string;
+  /** 使用统一的 lucide 图标。 */
+  icon: LucideIcon;
+  /** 点击后切换一级模块。 */
+  onClick: () => void;
+}
+
+function RailButton({ active, label, icon: Icon, onClick }: RailButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button aria-label={label} aria-pressed={active} className="navo-rail-button" data-active={active} size="icon" variant="ghost" onClick={onClick}>
+          <Icon aria-hidden="true" size={21} strokeWidth={1.65} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function ApplicationShell({ section, children, canGoBack, canGoForward, onSelectSection, onGoBack, onGoForward }: ApplicationShellProps) {
+  return (
+    <MacWindow headerActions={
+      <>
+        <nav className="window-no-drag flex shrink-0 items-center gap-1" aria-label="页面历史">
+          <Button aria-label="后退" className="size-7 text-muted-foreground" disabled={!canGoBack} size="icon" variant="ghost" onClick={onGoBack}><ArrowLeft aria-hidden="true" size={17} /></Button>
+          <Button aria-label="前进" className="size-7 text-muted-foreground" disabled={!canGoForward} size="icon" variant="ghost" onClick={onGoForward}><ArrowRight aria-hidden="true" size={17} /></Button>
+        </nav>
+        <WorkspaceHeaderTabs />
+      </>
+    }>
+      <div className="navo-window-body">
+        <nav className="navo-navigation-rail" aria-label="应用导航">
+          <div className="flex flex-col gap-2">
+            <RailButton active={section === "tasks"} label="Tasks" icon={ListTodo} onClick={() => onSelectSection("tasks")} />
+            <RailButton active={section === "issue"} label="Issue" icon={CircleDot} onClick={() => onSelectSection("issue")} />
+          </div>
+          <div className="mt-auto"><RailButton active={section === "settings"} label="设置" icon={Settings} onClick={() => onSelectSection("settings")} /></div>
+        </nav>
+        <main className="navo-main-workspace" aria-label={section === "tasks" ? "任务面板" : section === "issue" ? "PR 与 ISSUE 列表" : "设置"}>{children}</main>
+      </div>
+    </MacWindow>
+  );
+}

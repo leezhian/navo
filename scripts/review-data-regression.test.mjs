@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const projectRoot = process.cwd();
-const compiledDir = path.join(tmpdir(), "vibe-reviewer-regression-tests");
+const compiledDir = path.join(tmpdir(), "navo-regression-tests");
 
 mkdirSync(compiledDir, { recursive: true });
 
@@ -34,8 +34,6 @@ const { mergeSoftRefreshSummary, resolveCollapsedFileIds, resolveSelectedFileId 
 const { toCodeViewItems } = await importTs("src/components/review/diff-code-view/diffCodeViewItems.ts");
 const diffCodeViewSource = readFileSync(path.join(projectRoot, "src/components/review/diff-code-view/DiffCodeView.tsx"), "utf8");
 const diffPreviewSource = readFileSync(path.join(projectRoot, "src/components/settings/DiffPreview.tsx"), "utf8");
-const agentHookConfigSource = readFileSync(path.join(projectRoot, "src/main-process/services/agentHookConfigService.ts"), "utf8");
-const hookBridgeSource = readFileSync(path.join(projectRoot, "src/main-process/services/hookBridgeService.ts"), "utf8");
 const appSource = readFileSync(path.join(projectRoot, "src/App.tsx"), "utf8");
 const electronApiSource = readFileSync(path.join(projectRoot, "src/shared/electronApi.ts"), "utf8");
 const ipcChannelsSource = readFileSync(path.join(projectRoot, "src/shared/ipcChannels.ts"), "utf8");
@@ -115,10 +113,85 @@ test("设置预览继续禁用 worker pool", () => {
   assert.match(diffPreviewSource, /<PatchDiff[^>]*disableWorkerPool/);
 });
 
-test("Agent hook 命令使用独立 bridge，避免启动 Electron 主 App", () => {
-  assert.match(hookBridgeSource, /vibe-reviewer-hook/);
-  assert.match(agentHookConfigSource, /createHookBridgeCommand/);
-  assert.doesNotMatch(agentHookConfigSource, /--hook collect/);
+test("不再构建、暴露或配置 Agent hooks", () => {
+  const removedFiles = [
+    "src/hookCollector.ts",
+    "src/main-process/services/agentHookConfigService.ts",
+    "src/main-process/services/hookBridgeService.ts",
+    "src/main-process/services/hookCollectorService.ts",
+    "src/main-process/services/sessionTitleService.ts",
+  ];
+  for (const filePath of removedFiles) {
+    assert.equal(existsSync(path.join(projectRoot, filePath)), false);
+  }
+
+  const affectedFiles = [
+    "forge.config.ts",
+    "src/main-process/ipc/reviewHandlers.ts",
+    "src/services/reviewApi.ts",
+    "src/hooks/useLocalSettings.ts",
+    "src/components/settings/SettingsPanel.tsx",
+  ];
+  for (const filePath of affectedFiles) {
+    const source = readFileSync(path.join(projectRoot, filePath), "utf8");
+    assert.doesNotMatch(source, /hookCollector|agentHookConfig|loadAgentIntegrationStatuses|setAgentIntegrationEnabled/);
+  }
+  for (const source of [electronApiSource, ipcChannelsSource, preloadSource]) {
+    assert.doesNotMatch(source, /AgentIntegration/);
+  }
+});
+
+test("应用名称和 preload API 统一为 Navo", () => {
+  const packageInfo = JSON.parse(readFileSync(path.join(projectRoot, "package.json"), "utf8"));
+  assert.equal(packageInfo.name, "navo");
+  assert.equal(packageInfo.productName, "Navo");
+  assert.match(preloadSource, /exposeInMainWorld\("navo", api\)/);
+  assert.match(electronApiSource, /interface NavoApi/);
+  assert.doesNotMatch(preloadSource, /vibeReviewer/);
+});
+
+test("读取旧设置保留外观偏好，但丢弃 Agent 监听配置", async () => {
+  const { defaultSettings, normalizeAppSettings } = await importTs("src/domain/settings.ts");
+  const settings = normalizeAppSettings({
+    ...defaultSettings,
+    theme: "dark",
+    diffCodeFontSize: 16,
+    enabledAgents: { ChatGPT: true },
+    agentStatuses: { ChatGPT: "listening" },
+  });
+  assert.equal(settings.theme, "dark");
+  assert.equal(settings.diffCodeFontSize, 16);
+  assert.deepEqual(Object.keys(settings).sort(), Object.keys(defaultSettings).sort());
+});
+
+test("移除采集后仍可读取、标记已读和归档历史会话及快照", async () => {
+  const storage = await importTs("src/main-process/services/reviewStorage.ts");
+  const options = { rootDir: mkdtempSync(path.join(tmpdir(), "navo-history-")) };
+  const paths = await storage.ensureReviewStorage(options);
+  assert.equal(existsSync(paths.pendingDir), false);
+
+  const rawDiffPath = storage.getLatestPatchPath("codex", "history", options);
+  mkdirSync(path.dirname(rawDiffPath), { recursive: true });
+  writeFileSync(rawDiffPath, "historical patch", "utf8");
+  writeFileSync(paths.eventsPath, `${JSON.stringify({
+    provider: "codex",
+    sessionId: "history",
+    projectPath: "/repo",
+    projectName: "repo",
+    branchName: "main",
+    updatedAt: "2026-09-30T00:00:00.000Z",
+    rawDiffPath,
+  })}\n`, "utf8");
+
+  const [session] = await storage.loadReviewSessions(options);
+  assert.equal(session.id, "codex:history");
+  assert.equal(session.unread, true);
+  assert.equal(await storage.readLatestPatch(session.rawDiffPath), "historical patch");
+  await storage.markReviewSessionRead(session.id, session.updatedAt, options);
+  assert.equal((await storage.loadReviewSessions(options))[0].unread, false);
+  await storage.archiveReviewSession(session.id, options);
+  assert.deepEqual(await storage.loadReviewSessions(options), []);
+  assert.equal(existsSync(rawDiffPath), false);
 });
 
 test("会话刷新使用主进程推送而不是 5 秒轮询", () => {
@@ -156,32 +229,24 @@ test("diff 自动刷新走项目监听与签名 IPC，而不是定时轮询", ()
   assert.match(preloadSource, /onProjectChanged/);
 });
 
-test("硬刷新依赖键区分 live 与 previous-session", async () => {
+test("实时审查依赖项目、对比方式和分支，不依赖旧快照", async () => {
   const { getHardReloadKey, isLiveCompareMode } = await importTs("src/hooks/reviewCompareMode.ts");
-  const session = {
-    id: "s1",
-    projectPath: "/repo",
-    updatedAt: "t1",
-    rawDiffPath: "/patch",
-  };
-
-  assert.equal(isLiveCompareMode("unstaged"), true);
-  assert.equal(isLiveCompareMode("previous-session"), false);
-
-  const liveKey = getHardReloadKey(session, "unstaged", "main");
-  const liveBranchKey = getHardReloadKey(session, "unstaged", "dev");
-  const previousKey = getHardReloadKey(session, "previous-session", "main");
-  const previousUpdated = getHardReloadKey({ ...session, updatedAt: "t2" }, "previous-session", "main");
-
-  assert.notEqual(liveKey, liveBranchKey);
-  assert.notEqual(liveKey, previousKey);
-  assert.notEqual(previousKey, previousUpdated);
-  // previous-session 不跟目标分支绑定
-  assert.equal(previousKey, getHardReloadKey(session, "previous-session", "dev"));
+  const session = { id: "s1", projectPath: "/repo", updatedAt: "t1", rawDiffPath: "/patch" };
+  for (const mode of ["unstaged", "staged", "branch"]) assert.equal(isLiveCompareMode(mode), true);
+  const key = getHardReloadKey(session, "unstaged", "main");
+  assert.notEqual(key, getHardReloadKey(session, "unstaged", "dev"));
+  assert.notEqual(key, getHardReloadKey(session, "staged", "main"));
+  assert.notEqual(key, getHardReloadKey({ ...session, projectPath: "/other" }, "unstaged", "main"));
+  assert.equal(key, getHardReloadKey({ ...session, updatedAt: "t2", rawDiffPath: "/old" }, "unstaged", "main"));
+  assert.equal(getHardReloadKey(null, "unstaged", "main"), null);
 });
 
 test("对比方式存储只接受合法枚举", async () => {
   const { readStoredCompareMode, writeStoredCompareMode } = await importTs("src/hooks/compareModeStorage.ts");
+
+  assert.equal(readStoredCompareMode(), "unstaged");
+  writeStoredCompareMode("previous-session");
+  assert.equal(readStoredCompareMode(), "unstaged");
 
   writeStoredCompareMode("unstaged");
   assert.equal(readStoredCompareMode(), "unstaged");

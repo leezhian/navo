@@ -1,13 +1,13 @@
 import type { AppInfo, CheckForUpdatesResult, ExternalLinkTarget } from "@/shared/electronApi";
 
 const fallbackAppInfo: AppInfo = {
-  name: "vibe-reviewer",
+  name: "Navo",
   version: "1.0.0",
 };
 
 export async function loadAppInfo(): Promise<AppInfo> {
   try {
-    return await window.vibeReviewer.app.getInfo();
+    return await window.navo.app.getInfo();
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return fallbackAppInfo;
@@ -19,7 +19,7 @@ export async function loadAppInfo(): Promise<AppInfo> {
 
 export async function openAppExternalLink(target: ExternalLinkTarget): Promise<void> {
   try {
-    await window.vibeReviewer.app.openExternalLink(target);
+    await window.navo.app.openExternalLink(target);
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return;
@@ -31,7 +31,7 @@ export async function openAppExternalLink(target: ExternalLinkTarget): Promise<v
 
 export async function checkForAppUpdates(): Promise<CheckForUpdatesResult> {
   try {
-    return await window.vibeReviewer.app.checkForUpdates();
+    return await window.navo.app.checkForUpdates();
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return {
@@ -46,5 +46,5 @@ export async function checkForAppUpdates(): Promise<CheckForUpdatesResult> {
 
 function isElectronApiUnavailable(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes("vibeReviewer") || message.includes("is not a function");
+  return message.includes("navo") || message.includes("is not a function");
 }

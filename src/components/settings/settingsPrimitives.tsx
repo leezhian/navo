@@ -1,4 +1,3 @@
-import { Switch } from "@/components/ui/switch";
 import type { ReactNode } from "react";
 
 interface SettingsPageHeaderProps {
@@ -7,7 +6,7 @@ interface SettingsPageHeaderProps {
 }
 
 export function SettingsPageHeader({ title }: SettingsPageHeaderProps) {
-  return <h1 className="mb-14 text-xl font-medium tracking-normal">{title}</h1>;
+  return <h1 className="mb-8 text-xl font-medium tracking-normal">{title}</h1>;
 }
 
 interface SettingsSectionHeaderProps {
@@ -56,24 +55,5 @@ export function SettingsRow({ children, description, title }: SettingsRowProps) 
       {/* flex 包装避免 inline 控件(如 Switch)按文本基线排布导致视觉偏上。 */}
       <div className="flex shrink-0 items-center">{children}</div>
     </div>
-  );
-}
-
-interface SettingsSwitchRowProps {
-  /** 当前开关是否开启。 */
-  checked: boolean;
-  /** 设置项补充说明，部分简洁配置项可以不展示。 */
-  description?: string;
-  /** 设置项标题。 */
-  title: string;
-  /** 用户切换开关时触发。 */
-  onCheckedChange: (checked: boolean) => void;
-}
-
-export function SettingsSwitchRow({ checked, description, title, onCheckedChange }: SettingsSwitchRowProps) {
-  return (
-    <SettingsRow description={description} title={title}>
-      <Switch aria-label={`启用 ${title}`} checked={checked} onCheckedChange={onCheckedChange} />
-    </SettingsRow>
   );
 }

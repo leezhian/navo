@@ -1,8 +1,8 @@
 {
-  "name": "vibe-reviewer",
-  "productName": "vibe-reviewer",
+  "name": "navo",
+  "productName": "Navo",
   "version": "1.0.0",
-  "description": "macOS-first local code review desktop app",
+  "description": "macOS-first agent development environment",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {

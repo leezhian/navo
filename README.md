@@ -1,18 +1,20 @@
-# Vibe Reviewer
+# Navo
 
-Vibe Reviewer 是一个面向本地代码审查的桌面应用。当前版本基于 Electron Forge、Vite、React、Tailwind CSS 和 shadcn 构建，主要用于查看项目 Git 差异、浏览文件树、添加本地评论，并在当前项目中继续执行终端命令。
+Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron Forge、Vite、React、Tailwind CSS、shadcn 和 Radix UI 构建。正式应用已使用新版 Tasks / Issue 导航壳层，设置也迁入相同的独立圆角块风格。
 
 ## 功能概览
 
-- 支持未暂存、已暂存、分支差异等对比方式。
-- 支持统一视图和分栏视图切换。
-- 支持连续浏览和大 diff 自动单文件浏览。
-- 支持文件树搜索、展开收起、宽度拖拽和文件右键操作。
-- 支持 diff 文件头折叠、文件右键菜单、打开 VS Code、复制路径等操作。
-- 支持在 diff 行号处打开多个本地评论框。
-- 支持浅色、深色和跟随系统主题。
-- 支持 macOS 风格窗口布局和工作区 tab。
-- 支持在当前审查项目中创建多个内嵌终端，切换 tab 保留 Shell 状态，关闭 tab 回收进程。
+- Tasks：TODO、DONE、ARCHIVED 三列，卡片只显示标题、日期和项目名。
+- 支持列内排序、跨列状态调整、页面内圆角浮动卡片、框占位与重排动画；任务状态和顺序保存在本地。
+- Tasks 工具栏支持状态/项目过滤、看板/列表切换、日期排序和日期/项目显隐；日期排序不覆盖自定义顺序，仅看板自定义顺序支持拖拽。
+- Issue：PR / ISSUE 两个默认展开且可收起的分组，左侧标签与标题，右侧自然宽度的项目、彩色状态文字和时间。
+- Issue 工具栏支持分组/状态/项目/标签过滤、组内时间排序及字段显隐；过滤与显示设置独立于 Tasks，不修改条目数据。
+- 点击任务或条目展开独立右侧详情，通过 8px 分隔条拖动调整宽度。
+- 顶部提供模块历史后退与前进及固定数据的工作区标签占位，支持本地选中、关闭和横向拖拽排序，暂不切换任务内容；左侧底部为设置，不再提供旧会话列表。
+- 保留浅色、深色、跟随系统主题与 diff 阅读偏好；关于页移除存储区。
+- 保留可复用 ReviewDialog、Git diff / 文件树 / 评论 / Git 操作和终端基础组件，当前新版不提供审查或终端入口。
+
+数据边界：目前尚未接入任务创建、Agent 运行或远程 PR/Issue 平台。开发态为设计预览提供示例数据，并使用独立的本地存储命名空间；正式构建首次启动显示空看板和空列表，不将旧会话当作任务。旧审查记录保持在磁盘中，但上轮对话审查模式已移除。
 
 ## 技术栈
 
@@ -72,13 +74,13 @@ electron-forge package
 macOS 构建产物通常位于：
 
 ```bash
-out/vibe-reviewer-darwin-arm64/vibe-reviewer.app
+out/Navo-darwin-arm64/Navo.app
 ```
 
 可以直接双击打开，或使用：
 
 ```bash
-open out/vibe-reviewer-darwin-arm64/vibe-reviewer.app
+open out/Navo-darwin-arm64/Navo.app
 ```
 
 ## 常用脚本
@@ -100,32 +102,28 @@ npm run lint
 
 ## 项目结构
 
-```text
-src/
-  main.ts                         Electron 主进程入口
-  preload.ts                      preload 脚本，向 renderer 暴露安全 API
-  main-process/                   主进程 IPC 和本地服务
-  shared/                         主进程与 renderer 共用的类型和通道定义
-  services/                       renderer 侧服务封装
-  domain/                         审查业务类型、diff 解析和 mock 数据
-  hooks/                          可复用 hooks
-  components/
-    layout/                       macOS 风格窗口和工作区 tab
-    review/                       审查工作区、工具栏、文件树和 diff 渲染
-    session/                      会话列表
-    settings/                     偏好设置
-    terminal/                     终端工作区、会话管理和 Ghostty VT 适配
-    ui/                           shadcn 基础组件和项目通用 UI
-  assets/terminal/                固定版本的 libghostty-vt WASM 产物
-vendor/ghostty-vt/                Ghostty 来源、构建信息和第三方许可证
-```
+- src/components/layout：窗口壳层、一级导航和共用的可调整双区域布局。
+- src/components/tasks：任务看板、任务卡片与详情。
+- src/components/issues：PR/ISSUE 分组列表、状态标签及详情。
+- src/components/settings：外观、diff 阅读偏好和关于。
+- src/components/review：保留的 diff 弹窗与审查组件。
+- src/components/terminal：保留的终端渲染和生命周期能力。
+- src/hooks：导航历史、任务拖拽、本地任务及分隔条调整。
+- src/domain：任务、Issue、审查与设置的业务类型。
+- src/services：渲染进程本地数据访问及 Electron IPC 封装。
+- src/main-process / src/shared：主进程服务与共用 IPC 类型。
+- src/utils：任务排序、本地数据校验等纯函数。
+
+## 本地数据兼容
+
+新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。旧版用户目录和阅读偏好仍可读取，偏好写入新的 `navo` 存储键。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因应用更名而假定远端仓库已改名。
 
 ## Electron 通信
 
 Renderer 不直接访问 Node.js 能力。主进程能力通过 preload 暴露到：
 
 ```ts
-window.vibeReviewer
+window.navo
 ```
 
 当前暴露的能力包括：
@@ -145,7 +143,7 @@ Diff 数据加载流程：
 ```text
 ReviewWorkspace
   -> services/reviewApi.ts
-  -> window.vibeReviewer.review.runGitDiff
+  -> window.navo.review.runGitDiff
   -> main-process/services/gitReviewService.ts
   -> domain/diffParser.ts
   -> @pierre/diffs
@@ -155,21 +153,7 @@ ReviewWorkspace
 
 ## 内嵌终端
 
-终端数据流如下：
-
-```text
-TerminalWorkspace
-  -> terminalSessionManager
-  -> window.vibeReviewer.terminal
-  -> Electron IPC
-  -> node-pty / 用户默认 Shell
-  -> Ghostty Worker / libghostty-vt WASM
-  -> 安全 HTML 终端画面
-```
-
-每个终端 tab 拥有独立 PTY 和 Ghostty 状态。切换 tab 时会话继续运行，后台输出由渲染进程的共享路由持续送入 Worker；关闭 tab 时同时释放 PTY 和 Ghostty 状态。
-
-`node-pty` 是原生模块，主进程 Vite 配置会将其 externalize，Electron Forge 使用 `AutoUnpackNativesPlugin` 将原生文件保留在 asar 外。Ghostty WASM 已作为固定构建产物提交，正常开发和打包不要求安装 Zig；来源与复现命令见 `vendor/ghostty-vt/README.md`。
+终端组件、VT 渲染、node-pty 主进程服务与独立 Shell 生命周期保留。新导航壳层不展示旧审查/终端 tab 或新增终端按钮，后续任务流程接入时再定义入口，不依赖旧会话列表。
 
 ## UI 组件
 
@@ -205,15 +189,10 @@ src/components/ui/icon-tooltip.tsx
 
 ## 验证建议
 
-提交前建议至少执行：
+- npm run lint：检查所有 TypeScript / TSX。
+- npx tsc --noEmit：检查类型及模块集成。
+- node --test scripts/review-data-regression.test.mjs scripts/ade-data-regression.test.mjs：审查、任务排序、导航与本地数据回归。
+- git diff --check：检查补丁空白错误。
+- npm run build：打包 Electron 应用；包含 Vite renderer 构建和原生依赖准备。
 
-```bash
-npm run lint
-git diff --check
-```
-
-涉及 Electron 打包或 preload、主进程、Forge 配置时，再执行：
-
-```bash
-npm run build
-```
+重点检查 Tasks 与 Issue 的点击/拖拽区分、跨列数量、分组收起、右侧详情、8px 分隔条、模块前进后退以及主题切换。开发样例与正式空状态分别验收。

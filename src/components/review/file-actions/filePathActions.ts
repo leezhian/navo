@@ -7,5 +7,5 @@ export function copyFilePath(filePath: string) {
 }
 
 export function openFileInVsCode(projectPath: string, filePath: string) {
-  void window.vibeReviewer.review.openFileInVsCode({ projectPath, filePath });
+  void window.navo.review.openFileInVsCode({ projectPath, filePath });
 }

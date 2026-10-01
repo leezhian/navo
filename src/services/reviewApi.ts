@@ -1,8 +1,6 @@
 import { parseGitDiff } from "../domain/diffParser";
 import type { CleanReviewStorageResult, GitCommitStatus } from "../shared/electronApi";
 import type {
-  AgentStatus,
-  AgentType,
   CompareMode,
   ReviewBatchFileAction,
   ReviewFileAction,
@@ -14,7 +12,7 @@ import type {
 const BROWSER_PREVIEW_SIGNATURE = "browser-preview";
 
 interface LoadReviewDiffOptions {
-  /** 当前审查会话，用于读取项目路径和上轮对话 patch 引用。 */
+  /** 审查上下文，仅用于确定当前项目路径。 */
   session: ReviewSession;
   /** 当前选择的对比模式。 */
   mode: CompareMode;
@@ -24,7 +22,7 @@ interface LoadReviewDiffOptions {
 
 export async function loadReviewSessions(): Promise<ReviewSession[]> {
   try {
-    return await window.vibeReviewer.review.loadSessions();
+    return await window.navo.review.loadSessions();
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       // 浏览器预览没有主进程会话数据，回退为空列表。
@@ -37,7 +35,7 @@ export async function loadReviewSessions(): Promise<ReviewSession[]> {
 
 export function onReviewSessionsChanged(listener: (sessions: ReviewSession[]) => void) {
   try {
-    return window.vibeReviewer.review.onSessionsChanged(listener);
+    return window.navo.review.onSessionsChanged(listener);
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return () => undefined;
@@ -49,7 +47,7 @@ export function onReviewSessionsChanged(listener: (sessions: ReviewSession[]) =>
 
 export async function markReviewSessionRead(session: ReviewSession): Promise<void> {
   try {
-    await window.vibeReviewer.review.markSessionRead({
+    await window.navo.review.markSessionRead({
       sessionId: session.id,
       updatedAt: session.updatedAt,
     });
@@ -65,7 +63,7 @@ export async function markReviewSessionRead(session: ReviewSession): Promise<voi
 /** 归档会话：删除其本地审查记录；浏览器预览环境下保持 no-op。 */
 export async function archiveReviewSession(session: ReviewSession): Promise<void> {
   try {
-    await window.vibeReviewer.review.archiveSession({ sessionId: session.id });
+    await window.navo.review.archiveSession({ sessionId: session.id });
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return;
@@ -99,7 +97,7 @@ export async function loadGitCommitStatus(
   options: LoadGitCommitStatusOptions = {},
 ): Promise<GitCommitStatus> {
   try {
-    return await window.vibeReviewer.review.getCommitStatus({
+    return await window.navo.review.getCommitStatus({
       projectPath,
       includeDiffStats: options.includeDiffStats,
     });
@@ -113,44 +111,20 @@ export async function loadGitCommitStatus(
 }
 
 export async function commitGitChanges(projectPath: string, message: string, includeUnstaged: boolean): Promise<void> {
-  await window.vibeReviewer.review.commitChanges({ projectPath, message, includeUnstaged });
+  await window.navo.review.commitChanges({ projectPath, message, includeUnstaged });
 }
 
 export async function pushGitCommits(projectPath: string): Promise<void> {
-  await window.vibeReviewer.review.pushCommits({ projectPath });
+  await window.navo.review.pushCommits({ projectPath });
 }
 
 /** 清理本地缓存；浏览器预览环境下返回空结果。 */
 export async function cleanReviewStorage(): Promise<CleanReviewStorageResult> {
   try {
-    return await window.vibeReviewer.review.cleanStorage();
+    return await window.navo.review.cleanStorage();
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return { removedItems: 0, freedBytes: 0 };
-    }
-
-    throw new Error(error instanceof Error ? error.message : String(error));
-  }
-}
-
-export async function loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>> {
-  try {
-    return await window.vibeReviewer.review.loadAgentIntegrationStatuses();
-  } catch (error) {
-    if (isElectronApiUnavailable(error)) {
-      return {};
-    }
-
-    throw new Error(error instanceof Error ? error.message : String(error));
-  }
-}
-
-export async function setAgentIntegrationEnabled(agent: AgentType, enabled: boolean): Promise<void> {
-  try {
-    await window.vibeReviewer.review.setAgentIntegrationEnabled({ agent, enabled });
-  } catch (error) {
-    if (isElectronApiUnavailable(error)) {
-      return;
     }
 
     throw new Error(error instanceof Error ? error.message : String(error));
@@ -166,10 +140,9 @@ export interface ReviewDiffLoadResult {
 
 export async function loadReviewDiff({ session, mode, targetBranch }: LoadReviewDiffOptions): Promise<ReviewDiffLoadResult> {
   try {
-    const output = await window.vibeReviewer.review.runGitDiff({
+    const output = await window.navo.review.runGitDiff({
       projectPath: session.projectPath,
       mode,
-      rawDiffPath: session.rawDiffPath,
       targetBranch,
     });
 
@@ -207,10 +180,9 @@ export async function loadReviewDiffSignature({
   targetBranch,
 }: LoadReviewDiffOptions): Promise<string> {
   try {
-    return await window.vibeReviewer.review.getGitDiffSignature({
+    return await window.navo.review.getGitDiffSignature({
       projectPath: session.projectPath,
       mode,
-      rawDiffPath: session.rawDiffPath,
       targetBranch,
     });
   } catch (error) {
@@ -224,7 +196,7 @@ export async function loadReviewDiffSignature({
 
 export async function loadUntrackedFileCount(projectPath: string): Promise<number> {
   try {
-    return await window.vibeReviewer.review.getUntrackedFileCount({ projectPath });
+    return await window.navo.review.getUntrackedFileCount({ projectPath });
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return 0;
@@ -236,7 +208,7 @@ export async function loadUntrackedFileCount(projectPath: string): Promise<numbe
 
 export function watchProject(projectPath: string): Promise<void> {
   try {
-    return window.vibeReviewer.review.watchProject({ projectPath });
+    return window.navo.review.watchProject({ projectPath });
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return Promise.resolve();
@@ -248,7 +220,7 @@ export function watchProject(projectPath: string): Promise<void> {
 
 export function unwatchProject(projectPath: string): Promise<void> {
   try {
-    return window.vibeReviewer.review.unwatchProject({ projectPath });
+    return window.navo.review.unwatchProject({ projectPath });
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return Promise.resolve();
@@ -260,7 +232,7 @@ export function unwatchProject(projectPath: string): Promise<void> {
 
 export function onProjectChanged(listener: (projectPath: string) => void) {
   try {
-    return window.vibeReviewer.review.onProjectChanged(listener);
+    return window.navo.review.onProjectChanged(listener);
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
       return () => undefined;
@@ -272,7 +244,7 @@ export function onProjectChanged(listener: (projectPath: string) => void) {
 
 export async function loadLocalBranches(projectPath: string): Promise<string[]> {
   try {
-    const branches = await window.vibeReviewer.review.loadLocalBranches(projectPath);
+    const branches = await window.navo.review.loadLocalBranches(projectPath);
     return branches.length > 0 ? branches : ["main", "master"];
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
@@ -290,7 +262,7 @@ export async function runReviewFileAction(
   action: ReviewFileAction,
 ): Promise<void> {
   try {
-    await window.vibeReviewer.review.runFileAction({
+    await window.navo.review.runFileAction({
       action,
       filePath,
       projectPath,
@@ -311,7 +283,7 @@ export async function runReviewBatchFileAction(
   action: ReviewBatchFileAction,
 ): Promise<void> {
   try {
-    await window.vibeReviewer.review.runBatchFileAction({
+    await window.navo.review.runBatchFileAction({
       action,
       filePaths,
       projectPath,
@@ -346,5 +318,5 @@ function emptySummary(): ReviewSummary {
 
 function isElectronApiUnavailable(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes("vibeReviewer") || message.includes("is not a function");
+  return message.includes("navo") || message.includes("is not a function");
 }

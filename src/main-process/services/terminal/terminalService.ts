@@ -46,7 +46,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents)
       ...process.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
-      TERM_PROGRAM: "vibe-reviewer",
+      TERM_PROGRAM: "Navo",
     },
   });
 

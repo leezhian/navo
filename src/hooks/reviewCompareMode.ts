@@ -10,22 +10,12 @@ export function isTrackedFileCountMode(mode: CompareMode) {
   return mode === "unstaged" || mode === "staged";
 }
 
-/**
- * 同一「审查范围」内保留选中/折叠状态。
- * previous-session 跟 agent 快照绑定，故把 updatedAt / rawDiffPath 纳入 key。
- */
+/** 同一实时审查范围内保留文件选中和折叠状态。 */
 export function getReviewScopeKey(session: ReviewSession, compareMode: CompareMode, targetBranch: string) {
-  if (compareMode === "previous-session") {
-    return `${session.id}:${compareMode}:${session.updatedAt}:${session.rawDiffPath ?? ""}`;
-  }
-
   return `${session.id}:${compareMode}:${targetBranch}`;
 }
 
-/**
- * 硬刷新依赖键：变化时重新全量加载。
- * live 模式跟项目路径与目标分支；previous-session 只跟会话快照。
- */
+/** 项目路径、实时对比方式或目标分支变化时重新全量加载。 */
 export function getHardReloadKey(
   session: ReviewSession | null,
   compareMode: CompareMode,
@@ -33,10 +23,6 @@ export function getHardReloadKey(
 ) {
   if (!session) {
     return null;
-  }
-
-  if (compareMode === "previous-session") {
-    return `${session.id}|previous-session|${session.updatedAt}|${session.rawDiffPath ?? ""}`;
   }
 
   return `${session.id}|${compareMode}|${session.projectPath}|${targetBranch}`;

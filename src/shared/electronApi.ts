@@ -1,5 +1,5 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
-import type { AgentStatus, AgentType, CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
+import type { CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
 import type {
   CreateTerminalParams,
   ResizeTerminalParams,
@@ -21,7 +21,6 @@ export interface LoadReviewDiffParams {
   projectPath: string;
   mode: CompareMode;
   targetBranch?: string;
-  rawDiffPath?: string;
 }
 
 export interface OpenFileInVsCodeParams {
@@ -39,11 +38,6 @@ export interface RunReviewBatchFileActionParams {
   projectPath: string;
   filePaths: string[];
   action: ReviewBatchFileAction;
-}
-
-export interface SetAgentIntegrationParams {
-  agent: AgentType;
-  enabled: boolean;
 }
 
 export interface MarkReviewSessionReadParams {
@@ -121,7 +115,7 @@ export interface CheckForUpdatesResult {
 
 export type WindowFullScreenListener = (isFullScreen: boolean) => void;
 
-export interface VibeReviewerApi {
+export interface NavoApi {
   app: {
     /** 读取关于页所需的应用基础信息。 */
     getInfo(): Promise<AppInfo>;
@@ -133,7 +127,7 @@ export interface VibeReviewerApi {
   review: {
     loadSessions(): Promise<ReviewSession[]>;
     markSessionRead(params: MarkReviewSessionReadParams): Promise<void>;
-    /** 归档会话：删除该会话的本地审查记录（事件、patch 与已读状态）；进行中轮次结束后会重新入列。 */
+    /** 归档历史会话：删除该会话的本地审查记录（事件、patch 与已读状态）。 */
     archiveSession(params: ArchiveReviewSessionParams): Promise<void>;
     /** 清理不在会话列表中的本地缓存（孤儿 diff、超龄 pending 基线与日志等）。 */
     cleanStorage(): Promise<CleanReviewStorageResult>;
@@ -143,8 +137,6 @@ export interface VibeReviewerApi {
     commitChanges(params: CommitChangesParams): Promise<void>;
     /** 推送未推送提交；无 upstream 时自动 -u origin 当前分支。 */
     pushCommits(params: ProjectPathParams): Promise<void>;
-    loadAgentIntegrationStatuses(): Promise<Partial<Record<AgentType, AgentStatus>>>;
-    setAgentIntegrationEnabled(params: SetAgentIntegrationParams): Promise<void>;
     runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput>;
     /** 读取当前对比方式 diff 内容签名，用于检测工作区是否变化。 */
     getGitDiffSignature(params: LoadReviewDiffParams): Promise<string>;

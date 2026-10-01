@@ -39,7 +39,7 @@ interface AppearanceThemeSettingsProps {
 export function AppearanceThemeSettings({ resolvedTheme, settings, updateSettings }: AppearanceThemeSettingsProps) {
   return (
     <section className="mb-10">
-      <SettingsSectionHeader title="主题" description="选择 Vibe Reviewer 的界面颜色模式。" />
+      <SettingsSectionHeader title="主题" description="选择 Navo 的界面颜色模式。" />
       <div className="grid grid-cols-3 gap-3">
         {appThemeOptions.map((option) => (
           <ThemePreferenceCard

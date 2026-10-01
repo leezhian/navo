@@ -28,7 +28,7 @@ interface RefreshOptions {
  * 提交面板的 Git 状态：进入审查页加载一次，项目变化、窗口重新聚焦或页面重新可见时刷新，
  * 提交/推送动作完成后由调用方手动 refresh。
  *
- * 提交面板不能依赖 diff 页的实时监听：分支/上一轮对话等模式可能没有挂载 diff watcher，
+ * 提交面板独立刷新 Git 状态，不依赖当前 diff 模式的监听范围，
  * 但用户仍然需要看到其他 Git 客户端带来的最新提交状态。
  */
 export function useGitCommitStatus(

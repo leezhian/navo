@@ -24,7 +24,7 @@ export function getLineDiffType(enableTextDiff: boolean): LineDiffTypes {
 
 function createDiffWorker() {
   return new Worker(new URL("@pierre/diffs/worker/worker.js", import.meta.url), {
-    name: "vibe-reviewer-diff-worker",
+    name: "navo-diff-worker",
     type: "module",
   });
 }

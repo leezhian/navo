@@ -1,12 +1,14 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AgentType, ReviewProvider, ReviewSession } from "@/domain/types";
 import type { CleanReviewStorageResult } from "@/shared/electronApi";
 
-const APP_DATA_DIR_NAME = "Vibe Reviewer";
+const APP_DATA_DIR_NAME = "Navo";
+const LEGACY_APP_DATA_DIR_NAME = "Vibe Reviewer";
 
-/** 进行中基线的最长保留时长：超过视为轮次已死；近期基线保留以支撑归档后重新入列。 */
+/** 旧版遗留基线的最长保留时长；当前版本不再生成基线。 */
 const STALE_PENDING_BASELINE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 /** 日志文件保留时长。 */
@@ -28,21 +30,6 @@ export interface ReviewSessionEvent {
   deletions: number;
   startedAt: string;
   endedAt: string;
-  updatedAt: string;
-}
-
-export interface PendingReviewBaseline {
-  provider: ReviewProvider;
-  sessionId: string;
-  turnId?: string;
-  transcriptPath?: string;
-  /** 本轮用户 prompt 归一后的标题，供会话首轮事件生成标题。 */
-  promptTitle?: string;
-  projectPath: string;
-  projectName: string;
-  branchName: string;
-  baselineTree: string;
-  startedAt: string;
   updatedAt: string;
 }
 
@@ -83,20 +70,10 @@ export async function ensureReviewStorage(options: ReviewStorageOptions = {}) {
 
   await Promise.all([
     mkdir(paths.rootDir, { recursive: true }),
-    mkdir(paths.pendingDir, { recursive: true }),
     mkdir(paths.diffsDir, { recursive: true }),
   ]);
 
   return paths;
-}
-
-export function getPendingBaselinePath(
-  provider: ReviewProvider,
-  sessionId: string,
-  options: ReviewStorageOptions = {},
-) {
-  const paths = getReviewStoragePaths(options);
-  return path.join(paths.pendingDir, provider, `${sanitizePathSegment(sessionId)}.json`);
 }
 
 export function getLatestPatchPath(
@@ -106,45 +83,6 @@ export function getLatestPatchPath(
 ) {
   const paths = getReviewStoragePaths(options);
   return path.join(paths.diffsDir, provider, sanitizePathSegment(sessionId), "latest.patch");
-}
-
-export async function writePendingBaseline(
-  baseline: PendingReviewBaseline,
-  options: ReviewStorageOptions = {},
-) {
-  const filePath = getPendingBaselinePath(baseline.provider, baseline.sessionId, options);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeJsonFile(filePath, baseline);
-}
-
-export async function readPendingBaseline(
-  provider: ReviewProvider,
-  sessionId: string,
-  options: ReviewStorageOptions = {},
-): Promise<PendingReviewBaseline | null> {
-  const filePath = getPendingBaselinePath(provider, sessionId, options);
-  return readJsonFile<PendingReviewBaseline>(filePath);
-}
-
-export async function deletePendingBaseline(
-  provider: ReviewProvider,
-  sessionId: string,
-  options: ReviewStorageOptions = {},
-) {
-  const filePath = getPendingBaselinePath(provider, sessionId, options);
-  await rm(filePath, { force: true });
-}
-
-export async function writeLatestPatch(
-  provider: ReviewProvider,
-  sessionId: string,
-  rawDiff: string,
-  options: ReviewStorageOptions = {},
-) {
-  const filePath = getLatestPatchPath(provider, sessionId, options);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, rawDiff, "utf8");
-  return filePath;
 }
 
 export async function readLatestPatch(rawDiffPath?: string): Promise<string | null> {
@@ -157,20 +95,6 @@ export async function readLatestPatch(rawDiffPath?: string): Promise<string | nu
   } catch {
     return null;
   }
-}
-
-// 每个会话只保留最新一条事件：历史 turn 的 diff 已被 latest.patch 覆盖，
-// 列表展示也只消费最新事件，按 turn 保留历史行只会让文件无上限增长。
-export async function saveReviewEvent(
-  event: ReviewSessionEvent,
-  options: ReviewStorageOptions = {},
-) {
-  const events = await readReviewEvents(options);
-  const eventKey = getReviewSessionKey(event.provider, event.sessionId);
-  const otherEvents = events.filter(
-    (item) => getReviewSessionKey(item.provider, item.sessionId) !== eventKey,
-  );
-  await writeReviewEvents([...otherEvents, event], options);
 }
 
 export async function readReviewEvents(options: ReviewStorageOptions = {}): Promise<ReviewSessionEvent[]> {
@@ -243,8 +167,6 @@ export async function markReviewSessionRead(
 
 /**
  * 归档会话：删除该会话的本地记录（事件行、diff 目录与已读状态）。
- * 特意保留 pending 基线：归档时若有进行中的对话轮次，该轮结束后产生的有效改动
- * 会作为新记录重新入列，保证归档瞬间尚未完成的改动不会逃过审查。
  */
 export async function archiveReviewSession(sessionId: string, options: ReviewStorageOptions = {}) {
   const events = await readReviewEvents(options);
@@ -462,15 +384,16 @@ async function writeJsonFile(filePath: string, value: unknown) {
 }
 
 function getDefaultStorageRoot() {
-  if (process.platform === "darwin") {
-    return path.join(os.homedir(), "Library", "Application Support", APP_DATA_DIR_NAME);
-  }
+  const appDataPath = process.platform === "darwin"
+    ? path.join(os.homedir(), "Library", "Application Support")
+    : process.platform === "win32"
+      ? process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming")
+      : process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
+  const rootDir = path.join(appDataPath, APP_DATA_DIR_NAME);
+  const legacyRootDir = path.join(appDataPath, LEGACY_APP_DATA_DIR_NAME);
 
-  if (process.platform === "win32") {
-    return path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), APP_DATA_DIR_NAME);
-  }
-
-  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config"), APP_DATA_DIR_NAME);
+  // 不移动历史 patch：事件中保存了绝对路径，继续读取旧目录才能保持快照可用。
+  return !existsSync(rootDir) && existsSync(legacyRootDir) ? legacyRootDir : rootDir;
 }
 
 function sanitizePathSegment(value: string) {

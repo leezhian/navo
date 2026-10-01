@@ -93,7 +93,7 @@ export function ReviewToolbar({
   }
 
   return (
-    <header className="border-b bg-background pt-12">
+    <header className="border-b bg-background pt-2">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-5 pb-2.5">
         <div>
           <div className="flex min-h-7 flex-wrap items-center gap-3 text-sm">

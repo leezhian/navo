@@ -13,8 +13,7 @@ import type {
   ReviewSessionsChangedListener,
   RunReviewBatchFileActionParams,
   RunReviewFileActionParams,
-  SetAgentIntegrationParams,
-  VibeReviewerApi,
+  NavoApi,
   WindowFullScreenListener,
 } from "./shared/electronApi";
 import { ipcChannels } from "./shared/ipcChannels";
@@ -25,7 +24,7 @@ import type {
   WriteTerminalParams,
 } from "./shared/terminalTypes";
 
-const api: VibeReviewerApi = {
+const api: NavoApi = {
   app: {
     getInfo() {
       return ipcRenderer.invoke(ipcChannels.appGetInfo);
@@ -58,12 +57,6 @@ const api: VibeReviewerApi = {
     },
     pushCommits(params: ProjectPathParams) {
       return ipcRenderer.invoke(ipcChannels.reviewPushCommits, params);
-    },
-    loadAgentIntegrationStatuses() {
-      return ipcRenderer.invoke(ipcChannels.reviewLoadAgentIntegrationStatuses);
-    },
-    setAgentIntegrationEnabled(params: SetAgentIntegrationParams) {
-      return ipcRenderer.invoke(ipcChannels.reviewSetAgentIntegrationEnabled, params);
     },
     runGitDiff(params: LoadReviewDiffParams) {
       return ipcRenderer.invoke(ipcChannels.reviewRunGitDiff, params);
@@ -157,4 +150,4 @@ const api: VibeReviewerApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("vibeReviewer", api);
+contextBridge.exposeInMainWorld("navo", api);

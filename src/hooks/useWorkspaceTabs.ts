@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { WindowTerminalTab } from "@/components/layout/MacWindow";
+import type { WindowTerminalTab } from "@/domain/workspaceTabs";
 
 type WorkspaceKind = "review" | "terminal";
 
