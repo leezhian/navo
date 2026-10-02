@@ -11,7 +11,7 @@ import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ip
 import { stopAllProjectWatchers } from "./main-process/services/projectChangeWatcher";
 import { registerSettingsHandlers, stopResourceOperations } from "./main-process/ipc/settingsHandlers";
 import { writeDiagnosticEvent } from "./main-process/services/diagnosticLogService";
-import { getCurrentSettings, loadSettings } from "./main-process/services/settingsService";
+import { flushSettings, getCurrentSettings, loadSettings } from "./main-process/services/settingsService";
 import { updateApplicationMenu } from "./main-process/applicationMenu";
 import { startReviewSessionWatcher, stopReviewSessionWatcher } from "./main-process/services/reviewSessionWatcher";
 
@@ -88,8 +88,8 @@ function startApplication() {
     stopReviewSessionWatcher();
     stopAllProjectWatchers();
     destroyAllTerminals();
-    // 日志队列完成后再退出，避免丢失关闭事件；磁盘异常不阻塞无限等待。
-    void Promise.race([Promise.all([stoppedResources, writeDiagnosticEvent("app-stop")]), new Promise((resolve) => setTimeout(resolve, 5000))]).finally(() => {
+    // 等待设置与日志队列完成再退出；磁盘异常不阻塞无限等待。
+    void Promise.race([Promise.all([stoppedResources, flushSettings(), writeDiagnosticEvent("app-stop")]), new Promise((resolve) => setTimeout(resolve, 5000))]).finally(() => {
       shutdownComplete = true;
       app.quit();
     });

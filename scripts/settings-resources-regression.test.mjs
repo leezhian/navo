@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -260,7 +261,7 @@ test("窗口关闭的取消入口等待所属克隆清理完成", async (context
   await assert.rejects(access(path.join(directory, "repo")), /ENOENT/);
 });
 
-test("配置写入串行且原子，磁盘失败不会更新主进程缓存", async (context) => {
+test("SQLite 配置串行读写，磁盘失败不更新缓存且队列可重试", async (context) => {
   const directory = await temporaryDirectory(context);
   const load = createLoader({ electron: { app: { getPath: () => directory } } });
   const service = load("src/main-process/services/settingsService.ts");
@@ -268,10 +269,116 @@ test("配置写入串行且原子，磁盘失败不会更新主进程缓存", as
   await Promise.all([service.saveSettings({ ...defaultSettings, theme: "light" }), service.saveSettings({ ...defaultSettings, theme: "dark", locale: "zh-CN" })]);
   assert.equal((await service.loadSettings()).settings.theme, "dark");
   assert.equal(service.getCurrentSettings().locale, "zh-CN");
-  await rm(path.join(directory, "settings.json"));
-  await mkdir(path.join(directory, "settings.json"));
+  const databasePath = path.join(directory, "app.db");
+  assert.equal((await readFile(databasePath)).subarray(0, 15).toString(), "SQLite format 3");
+  await assert.rejects(access(path.join(directory, "settings.json")), /ENOENT/);
+  await rm(databasePath);
+  await mkdir(databasePath);
   await assert.rejects(service.saveSettings(defaultSettings));
   assert.equal(service.getCurrentSettings().theme, "dark");
+  await rm(databasePath, { recursive: true });
+  const saving = service.saveSettings({ ...defaultSettings, theme: "light" });
+  const loading = service.loadSettings();
+  await service.flushSettings();
+  await saving;
+  assert.equal((await loading).settings.theme, "light");
+});
+
+test("旧 JSON 迁入 SQLite 并保留备份，重新加载只读取数据库", async (context) => {
+  const directory = await temporaryDirectory(context);
+  const jsonPath = path.join(directory, "settings.json");
+  const original = JSON.stringify({ ...defaultSettings, theme: "dark", locale: "zh-CN", branchPrefix: "自定义/", diffCodeFontSize: 18 });
+  await writeFile(jsonPath, original);
+  const mocks = { electron: { app: { getPath: () => directory } } };
+  const service = createLoader(mocks)("src/main-process/services/settingsService.ts");
+  const migrated = (await service.loadSettings()).settings;
+  assert.equal(migrated.theme, "dark");
+  assert.equal(migrated.locale, "zh-CN");
+  assert.equal(migrated.branchPrefix, "自定义/");
+  assert.equal(migrated.diffCodeFontSize, 18);
+  assert.equal(await readFile(jsonPath, "utf8"), original);
+  const database = new DatabaseSync(path.join(directory, "app.db"));
+  try {
+    assert.equal(database.prepare("PRAGMA journal_mode").get().journal_mode, "wal");
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 1);
+    assert.equal(JSON.parse(database.prepare("SELECT value FROM settings WHERE key = ?").get("theme").value), "dark");
+  } finally { database.close(); }
+  await writeFile(jsonPath, "invalid legacy JSON");
+  const restarted = createLoader(mocks)("src/main-process/services/settingsService.ts");
+  assert.deepEqual((await restarted.loadSettings()).settings, migrated);
+  await restarted.saveSettings({ ...migrated, theme: "light" });
+  assert.equal(await readFile(jsonPath, "utf8"), "invalid legacy JSON");
+  assert.equal((await createLoader(mocks)("src/main-process/services/settingsService.ts").loadSettings()).settings.theme, "light");
+});
+
+test("旧 JSON 损坏时不导入默认值，修复后可重新迁移", async (context) => {
+  const directory = await temporaryDirectory(context);
+  const jsonPath = path.join(directory, "settings.json");
+  const service = createLoader({ electron: { app: { getPath: () => directory } } })("src/main-process/services/settingsService.ts");
+  for (const invalid of ["{bad", "[]", '"settings"', "null"]) {
+    await writeFile(jsonPath, invalid);
+    await assert.rejects(service.loadSettings(), /INVALID_SETTINGS/);
+    assert.equal(await readFile(jsonPath, "utf8"), invalid);
+    const database = new DatabaseSync(path.join(directory, "app.db"));
+    try { assert.equal(database.prepare("SELECT count(*) AS count FROM settings").get().count, 0); }
+    finally { database.close(); }
+  }
+  await writeFile(jsonPath, JSON.stringify({ theme: "dark" }));
+  assert.equal((await service.loadSettings()).settings.theme, "dark");
+});
+
+test("SQLite 整组更新失败时回滚所有键并保留缓存", async (context) => {
+  const directory = await temporaryDirectory(context);
+  const service = createLoader({ electron: { app: { getPath: () => directory } } })("src/main-process/services/settingsService.ts");
+  await service.saveSettings(defaultSettings);
+  const database = new DatabaseSync(path.join(directory, "app.db"));
+  try {
+    database.exec("CREATE TRIGGER reject_settings BEFORE INSERT ON settings WHEN NEW.key = 'worktreesDirectory' BEGIN SELECT RAISE(ABORT, 'test write failure'); END");
+    await assert.rejects(service.saveSettings({ ...defaultSettings, theme: "dark", locale: "zh-CN" }), /test write failure/);
+    assert.deepEqual(service.getCurrentSettings(), defaultSettings);
+    assert.deepEqual((await service.loadSettings()).settings, defaultSettings);
+    database.exec("DROP TRIGGER reject_settings");
+    await service.saveSettings({ ...defaultSettings, theme: "dark" });
+    assert.equal((await service.loadSettings()).settings.theme, "dark");
+  } finally { database.close(); }
+});
+
+test("迁移写入失败保留 JSON 和空设置表，重试后一次性导入", async (context) => {
+  const directory = await temporaryDirectory(context);
+  const service = createLoader({ electron: { app: { getPath: () => directory } } })("src/main-process/services/settingsService.ts");
+  await service.loadSettings();
+  const original = JSON.stringify({ theme: "dark", locale: "zh-CN" });
+  await writeFile(path.join(directory, "settings.json"), original);
+  const database = new DatabaseSync(path.join(directory, "app.db"));
+  try {
+    database.exec("CREATE TRIGGER reject_migration BEFORE INSERT ON settings WHEN NEW.key = 'worktreesDirectory' BEGIN SELECT RAISE(ABORT, 'migration failed'); END");
+    await assert.rejects(service.loadSettings(), /migration failed/);
+    assert.equal(database.prepare("SELECT count(*) AS count FROM settings").get().count, 0);
+    assert.equal(await readFile(path.join(directory, "settings.json"), "utf8"), original);
+    database.exec("DROP TRIGGER reject_migration");
+    assert.equal((await service.loadSettings()).settings.theme, "dark");
+  } finally { database.close(); }
+});
+
+test("SQLite 文件或字段损坏不回退旧 JSON，也不覆盖原数据", async (context) => {
+  const directory = await temporaryDirectory(context);
+  const service = createLoader({ electron: { app: { getPath: () => directory } } })("src/main-process/services/settingsService.ts");
+  const databasePath = path.join(directory, "app.db");
+  await writeFile(path.join(directory, "settings.json"), JSON.stringify({ theme: "light" }));
+  await writeFile(databasePath, "damaged database");
+  await assert.rejects(service.loadSettings());
+  assert.equal(await readFile(databasePath, "utf8"), "damaged database");
+  await rm(databasePath);
+  await service.saveSettings(defaultSettings);
+  const database = new DatabaseSync(databasePath);
+  try {
+    database.prepare("UPDATE settings SET value = ? WHERE key = ?").run("{invalid", "theme");
+    await assert.rejects(service.loadSettings(), /INVALID_SETTINGS/);
+    assert.equal(database.prepare("SELECT value FROM settings WHERE key = 'theme'").get().value, "{invalid");
+    database.exec("PRAGMA user_version = 2");
+    await assert.rejects(service.saveSettings(defaultSettings), /INVALID_SETTINGS/);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 2);
+  } finally { database.close(); }
 });
 
 test("诊断日志固定单文件，只包含应用事件和时间，清理不删除其他文件", async (context) => {
@@ -422,7 +529,7 @@ test("日志路径使用可取消的目录选择器，保留文件名并支持�
   assert.equal(await handlers.get(ipcChannels.settingsChooseLogFile)({ sender: {} }), path.join(chosenDirectory, "custom-name.log"));
 });
 
-test("迁移失败保留旧配置，重试成功后只使用主进程 JSON", async () => {
+test("迁移失败保留旧配置，重试成功后只使用主进程 SQLite", async () => {
   const originalWindow = globalThis.window;
   const originalStorage = globalThis.localStorage;
   const legacy = new Map([["vibe-reviewer-settings", JSON.stringify({ theme: "dark", diffCodeFontSize: 19 })]]);

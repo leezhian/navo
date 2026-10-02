@@ -2,6 +2,12 @@
 
 Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron Forge、Vite、React、Tailwind CSS、shadcn 和 Radix UI 构建。正式应用已使用新版 Tasks / Issue 导航壳层，设置也迁入相同的独立圆角块风格。
 
+## 项目文档
+
+- [PRD.md](PRD.md)：产品概述、范围边界与页面需求索引。
+- [docs/prd/](docs/prd/)：按页面维护的功能、交互、布局细节及验收标准；设置按子页面拆分。
+- [DESIGN.md](DESIGN.md)：通用设计风格和规范，不收录具体功能方案。
+
 ## 功能概览
 
 - Tasks：TODO、DONE、ARCHIVED 三列，卡片只显示标题、日期和项目名。
@@ -12,7 +18,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - 点击任务或条目展开独立右侧详情，通过 8px 分隔条拖动调整宽度。
 - 顶部提供模块历史后退与前进及固定数据的工作区标签占位，支持本地选中、关闭和横向拖拽排序，暂不切换任务内容；左侧底部为设置，不再提供旧会话列表。
 - 设置提供常规、外观、仓库与文件夹、集成和关于，保留主题与 diff 预览；关于的版本与更新合为一行。
-- 全局英文/简体中文切换立即生效，首次默认英文；设置由主进程 JSON 持久化，Zustand 仅作为渲染缓存。
+- 全局英文/简体中文切换立即生效，首次默认英文；设置由主进程 SQLite 持久化，Zustand 仅作为渲染缓存。
 - 统一通过“添加仓库”入口新增：输入 HTTPS / SSH 地址时自动提取名称并使用常规设置中的仓库目录，支持克隆进度与取消；也可在弹窗中选择或拖入本地目录并自动登记，系统目录选择器默认打开当前用户主目录。支持编辑/移除，移除记录不会删除文件，编辑不会修改 Git remote。
 - 诊断日志使用单文件，最高约 20 MB，支持修改文件路径、在文件管理器中定位、复制路径和清理日志，只记录固定应用事件和时间；任务模式与保持唤醒暂仅保存偏好，仓库目录扫描和远程访问尚未接入，集成状态明确为占位。
 - 保留可复用 ReviewDialog、Git diff / 文件树 / 评论 / Git 操作和终端基础组件，当前新版不提供审查或终端入口。
@@ -31,12 +37,13 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - motion：界面动效。
 - i18next / react-i18next：全局界面国际化，中文 key 对应集中英文资源。
 - zustand：设置、资源记录及集成占位状态的渲染缓存，不重复持久化主进程配置。
+- node:sqlite：Electron 主进程内置 SQLite，无需额外原生依赖。
 - node-pty：创建和管理真实 Shell 伪终端。
 - libghostty-vt：解析终端 VT 序列并生成终端画面。
 
 ## 环境要求
 
-- Node.js
+- Node.js 22.13+（测试使用内置 node:sqlite；SQLite 在部分 Node 版本中仍会输出实验性 API 警告）。
 - pnpm
 - Git
 - macOS 本地预览需要安装 Electron 运行所需环境。
@@ -125,9 +132,11 @@ npm run lint
 
 ## 本地数据兼容
 
-新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置写入 Electron `userData/settings.json`，资源写入 `userData/resources.json`，均串行原子替换。仅在新配置不存在时迁移 localStorage 的 `navo-settings` / `vibe-reviewer-settings`，保留阅读偏好，写入成功后才移除旧键；读取/保存失败明确提示，不静默覆盖损坏文件。Tasks 数据仍沿用既有独立本地存储。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因更名而假定远端已改名。
+新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置保存在 Electron `userData/app.db`，资源仍写入 `userData/resources.json` 并串行原子替换。设置数据库使用内置 `node:sqlite`，按字段存入 `settings(key, value)`，值为 JSON 编码，开启 WAL、FULL 同步与 3 秒忙等待；整组更新以事务提交，主进程读写共用队列，提交成功才更新缓存，退出时等待已排队的保存。连接按操作打开并关闭，数据库文件新建权限为 `0600`，`user_version = 1` 记录当前结构版本，拒绝写入更高版本的数据库。
 
-仓库与 Worktree 默认目录分别为 `~/Navo/repos`、`~/Navo/worktrees`；诊断日志默认为 `userData/logs/navo.log`，macOS 新安装通常为 `/Users/<用户名>/Library/Application Support/Navo/logs/navo.log`。`settings.json` 的 `logFilePath` 保存用户选择的完整文件路径，空值使用默认位置。修改路径不迁移或删除旧文件，后续事件写入新位置；已有非空文件需符合 Navo 诊断日志格式，文件扩展名必须为 `.log`。定位操作通过 `shell.showItemInFolder` 打开系统文件管理器，并保证文件存在。日志始终记录，最大 `20 * 1024 * 1024` 字节，达到上限后重置同一文件并继续记录，不生成轮转文件。清理与写入共用串行队列，手动清理只清空当前文件，不删除目录或其他文件；旧开关、目录和保留时间偏好不再读取。仓库克隆依赖系统 Git 与现有 HTTPS 凭证 / SSH agent，不提供交互式密码输入。克隆失败或取消只清理本次独占创建的目录；记录保存失败则保留成功克隆的仓库。浏览器模式不提供配置/文件系统能力，使用真实 Electron 窗口验证。
+配置读取优先级为：SQLite 设置 → 旧 `settings.json` → localStorage 的 `navo-settings` / `vibe-reviewer-settings` → 默认值。仅在数据库尚无设置时尝试旧 JSON，规范化后整组导入，成功保留原文件作为备份，之后不再回读或写入；没有旧 JSON 时才由渲染进程迁移旧浏览器设置，写入成功后移除旧键。损坏的数据库、非法 JSON、迁移或保存失败会明确提示，不静默回退默认值或覆盖旧记录。Tasks 数据仍沿用既有独立本地存储。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因更名而假定远端已改名。
+
+仓库与 Worktree 默认目录分别为 `~/Navo/repos`、`~/Navo/worktrees`；诊断日志默认为 `userData/logs/navo.log`，macOS 新安装通常为 `/Users/<用户名>/Library/Application Support/Navo/logs/navo.log`。SQLite 设置中的 `logFilePath` 保存用户选择的完整文件路径，空值使用默认位置。修改路径不迁移或删除旧文件，后续事件写入新位置；已有非空文件需符合 Navo 诊断日志格式，文件扩展名必须为 `.log`。定位操作通过 `shell.showItemInFolder` 打开系统文件管理器，并保证文件存在。日志始终记录，最大 `20 * 1024 * 1024` 字节，达到上限后重置同一文件并继续记录，不生成轮转文件。清理与写入共用串行队列，手动清理只清空当前文件，不删除目录或其他文件；旧开关、目录和保留时间偏好不再读取。仓库克隆依赖系统 Git 与现有 HTTPS 凭证 / SSH agent，不提供交互式密码输入。克隆失败或取消只清理本次独占创建的目录；记录保存失败则保留成功克隆的仓库。浏览器模式不提供配置/文件系统能力，使用真实 Electron 窗口验证。
 
 ## Electron 通信
 
@@ -202,7 +211,7 @@ src/components/ui/icon-tooltip.tsx
 
 - npm run lint：检查所有 TypeScript / TSX。
 - npx tsc --noEmit：检查类型及模块集成。
-- node --test scripts/*.test.mjs：审查、任务、设置迁移、资源 CRUD、克隆错误与取消、日志和翻译回归；预览回归使用隔离用户目录启动隐藏 Electron 窗口，需要桌面环境（Linux CI 需提供虚拟显示）。
+- node --test scripts/*.test.mjs：审查、任务、SQLite 设置读写/迁移/事务回滚/损坏保护、资源 CRUD、克隆错误与取消、日志和翻译回归；预览回归使用隔离用户目录启动隐藏 Electron 窗口，需要桌面环境（Linux CI 需提供虚拟显示）。
 - git diff --check：检查补丁空白错误。
 - npm run build：打包 Electron 应用；包含 Vite renderer 构建和原生依赖准备。
 

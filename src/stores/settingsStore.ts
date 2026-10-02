@@ -52,7 +52,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
             settings = normalizeAppSettings(parsed);
           }
           catch { throw new Error("INVALID_SETTINGS"); }
-          // 迁移成功后才清理旧配置；主进程 JSON 是唯一持久化来源。
+          // 迁移成功后才清理旧配置；主进程 SQLite 是唯一持久化来源。
           settings = await settingsApi.save(settings);
           localStorage.removeItem("navo-settings");
           localStorage.removeItem("vibe-reviewer-settings");
