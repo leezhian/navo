@@ -237,6 +237,7 @@ export const english: Record<string, string> = {
   "粘贴仓库地址以克隆，或选择已有仓库的文件夹。": "Paste a URL to clone it, or pick a folder that already holds a repo",
   "确认": "Confirm",
   "拖入目录，或选择已有本地文件夹。": "Drop a directory or choose an existing local folder.",
+  "松开以添加目录": "Release to add folder",
   "选择本地文件夹": "Choose local folder",
   "克隆仓库": "Clone repo",
   "克隆中…": "Cloning…",

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { useIntegrationStore } from "@/stores/integrationStore";
 import { SettingsList, SettingsPageHeader, SettingsRow } from "./settingsPrimitives";
+import { IntegrationProviderIcon } from "./IntegrationProviderIcon";
 
 export function IntegrationsSettingsPage() {
   const { t } = useTranslation();
@@ -16,7 +17,7 @@ export function IntegrationsSettingsPage() {
       <IconTooltip label={t("刷新")} size="icon-sm" variant="ghost" disabled={loading} onClick={() => void refresh()}><RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} /></IconTooltip>
     </div>
     <p className="mb-4 text-xs leading-5 text-muted-foreground">{t("集成功能尚未接入，当前状态为占位数据；刷新仅重新加载本地占位状态。")}</p>
-    <SettingsList>{providers.map((provider) => <SettingsRow key={provider.id} title={provider.name} description={t("尚未连接")}>
+    <SettingsList>{providers.map((provider) => <SettingsRow key={provider.id} icon={<IntegrationProviderIcon provider={provider.id} />} title={provider.name} description={t("尚未连接")}>
       <Button className="h-8 text-xs" variant="secondary" disabled>{t("连接")}</Button>
     </SettingsRow>)}</SettingsList>
   </>;

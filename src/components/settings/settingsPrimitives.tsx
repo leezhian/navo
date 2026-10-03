@@ -44,14 +44,19 @@ interface SettingsRowProps {
   description?: string;
   /** 设置项标题。 */
   title: string;
+  /** 可选前置标识，与名称和说明共同展示，不替代文字名称。 */
+  icon?: ReactNode;
 }
 
-export function SettingsRow({ children, description, title }: SettingsRowProps) {
+export function SettingsRow({ children, description, icon, title }: SettingsRowProps) {
   return (
     <div className="settings-row">
-      <div className="settings-row-label">
-        <h3 className="text-[13px] font-normal">{title}</h3>
-        {description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>}
+      <div className="settings-row-label flex items-center gap-3">
+        {icon && <span className="shrink-0">{icon}</span>}
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-normal">{title}</h3>
+          {description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>}
+        </div>
       </div>
       <div className="settings-row-control">{children}</div>
     </div>

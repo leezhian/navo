@@ -7,6 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -19,7 +21,7 @@ function createLoader(mocks = {}) {
     const module = { exports: {} };
     cache.set(absolute, module);
     const { outputText } = ts.transpileModule(readFileSync(absolute, "utf8"), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
     });
     const localRequire = (name) => {
       if (name in mocks) return mocks[name];
@@ -43,6 +45,74 @@ const load = createLoader();
 const { defaultSettings, normalizeAppSettings } = load("src/domain/settings.ts");
 const { resolveResourcePath, validateCloneUrl, validateRepositoryName, redactCloneOutput } = load("src/main-process/services/resourcePaths.ts");
 const { getRepositoryName, getFolderName } = load("src/utils/resourceNames.ts");
+
+test("资源读取不显示加载文案，刷新保留列表和空状态，失败保留已有记录", async () => {
+  let resolveList;
+  let rejectList;
+  const store = createLoader({ "@/services/resourceApi": { resourceApi: {
+    list: () => new Promise((resolve, reject) => { resolveList = resolve; rejectList = reject; }),
+  } } })("src/stores/resourceStore.ts").useResourceStore;
+  const { ResourcesSettingsPage } = createLoader({
+    "@/stores/resourceStore": { useResourceStore: () => store.getState() },
+    "react-i18next": { useTranslation: () => ({ t: (value) => value }) },
+    "@/components/ui/button": { Button: "button" },
+    "@/components/ui/icon-tooltip": { IconTooltip: ({ label, children, ...props }) => createElement("button", { ...props, "aria-label": label }, children) },
+    "@/components/ui/dialog": { Dialog: () => null },
+    "@/services/settingsErrors": { getSettingsError: (error) => String(error) },
+    "./settingsPrimitives": { SettingsPageHeader: ({ title }) => createElement("h1", null, title) },
+    "./ResourceDialog": { ResourceDialog: () => null },
+  })("src/components/settings/ResourcesSettingsPage.tsx");
+  const render = () => renderToStaticMarkup(createElement(ResourcesSettingsPage, { settings: defaultSettings }));
+  assert.doesNotMatch(render(), /读取中/);
+  assert.doesNotMatch(render(), /暂无仓库或文件夹/);
+  const initial = store.getState().refresh();
+  assert.doesNotMatch(render(), /读取中/);
+  assert.doesNotMatch(render(), /暂无仓库或文件夹/);
+  const record = { id: "repo", kind: "repo", name: "Navo test repo", localPath: "/test/repo", available: true };
+  resolveList([record]);
+  await initial;
+  const refresh = store.getState().refresh();
+  assert.deepEqual(store.getState().records, [record]);
+  assert.match(render(), /Navo test repo/);
+  assert.doesNotMatch(render(), /读取中/, "已有数据刷新时不应插入读取中提示挤动列表");
+  assert.match(render(), /animate-spin/);
+  rejectList(new Error("Refresh failed"));
+  await refresh;
+  assert.match(render(), /Refresh failed/);
+  assert.match(render(), /Navo test repo/);
+  const retry = store.getState().refresh();
+  resolveList([]);
+  await retry;
+  assert.match(render(), /暂无仓库或文件夹/);
+  const emptyRefresh = store.getState().refresh();
+  assert.match(render(), /暂无仓库或文件夹/, "已加载的空列表在刷新时应保持空状态");
+  assert.doesNotMatch(render(), /读取中/);
+  resolveList([]);
+  await emptyRefresh;
+});
+
+test("集成列表显示五个平台图标，自托管版本共用品牌标识且连接仍禁用", async () => {
+  const providers = await load("src/services/integrationApi.ts").loadIntegrationStatuses();
+  const icons = load("src/components/settings/IntegrationProviderIcon.tsx");
+  const primitives = load("src/components/settings/settingsPrimitives.tsx");
+  const { IntegrationsSettingsPage } = createLoader({
+    "@/stores/integrationStore": { useIntegrationStore: () => ({ providers, loading: false, refresh: async () => undefined }) },
+    "react-i18next": { useTranslation: () => ({ t: (value) => value }) },
+    "@/components/ui/button": { Button: "button" },
+    "@/components/ui/icon-tooltip": { IconTooltip: () => null },
+    "./settingsPrimitives": primitives,
+    "./IntegrationProviderIcon": icons,
+  })("src/components/settings/IntegrationsSettingsPage.tsx");
+  const html = renderToStaticMarkup(createElement(IntegrationsSettingsPage));
+  assert.equal((html.match(/<svg /g) ?? []).length, 5);
+  assert.equal((html.match(/fill="currentColor"/g) ?? []).length, 5);
+  assert.equal((html.match(/disabled=""/g) ?? []).length, 5);
+  for (const provider of providers) assert.ok(html.includes(provider.name));
+  const renderIcon = (provider) => renderToStaticMarkup(createElement(icons.IntegrationProviderIcon, { provider }));
+  assert.equal(renderIcon("github"), renderIcon("github-enterprise"));
+  assert.equal(renderIcon("gitlab"), renderIcon("gitlab-self-hosted"));
+  assert.equal(new Set(["github", "gitlab", "linear"].map(renderIcon)).size, 3);
+});
 
 test("仓库名称从 HTTPS、SSH 和 SCP 地址自动提取", () => {
   for (const url of ["https://github.com/team/navo.git", "https://github.com/team/navo", "https://github.com/team/navo.git/", "ssh://git@example.com:2222/team/navo.git", "git@example.com:team/navo.git"]) {

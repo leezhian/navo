@@ -23,6 +23,7 @@ export function ResourcesSettingsPage({ settings }: ResourcesSettingsPageProps) 
   const [removing, setRemoving] = useState<ResourceRecord | null>(null);
   const [removingBusy, setRemovingBusy] = useState(false);
   const [removeError, setRemoveError] = useState<unknown>(null);
+  const showEmptyState = resources.loaded && resources.records.length === 0 && resources.error === null;
   useEffect(() => { void resources.refresh(); }, [resources.refresh]);
 
   async function removeRecord() {
@@ -42,9 +43,8 @@ export function ResourcesSettingsPage({ settings }: ResourcesSettingsPageProps) 
       <IconTooltip label={t("刷新")} className="ml-auto" size="icon-sm" variant="ghost" disabled={resources.loading} onClick={() => void resources.refresh()}><RefreshCw className={resources.loading ? "size-4 animate-spin" : "size-4"} /></IconTooltip>
     </div>
     {resources.error !== null && <p role="alert" className="mb-3 text-xs text-destructive">{getSettingsError(resources.error)}</p>}
-    {resources.loading && <p role="status" className="text-xs text-muted-foreground">{t("读取中")}</p>}
-    {!resources.loading && resources.records.length === 0 && resources.error === null && <p className="ade-empty-state">{t("暂无仓库或文件夹")}</p>}
-    <div className="settings-list">
+    {showEmptyState && <p className="ade-empty-state">{t("暂无仓库或文件夹")}</p>}
+    <div className="settings-list" aria-busy={resources.loading}>
       {resources.records.map((record) => <div key={record.id} className="resource-row">
         {record.kind === "repo" ? <GitBranch className="mt-1 size-4 shrink-0 text-muted-foreground" /> : <Folder className="mt-1 size-4 shrink-0 text-muted-foreground" />}
         <div className="min-w-0 flex-1"><h2 className="truncate text-[13px]">{record.name}</h2><p className="mt-1 break-all text-xs text-muted-foreground">{record.localPath}</p>

@@ -4,6 +4,8 @@ import { resourceApi } from "@/services/resourceApi";
 
 interface ResourceState {
   records: ResourceRecord[];
+  /** 区分首次读取与后台刷新，已加载的空列表也保持稳定展示。 */
+  loaded: boolean;
   loading: boolean;
   error: unknown;
   refresh: () => Promise<void>;
@@ -12,11 +14,11 @@ interface ResourceState {
 }
 
 export const useResourceStore = create<ResourceState>((set, get) => ({
-  records: [], loading: false, error: null,
+  records: [], loaded: false, loading: false, error: null,
   async refresh() {
     if (get().loading) return;
     set({ loading: true, error: null });
-    try { set({ records: await resourceApi.list(), loading: false }); }
+    try { set({ records: await resourceApi.list(), loaded: true, loading: false }); }
     catch (error) { set({ error, loading: false }); }
   },
   upsert(record) {

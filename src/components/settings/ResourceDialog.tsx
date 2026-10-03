@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { ResourceRecord } from "@/shared/settingsTypes";
 import { useResourceForm } from "@/hooks/useResourceForm";
 import { getSettingsError } from "@/services/settingsErrors";
+import { ResourceDropArea } from "./ResourceDropArea";
 
 interface ResourceDialogProps {
   /** 编辑目标；未传入时新增资源。 */
@@ -40,10 +41,7 @@ export function ResourceDialog({ record, repositoriesDirectory, onClose }: Resou
             </div>
           </label>
         </>}
-        {!record && <div className="resource-drop-area" data-disabled={disabled} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = disabled ? "none" : "copy"; }} onDrop={(event) => void form.handleDrop(event)}>
-          <p className="text-xs leading-5 text-muted-foreground">{t("拖入目录，或选择已有本地文件夹。")}</p>
-          <Button type="button" className="mt-2 h-8 text-xs" variant="secondary" disabled={disabled} onClick={() => void form.chooseFolder()}>{t("选择本地文件夹")}</Button>
-        </div>}
+        {!record && <ResourceDropArea disabled={disabled} onChooseFolder={() => void form.chooseFolder()} onDrop={(event) => void form.handleDrop(event)} />}
         {form.progress && <pre role="status" className="max-h-28 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 text-[11px] leading-5">{form.progress}</pre>}
         {form.error !== null && <p role="alert" className="text-xs leading-5 text-destructive">{getSettingsError(form.error)}</p>}
         <DialogFooter>
