@@ -1,4 +1,5 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
+import type { TasksApi } from "./taskTypes";
 import type { CloneProgress, CloneResourceParams, ResourceRecord, SaveResourceParams, SettingsBootstrap } from "./settingsTypes";
 import type { AppSettings, CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
 import type {
@@ -117,6 +118,7 @@ export interface CheckForUpdatesResult {
 export type WindowFullScreenListener = (isFullScreen: boolean) => void;
 
 export interface NavoApi {
+  tasks: TasksApi;
   settings: {
     /** 读取磁盘配置及主进程提供的当前日志文件路径。 */
     load(): Promise<SettingsBootstrap>;

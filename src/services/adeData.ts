@@ -15,17 +15,16 @@ function readStoredItems<Item extends { id: string }>(key: string, validate: (va
   }
 }
 
-export function loadTasks(): Task[] {
-  return readStoredItems(TASKS_STORAGE_KEY, isTask) ?? (import.meta.env.DEV ? developmentTasks : []);
+export function readLegacyTasks(): Task[] {
+  const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+  if (raw === null) return import.meta.env.DEV ? developmentTasks : [];
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { throw new Error("TASK_LEGACY_INVALID"); }
+  if (!Array.isArray(value) || !value.every(isTask) || new Set(value.map((task) => task.id)).size !== value.length) throw new Error("TASK_LEGACY_INVALID");
+  return value;
 }
 
-export function saveTasks(tasks: Task[]) {
-  try {
-    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
-  } catch {
-    // 存储受限时保留当前窗口中的操作结果，不阻断拖动或查看详情。
-  }
-}
+export function clearLegacyTasks() { localStorage.removeItem(TASKS_STORAGE_KEY); }
 
 export function loadIssueItems(): IssueItem[] {
   return readStoredItems(ISSUES_STORAGE_KEY, isIssueItem) ?? (import.meta.env.DEV ? developmentIssues : []);

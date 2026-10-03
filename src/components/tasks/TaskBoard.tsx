@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { LayoutGroup, MotionConfig, motion } from "motion/react";
 import { TaskCard } from "./TaskCard";
@@ -9,7 +9,8 @@ import { TaskToolbar } from "./TaskToolbar";
 import { TaskList } from "./TaskList";
 import { taskColumns as columnDefinitions } from "./taskConstants";
 import { ResizableWorkspace } from "@/components/layout/ResizableWorkspace";
-import { moveTask } from "@/utils/taskState";
+import { Button } from "@/components/ui/button";
+import { getTaskError } from "@/services/taskErrors";
 import type { Task, TaskStatus } from "@/domain/tasks";
 import type { TaskDisplayOptions } from "@/domain/taskView";
 import { useTasks } from "@/hooks/useTasks";
@@ -86,14 +87,18 @@ function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectT
 
 export function TaskBoard() {
   const { t: translate } = useTranslation();
-  const { tasks, setTasks } = useTasks();
+  const { tasks, move, pending, loaded, loading, error, recoveryWarnings, bootstrap, requestedTaskId, requestOpen } = useTasks();
   const view = useTaskView(tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const selectedTask = view.visibleTasks.find((task) => task.id === selectedTaskId);
-  const canDrag = view.display.mode === "board" && view.display.order === "manual";
+  const canDrag = loaded && !pending && view.display.mode === "board" && view.display.order === "manual";
+  const requestedVisible = view.visibleTasks.some((task) => task.id === requestedTaskId);
+  useEffect(() => {
+    if (requestedTaskId && requestedVisible) { setSelectedTaskId(requestedTaskId); requestOpen(null); }
+  }, [requestedTaskId, requestedVisible, requestOpen]);
   const { dragPreview, dropTarget, dropDuration, pointerHandlers } = useTaskDrag({
     tasks: view.visibleTasks,
-    onMove: (taskId, target) => setTasks((current) => moveTask(current, taskId, target.status, target.beforeTaskId)),
+    onMove: (taskId, target) => { void move(taskId, target.status, target.beforeTaskId); },
     onTaskClick: setSelectedTaskId,
   });
   const taskColumns = columnDefinitions.map((column) => ({ ...column, tasks: view.visibleTasks.filter((task) => task.status === column.status) }));
@@ -107,10 +112,13 @@ export function TaskBoard() {
           listLabel={translate("任务面板")}
         >
           <div className="task-panel-content">
+            {error !== null && <div role="alert" className="flex items-center gap-3 px-4 pt-3 text-xs text-destructive"><span>{getTaskError(error)}</span><Button variant="ghost" size="sm" disabled={loading || pending} onClick={() => void bootstrap()}>{translate("重试")}</Button></div>}
+            {recoveryWarnings.length > 0 && <div role="alert" className="px-4 pt-3 text-xs text-muted-foreground"><p>{translate("上次任务创建未完成，以下工作目录已保留，请检查。")}</p><pre className="mt-1 whitespace-pre-wrap break-all">{recoveryWarnings.join("\n")}</pre></div>}
+            {requestedTaskId && !requestedVisible && <div className="flex items-center gap-2 px-4 pt-3 text-xs text-muted-foreground"><span>{translate("任务已创建，但被当前筛选隐藏。")}</span><Button size="sm" variant="ghost" onClick={view.clearFilters}>{translate("查看任务")}</Button><Button size="sm" variant="ghost" onClick={() => requestOpen(null)}>{translate("关闭")}</Button></div>}
             <TaskToolbar tasks={tasks} filters={view.filters} display={view.display}
               projectNames={view.projectNames} hasFilters={view.hasFilters} onFiltersChange={view.setFilters}
               onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} />
-            {view.display.mode === "board" ? (
+            {!loaded ? <div className="min-h-40" role="status" aria-label={loading ? translate("正在加载任务") : undefined} /> : view.display.mode === "board" ? (
               <motion.div className="task-board" layoutScroll {...(canDrag ? pointerHandlers : {})}>
                 {taskColumns.map((column) => (
                   <TaskColumn key={column.status} column={column} dragPreview={dragPreview}

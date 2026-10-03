@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { Task } from "@/domain/tasks";
 import type { TaskDisplayOptions } from "@/domain/taskView";
 import { taskColumns } from "./taskConstants";
+import { TaskContextMenu } from "./TaskContextMenu";
+import { taskProjectLabel, taskProjectNames } from "@/utils/taskProjects";
 
 interface TaskListProps {
   /** 已筛选、排序的任务，仍按状态分组。 */
@@ -30,14 +32,14 @@ export function TaskList({ tasks, display, selectedTaskId, onSelectTask }: TaskL
               <h2 id={headingId}>{status}</h2><span className="text-muted-foreground">{groupTasks.length}</span>
             </header>
             {groupTasks.map((task) => (
-              <Button key={task.id} aria-label={translate("查看任务：{{title}}", { title: task.title })} aria-pressed={selectedTaskId === task.id} className="task-list-row"
+              <TaskContextMenu key={task.id} task={task} onOpen={() => onSelectTask(task.id)}><Button aria-label={translate("查看任务：{{title}}", { title: task.title })} aria-pressed={selectedTaskId === task.id} className="task-list-row"
                 data-selected={selectedTaskId === task.id} variant="ghost" onClick={() => onSelectTask(task.id)}>
                 <span className="min-w-0 truncate" title={task.title}>{task.title}</span>
                 <span className="task-list-metadata">
-                  {display.showProject && <span className="task-project" title={task.projectName}>{task.projectName}</span>}
+                  {display.showProject && <span className="task-project" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || translate("未关联项目")}</span>}
                   {display.showDate && <time dateTime={task.date}>{formatDate(task.date)}</time>}
                 </span>
-              </Button>
+              </Button></TaskContextMenu>
             ))}
             {groupTasks.length === 0 && <p className="ade-empty-state">{translate("暂无任务")}</p>}
           </section>

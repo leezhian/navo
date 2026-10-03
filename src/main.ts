@@ -9,6 +9,7 @@ import { registerReviewHandlers } from "./main-process/ipc/reviewHandlers";
 import { destroyAllTerminals, registerTerminalHandlers } from "./main-process/ipc/terminalHandlers";
 import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
 import { stopAllProjectWatchers } from "./main-process/services/projectChangeWatcher";
+import { flushTasks, registerTaskHandlers } from "./main-process/ipc/taskHandlers";
 import { registerSettingsHandlers, stopResourceOperations } from "./main-process/ipc/settingsHandlers";
 import { writeDiagnosticEvent } from "./main-process/services/diagnosticLogService";
 import { flushSettings, getCurrentSettings, loadSettings } from "./main-process/services/settingsService";
@@ -66,6 +67,7 @@ function startApplication() {
     try { await loadSettings(); } catch { console.error("Settings could not be loaded"); }
     updateApplicationMenu(getCurrentSettings().locale);
     registerSettingsHandlers();
+    registerTaskHandlers();
     void writeDiagnosticEvent("app-start");
     registerAppHandlers();
     registerReviewHandlers();
@@ -89,7 +91,7 @@ function startApplication() {
     stopAllProjectWatchers();
     destroyAllTerminals();
     // 等待设置与日志队列完成再退出；磁盘异常不阻塞无限等待。
-    void Promise.race([Promise.all([stoppedResources, flushSettings(), writeDiagnosticEvent("app-stop")]), new Promise((resolve) => setTimeout(resolve, 5000))]).finally(() => {
+    void Promise.race([Promise.all([stoppedResources, flushSettings(), flushTasks(), writeDiagnosticEvent("app-stop")]), new Promise((resolve) => setTimeout(resolve, 5000))]).finally(() => {
       shutdownComplete = true;
       app.quit();
     });

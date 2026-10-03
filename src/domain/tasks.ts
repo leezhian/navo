@@ -1,3 +1,6 @@
+import type { IssueItem } from "./issues";
+import type { TaskAttachment, TaskResource } from "../shared/taskTypes";
+
 export type TaskStatus = "TODO" | "DONE" | "ARCHIVED";
 
 export interface Task {
@@ -11,4 +14,11 @@ export interface Task {
   projectName: string;
   /** 任务所属的看板列。 */
   status: TaskStatus;
+  /** 老任务没有描述和关联数据，迁移时保留原卡片内容。 */
+  description?: string;
+  resources?: TaskResource[];
+  links?: IssueItem[];
+  attachments?: TaskAttachment[];
+  /** 归档前的状态，用于恢复；旧记录缺省恢复 TODO。 */
+  archivedFrom?: "TODO" | "DONE";
 }

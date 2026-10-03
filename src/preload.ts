@@ -27,6 +27,19 @@ import type {
 } from "./shared/terminalTypes";
 
 const api: NavoApi = {
+  tasks: {
+    load: () => ipcRenderer.invoke(ipcChannels.tasksLoad),
+    importLegacy: (value) => ipcRenderer.invoke(ipcChannels.tasksImportLegacy, value),
+    create: (value) => ipcRenderer.invoke(ipcChannels.tasksCreate, value),
+    inspectResource: (id) => ipcRenderer.invoke(ipcChannels.tasksInspectResource, id),
+    chooseFiles: () => ipcRenderer.invoke(ipcChannels.tasksChooseFiles),
+    releaseFiles: (ids) => ipcRenderer.invoke(ipcChannels.tasksReleaseFiles, ids),
+    previewAttachment: (id, fileId) => ipcRenderer.invoke(ipcChannels.tasksPreviewAttachment, id, fileId),
+    rename: (id, title) => ipcRenderer.invoke(ipcChannels.tasksRename, id, title),
+    move: (id, status, beforeId) => ipcRenderer.invoke(ipcChannels.tasksMove, id, status, beforeId),
+    restore: (id) => ipcRenderer.invoke(ipcChannels.tasksRestore, id),
+    remove: (id) => ipcRenderer.invoke(ipcChannels.tasksRemove, id),
+  },
   settings: {
     load: () => ipcRenderer.invoke(ipcChannels.settingsLoad),
     save: (settings: AppSettings) => ipcRenderer.invoke(ipcChannels.settingsSave, settings),

@@ -22,6 +22,10 @@ export function moveTask(
 
   // 先移除原卡片，再按目标位置插入；同列排序不改变状态或任务信息。
   const movedTask = task.status === status ? task : { ...task, status };
+  if (task.status !== status) {
+    if (status === "ARCHIVED" && task.status !== "ARCHIVED") movedTask.archivedFrom = task.status;
+    else delete movedTask.archivedFrom;
+  }
   const lastTargetTask = targetTasks[targetTasks.length - 1];
   const insertionIndex = nextTask
     ? remainingTasks.indexOf(nextTask)

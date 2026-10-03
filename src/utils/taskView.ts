@@ -1,10 +1,11 @@
 import type { Task } from "@/domain/tasks";
 import type { TaskFilters, TaskOrder } from "@/domain/taskView";
+import { taskProjectNames } from "./taskProjects";
 
 export function filterTasks(tasks: Task[], filters: TaskFilters): Task[] {
   return tasks.filter((task) => (
     (filters.statuses.length === 0 || filters.statuses.includes(task.status))
-    && (filters.projects.length === 0 || filters.projects.includes(task.projectName))
+    && (filters.projects.length === 0 || taskProjectNames(task).some((name) => filters.projects.includes(name)))
   ));
 }
 

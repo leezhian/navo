@@ -3,11 +3,20 @@ import { readFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import { test } from "node:test";
 import ts from "typescript";
+import path from "node:path";
+import { createRequire } from "node:module";
 
 async function importTs(file) {
-  const source = readFileSync(file, "utf8");
-  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } });
-  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
+  const require = createRequire(import.meta.url);
+  function load(filePath) {
+    const source = readFileSync(filePath, "utf8");
+    const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
+    const module = { exports: {} };
+    const localRequire = (name) => name.startsWith(".") ? load(path.resolve(path.dirname(filePath), name) + ".ts") : require(name);
+    new Function("require", "module", "exports", outputText)(localRequire, module, module.exports);
+    return module.exports;
+  }
+  return load(path.resolve(file));
 }
 
 const { moveTask } = await importTs("src/utils/taskState.ts");
@@ -58,7 +67,7 @@ test("跨列插入指定位置、空列和归档后返回", () => {
   const moved = moveTask(tasks, first.id, "DONE", third.id);
   assert.deepEqual(moved, [second, { ...first, status: "DONE" }, third]);
   const archived = moveTask(moved, first.id, "ARCHIVED");
-  assert.deepEqual(archived.at(-1), { ...first, status: "ARCHIVED" });
+  assert.deepEqual(archived.at(-1), { ...first, status: "ARCHIVED", archivedFrom: "DONE" });
   assert.deepEqual(moveTask(archived, first.id, "TODO", second.id), tasks);
 });
 

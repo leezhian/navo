@@ -4,6 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Task } from "@/domain/tasks";
+import { TaskContextDetails } from "./TaskContextDetails";
+import { taskProjectNames } from "@/utils/taskProjects";
 
 interface TaskDetailsProps {
   /** 当前选中的任务，状态变化后同步展示最新数据。 */
@@ -37,8 +39,9 @@ export function TaskDetails({ task, onClose }: TaskDetailsProps) {
           <dl className="task-details-metadata">
             <div><dt>{translate("状态")}</dt><dd>{task.status}</dd></div>
             <div><dt>{translate("日期")}</dt><dd><time dateTime={task.date}>{formatDate(task.date)}</time></dd></div>
-            <div><dt>{translate("项目")}</dt><dd>{task.projectName}</dd></div>
+            <div><dt>{translate("项目")}</dt><dd>{taskProjectNames(task).join(", ") || translate("未关联项目")}</dd></div>
           </dl>
+          <TaskContextDetails task={task} />
         </motion.div>
       </AnimatePresence>
     </div>

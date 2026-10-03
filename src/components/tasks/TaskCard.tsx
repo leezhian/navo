@@ -1,6 +1,8 @@
 import type { Task } from "@/domain/tasks";
 import { formatDate } from "@/i18n";
 import { useTranslation } from "react-i18next";
+import { TaskContextMenu } from "./TaskContextMenu";
+import { taskProjectLabel, taskProjectNames } from "@/utils/taskProjects";
 
 interface TaskCardProps {
   /** 卡片仅展示任务标题、日期与项目名称。 */
@@ -20,7 +22,7 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
   const { t } = useTranslation();
   const formattedDate = formatDate(task.date);
 
-  return (
+  const content = (
     <article
       className="task-card"
       draggable={false}
@@ -39,8 +41,9 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
       <h3 className="task-title" title={task.title}>{task.title}</h3>
       {(showDate || showProject) && <div className="task-metadata">
         {showDate && <time dateTime={task.date}>{formattedDate}</time>}
-        {showProject && <span className="task-project ml-auto" title={task.projectName}>{task.projectName}</span>}
+        {showProject && <span className="task-project ml-auto" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("未关联项目")}</span>}
       </div>}
     </article>
   );
+  return onSelect ? <TaskContextMenu task={task} onOpen={onSelect}>{content}</TaskContextMenu> : content;
 }

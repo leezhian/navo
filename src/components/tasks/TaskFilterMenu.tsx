@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { taskProjectNames } from "@/utils/taskProjects";
 import type { Dispatch, SetStateAction } from "react";
 import { Circle, Folder, ListFilter } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,7 @@ export function TaskFilterMenu({ tasks, filters, projectNames, hasFilters, onFil
               <DropdownMenuCheckboxItem key={projectName} className="py-2 text-xs" checked={filters.projects.includes(projectName)} onSelect={(event) => event.preventDefault()}
                 onCheckedChange={() => onFiltersChange((current) => ({ ...current, projects: toggleValue(current.projects, projectName) }))}>
                 <span className="truncate">{projectName}</span>
-                <span className="ml-auto text-xs text-muted-foreground">{tasks.filter((task) => task.projectName === projectName).length}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{tasks.filter((task) => taskProjectNames(task).includes(projectName)).length}</span>
               </DropdownMenuCheckboxItem>
             ))}
             {projectNames.length === 0 && <DropdownMenuItem disabled>{translate("暂无项目")}</DropdownMenuItem>}

@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, ArrowRight, CircleDot, ListTodo, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleDot, ListTodo, Plus, Settings } from "lucide-react";
+import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AppSection } from "@/domain/navigation";
@@ -21,6 +22,8 @@ interface ApplicationShellProps {
   /** 顶部后退与前进操作。 */
   onGoBack: () => void;
   onGoForward: () => void;
+  /** 仅打开任务创建弹窗，不改变占位标签的选中与排序逻辑。 */
+  onCreateTask: () => void;
 }
 
 interface RailButtonProps {
@@ -47,7 +50,7 @@ function RailButton({ active, label, icon: Icon, onClick }: RailButtonProps) {
   );
 }
 
-export function ApplicationShell({ section, children, canGoBack, canGoForward, onSelectSection, onGoBack, onGoForward }: ApplicationShellProps) {
+export function ApplicationShell({ section, children, canGoBack, canGoForward, onSelectSection, onGoBack, onGoForward, onCreateTask }: ApplicationShellProps) {
   const { t: translate } = useTranslation();
   return (
     <MacWindow headerActions={
@@ -57,6 +60,7 @@ export function ApplicationShell({ section, children, canGoBack, canGoForward, o
           <Button aria-label={translate("前进")} className="size-7 text-muted-foreground" disabled={!canGoForward} size="icon" variant="ghost" onClick={onGoForward}><ArrowRight aria-hidden="true" size={17} /></Button>
         </nav>
         <WorkspaceHeaderTabs />
+        <IconTooltip label={translate("创建任务")} className="window-no-drag size-7 shrink-0" variant="ghost" onClick={onCreateTask}><Plus className="size-4" /></IconTooltip>
       </>
     }>
       <div className="navo-window-body">

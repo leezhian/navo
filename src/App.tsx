@@ -6,7 +6,9 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { useLocalSettings } from "./hooks/useLocalSettings";
 import { useAppNavigation } from "./hooks/useAppNavigation";
 import "./App.css";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { TaskCreateDialog } from "./components/tasks/create/TaskCreateDialog";
+import { useTaskStore } from "./stores/taskStore";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "./stores/settingsStore";
 import { Button } from "./components/ui/button";
@@ -15,6 +17,7 @@ import { getSettingsError } from "./services/settingsErrors";
 function App() {
   const { resolvedTheme, settings, updateSettings } = useLocalSettings();
   const navigation = useAppNavigation();
+  const [creatingTask, setCreatingTask] = useState(false);
   const { t } = useTranslation();
   const { loaded, loading, loadError, saveError, saving, bootstrap, retrySave } = useSettingsStore();
 
@@ -39,7 +42,7 @@ function App() {
   return (
     <TooltipProvider delayDuration={250}>
       <ApplicationShell section={navigation.section} canGoBack={navigation.canGoBack} canGoForward={navigation.canGoForward}
-        onGoBack={navigation.goBack} onGoForward={navigation.goForward} onSelectSection={navigation.selectSection}>
+        onGoBack={navigation.goBack} onGoForward={navigation.goForward} onSelectSection={navigation.selectSection} onCreateTask={() => setCreatingTask(true)}>
         {saveError !== null && <div role="alert" className="settings-save-alert">
           <span>{t("设置尚未保存，请重试。")} {getSettingsError(saveError)}</span><Button className="h-7 text-xs" variant="secondary" onClick={retrySave}>{t("重试")}</Button>
         </div>}
@@ -50,6 +53,9 @@ function App() {
           <SettingsPanel settings={settings} resolvedTheme={resolvedTheme} updateSettings={updateSettings} />
         </div>
       </ApplicationShell>
+      <TaskCreateDialog open={creatingTask} onOpenChange={setCreatingTask} settings={settings} onCreated={(task) => {
+        navigation.selectSection("tasks"); useTaskStore.getState().requestOpen(task.id);
+      }} />
     </TooltipProvider>
   );
 }

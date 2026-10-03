@@ -1,34 +1,5 @@
-import { mkdir, open } from "node:fs/promises";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import type { AppSettings } from "../../domain/types";
-
-const SETTINGS_SCHEMA_VERSION = 1;
-
-async function openDatabase(filePath: string) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  const file = await open(filePath, "a", 0o600);
-  await file.close();
-  const database = new DatabaseSync(filePath);
-  try {
-    database.exec("PRAGMA busy_timeout = 3000");
-    const version = database.prepare("PRAGMA user_version").get()?.user_version;
-    if (typeof version !== "number" || version > SETTINGS_SCHEMA_VERSION) throw new Error("INVALID_SETTINGS");
-    database.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL");
-    if (version === 0) {
-      database.exec(`
-        BEGIN IMMEDIATE;
-        CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
-        PRAGMA user_version = ${SETTINGS_SCHEMA_VERSION};
-        COMMIT;
-      `);
-    }
-    return database;
-  } catch (error) {
-    database.close();
-    throw error;
-  }
-}
+import { openAppDatabase as openDatabase } from "./appDatabase";
 
 export async function readSettingsDatabase(filePath: string): Promise<Partial<AppSettings> | null> {
   const database = await openDatabase(filePath);

@@ -7,7 +7,7 @@ import { Collapsible } from "radix-ui";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { issueStatuses, issueTags } from "./issueConstants";
-import { loadIssueItems } from "@/services/adeData";
+import { useIssueStore } from "@/stores/issueStore";
 import type { IssueGroup, IssueItem } from "@/domain/issues";
 import type { IssueDisplayOptions } from "@/domain/issueView";
 import { useIssueView } from "@/hooks/useIssueView";
@@ -115,7 +115,7 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
 
 export function IssueList() {
   const { t: translate } = useTranslation();
-  const [issues] = useState(loadIssueItems);
+  const issues = useIssueStore((state) => state.items);
   const view = useIssueView(issues);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const selectedIssue = view.visibleIssues.find((issue) => issue.id === selectedIssueId);

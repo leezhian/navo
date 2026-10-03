@@ -55,7 +55,7 @@ export function GeneralSettingsPage({ settings, updateSettings }: GeneralSetting
     <section className="mb-6">
       <SettingsSectionHeader title={t("任务")} />
       <SettingsList>
-        <SettingsRow title={t("任务执行模式")} description={t("仅保存默认偏好，尚未接入任务创建。")}> 
+        <SettingsRow title={t("任务执行模式")} description={t("作为创建任务时工作目录的默认执行方式。")}>
           <Select value={settings.defaultTaskMode} onValueChange={(value) => update("defaultTaskMode", value as AppSettings["defaultTaskMode"])}>
             <SelectTrigger aria-label={t("任务执行模式")} className="h-8 w-52 bg-background text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>{[["worktree", "隔离 Worktree"], ["new-branch", "新建分支"], ["current-branch", "当前分支"]].map(([value, label]) => <SelectItem key={value} value={value}>{t(label)}</SelectItem>)}</SelectContent>
