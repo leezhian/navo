@@ -31,7 +31,7 @@ export function TaskBranchPicker({ branches, value, currentBranch, useCurrentBra
   const currentLabel = `${t("使用当前分支")} · ${currentBranch || t("分离的 HEAD")}`;
   const label = useCurrentBranch ? currentLabel : branches.find((branch) => branch.ref === value)?.name ?? t("选择源分支");
   return <Popover.Root open={open} onOpenChange={setOpen}>
-    <Popover.Trigger asChild><Button type="button" variant="outline" disabled={disabled} className="h-8 w-full min-w-0 justify-start text-xs" aria-label={t("源分支")}>
+    <Popover.Trigger asChild><Button type="button" variant="outline" disabled={disabled} className="h-8 max-w-48 justify-start text-xs" aria-label={t("源分支")} title={label}>
       <GitBranch className="size-3.5 shrink-0" /><span className="truncate">{label}</span><ChevronsUpDown className="ml-auto size-3 shrink-0" />
     </Button></Popover.Trigger>
     <Popover.Portal><Popover.Content align="start" sideOffset={6} className="z-50 w-72 rounded-xl border bg-popover p-3 text-popover-foreground shadow-md">

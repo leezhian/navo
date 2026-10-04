@@ -5,6 +5,7 @@ import { Tabs } from "radix-ui";
 import { Folder, ListTodo, X } from "lucide-react";
 import { MotionConfig, Reorder, useDragControls, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 
 const placeholderTabs = [
   { id: "workspace", title: "任务工作区", icon: Folder },
@@ -21,9 +22,13 @@ interface WorkspaceHeaderTabProps {
   listRef: RefObject<HTMLDivElement | null>;
   /** 关闭标签，由父组件处理相邻标签选择。 */
   onClose: () => void;
+  /** 存在其他标签时才允许关闭其他。 */
+  canCloseOthers: boolean;
+  /** 保留右击的标签并将其设为当前标签。 */
+  onCloseOthers: () => void;
 }
 
-function WorkspaceHeaderTab({ tab, active, listRef, onClose }: WorkspaceHeaderTabProps) {
+function WorkspaceHeaderTab({ tab, active, listRef, onClose, canCloseOthers, onCloseOthers }: WorkspaceHeaderTabProps) {
   const { t: translate } = useTranslation();
   const title = translate(tab.title);
   const controls = useDragControls();
@@ -32,18 +37,29 @@ function WorkspaceHeaderTab({ tab, active, listRef, onClose }: WorkspaceHeaderTa
   const Icon = tab.icon;
 
   return (
-    <Reorder.Item as="div" value={tab} className="navo-workspace-tab" data-state={active ? "active" : "inactive"}
-      data-dragging={isDragging} dragControls={controls} dragListener={false} dragConstraints={listRef} dragElastic={0} dragMomentum={false}
-      onDragStart={() => setIsDragging(true)} onDragEnd={() => setIsDragging(false)}
-      transition={{ duration: reducedMotion ? 0 : 0.18 }}>
-      <Tabs.Trigger className="navo-workspace-tab-trigger" value={tab.id} title={title} draggable={false}
-        onPointerDown={(event) => { if (event.button === 0 && event.isPrimary) controls.start(event); }}>
-        <Icon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{title}</span>
-      </Tabs.Trigger>
-      <Button aria-label={translate("关闭标签：{{title}}", { title })} className="navo-workspace-tab-close text-muted-foreground hover:text-foreground" size="icon-xs" type="button" variant="ghost" onClick={onClose}>
-        <X aria-hidden="true" className="size-3" />
-      </Button>
-    </Reorder.Item>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Reorder.Item as="div" value={tab} className="navo-workspace-tab" data-state={active ? "active" : "inactive"}
+          data-dragging={isDragging} dragControls={controls} dragListener={false} dragConstraints={listRef} dragElastic={0} dragMomentum={false}
+          onDragStart={() => setIsDragging(true)} onDragEnd={() => setIsDragging(false)}
+          transition={{ duration: reducedMotion ? 0 : 0.18 }}>
+          <Tabs.Trigger className="navo-workspace-tab-trigger" value={tab.id} title={title} draggable={false}
+            onPointerDown={(event) => { if (event.button === 0 && event.isPrimary) controls.start(event); }}>
+            <Icon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{title}</span>
+          </Tabs.Trigger>
+          <Button aria-label={translate("关闭标签：{{title}}", { title })} className="navo-workspace-tab-close text-muted-foreground hover:text-foreground" size="icon-xs" type="button" variant="ghost" onClick={onClose}>
+            <X aria-hidden="true" className="size-3" />
+          </Button>
+        </Reorder.Item>
+      </ContextMenuTrigger>
+      {/* 持续跟踪虚拟锚点，重复右击同一标签时更新菜单位置。 */}
+      <ContextMenuContent updatePositionStrategy="always">
+        <ContextMenuItem disabled>{translate("拆分视图")}<span className="ml-auto text-xs text-muted-foreground">TODO</span></ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={onClose}>{translate("关闭")}</ContextMenuItem>
+        <ContextMenuItem disabled={!canCloseOthers} onSelect={onCloseOthers}>{translate("关闭其他")}</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -64,12 +80,20 @@ export function WorkspaceHeaderTabs() {
     }
   }
 
+  function closeOtherTabs(tabId: string) {
+    const target = tabs.find((tab) => tab.id === tabId);
+    if (!target) return;
+    setTabs([target]);
+    setActiveTab(tabId);
+  }
+
   return (
     <MotionConfig reducedMotion="user">
       <Tabs.Root className="min-w-0 flex-1" value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List aria-label={translate("工作区标签（占位）")} asChild>
           <Reorder.Group ref={listRef} as="div" axis="x" values={tabs} onReorder={setTabs} layoutScroll className="window-no-drag navo-workspace-tabs">
-            {tabs.map((tab) => <WorkspaceHeaderTab key={tab.id} tab={tab} active={activeTab === tab.id} listRef={listRef} onClose={() => closeTab(tab.id)} />)}
+            {tabs.map((tab) => <WorkspaceHeaderTab key={tab.id} tab={tab} active={activeTab === tab.id} listRef={listRef} onClose={() => closeTab(tab.id)}
+              canCloseOthers={tabs.length > 1} onCloseOthers={() => closeOtherTabs(tab.id)} />)}
           </Reorder.Group>
         </Tabs.List>
         {tabs.map(({ id, title }) => <Tabs.Content key={id} value={id} className="sr-only">{translate("{{title}}：标签结构占位，暂未接入内容切换。", { title: translate(title) })}</Tabs.Content>)}

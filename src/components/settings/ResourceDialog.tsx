@@ -16,16 +16,19 @@ interface ResourceDialogProps {
   repositoriesDirectory: string;
   /** 关闭后卸载表单，清理本次进度监听。 */
   onClose: () => void;
+  /** 作为子弹窗打开时恢复父层入口焦点；独立使用时沿用默认行为。 */
+  onReturnFocus?: () => void;
 }
 
-export function ResourceDialog({ record, repositoriesDirectory, onClose }: ResourceDialogProps) {
+export function ResourceDialog({ record, repositoriesDirectory, onClose, onReturnFocus }: ResourceDialogProps) {
   const { t } = useTranslation();
   const form = useResourceForm({ record, repositoriesDirectory, onSaved: onClose });
   const title = record ? "编辑资源" : "添加仓库";
   const disabled = form.busy || form.choosing;
 
   return <Dialog open onOpenChange={(open) => { if (!open && !disabled) onClose(); }}>
-    <DialogContent className="sm:max-w-lg" aria-describedby="resource-dialog-description" showCloseButton={!disabled} onEscapeKeyDown={(event) => { if (disabled) event.preventDefault(); }} onInteractOutside={(event) => { if (disabled) event.preventDefault(); }}>
+    <DialogContent className="sm:max-w-lg" aria-describedby="resource-dialog-description" showCloseButton={!disabled} onEscapeKeyDown={(event) => { if (disabled) event.preventDefault(); }} onInteractOutside={(event) => { if (disabled) event.preventDefault(); }}
+      onCloseAutoFocus={(event) => { if (onReturnFocus) { event.preventDefault(); onReturnFocus(); } }}>
       <DialogHeader>
         <DialogTitle>{t(title)}</DialogTitle>
         {record && <DialogDescription id="resource-dialog-description" className="text-xs leading-5">{t("修改名称或本地路径不会更改 Git remote。")}</DialogDescription>}

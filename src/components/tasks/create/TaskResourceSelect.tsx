@@ -47,7 +47,7 @@ export function TaskResourceSelect({ value, excludedIds, disabled, onSelect }: T
 
   return <Popover.Root open={open} onOpenChange={changeOpen}>
     <Popover.Trigger asChild>
-      <Button type="button" variant="ghost" disabled={disabled} className="h-8 w-full min-w-0 justify-start px-2 text-xs" aria-label={t("切换工作目录")}>
+      <Button type="button" variant="outline" disabled={disabled} className="h-8 max-w-48 justify-start px-2 text-xs" aria-label={t("切换工作目录")} title={value.name}>
         <Icon className="size-3.5 shrink-0" /><span className="truncate">{value.name}</span><ChevronsUpDown className="ml-auto size-3 shrink-0" />
       </Button>
     </Popover.Trigger>

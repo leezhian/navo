@@ -9,22 +9,25 @@ import { createServer } from "vite";
 
 test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-task-ui-"));
+  const { default: tailwindcss } = await import("@tailwindcss/vite");
   const server = await createServer({
     configFile: false,
     appType: "custom",
     root: process.cwd(),
     cacheDir: path.join(directory, "vite-cache"),
     logLevel: "error",
+    plugins: [tailwindcss()],
     esbuild: { jsx: "automatic" },
     resolve: { alias: { "@": path.resolve("src") } },
     server: { host: "127.0.0.1", port: 0 },
   });
   server.middlewares.use("/__task_create_test", async (_request, response) => {
     response.setHeader("Content-Type", "text/html");
-    response.end(await server.transformIndexHtml("/__task_create_test", `<div id="root"></div><script type="module">
+    response.end(await server.transformIndexHtml("/__task_create_test", `<style>*, *::before, *::after { animation: none !important; transition: none !important; }</style><div id="root"></div><script type="module">
       import React from 'react';
       import { createRoot } from 'react-dom/client';
       import '/src/i18n/index.ts';
+      import '/src/App.css';
 
       import { ApplicationShell } from '/src/components/layout/ApplicationShell.tsx';
       import { TaskBoard } from '/src/components/tasks/TaskBoard.tsx';
@@ -60,7 +63,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
         tasks: {
           load: async () => ({ tasks: persisted, recoveryWarnings: [] }),
           inspectResource: async (id) => info(id),
-          chooseFiles: async () => [{ id: 'file-1', name: 'notes.txt', size: 12 }, { id: 'file-2', name: 'reference.png', size: 24 }],
+          chooseFiles: async () => [{ id: 'file-1', name: 'notes.txt', size: 12 }, { id: 'file-2', name: 'reference.png', size: 24, preview: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>' }],
           releaseFiles: async () => {},
           previewAttachment: async () => null,
           create: async (input) => {
@@ -90,13 +93,24 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
   try {
     await server.listen();
     const address = server.httpServer.address();
+    const preload = path.join(directory, "test-preload.cjs");
+    await writeFile(preload, `
+      const { contextBridge, ipcRenderer } = require('electron');
+      contextBridge.exposeInMainWorld('testInput', { click: (point) => ipcRenderer.invoke('test:click', point) });
+    `);
     const runner = path.join(directory, "task-create.cjs");
     await writeFile(runner, `
-      const { app, BrowserWindow } = require('electron');
+      const { app, BrowserWindow, ipcMain } = require('electron');
       app.setPath('userData', ${JSON.stringify(path.join(directory, "user-data"))});
       app.whenReady().then(async () => {
         app.dock?.hide();
-        const window = new BrowserWindow({ show: false, webPreferences: { backgroundThrottling: false } });
+        const window = new BrowserWindow({ show: false, webPreferences: { backgroundThrottling: false, preload: ${JSON.stringify(preload)} } });
+        ipcMain.handle('test:click', async (_event, { x, y }) => {
+          window.webContents.sendInputEvent({ type: 'mouseMove', x, y });
+          window.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+          await new Promise(resolve => setTimeout(resolve, 20));
+          window.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+        });
         window.webContents.on('console-message', (event) => {
           if (event.level === 'error') console.error(event.message);
         });
@@ -116,7 +130,11 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             const button = (text,root = dialog()) => [...root.querySelectorAll('button')].find(button => button.textContent.trim() === text && !button.disabled);
             async function click(text) {
               await waitFor(() => button(text), 'Button missing: ' + text);
-              button(text).click();
+              await mouseClick(button(text));
+            }
+            async function mouseClick(element) {
+              const rect = element.getBoundingClientRect();
+              await window.testInput.click({ x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) });
             }
             function fill(element,value) {
               const prototype = element.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -126,16 +144,93 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await waitFor(() => document.querySelector('button[aria-label="创建任务"]'), 'Missing create entry');
             document.querySelector('button[aria-label="创建任务"]').click();
             await waitFor(() => dialog()?.querySelector('textarea'), 'Missing task dialog');
+            const accessibleTitle = document.getElementById(dialog().getAttribute('aria-labelledby'));
+            if (accessibleTitle?.textContent !== '创建任务' || accessibleTitle.getBoundingClientRect().height > 1) throw new Error('Dialog title must be visually hidden but accessible');
+            if (dialog().querySelector('[data-slot="dialog-header"], [data-slot="dialog-footer"]')) throw new Error('Task form must not have a separate title or footer area');
+            if (dialog().querySelector('h3') || dialog().textContent.includes('可选：关联工作目录')) throw new Error('Resource section should only show its add button when empty');
+            if (!button('添加仓库或文件夹')) throw new Error('Missing add resource button');
+            const description = dialog().querySelector('textarea');
+            for (const label of ['关联 Issue', '关联 PR']) {
+              if (!(button(label).compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Context buttons must precede the description');
+            }
+            const composer = () => dialog()?.querySelector('[data-slot="input-group"]');
+            if (!composer()?.contains(description) || !composer().parentElement.nextElementSibling?.contains(button('添加仓库或文件夹'))) throw new Error('Resource entry must directly follow the combined input container');
+            if (composer().children.length !== 2) throw new Error('Empty composer must contain only the textarea and bottom bar');
+            const attachmentButton = () => composer()?.querySelector('button[aria-label="添加图片或文件"]');
+            if (!attachmentButton() || attachmentButton().textContent.trim() || !description.nextElementSibling?.contains(attachmentButton())) throw new Error('Attachment entry must be an icon in the bottom bar');
+            const createButton = [...composer().querySelectorAll('button')].find(item => item.textContent === '创建');
+            if (!createButton?.disabled || createButton.parentElement !== attachmentButton().parentElement) throw new Error('Create must share the input bottom bar and remain disabled for an empty description');
+            await document.fonts.ready;
+            await waitFor(() => getComputedStyle(description).fieldSizing === 'content', 'Native textarea autosizing must be enabled');
+            const textareaStyle = getComputedStyle(description);
+            const lineHeight = parseFloat(textareaStyle.lineHeight);
+            const verticalPadding = parseFloat(textareaStyle.paddingTop) + parseFloat(textareaStyle.paddingBottom);
+            const heightForLines = (lines) => lineHeight * lines + verticalPadding;
+            const inputHeight = () => description.getBoundingClientRect().height;
+            if (Math.abs(inputHeight() - heightForLines(1)) > 1) throw new Error('Textarea must initially show one line');
+            const toolbar = composer().previousElementSibling;
+            if (createButton.getBoundingClientRect().right < composer().getBoundingClientRect().right - 12 || createButton.getBoundingClientRect().top < description.getBoundingClientRect().bottom) throw new Error('Create button must be at the bottom-right inside the composer');
+            if (Math.abs(composer().getBoundingClientRect().top - toolbar.getBoundingClientRect().bottom - 8) > 1) throw new Error('Top buttons must be 8px above the composer');
+            if (Math.abs(button('添加仓库或文件夹').getBoundingClientRect().top - composer().getBoundingClientRect().bottom - 8) > 1) throw new Error('Resource button gap must be reduced to 8px');
+            for (const dark of [false, true]) {
+              document.documentElement.classList.toggle('dark', dark);
+              button('关联 Issue').focus();
+              const idleBorder = getComputedStyle(composer()).borderColor;
+              description.focus();
+              const focusedStyle = getComputedStyle(composer());
+              const hasVisibleShadow = focusedStyle.boxShadow.match(/-?[0-9.]+px/g)?.some(value => parseFloat(value) !== 0);
+              if (focusedStyle.borderColor !== idleBorder || hasVisibleShadow) throw new Error('Composer focus must not highlight its border or add a ring');
+            }
+            document.documentElement.classList.remove('dark');
+            fill(description, Array(3).fill('自动撑高').join(String.fromCharCode(10)));
+            await waitFor(() => Math.abs(inputHeight() - heightForLines(3)) <= 1, 'Textarea must grow with explicit newlines');
+            fill(description, Array(12).fill('最大八行').join(String.fromCharCode(10)));
+            await waitFor(() => Math.abs(inputHeight() - heightForLines(8)) <= 1 && description.scrollHeight > description.clientHeight, 'Textarea must cap at eight lines and scroll');
+            fill(description, '自动换行内容'.repeat(160));
+            await waitFor(() => Math.abs(inputHeight() - heightForLines(8)) <= 1 && description.scrollHeight > description.clientHeight, 'Wrapped text must also respect the eight-line cap');
+            fill(description, '单行');
+            await waitFor(() => Math.abs(inputHeight() - heightForLines(1)) <= 1, 'Deleting text must shrink the textarea');
             fill(dialog().querySelector('textarea'),'界面回归任务' + String.fromCharCode(10) + '完整的任务描述');
             if (button('取消') || dialog().textContent.includes('创建本地任务，不会自动启动 Agent。')) throw new Error('Obsolete create-dialog controls are still present');
             await click('关闭');
             await waitFor(() => !dialog(), 'Close did not close dialog');
             document.querySelector('button[aria-label="创建任务"]').click();
             await waitFor(() => dialog()?.querySelector('textarea')?.value.includes('界面回归任务'), 'Draft was lost on close');
+            const draftDialog = dialog();
+            const draftTextarea = draftDialog.querySelector('textarea');
+            function assertDialogStack(count) {
+              const layers = [...document.querySelectorAll('[role="dialog"]')];
+              if (layers.length !== count || !draftTextarea.isConnected || draftDialog.getAttribute('data-state') !== 'open') throw new Error('Parent dialogs must stay mounted and open beneath children');
+              for (const layer of layers) {
+                if (getComputedStyle(layer).display === 'none' || getComputedStyle(layer).visibility === 'hidden' || layer.getBoundingClientRect().height === 0) throw new Error('Parent dialogs must remain visible');
+              }
+            }
             await click('关联 Issue');
             await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing issue selection');
+            assertDialogStack(2);
             await click('取消');
             await waitFor(() => dialog()?.querySelector('textarea')?.value.includes('界面回归任务'), 'Canceling issue selection must return to draft');
+            await waitFor(() => document.activeElement === button('关联 Issue'), 'Cancel must restore focus to its parent entry');
+            for (const action of ['escape', 'close', 'outside']) {
+              await click('关联 Issue');
+              await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing stacked issue picker');
+              await new Promise(resolve => requestAnimationFrame(resolve));
+              assertDialogStack(2);
+              if (action === 'escape') dialog().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+              else if (action === 'close') {
+                await mouseClick(button('关闭'));
+                await waitFor(() => document.querySelectorAll('[role="dialog"]').length !== 2, 'Native close did not reach the child dialog');
+                if (!draftDialog.isConnected) throw new Error('Native mouse close dismissed both the child and its parent');
+              }
+              else {
+                const overlay = [...document.querySelectorAll('[data-slot="dialog-overlay"]')].at(-1);
+                overlay.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse', isPrimary: true }));
+                overlay.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerType: 'mouse', isPrimary: true }));
+                overlay.click();
+              }
+              await waitFor(() => dialog() === draftDialog, 'Dismiss must close only the top dialog: ' + action);
+              assertDialogStack(1);
+            }
             await click('关联 Issue');
             await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing reopened issue selection');
             dialog().querySelector('[role="checkbox"]').click();
@@ -144,11 +239,33 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await waitFor(() => dialog().querySelector('aside h3'), 'Missing issue preview');
             await click('确认');
             await waitFor(() => dialog()?.querySelector('textarea'), 'Did not return to task form');
+            if (!composer()?.querySelector('button[aria-label^="移除："]') || !composer().textContent.includes('ISSUE')) throw new Error('Selected issue must be echoed inside the composer');
+            if (composer().querySelector('button[aria-label^="移除："]').parentElement.getBoundingClientRect().height > 30) throw new Error('Linked item echo must stay compact');
+            await click('关联 PR');
+            await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing PR selection');
+            dialog().querySelector('[role="checkbox"]').click();
+            await click('确认');
+            await waitFor(() => composer()?.textContent.includes('PR'), 'Selected PR must be echoed inside the composer');
+            if (composer().querySelectorAll('button[aria-label^="移除："]').length !== 2) throw new Error('Both linked items must share the input container');
             await click('添加仓库或文件夹');
             await waitFor(() => button('添加仓库'), 'Missing resources picker');
+            const resourcePickerDialog = dialog();
+            assertDialogStack(2);
+            fill(resourcePickerDialog.querySelector('input'), 'repo-a');
+            for (const action of ['取消', '关闭']) {
+              await click('添加仓库');
+              await waitFor(() => button('选择本地文件夹'), 'Missing nested add repository dialog');
+              assertDialogStack(3);
+              await click(action);
+              await waitFor(() => dialog() === resourcePickerDialog, 'Closing quick-add must retain both parent dialogs');
+              if (resourcePickerDialog.querySelector('input').value !== 'repo-a') throw new Error('Parent resource filter must survive a nested dialog');
+              await waitFor(() => document.activeElement === button('添加仓库'), 'Quick-add must return focus to its parent');
+            }
+            fill(resourcePickerDialog.querySelector('input'), '');
             await click('添加仓库');
             await click('选择本地文件夹');
             await waitFor(() => dialog()?.textContent.includes('extra'), 'Quick-added resource did not appear');
+            assertDialogStack(2);
             for (const name of ['repo-a','extra']) {
               const row = [...dialog().querySelectorAll('label')].find(label => label.textContent.includes(name));
               if (!row) throw new Error('Missing resource: ' + name);
@@ -156,9 +273,64 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             }
             await click('确认');
             await waitFor(() => dialog()?.querySelector('[aria-label="目标分支"]'), 'Missing branch configuration');
+            const addResource = () => dialog()?.querySelector('button[aria-label="添加仓库或文件夹"]');
+            if (addResource().textContent.trim() || addResource().previousElementSibling?.getAttribute('aria-label') !== 'extra') throw new Error('Add resource must be an icon immediately after the last directory');
+            addResource().click();
+            await waitFor(() => button('添加仓库'), 'Plus button did not open the resource picker');
+            await click('取消');
+            await waitFor(() => dialog()?.querySelector('textarea'), 'Cancel must return to the draft');
+            dialog().querySelector('button[aria-label="移除：extra"]').click();
+            await waitFor(() => addResource()?.previousElementSibling?.getAttribute('aria-label') === 'repo-a', 'Plus must follow the remaining directory');
+            dialog().querySelector('button[aria-label="移除：repo-a"]').click();
+            await waitFor(() => button('添加仓库或文件夹'), 'Removing all directories must restore the text button');
+            await click('添加仓库或文件夹');
+            await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing reopened resource picker');
+            for (const name of ['repo-a', 'extra']) {
+              [...dialog().querySelectorAll('label')].find(label => label.textContent.includes(name)).querySelector('[role="checkbox"]').click();
+            }
+            await click('确认');
+            await waitFor(() => dialog()?.querySelector('[aria-label="目标分支"]'), 'Missing restored branch controls');
             if (dialog().textContent.includes('/fixtures/')) throw new Error('Working directories must not show filesystem paths');
-            if (dialog().querySelector('[aria-label="目标分支"]').value !== '') throw new Error('Automatic branch must stay empty');
+            const targetButton = () => dialog()?.querySelector('button[aria-label="目标分支"]');
+            const targetInput = () => dialog()?.querySelector('input[aria-label="目标分支"]');
+            async function editTarget(value) {
+              targetButton().click();
+              await waitFor(() => targetInput(), 'Missing inline branch editor');
+              if (targetInput().hasAttribute('placeholder')) throw new Error('Branch name input must not have a placeholder');
+              fill(targetInput(), value);
+            }
+            async function confirmTarget(value) {
+              await editTarget(value);
+              dialog().querySelector('button[aria-label="确认分支名"]').click();
+              await waitFor(() => targetButton()?.textContent === (value.trim() || 'Branch Name'), 'Branch name confirmation failed');
+            }
+            if (targetInput() || targetButton()?.textContent !== 'Branch Name') throw new Error('Automatic branch must initially show the Branch Name button');
             if (!dialog().textContent.includes('origin/main')) throw new Error('Remote default branch not selected');
+            const resourceGroup = dialog().querySelector('[data-slot="button-group"][aria-label="repo-a"]');
+            if (!resourceGroup || resourceGroup.children.length !== 5 || !resourceGroup.querySelector(':scope > button[aria-label="目标分支"]')) throw new Error('Working directory controls must share one connected group');
+            await editTarget('discard-first-edit');
+            const branchDraftInput = targetInput();
+            await click('关联 PR');
+            await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing PR picker above the active branch editor');
+            assertDialogStack(2);
+            await click('取消');
+            await waitFor(() => targetInput() === branchDraftInput, 'Unconfirmed branch editor must stay mounted beneath child dialogs');
+            if (targetInput().value !== 'discard-first-edit') throw new Error('Unconfirmed branch input must survive child dialogs');
+            dialog().querySelector('button[aria-label="取消编辑分支名"]').click();
+            await waitFor(() => targetButton()?.textContent === 'Branch Name', 'Cancel must leave automatic naming unchanged');
+            await confirmTarget('  feature/confirmed  ');
+            await editTarget('discard-later-edit');
+            dialog().querySelector('button[aria-label="取消编辑分支名"]').click();
+            await waitFor(() => targetButton()?.textContent === 'feature/confirmed', 'Cancel must preserve the confirmed branch');
+            await editTarget('discard-with-escape');
+            targetInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+            await waitFor(() => targetButton()?.textContent === 'feature/confirmed', 'Escape must cancel only branch editing, not close the task form');
+            await editTarget('feature/keyboard');
+            targetInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: true }));
+            if (!targetInput()) throw new Error('IME Enter must not confirm the branch name');
+            targetInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+            await waitFor(() => targetButton()?.textContent === 'feature/keyboard', 'Enter must confirm the branch name');
+            await confirmTarget('');
             async function replaceResource(current, next) {
               await click(current);
               await waitFor(() => document.querySelector('[aria-label="搜索资源"]'), 'Missing inline resource selector');
@@ -175,10 +347,10 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await waitFor(() => document.querySelector('[aria-label="搜索分支"]'), 'Missing source selector');
             button('main', document.querySelector('[aria-label="搜索分支"]').parentElement).click();
             await waitFor(() => dialog()?.querySelector('[aria-label="源分支"]')?.textContent === 'main', 'Source branch not changed');
-            fill(dialog().querySelector('[aria-label="目标分支"]'), 'old-target');
+            await confirmTarget('old-target');
             await replaceResource('repo-a', 'repo-b');
             await waitFor(() => dialog()?.querySelector('[aria-label="源分支"]')?.textContent === 'origin/develop', 'Source branch must reset for the new repository');
-            if (dialog().querySelector('[aria-label="目标分支"]').value !== '') throw new Error('Target branch must reset on repository switch');
+            if (targetButton()?.textContent !== 'Branch Name') throw new Error('Target branch must reset on repository switch');
             await replaceResource('repo-b', 'folder-b');
             await waitFor(() => dialog()?.querySelector('textarea') && !dialog().querySelector('[aria-label="目标分支"]'), 'Plain folder should not show branch controls');
             await replaceResource('folder-b', 'repo-a');
@@ -198,21 +370,30 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             if (!dialog().querySelector('[aria-label="目标分支"]')) throw new Error('New branch input must remain without a worktree');
             worktree().click();
             await waitFor(() => worktree().getAttribute('data-state') === 'checked', 'Worktree must be selectable');
-            fill(dialog().querySelector('[aria-label="目标分支"]'), 'discarded-target');
+            await editTarget('discarded-target');
             await selectSource('使用当前分支');
             if (dialog().querySelector('[aria-label="目标分支"]') || !dialog().querySelector('[aria-label="源分支"]')?.textContent.includes('使用当前分支 · main')) throw new Error('Current branch selection must hide the target and show the actual branch');
             if (!worktree().disabled || worktree().getAttribute('data-state') !== 'unchecked') throw new Error('Current workspace must not create a worktree');
             await selectSource('main');
-            if (!dialog().querySelector('[aria-label="目标分支"]') || dialog().querySelector('[aria-label="目标分支"]').value !== '' || worktree().disabled) throw new Error('Ordinary local branch must restore branch creation and worktree selection');
+            if (targetButton()?.textContent !== 'Branch Name' || targetInput() || worktree().disabled) throw new Error('Ordinary local branch must restore branch creation and worktree selection');
             worktree().click();
             await waitFor(() => worktree().getAttribute('data-state') === 'checked', 'Worktree checkbox did not restore');
-            await click('添加图片或文件');
+            attachmentButton().click();
             await waitFor(() => dialog()?.textContent.includes('reference.png'), 'Attachments were not shown');
+            if (!composer()?.textContent.includes('reference.png') || !composer().textContent.includes('notes.txt')) throw new Error('Attachments must be echoed inside the composer');
+            for (const name of ['reference.png', 'notes.txt']) {
+              const chip = composer().querySelector('button[aria-label="移除：' + name + '"]').parentElement;
+              if (chip.querySelector('img') || chip.textContent.trim() !== name || chip.firstElementChild?.tagName.toLowerCase() !== 'svg' || chip.firstElementChild.getAttribute('aria-hidden') !== 'true') throw new Error('Attachment echo must show a decorative link icon before the filename, without preview or size');
+              if (chip.getBoundingClientRect().height > 30) throw new Error('Attachment echo must stay compact');
+            }
+            if (!composer().querySelector('textarea').value.includes('完整的任务描述')) throw new Error('Context selection must preserve the typed description');
             dialog().querySelector('button[aria-label="移除：reference.png"]').click();
-            await click('创建任务');
+            await waitFor(() => !composer()?.textContent.includes('reference.png'), 'Removing an attachment must update the inline echo');
+            if (!composer().querySelector('textarea').value.includes('完整的任务描述')) throw new Error('Removing context must not edit the description');
+            await click('创建');
             await waitFor(() => !dialog() && document.querySelector('.task-card'), 'Task was not created in board');
             const input = window.createdInputs[0];
-            if (input.resources.length !== 2 || input.links.length !== 1 || input.attachmentIds.length !== 1) throw new Error('Task context was not submitted');
+            if (input.resources.length !== 2 || input.links.length !== 2 || input.attachmentIds.length !== 1) throw new Error('Task context was not submitted');
             if (input.resources[0].targetBranch !== '' || input.resources[0].mode !== 'worktree') throw new Error('Branch settings not preserved');
             if (!document.querySelector('[data-status="TODO"] .task-card')) throw new Error('Task was not placed in TODO');
             const taskCard = document.querySelector('.task-card');
@@ -259,11 +440,14 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
               else {
                 worktree().click();
                 await waitFor(() => worktree().getAttribute('data-state') === 'unchecked', 'Worktree opt-out failed');
+                await confirmTarget('feature/submitted');
+                await editTarget('unconfirmed-not-submitted');
               }
-              await click('创建任务');
+              await click('创建');
               await waitFor(() => !dialog() && document.querySelector('.task-card'), 'Task submission failed');
               const resource = window.createdInputs.at(-1).resources[0];
               if (resource.mode !== mode) throw new Error('Wrong execution mode submitted: ' + resource.mode);
+              if (mode === 'new-branch' && resource.targetBranch !== 'feature/submitted') throw new Error('Task creation must use only the confirmed branch name');
               if (mode === 'current-branch' && (resource.sourceBranch !== 'refs/heads/main' || resource.targetBranch !== '')) throw new Error('Current branch payload must not request a new branch');
               await menu('删除');
               await waitFor(() => dialog()?.textContent.includes('删除任务？'), 'Missing cleanup confirmation');

@@ -20,9 +20,11 @@ interface TaskIssuePickerProps {
   onConfirm: (items: IssueItem[]) => void;
   /** 取消时丢弃本次临时选择。 */
   onClose: () => void;
+  /** 子弹窗退出后将键盘焦点交还创建弹窗中的入口。 */
+  onReturnFocus: () => void;
 }
 
-export function TaskIssuePicker({ group, selected, onConfirm, onClose }: TaskIssuePickerProps) {
+export function TaskIssuePicker({ group, selected, onConfirm, onClose, onReturnFocus }: TaskIssuePickerProps) {
   const { t } = useTranslation();
   const items = useIssueStore((state) => state.items).filter((item) => item.group === group);
   const [keyword, setKeyword] = useState("");
@@ -33,7 +35,7 @@ export function TaskIssuePicker({ group, selected, onConfirm, onClose }: TaskIss
     setSelectedIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent className="sm:max-w-[920px]">
+    <DialogContent className="sm:max-w-[920px]" onCloseAutoFocus={(event) => { event.preventDefault(); onReturnFocus(); }}>
       <DialogHeader><DialogTitle>{t(group === "PR" ? "关联 PR" : "关联 Issue")}</DialogTitle><DialogDescription>{t("勾选条目进行关联，点击标题可预览。")}</DialogDescription></DialogHeader>
       <Input autoFocus value={keyword} onChange={(event) => setKeyword(event.target.value)} aria-label={t("搜索条目")} placeholder={t("搜索标题或项目…")} />
       <div className="grid max-h-[55vh] min-h-64 gap-2 overflow-auto sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)]">
