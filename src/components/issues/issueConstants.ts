@@ -4,7 +4,7 @@ import type { IssueDisplayOptions } from "@/domain/issueView";
 export const issueGroups: IssueGroup[] = ["PR", "ISSUE"];
 export const issueStatusOptions: IssueStatus[] = ["review", "merged", "draft", "todo", "progress", "closed"];
 export const issueTagOptions: IssueTag[] = ["feature", "fix", "refactor", "discussion"];
-export const issueDisplayFields: { key: keyof Omit<IssueDisplayOptions, "order">; label: string }[] = [
+export const issueDisplayFields: { key: keyof Omit<IssueDisplayOptions, "order" | "mode">; label: string }[] = [
   { key: "showTag", label: "标签" },
   { key: "showProject", label: "项目" },
   { key: "showStatus", label: "状态" },

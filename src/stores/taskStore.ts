@@ -24,7 +24,7 @@ interface TaskState {
 
 export const useTaskStore = create<TaskState>((set, get) => {
   async function mutate(operation: () => Promise<Task[]>, optimistic?: Task[]) {
-    if (get().pending || !get().loaded) return false;
+    if (get().pending || get().loading || !get().loaded) return false;
     const previous = get().tasks;
     set({ pending: true, error: null, ...(optimistic ? { tasks: optimistic } : {}) });
     try { set({ tasks: await operation() }); return true; }
@@ -35,7 +35,7 @@ export const useTaskStore = create<TaskState>((set, get) => {
   return {
     tasks: [], loaded: false, loading: false, pending: false, error: null, recoveryWarnings: [], requestedTaskId: null,
     async bootstrap() {
-      if (get().loading) return;
+      if (get().loading || get().pending) return;
       set({ loading: true, error: null });
       try {
         const result = await getTasksApi().load();
@@ -47,7 +47,7 @@ export const useTaskStore = create<TaskState>((set, get) => {
     },
     requestOpen: (requestedTaskId) => set({ requestedTaskId }),
     async create(input) {
-      if (get().pending || !get().loaded) throw new Error("TASK_BUSY");
+      if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
       set({ pending: true });
       try {
         const task = await getTasksApi().create(input);

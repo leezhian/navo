@@ -5,6 +5,7 @@ import type { Task } from "@/domain/tasks";
 import type { TaskDisplayOptions, TaskFilters } from "@/domain/taskView";
 import { TaskDisplayMenu } from "./TaskDisplayMenu";
 import { TaskFilterMenu } from "./TaskFilterMenu";
+import { WorkspaceRefreshButton } from "@/components/layout/WorkspaceRefreshButton";
 
 interface TaskToolbarProps {
   /** 完整任务集合，仅用于过滤选项的数量统计。 */
@@ -20,9 +21,12 @@ interface TaskToolbarProps {
   onFiltersChange: Dispatch<SetStateAction<TaskFilters>>;
   onDisplayChange: Dispatch<SetStateAction<TaskDisplayOptions>>;
   onClearFilters: () => void;
+  /** 重新读取任务数据，加载和写入期间禁止刷新。 */
+  onRefresh: () => Promise<void>;
+  refreshDisabled: boolean;
 }
 
-export function TaskToolbar({ tasks, filters, display, projectNames, hasFilters, onFiltersChange, onDisplayChange, onClearFilters }: TaskToolbarProps) {
+export function TaskToolbar({ tasks, filters, display, projectNames, hasFilters, onFiltersChange, onDisplayChange, onClearFilters, onRefresh, refreshDisabled }: TaskToolbarProps) {
   const { t: translate } = useTranslation();
   return (
     <div className="workspace-toolbar" role="toolbar" aria-label={translate("任务面板工具栏")}>
@@ -30,6 +34,7 @@ export function TaskToolbar({ tasks, filters, display, projectNames, hasFilters,
         {hasFilters && <Button className="h-6 px-2 text-xs font-normal text-muted-foreground" size="xs" variant="ghost" onClick={onClearFilters}>{translate("重置")}</Button>}
         <TaskFilterMenu tasks={tasks} filters={filters} projectNames={projectNames} hasFilters={hasFilters} onFiltersChange={onFiltersChange} onClear={onClearFilters} />
         <TaskDisplayMenu display={display} onDisplayChange={onDisplayChange} />
+        <WorkspaceRefreshButton onRefresh={onRefresh} disabled={refreshDisabled} />
       </div>
     </div>
   );

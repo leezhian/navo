@@ -44,10 +44,10 @@ function IssueFilterSection<Value extends string>({ label, icon: Icon, options, 
   const { t: translate } = useTranslation();
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger className="gap-2 px-2 py-2 text-xs"><Icon aria-hidden="true" />{label}</DropdownMenuSubTrigger>
+      <DropdownMenuSubTrigger className="gap-2 px-2 py-1.5 text-xs"><Icon aria-hidden="true" />{label}</DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="max-h-64 w-56 overflow-y-auto rounded-xl p-2 shadow-md">
         {options.map(({ value, label: optionLabel, count }) => (
-          <DropdownMenuCheckboxItem key={value} className="py-2 text-xs" checked={selectedValues.includes(value)}
+          <DropdownMenuCheckboxItem key={value} className="py-1.5 text-xs" checked={selectedValues.includes(value)}
             onSelect={(event) => event.preventDefault()} onCheckedChange={() => onToggle(value)}>
             <span className="truncate">{optionLabel}</span>
             <span className="ml-auto text-xs text-muted-foreground">{count}</span>

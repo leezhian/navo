@@ -13,6 +13,7 @@ import type { IssueDisplayOptions } from "@/domain/issueView";
 import { useIssueView } from "@/hooks/useIssueView";
 import { IssueDetails } from "./IssueDetails";
 import { IssueToolbar } from "./IssueToolbar";
+import { IssueBoard } from "./IssueBoard";
 import { ResizableWorkspace } from "@/components/layout/ResizableWorkspace";
 
 
@@ -116,6 +117,7 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
 export function IssueList() {
   const { t: translate } = useTranslation();
   const issues = useIssueStore((state) => state.items);
+  const refresh = useIssueStore((state) => state.refresh);
   const view = useIssueView(issues);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const selectedIssue = view.visibleIssues.find((issue) => issue.id === selectedIssueId);
@@ -127,11 +129,14 @@ export function IssueList() {
   return (
     <ResizableWorkspace
       details={selectedIssue ? <IssueDetails issue={selectedIssue} onClose={() => setSelectedIssueId(null)} /> : null}
-      detailsHeadingId="issue-details-heading" listLabel={translate("列表")}>
+      detailsHeadingId="issue-details-heading" listLabel={translate(view.display.mode === "board" ? "看板" : "列表")}>
       <div className="issue-panel-content">
         <IssueToolbar issues={issues} filters={view.filters} display={view.display} projectNames={view.projectNames} hasFilters={view.hasFilters}
-          onFiltersChange={view.setFilters} onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} />
-        <div className="issue-list">
+          onFiltersChange={view.setFilters} onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} onRefresh={refresh} />
+        {view.display.mode === "board" && <IssueBoard issues={view.visibleIssues} display={view.display}
+          groups={view.filters.groups.length ? view.filters.groups : ["PR", "ISSUE"]} filtered={view.hasFilters}
+          selectedIssueId={selectedIssueId} onSelectIssue={setSelectedIssueId} />}
+        <div className="issue-list" hidden={view.display.mode !== "list"}>
           <div className="issue-list-content">
             <IssueSection group="PR" icon={GitPullRequest} issues={pullRequests} visible={showPR} display={view.display} filtered={view.hasFilters}
               selectedIssueId={selectedIssueId} onSelectIssue={setSelectedIssueId} />

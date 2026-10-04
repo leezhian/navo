@@ -49,10 +49,10 @@ export function TaskFilterMenu({ tasks, filters, projectNames, hasFilters, onFil
       </Tooltip>
       <DropdownMenuContent align="end" className={WORKSPACE_OPTIONS_PANEL_CLASS_NAME} sideOffset={8}>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="gap-2 px-2 py-2 text-xs"><Circle aria-hidden="true" />{translate("状态")}</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger className="gap-2 px-2 py-1.5 text-xs"><Circle aria-hidden="true" />{translate("状态")}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-52 rounded-xl p-2 shadow-md">
             {taskColumns.map(({ status }) => (
-              <DropdownMenuCheckboxItem key={status} className="py-2 text-xs" checked={filters.statuses.includes(status)} onSelect={(event) => event.preventDefault()}
+              <DropdownMenuCheckboxItem key={status} className="py-1.5 text-xs" checked={filters.statuses.includes(status)} onSelect={(event) => event.preventDefault()}
                 onCheckedChange={() => onFiltersChange((current) => ({ ...current, statuses: toggleValue(current.statuses, status) }))}>
                 {status}
                 <span className="ml-auto text-xs text-muted-foreground">{tasks.filter((task) => task.status === status).length}</span>
@@ -61,10 +61,10 @@ export function TaskFilterMenu({ tasks, filters, projectNames, hasFilters, onFil
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="gap-2 px-2 py-2 text-xs"><Folder aria-hidden="true" />{translate("项目")}</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger className="gap-2 px-2 py-1.5 text-xs"><Folder aria-hidden="true" />{translate("项目")}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="max-h-64 w-56 overflow-y-auto rounded-xl p-2 shadow-md">
             {projectNames.map((projectName) => (
-              <DropdownMenuCheckboxItem key={projectName} className="py-2 text-xs" checked={filters.projects.includes(projectName)} onSelect={(event) => event.preventDefault()}
+              <DropdownMenuCheckboxItem key={projectName} className="py-1.5 text-xs" checked={filters.projects.includes(projectName)} onSelect={(event) => event.preventDefault()}
                 onCheckedChange={() => onFiltersChange((current) => ({ ...current, projects: toggleValue(current.projects, projectName) }))}>
                 <span className="truncate">{projectName}</span>
                 <span className="ml-auto text-xs text-muted-foreground">{tasks.filter((task) => taskProjectNames(task).includes(projectName)).length}</span>

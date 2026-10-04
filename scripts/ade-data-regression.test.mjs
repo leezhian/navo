@@ -23,13 +23,42 @@ const { moveTask } = await importTs("src/utils/taskState.ts");
 const { navigateTo, stepNavigation } = await importTs("src/domain/navigation.ts");
 const { isTask, isIssueItem, parseStoredItems } = await importTs("src/utils/adeDataValidation.ts");
 const { filterTasks, orderTasks } = await importTs("src/utils/taskView.ts");
-const { filterIssues, orderIssues } = await importTs("src/utils/issueView.ts");
+const { filterIssues, orderIssues, moveIssue, mergeIssueItems } = await importTs("src/utils/issueView.ts");
 const { bindDevelopmentTools } = await importTs("src/main-process/developmentTools.ts");
 const { useTaskTabsStore } = await importTs("src/stores/taskTabsStore.ts");
 const { taskTabGroups } = await importTs("src/domain/taskSplit.ts");
 const first = { id: "first", title: "任务一", date: "2026-09-30", projectName: "navo", status: "TODO" };
 const second = { ...first, id: "second", title: "任务二" };
 const third = { ...first, id: "third", status: "DONE" };
+
+test("Issue 刷新更新内容和增删结果，保留已有手动顺序且不修改输入", () => {
+  const original = [third, second, first];
+  const updated = { ...first, title: "更新后的标题" };
+  const added = { ...first, id: "new" };
+  assert.deepEqual(mergeIssueItems(original, [updated, third, added]), [third, updated, added]);
+  assert.deepEqual(original, [third, second, first]);
+  assert.deepEqual(mergeIssueItems(original, []), []);
+  assert.deepEqual(mergeIssueItems([], [added]), [added]);
+});
+
+test("Issue 同类型手动排序保留隐藏项、类型和另一组顺序，拒绝非法目标", () => {
+  const firstPR = { ...first, id: "pr1", group: "PR", status: "review" };
+  const hiddenPR = { ...firstPR, id: "hidden" };
+  const secondPR = { ...firstPR, id: "pr2" };
+  const issue = { ...firstPR, id: "issue1", group: "ISSUE", status: "todo" };
+  const otherIssue = { ...issue, id: "issue2" };
+  const items = [firstPR, hiddenPR, issue, secondPR, otherIssue];
+  const moved = moveIssue(items, "pr2", "PR", "pr1");
+  assert.deepEqual(moved.filter((item) => item.group === "PR"), [secondPR, firstPR, hiddenPR]);
+  assert.deepEqual(moved.filter((item) => item.group === "ISSUE"), [issue, otherIssue]);
+  assert.deepEqual(moveIssue(items, "pr1", "PR", null).filter((item) => item.group === "PR"), [hiddenPR, secondPR, firstPR]);
+  assert.deepEqual(moveIssue(items, "issue2", "ISSUE", "issue1").filter((item) => item.group === "ISSUE"), [otherIssue, issue]);
+  for (const [id, group, before] of [["pr1", "ISSUE", null], ["pr1", "PR", "issue1"], ["pr1", "PR", "missing"], ["missing", "PR", null], ["pr1", "PR", "pr1"]]) {
+    assert.equal(moveIssue(items, id, group, before), items);
+  }
+  assert.deepEqual(new Set(moved.map((item) => item.id)), new Set(items.map((item) => item.id)));
+  assert.deepEqual(items, [firstPR, hiddenPR, issue, secondPR, otherIssue]);
+});
 
 test("任务标签按标识去重，未打开任务不会被激活，返回面板保留标签", () => {
   useTaskTabsStore.setState({ taskIds: [], activeTaskId: null });

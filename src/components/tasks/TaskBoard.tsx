@@ -56,6 +56,7 @@ function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectT
     <motion.div
       aria-hidden="true"
       className="task-drop-placeholder"
+      data-board-placeholder=""
       layout="position"
       style={{ height: dragPreview?.height }}
       transition={{ layout: LAYOUT_TRANSITION }}
@@ -63,17 +64,17 @@ function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectT
   );
 
   return (
-    <section aria-labelledby={headingId} className="task-column" data-status={column.status}>
+    <section aria-labelledby={headingId} className="task-column" data-status={column.status} data-board-group={column.status}>
       <header className="task-column-header">
         <StatusIcon aria-hidden="true" className="column-status-icon" size={17} strokeWidth={1.65} />
         <h2 id={headingId}>{column.status}</h2>
         <span aria-label={translate("{{count}} 个任务", { count: column.tasks.length })} className="column-task-count">{column.tasks.length}</span>
       </header>
-      <motion.div className="task-column-content" layoutScroll>
+      <motion.div className="task-column-content" data-board-content="" layoutScroll>
         {visibleTasks.map((task) => (
           <Fragment key={task.id}>
             {dropTarget?.beforeTaskId === task.id && placeholder}
-            <motion.div className="task-card-slot" data-task-id={task.id} layout="position" layoutId={task.id} transition={{ layout: LAYOUT_TRANSITION }}>
+            <motion.div className="task-card-slot" data-task-id={task.id} data-board-item={task.id} layout="position" layoutId={task.id} transition={{ layout: LAYOUT_TRANSITION }}>
               <TaskCard task={task} selected={selectedTaskId === task.id} onSelect={() => onSelectTask(task.id)}
                 selectOnClick={display.order !== "manual"} showDate={display.showDate} showProject={display.showProject} />
             </motion.div>
@@ -96,7 +97,7 @@ export function TaskBoard() {
     setSelectedTaskId(activateTask(taskId) ? null : taskId);
   }, [activateTask]);
   const selectedTask = view.visibleTasks.find((task) => task.id === selectedTaskId);
-  const canDrag = loaded && !pending && view.display.mode === "board" && view.display.order === "manual";
+  const canDrag = loaded && !pending && !loading && view.display.mode === "board" && view.display.order === "manual";
   const requestedVisible = view.visibleTasks.some((task) => task.id === requestedTaskId);
   useEffect(() => {
     if (requestedTaskId && (requestedVisible || openTaskIds.includes(requestedTaskId))) { selectTask(requestedTaskId); requestOpen(null); }
@@ -122,7 +123,7 @@ export function TaskBoard() {
             {requestedTaskId && !requestedVisible && <div className="flex items-center gap-2 px-4 pt-3 text-xs text-muted-foreground"><span>{translate("任务已创建，但被当前筛选隐藏。")}</span><Button size="sm" variant="ghost" onClick={view.clearFilters}>{translate("查看任务")}</Button><Button size="sm" variant="ghost" onClick={() => requestOpen(null)}>{translate("关闭")}</Button></div>}
             <TaskToolbar tasks={tasks} filters={view.filters} display={view.display}
               projectNames={view.projectNames} hasFilters={view.hasFilters} onFiltersChange={view.setFilters}
-              onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} />
+              onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} onRefresh={bootstrap} refreshDisabled={loading || pending} />
             {!loaded ? <div className="min-h-40" role="status" aria-label={loading ? translate("正在加载任务") : undefined} /> : view.display.mode === "board" ? (
               <motion.div className="task-board" layoutScroll {...(canDrag ? pointerHandlers : {})}>
                 {taskColumns.map((column) => (

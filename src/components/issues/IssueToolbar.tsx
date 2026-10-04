@@ -5,6 +5,7 @@ import type { IssueItem } from "@/domain/issues";
 import type { IssueDisplayOptions, IssueFilters } from "@/domain/issueView";
 import { IssueDisplayMenu } from "./IssueDisplayMenu";
 import { IssueFilterMenu } from "./IssueFilterMenu";
+import { WorkspaceRefreshButton } from "@/components/layout/WorkspaceRefreshButton";
 
 interface IssueToolbarProps {
   /** 完整条目集合，用于过滤选项的数量统计。 */
@@ -21,9 +22,11 @@ interface IssueToolbarProps {
   onDisplayChange: Dispatch<SetStateAction<IssueDisplayOptions>>;
   /** 清空过滤条件，保留显示设置。 */
   onClearFilters: () => void;
+  /** 重新读取本地条目，保留页面筛选和显示设置。 */
+  onRefresh: () => void;
 }
 
-export function IssueToolbar({ issues, filters, display, projectNames, hasFilters, onFiltersChange, onDisplayChange, onClearFilters }: IssueToolbarProps) {
+export function IssueToolbar({ issues, filters, display, projectNames, hasFilters, onFiltersChange, onDisplayChange, onClearFilters, onRefresh }: IssueToolbarProps) {
   const { t: translate } = useTranslation();
   return (
     <div className="workspace-toolbar" role="toolbar" aria-label={translate("Issue 列表工具栏")}>
@@ -31,6 +34,7 @@ export function IssueToolbar({ issues, filters, display, projectNames, hasFilter
         {hasFilters && <Button className="h-6 px-2 text-xs font-normal text-muted-foreground" size="xs" variant="ghost" onClick={onClearFilters}>{translate("重置")}</Button>}
         <IssueFilterMenu issues={issues} filters={filters} projectNames={projectNames} hasFilters={hasFilters} onFiltersChange={onFiltersChange} onClear={onClearFilters} />
         <IssueDisplayMenu display={display} onDisplayChange={onDisplayChange} />
+        <WorkspaceRefreshButton onRefresh={onRefresh} />
       </div>
     </div>
   );
