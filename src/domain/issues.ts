@@ -13,6 +13,10 @@ export interface IssueItem {
   title: string;
   /** 右侧展示的所属项目。 */
   projectName: string;
+  /** 服务商显示名称，例如 GitHub；旧数据未提供时不推断来源。 */
+  provider?: string;
+  /** 来源仓库标识或全名，旧条目沿用项目名作为仓库筛选值。 */
+  repository?: string;
   /** 根据条目类型展示相应的状态文案，通过文字颜色区分。 */
   status: IssueStatus;
   /** 条目更新时间，预览以 ISO 日期存储。 */

@@ -25,12 +25,47 @@ const { isTask, isIssueItem, parseStoredItems } = await importTs("src/utils/adeD
 const { filterTasks, orderTasks, getTaskStatusDropTarget } = await importTs("src/utils/taskView.ts");
 const { filterIssues, orderIssues } = await importTs("src/utils/issueView.ts");
 const { snapResizeRatio } = await importTs("src/utils/resizeSnap.ts");
+const { filterTaskIssues, linkedIssueKeys, issueLinkKey, issueRepository } = await importTs("src/utils/taskIssuePicker.ts");
 const { bindDevelopmentTools } = await importTs("src/main-process/developmentTools.ts");
 const { useTaskTabsStore } = await importTs("src/stores/taskTabsStore.ts");
 const { taskTabGroups } = await importTs("src/domain/taskSplit.ts");
 const first = { id: "first", title: "任务一", date: "2026-09-30", projectName: "navo", status: "TODO" };
 const second = { ...first, id: "second", title: "任务二" };
 const third = { ...first, id: "third", status: "DONE" };
+
+test("关联选择按来源、仓库、搜索与已保存任务取交集，兼容旧数据", () => {
+  const linkedIssue = { ...first, id: "linked", group: "ISSUE", status: "todo", tag: "feature", provider: "GitHub", repository: "team/navo" };
+  const other = { ...linkedIssue, id: "other", provider: "GitLab", repository: "team/other", title: "Fix layout" };
+  const free = { ...linkedIssue, id: "free" };
+  const legacy = { ...first, id: "legacy", group: "ISSUE", status: "todo", tag: "fix" };
+  const linked = linkedIssueKeys([{ ...first, status: "ARCHIVED", links: [linkedIssue] }, second]);
+  const items = [linkedIssue, other, free, legacy];
+  const filters = { keyword: "", provider: "", repository: "", taskLink: "unlinked", prState: "any" };
+  assert.deepEqual(filterTaskIssues(items, filters, linked), [other, free, legacy]);
+  assert.deepEqual(filterTaskIssues(items, { ...filters, taskLink: "linked" }, linked), [linkedIssue]);
+  assert.deepEqual(filterTaskIssues(items, { ...filters, taskLink: "any" }, linked), items);
+  assert.deepEqual(filterTaskIssues(items, { ...filters, provider: "GitHub", repository: "team/navo" }, linked), [free]);
+  assert.deepEqual(filterTaskIssues(items, { ...filters, provider: "GitHub", repository: "team/other" }, linked), []);
+  assert.deepEqual(filterTaskIssues(items, { ...filters, keyword: "FIX" }, linked), [other]);
+  assert.deepEqual(filterTaskIssues(items, { ...filters, keyword: "team/other" }, linked), [other]);
+  assert.equal(issueRepository(legacy), "navo");
+  assert.equal(linked.has(issueLinkKey({ ...linkedIssue, group: "PR" })), false);
+  assert.equal(linkedIssueKeys([]).size, 0);
+  assert.equal(isIssueItem(legacy), true);
+  assert.equal(isIssueItem(linkedIssue), true);
+  assert.equal(isIssueItem({ ...linkedIssue, provider: 5 }), false);
+  assert.equal(isIssueItem({ ...linkedIssue, repository: "" }), false);
+  const pullRequests = [
+    { ...linkedIssue, id: "open", group: "PR", status: "review" },
+    { ...linkedIssue, id: "draft", group: "PR", status: "draft" },
+    { ...linkedIssue, id: "merged", group: "PR", status: "merged" },
+  ];
+  assert.deepEqual(filterTaskIssues(pullRequests, filters, linked), pullRequests);
+  assert.deepEqual(filterTaskIssues(pullRequests, { ...filters, prState: "open" }, linked), [pullRequests[0]]);
+  assert.deepEqual(filterTaskIssues(pullRequests, { ...filters, prState: "draft" }, linked), [pullRequests[1]]);
+  assert.deepEqual(filterTaskIssues(pullRequests, { ...filters, prState: "draft", provider: "GitLab" }, linked), []);
+  assert.deepEqual(filterTaskIssues(items, { ...filters, prState: "draft" }, linked), [other, free, legacy]);
+});
 
 test("任务标签按标识去重，未打开任务不会被激活，返回面板保留标签", () => {
   useTaskTabsStore.setState({ taskIds: [], activeTaskId: null });

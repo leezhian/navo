@@ -16,6 +16,8 @@ export function isTask(value: unknown): value is Task {
 
 export function isIssueItem(value: unknown): value is IssueItem {
   return isRecord(value) && hasItemFields(value)
+    && (value.provider === undefined || (typeof value.provider === "string" && value.provider.trim().length > 0))
+    && (value.repository === undefined || (typeof value.repository === "string" && value.repository.trim().length > 0))
     && ["PR", "ISSUE"].includes(String(value.group))
     && ["feature", "fix", "refactor", "discussion"].includes(String(value.tag))
     && ["review", "merged", "draft", "todo", "progress", "closed"].includes(String(value.status));

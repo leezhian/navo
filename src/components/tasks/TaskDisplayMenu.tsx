@@ -4,7 +4,7 @@ import { Columns3, List, SlidersHorizontal } from "lucide-react";
 import { Popover, RadioGroup } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { WorkspaceSortControl } from "@/components/layout/WorkspaceSortControl";
-import { useNestedPopoverDismiss } from "@/hooks/useNestedPopoverDismiss";
+import { useNestedLayerDismiss } from "@/hooks/useNestedLayerDismiss";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TaskDisplayOptions, TaskViewMode } from "@/domain/taskView";
 import { WORKSPACE_OPTIONS_PANEL_CLASS_NAME, WORKSPACE_OPTIONS_SECTION_CLASS_NAME } from "@/components/layout/workspaceOptions";
@@ -18,7 +18,7 @@ interface TaskDisplayMenuProps {
 
 export function TaskDisplayMenu({ display, onDisplayChange }: TaskDisplayMenuProps) {
   const { t: translate } = useTranslation();
-  const { contentRef, onPointerDownOutside } = useNestedPopoverDismiss();
+  const { contentRef, onPointerDownOutside } = useNestedLayerDismiss();
   return (
     <Popover.Root>
       <Tooltip>

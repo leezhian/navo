@@ -35,9 +35,17 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
       import { TooltipProvider } from '/src/components/ui/tooltip.tsx';
       import { defaultSettings } from '/src/domain/settings.ts';
       import { useTaskStore } from '/src/stores/taskStore.ts';
+      import { useIssueStore } from '/src/stores/issueStore.ts';
       import i18n from '/src/i18n/index.ts';
       await i18n.changeLanguage('zh-CN');
+      window.setTestLanguage = language => i18n.changeLanguage(language);
       let persisted = [];
+      window.linkExistingIssue = () => {
+        const issue = useIssueStore.getState().items.find(item => item.group === 'ISSUE');
+        window.linkedIssue = issue;
+        useTaskStore.setState({ tasks: [{ id: 'linked-test-task', title: 'Existing task', date: '2026-10-04', projectName: 'navo', status: 'ARCHIVED', links: [issue] }] });
+      };
+      window.clearExistingIssueTask = () => useTaskStore.setState({ tasks: persisted });
       let records = [
         { id: 'repo-a', name: 'repo-a', kind: 'repo', localPath: '/fixtures/repo-a', available: true },
         { id: 'repo-b', name: 'repo-b', kind: 'repo', localPath: '/fixtures/repo-b', available: true },
@@ -96,7 +104,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
     const preload = path.join(directory, "test-preload.cjs");
     await writeFile(preload, `
       const { contextBridge, ipcRenderer } = require('electron');
-      contextBridge.exposeInMainWorld('testInput', { click: (point) => ipcRenderer.invoke('test:click', point) });
+      contextBridge.exposeInMainWorld('testInput', { click: (point) => ipcRenderer.invoke('test:click', point), drag: (from, to) => ipcRenderer.invoke('test:drag', from, to), escape: () => ipcRenderer.invoke('test:escape'), hover: point => ipcRenderer.invoke('test:hover', point) });
     `);
     const runner = path.join(directory, "task-create.cjs");
     await writeFile(runner, `
@@ -105,6 +113,20 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
       app.whenReady().then(async () => {
         app.dock?.hide();
         const window = new BrowserWindow({ show: false, webPreferences: { backgroundThrottling: false, preload: ${JSON.stringify(preload)} } });
+        ipcMain.handle('test:drag', async (_event, from, to) => {
+          window.webContents.sendInputEvent({ type: 'mouseMove', ...from });
+          window.webContents.sendInputEvent({ type: 'mouseDown', ...from, button: 'left', clickCount: 1 });
+          for (let step = 1; step <= 10; step += 1) {
+            await new Promise(resolve => setTimeout(resolve, 16));
+            window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x + (to.x - from.x) * step / 10), y: Math.round(from.y + (to.y - from.y) * step / 10), button: 'left', modifiers: ['leftButtonDown'] });
+          }
+          window.webContents.sendInputEvent({ type: 'mouseUp', ...to, button: 'left', clickCount: 1 });
+        });
+        ipcMain.handle('test:escape', () => {
+          window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+          window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+        });
+        ipcMain.handle('test:hover', (_event, point) => window.webContents.sendInputEvent({ type: 'mouseMove', ...point }));
         ipcMain.handle('test:click', async (_event, { x, y }) => {
           window.webContents.sendInputEvent({ type: 'mouseMove', x, y });
           window.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
@@ -233,6 +255,91 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             }
             await click('关联 Issue');
             await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing reopened issue selection');
+            if (dialog().textContent.includes('勾选条目进行关联')) throw new Error('Picker instruction must be removed');
+            if (dialog().querySelector('[aria-label="PR 状态筛选"]')) throw new Error('Issue picker must not show PR state filtering');
+            for (const [label, text] of [['服务商筛选', '全部服务商'], ['仓库筛选', '全部仓库'], ['任务关联筛选', '未关联任务']]) {
+              if (!dialog().querySelector('[aria-label="' + label + '"]')?.textContent.includes(text)) throw new Error('Incorrect picker filter default: ' + label);
+            }
+            await window.setTestLanguage('en');
+            await waitFor(() => dialog()?.querySelector('[aria-label="Filter by provider"]')?.textContent.includes('Any provider'), 'Provider default must translate live');
+            if (!dialog().querySelector('[aria-label="Filter by repository"]').textContent.includes('Any Repo') || !dialog().querySelector('[aria-label="Filter by task association"]').textContent.includes('Not task yet')) throw new Error('All filter defaults must translate');
+            await mouseClick(dialog().querySelector('[aria-label="Filter by task association"]'));
+            await waitFor(() => document.querySelectorAll('[role="option"]').length === 3, 'Missing translated task association options');
+            if ([...document.querySelectorAll('[role="option"]')].map(option => option.textContent).join(',') !== 'Any,Has a task,Not task yet') throw new Error('Task association options must translate');
+            await window.testInput.escape();
+            await waitFor(() => !document.querySelector('[role="listbox"]'), 'Translated dropdown must close normally');
+            await window.setTestLanguage('zh-CN');
+            await waitFor(() => dialog()?.querySelector('[aria-label="任务关联筛选"]')?.textContent.includes('未关联任务'), 'Chinese defaults must restore without resetting selection');
+            const titleButton = dialog().querySelector('button[aria-label^="预览："]');
+            if (titleButton.querySelector('svg') || getComputedStyle(titleButton).whiteSpace !== 'nowrap' || getComputedStyle(titleButton).textOverflow !== 'ellipsis') throw new Error('Title must preview directly, truncate and have no eye icon');
+            if (titleButton.nextElementSibling.textContent !== 'GitHub' || titleButton.parentElement.querySelector('p')) throw new Error('Source must replace preview icon without a project subtitle');
+            const pickerRow = titleButton.parentElement;
+            await window.testInput.hover({ x: 5, y: 5 });
+            const rowBackground = getComputedStyle(pickerRow).backgroundColor;
+            const rowRect = pickerRow.getBoundingClientRect();
+            await window.testInput.hover({ x: Math.round(rowRect.x + rowRect.width / 2), y: Math.round(rowRect.y + rowRect.height / 2) });
+            await waitFor(() => getComputedStyle(pickerRow).backgroundColor !== rowBackground, 'Picker row must highlight on hover');
+            if (pickerRow.querySelector('[role="checkbox"]').getAttribute('data-state') !== 'unchecked' || dialog().querySelector('aside h3')) throw new Error('Hover must not select or preview an item');
+            const pickerToolbar = dialog().querySelector('[data-issue-picker-toolbar]');
+            const searchRect = pickerToolbar.querySelector('input').getBoundingClientRect();
+            if (searchRect.width > 210) throw new Error('Search input must remain compact');
+            for (const trigger of pickerToolbar.querySelectorAll('[role="combobox"]')) {
+              if (Math.abs(trigger.getBoundingClientRect().top - searchRect.top) > 1) throw new Error('Search and all filters must stay on one row');
+            }
+            const pickerPanels = dialog().querySelector('.task-issue-panels');
+            const divider = pickerPanels.querySelector('[role="separator"]');
+            await waitFor(() => Math.abs(pickerPanels.querySelector('aside').getBoundingClientRect().width - (pickerPanels.getBoundingClientRect().width - 8) * 0.44) < 1, 'Picker layout must finish measuring before native drag');
+            const initialPreviewWidth = pickerPanels.querySelector('aside').getBoundingClientRect().width;
+            const dividerRect = divider.getBoundingClientRect();
+            const from = { x: Math.round(dividerRect.x + dividerRect.width / 2), y: Math.round(dividerRect.y + dividerRect.height / 2) };
+            await window.testInput.drag(from, { x: from.x + 60, y: from.y });
+            await waitFor(() => pickerPanels.querySelector('aside').getBoundingClientRect().width < initialPreviewWidth - 40, 'Native divider drag must resize list and preview');
+            const resizedPreviewWidth = pickerPanels.querySelector('aside').getBoundingClientRect().width;
+            divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+            await waitFor(() => pickerPanels.querySelector('aside').getBoundingClientRect().width > resizedPreviewWidth + 15, 'Picker divider must support keyboard resizing');
+            if (divider.getBoundingClientRect().width !== 8 || document.querySelectorAll('[role="dialog"]').length !== 2) throw new Error('Resizing must retain the 8px gap and both dialogs');
+            async function pickerFilter(label, value) {
+              await mouseClick(dialog().querySelector('[aria-label="' + label + '"]'));
+              await waitFor(() => document.querySelector('[role="option"]'), 'Missing picker filter options');
+              await mouseClick([...document.querySelectorAll('[role="option"]')].find(option => option.textContent === value));
+              await waitFor(() => !document.querySelector('[role="listbox"]'), 'Filter must close after selecting');
+              if (document.querySelectorAll('[role="dialog"]').length !== 2) throw new Error('Filter must preserve nested dialogs');
+            }
+            for (const label of ['服务商筛选', '仓库筛选', '任务关联筛选']) {
+              const picker = dialog();
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await mouseClick(picker.querySelector('[aria-label="' + label + '"]'));
+              await waitFor(() => document.querySelector('[role="listbox"]'), 'Missing open filter: ' + label);
+              const bounds = picker.getBoundingClientRect();
+              await window.testInput.click({ x: Math.round(bounds.left + 5), y: Math.round(bounds.top + bounds.height / 2) });
+              await waitFor(() => !document.querySelector('[role="listbox"]'), 'Clicking picker background must dismiss filter');
+              if (dialog() !== picker || !picker.isConnected) throw new Error('Dismissing filter inside picker must not close picker or creation dialog');
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await mouseClick(picker.querySelector('[aria-label="' + label + '"]'));
+              await waitFor(() => document.querySelector('[role="listbox"]'), 'Filter must reopen after dismissal');
+              await window.testInput.escape();
+              await waitFor(() => !document.querySelector('[role="listbox"]'), 'Escape must close only filter');
+              if (dialog() !== picker) throw new Error('Escape from filter must retain picker');
+            }
+            window.linkExistingIssue();
+            await waitFor(() => !dialog().querySelector('[aria-label="选择：' + window.linkedIssue.title + '"]'), 'Not task yet must hide persisted task links');
+            await pickerFilter('任务关联筛选', '已关联任务');
+            await waitFor(() => dialog().querySelectorAll('[role="checkbox"]').length === 1, 'Has a task must include archived tasks');
+            const linkedCheckbox = dialog().querySelector('[role="checkbox"]');
+            await mouseClick(linkedCheckbox);
+            await pickerFilter('服务商筛选', 'GitLab');
+            await waitFor(() => !dialog().querySelector('[role="checkbox"]'), 'Provider and association filters must intersect');
+            if (!dialog().textContent.includes('已选择 1 项')) throw new Error('Filters must preserve hidden selections');
+            await pickerFilter('任务关联筛选', '不限');
+            await waitFor(() => dialog().querySelector('[role="checkbox"]'), 'Any association must show provider results');
+            await pickerFilter('仓库筛选', 'demo/navo');
+            await waitFor(() => !dialog().querySelector('[role="checkbox"]'), 'Repository and provider must intersect');
+            await pickerFilter('服务商筛选', '全部服务商');
+            await waitFor(() => dialog().querySelector('[aria-label="选择：' + window.linkedIssue.title + '"]')?.getAttribute('data-state') === 'checked', 'Restoring filters must retain selection');
+            await mouseClick(dialog().querySelector('[aria-label="选择：' + window.linkedIssue.title + '"]'));
+            await pickerFilter('仓库筛选', '全部仓库');
+            window.clearExistingIssueTask();
+            await pickerFilter('任务关联筛选', '未关联任务');
             dialog().querySelector('[role="checkbox"]').click();
             const preview = dialog().querySelector('button[aria-label^="预览："]');
             preview.click();
@@ -243,6 +350,27 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             if (composer().querySelector('button[aria-label^="移除："]').parentElement.getBoundingClientRect().height > 30) throw new Error('Linked item echo must stay compact');
             await click('关联 PR');
             await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing PR selection');
+            if (!dialog().querySelector('[aria-label="PR 状态筛选"]').textContent.includes('全部状态')) throw new Error('PR state must default to Any State');
+            await pickerFilter('PR 状态筛选', '草稿');
+            await waitFor(() => dialog().querySelectorAll('[role="checkbox"]').length === 1, 'Draft must show only draft PRs');
+            const draftCheckbox = dialog().querySelector('[role="checkbox"]');
+            const draftLabel = draftCheckbox.getAttribute('aria-label');
+            await mouseClick(draftCheckbox);
+            await pickerFilter('PR 状态筛选', '开放');
+            await waitFor(() => dialog().querySelectorAll('[role="checkbox"]').length === 2, 'Open must exclude draft and merged PRs');
+            if (!dialog().textContent.includes('已选择 1 项')) throw new Error('State filtering must preserve hidden selections');
+            await pickerFilter('PR 状态筛选', '全部状态');
+            await waitFor(() => dialog().querySelector('[aria-label="' + draftLabel + '"]')?.getAttribute('data-state') === 'checked', 'Returning to Any State must keep selected draft');
+            await mouseClick(dialog().querySelector('[aria-label="' + draftLabel + '"]'));
+            await window.setTestLanguage('en');
+            await waitFor(() => dialog()?.querySelector('[aria-label="Filter by PR state"]')?.textContent.includes('Any State'), 'PR state default must translate');
+            await mouseClick(dialog().querySelector('[aria-label="Filter by PR state"]'));
+            await waitFor(() => document.querySelectorAll('[role="option"]').length === 3, 'Missing PR state options');
+            if ([...document.querySelectorAll('[role="option"]')].map(option => option.textContent).join(',') !== 'Any State,Open,Draft') throw new Error('PR state options must match the requested labels');
+            await window.testInput.escape();
+            await waitFor(() => !document.querySelector('[role="listbox"]'), 'PR state dropdown must dismiss without closing picker');
+            await window.setTestLanguage('zh-CN');
+            await waitFor(() => dialog()?.querySelector('[aria-label="PR 状态筛选"]'), 'PR picker must restore Chinese labels');
             dialog().querySelector('[role="checkbox"]').click();
             await click('确认');
             await waitFor(() => composer()?.textContent.includes('PR'), 'Selected PR must be echoed inside the composer');
