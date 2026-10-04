@@ -42,7 +42,7 @@ function RailButton({ active, label, icon: Icon, onClick }: RailButtonProps) {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button aria-label={label} aria-pressed={active} className="navo-rail-button" data-active={active} size="icon" variant="ghost" onClick={onClick}>
-          <Icon aria-hidden="true" size={21} strokeWidth={1.65} />
+          <Icon aria-hidden="true" size={18} strokeWidth={1.65} />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="right" sideOffset={8}>{label}</TooltipContent>
