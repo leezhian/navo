@@ -17,7 +17,7 @@ interface DiagnosticLogSettingsProps {
 }
 
 export function DiagnosticLogSettings({ filePath, onPathChange }: DiagnosticLogSettingsProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "settings"]);
   const saving = useSettingsStore((state) => state.saving);
   const saveError = useSettingsStore((state) => state.saveError);
   const [logFailed, setLogFailed] = useState(false);
@@ -86,19 +86,19 @@ export function DiagnosticLogSettings({ filePath, onPathChange }: DiagnosticLogS
   }
 
   return <section className="mb-6">
-    <SettingsSectionHeader title={t("诊断日志")} description={t("磁盘占用最高约20 MB。提交错误报告时请附上此文件。")} />
+    <SettingsSectionHeader title={t("settings:logs.title")} description={t("settings:logs.description")} />
     {error !== null ? <p role="alert" className="mb-3 text-xs text-destructive">{getSettingsError(error)}</p>
-      : logFailed && <p role="alert" className="mb-3 text-xs text-destructive">{t("日志写入失败，请检查日志文件权限。")}</p>}
+      : logFailed && <p role="alert" className="mb-3 text-xs text-destructive">{t("settings:logs.writeError")}</p>}
     <SettingsList className="settings-log-panel">
       <div className="flex min-w-0 items-center gap-2">
-        <SettingsTextField label={t("日志文件")} className="min-w-0 flex-1 font-mono text-[12px]" value={filePath} disabled={controlsBusy} onCommit={commitPath} />
-        <IconTooltip label={t("选择目录") + ": " + t("日志文件")} className="shrink-0" variant="ghost" disabled={controlsBusy} onClick={() => void choosePath()}><FolderOpen className="size-4" /></IconTooltip>
+        <SettingsTextField label={t("settings:logs.file")} className="min-w-0 flex-1 font-mono text-[12px]" value={filePath} disabled={controlsBusy} onCommit={commitPath} />
+        <IconTooltip label={t("settings:general.chooseDirectory") + ": " + t("settings:logs.file")} className="shrink-0" variant="ghost" disabled={controlsBusy} onClick={() => void choosePath()}><FolderOpen className="size-4" /></IconTooltip>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
-        {cleared && <span role="status" className="mr-auto text-xs text-muted-foreground">{t("日志已清理。")}</span>}
-        <Button aria-label={t("在文件系统中打开")} className="h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground" variant="ghost" disabled={actionsDisabled || !filePath} onClick={() => void revealFile()}><ExternalLink aria-hidden="true" className="size-3.5" />{t("打开")}</Button>
-        <Button className="h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground" variant="ghost" disabled={actionsDisabled || !filePath} onClick={() => void copyPath()}>{copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}{t(copied ? "已复制" : "复制路径")}</Button>
-        <Button className="h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground hover:text-destructive" variant="ghost" disabled={actionsDisabled} onClick={() => void clearLogs()}><Trash2 aria-hidden="true" className="size-3.5" />{t(clearing ? "清理中…" : "清理日志")}</Button>
+        {cleared && <span role="status" className="mr-auto text-xs text-muted-foreground">{t("settings:logs.cleared")}</span>}
+        <Button aria-label={t("common:actions.reveal")} className="h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground" variant="ghost" disabled={actionsDisabled || !filePath} onClick={() => void revealFile()}><ExternalLink aria-hidden="true" className="size-3.5" />{t("common:actions.open")}</Button>
+        <Button className="h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground" variant="ghost" disabled={actionsDisabled || !filePath} onClick={() => void copyPath()}>{copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}{t(copied ? "common:feedback.copied" : "common:actions.copyPath")}</Button>
+        <Button className="h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground hover:text-destructive" variant="ghost" disabled={actionsDisabled} onClick={() => void clearLogs()}><Trash2 aria-hidden="true" className="size-3.5" />{t(clearing ? "settings:logs.clearing" : "settings:logs.clear")}</Button>
       </div>
     </SettingsList>
   </section>;

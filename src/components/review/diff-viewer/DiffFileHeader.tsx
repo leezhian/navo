@@ -63,12 +63,12 @@ interface FileHeaderActionsProps {
 }
 
 function FileHeaderActions({ compareMode, file, onFileAction }: FileHeaderActionsProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   if (compareMode !== "staged" && compareMode !== "unstaged") {
     return null;
   }
 
-  const secondaryActionLabel = compareMode === "staged" ? translate("取消暂存文件") : translate("暂存文件");
+  const secondaryActionLabel = compareMode === "staged" ? translate("review:files.unstage") : translate("review:files.stage");
   const SecondaryIcon = compareMode === "staged" ? Minus : Plus;
   const restoreAction: ReviewFileAction = compareMode === "staged" ? "restore-file" : "restore-worktree";
   const secondaryAction: ReviewFileAction = compareMode === "staged" ? "unstage" : "stage";
@@ -84,7 +84,7 @@ function FileHeaderActions({ compareMode, file, onFileAction }: FileHeaderAction
       className="mr-1 flex items-center gap-1.5 opacity-0 transition-opacity group-hover/file:opacity-100"
       onClick={(event) => event.stopPropagation()}
     >
-      <IconTooltip className="size-7" label={translate("还原文件")} onClick={(event) => handleFileAction(event, restoreAction)}>
+      <IconTooltip className="size-7" label={translate("review:files.restore")} onClick={(event) => handleFileAction(event, restoreAction)}>
         <Undo2 className="size-4" />
       </IconTooltip>
       <IconTooltip className="size-7" label={secondaryActionLabel} onClick={(event) => handleFileAction(event, secondaryAction)}>

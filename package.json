@@ -11,7 +11,8 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "build": "electron-forge package",
-    "lint": "eslint --ext .ts,.tsx ."
+    "lint": "eslint --ext .ts,.tsx .",
+    "test:i18n": "node --test scripts/i18n-regression.test.mjs"
   },
   "keywords": [],
   "author": {

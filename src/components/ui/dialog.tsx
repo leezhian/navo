@@ -57,7 +57,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common"]);
   const nestedLayer = useNestedLayerDismiss(ref);
   return (
     <DialogPortal>
@@ -84,7 +84,7 @@ function DialogContent({
               size="icon-sm"
             >
               <XIcon />
-              <span className="sr-only">{translate("关闭")}</span>
+              <span className="sr-only">{translate("common:actions.close")}</span>
             </Button>
           </DialogPrimitive.Close>
         )}
@@ -111,7 +111,7 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common"]);
   return (
     <div
       data-slot="dialog-footer"
@@ -124,7 +124,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">{translate("关闭")}</Button>
+          <Button variant="outline">{translate("common:actions.close")}</Button>
         </DialogPrimitive.Close>
       )}
     </div>

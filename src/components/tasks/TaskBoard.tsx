@@ -52,7 +52,7 @@ interface TaskColumnProps {
 }
 
 function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectTask, display, filtered, canDrag }: TaskColumnProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "tasks"]);
   const StatusIcon = column.icon;
   const headingId = "task-column-" + column.status.toLowerCase();
 
@@ -61,7 +61,7 @@ function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectT
       <header className="task-column-header">
         <StatusIcon aria-hidden="true" className="column-status-icon" size={17} strokeWidth={1.65} />
         <h2 id={headingId}>{column.status}</h2>
-        <span aria-label={translate("{{count}} 个任务", { count: column.tasks.length })} className="column-task-count">{column.tasks.length}</span>
+        <span aria-label={translate("tasks:counts.tasks", { count: column.tasks.length })} className="column-task-count">{column.tasks.length}</span>
       </header>
       <motion.div className="task-column-content" data-board-content="" layoutScroll>
         {column.tasks.map((task) => (
@@ -72,14 +72,14 @@ function TaskColumn({ column, dragPreview, dropTarget, selectedTaskId, onSelectT
             </motion.div>}
           </Fragment>
         ))}
-        {column.tasks.length === 0 && <p className="ade-empty-state">{filtered ? translate("暂无匹配任务") : translate("暂无任务")}</p>}
+        {column.tasks.length === 0 && <p className="ade-empty-state">{filtered ? translate("tasks:empty.matches") : translate("tasks:empty.tasks")}</p>}
       </motion.div>
     </section>
   );
 }
 
 export function TaskBoard() {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "tasks"]);
   const { tasks, move, pending, loaded, loading, error, recoveryWarnings, bootstrap, requestedTaskId, requestOpen } = useTasks();
   const view = useTaskView(tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -113,16 +113,16 @@ export function TaskBoard() {
         <ResizableWorkspace
           details={selectedTask ? <TaskDetails task={selectedTask} onClose={() => setSelectedTaskId(null)} onOpenPage={() => { openTask(selectedTask.id); setSelectedTaskId(null); }} /> : null}
           detailsHeadingId="task-details-heading"
-          listLabel={translate("任务面板")}
+          listLabel={translate("tasks:board.label")}
         >
           <div className="task-panel-content">
-            {error !== null && <div role="alert" className="flex items-center gap-3 px-4 pt-3 text-xs text-destructive"><span>{getTaskError(error)}</span><Button variant="ghost" size="sm" disabled={loading || pending} onClick={() => void bootstrap()}>{translate("重试")}</Button></div>}
-            {recoveryWarnings.length > 0 && <div role="alert" className="px-4 pt-3 text-xs text-muted-foreground"><p>{translate("上次任务创建未完成，以下工作目录已保留，请检查。")}</p><pre className="mt-1 whitespace-pre-wrap break-all">{recoveryWarnings.join("\n")}</pre></div>}
-            {requestedTaskId && !requestedVisible && <div className="flex items-center gap-2 px-4 pt-3 text-xs text-muted-foreground"><span>{translate("任务已创建，但被当前筛选隐藏。")}</span><Button size="sm" variant="ghost" onClick={view.clearFilters}>{translate("查看任务")}</Button><Button size="sm" variant="ghost" onClick={() => requestOpen(null)}>{translate("关闭")}</Button></div>}
+            {error !== null && <div role="alert" className="flex items-center gap-3 px-4 pt-3 text-xs text-destructive"><span>{getTaskError(error)}</span><Button variant="ghost" size="sm" disabled={loading || pending} onClick={() => void bootstrap()}>{translate("common:actions.retry")}</Button></div>}
+            {recoveryWarnings.length > 0 && <div role="alert" className="px-4 pt-3 text-xs text-muted-foreground"><p>{translate("tasks:recovery.retainedDirectories")}</p><pre className="mt-1 whitespace-pre-wrap break-all">{recoveryWarnings.join("\n")}</pre></div>}
+            {requestedTaskId && !requestedVisible && <div className="flex items-center gap-2 px-4 pt-3 text-xs text-muted-foreground"><span>{translate("tasks:feedback.createdHidden")}</span><Button size="sm" variant="ghost" onClick={view.clearFilters}>{translate("tasks:actions.view")}</Button><Button size="sm" variant="ghost" onClick={() => requestOpen(null)}>{translate("common:actions.close")}</Button></div>}
             <TaskToolbar tasks={tasks} filters={view.filters} display={view.display}
               projectNames={view.projectNames} hasFilters={view.hasFilters} onFiltersChange={view.setFilters}
               onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} onRefresh={bootstrap} refreshDisabled={loading || pending} />
-            {!loaded ? <div className="min-h-40" role="status" aria-label={loading ? translate("正在加载任务") : undefined} /> : view.display.mode === "board" ? (
+            {!loaded ? <div className="min-h-40" role="status" aria-label={loading ? translate("tasks:loading") : undefined} /> : view.display.mode === "board" ? (
               <motion.div className="task-board" layoutScroll {...(canDrag ? pointerHandlers : {})}>
                 {taskColumns.map((column) => (
                   <TaskColumn key={column.status} column={column} dragPreview={dragPreview}

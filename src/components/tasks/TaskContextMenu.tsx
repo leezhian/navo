@@ -20,7 +20,7 @@ interface TaskContextMenuProps {
 }
 
 export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "tasks"]);
   const store = useTaskStore();
   const openTask = useTaskTabsStore((state) => state.openTask);
   const [action, setAction] = useState<"rename" | "delete" | null>(null);
@@ -33,22 +33,22 @@ export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps
     <ContextMenu><ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       {/* 重复右击只更新 Radix 的虚拟锚点，需要持续跟踪其位置变化。 */}
       <ContextMenuContent updatePositionStrategy="always">
-        <ContextMenuItem onSelect={onOpen}>{t("打开")}</ContextMenuItem>
-        <ContextMenuItem onSelect={() => { openTask(task.id); onOpen(); }}>{t("以标签页打开")}</ContextMenuItem>
-        <ContextMenuItem disabled={store.pending} onSelect={() => { setTitle(task.title); setAction("rename"); }}>{t("重命名")}</ContextMenuItem>
+        <ContextMenuItem onSelect={onOpen}>{t("common:actions.open")}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => { openTask(task.id); onOpen(); }}>{t("tasks:actions.openInTab")}</ContextMenuItem>
+        <ContextMenuItem disabled={store.pending} onSelect={() => { setTitle(task.title); setAction("rename"); }}>{t("common:actions.rename")}</ContextMenuItem>
         {/* TODO: 任务创建后的资源增补流程在后续需求中接入。 */}
-        {task.status !== "ARCHIVED" && <ContextMenuItem disabled>{t("添加资源")}</ContextMenuItem>}
+        {task.status !== "ARCHIVED" && <ContextMenuItem disabled>{t("tasks:actions.addResource")}</ContextMenuItem>}
         <ContextMenuSeparator />
-        <ContextMenuItem disabled={store.pending} onSelect={() => { void (task.status === "ARCHIVED" ? store.restore(task.id) : store.move(task.id, "ARCHIVED", null)); }}>{t(task.status === "ARCHIVED" ? "恢复" : "归档")}</ContextMenuItem>
-        <ContextMenuItem disabled={store.pending} variant="destructive" onSelect={() => setAction("delete")}>{t("删除")}</ContextMenuItem>
+        <ContextMenuItem disabled={store.pending} onSelect={() => { void (task.status === "ARCHIVED" ? store.restore(task.id) : store.move(task.id, "ARCHIVED", null)); }}>{t(task.status === "ARCHIVED" ? "common:actions.restore" : "common:actions.archive")}</ContextMenuItem>
+        <ContextMenuItem disabled={store.pending} variant="destructive" onSelect={() => setAction("delete")}>{t("common:actions.delete")}</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
     <Dialog open={action !== null} onOpenChange={(open) => { if (!open && !store.pending) setAction(null); }}>
       <DialogContent showCloseButton={!store.pending} onEscapeKeyDown={(event) => { if (store.pending) event.preventDefault(); }} onInteractOutside={(event) => { if (store.pending) event.preventDefault(); }}>
-        <DialogHeader><DialogTitle>{t(action === "rename" ? "重命名任务" : "删除任务？")}</DialogTitle><DialogDescription>{t(action === "rename" ? "只修改任务标题，不影响描述与分支。" : "删除任务及附件副本，不删除原文件、仓库、分支或 Worktree。")}</DialogDescription></DialogHeader>
-        {action === "rename" ? <Input autoFocus aria-label={t("任务标题")} disabled={store.pending} value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && title.trim() && !store.pending) void confirm(); }} /> : <p className="text-sm">{task.title}</p>}
+        <DialogHeader><DialogTitle>{t(action === "rename" ? "tasks:dialogs.renameTitle" : "tasks:dialogs.deleteTitle")}</DialogTitle><DialogDescription>{t(action === "rename" ? "tasks:dialogs.renameDescription" : "tasks:dialogs.deleteDescription")}</DialogDescription></DialogHeader>
+        {action === "rename" ? <Input autoFocus aria-label={t("tasks:fields.title")} disabled={store.pending} value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && title.trim() && !store.pending) void confirm(); }} /> : <p className="text-sm">{task.title}</p>}
         {store.error !== null && <p role="alert" className="text-xs text-destructive">{getTaskError(store.error)}</p>}
-        <DialogFooter><Button variant="ghost" disabled={store.pending} onClick={() => setAction(null)}>{t("取消")}</Button><Button variant={action === "delete" ? "destructive" : "default"} disabled={store.pending || (action === "rename" && !title.trim())} onClick={() => void confirm()}>{t("确认")}</Button></DialogFooter>
+        <DialogFooter><Button variant="ghost" disabled={store.pending} onClick={() => setAction(null)}>{t("common:actions.cancel")}</Button><Button variant={action === "delete" ? "destructive" : "default"} disabled={store.pending || (action === "rename" && !title.trim())} onClick={() => void confirm()}>{t("common:actions.confirm")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;

@@ -1,0 +1,44 @@
+{
+  "details": {
+    "close": "关闭条目详情"
+  },
+  "display": {
+    "label": "Issue 显示选项",
+    "mode": "Issue 显示方式",
+    "order": "条目排序",
+    "groupingDescription": "按 PR 和 ISSUE 分组，排序只影响列表展示，不修改原始条目顺序。"
+  },
+  "filters": {
+    "label": "过滤条目"
+  },
+  "empty": {
+    "matches": "暂无匹配条目",
+    "group": "暂无 {{group}}"
+  },
+  "toolbar": {
+    "label": "Issue 列表工具栏"
+  },
+  "tags": {
+    "feature": "功能",
+    "fix": "修复",
+    "refactor": "重构",
+    "discussion": "讨论"
+  },
+  "statuses": {
+    "review": "待审查",
+    "merged": "已合并",
+    "draft": "草稿",
+    "todo": "待处理",
+    "progress": "进行中",
+    "closed": "已关闭"
+  },
+  "page": {
+    "label": "PR 与 ISSUE 列表"
+  },
+  "actions": {
+    "viewLabel": "查看{{group}}：{{title}}"
+  },
+  "counts": {
+    "items_other": "{{count}} 个条目"
+  }
+}

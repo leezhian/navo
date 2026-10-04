@@ -17,7 +17,7 @@ interface ResourcesSettingsPageProps {
 }
 
 export function ResourcesSettingsPage({ settings }: ResourcesSettingsPageProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "settings"]);
   const resources = useResourceStore();
   const [form, setForm] = useState<{ record?: ResourceRecord } | null>(null);
   const [removing, setRemoving] = useState<ResourceRecord | null>(null);
@@ -36,32 +36,32 @@ export function ResourcesSettingsPage({ settings }: ResourcesSettingsPageProps) 
   }
 
   return <>
-    <SettingsPageHeader title={t("仓库与文件夹")} />
-    <p className="mb-4 text-xs leading-5 text-muted-foreground">{t("移除记录不会删除磁盘文件。")}</p>
+    <SettingsPageHeader title={t("settings:pages.resources")} />
+    <p className="mb-4 text-xs leading-5 text-muted-foreground">{t("settings:resources.removeHint")}</p>
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <Button className="h-8 text-xs" variant="secondary" onClick={() => setForm({})}><GitBranch className="size-3.5" />{t("添加仓库")}</Button>
-      <IconTooltip label={t("刷新")} className="ml-auto" size="icon-sm" variant="ghost" disabled={resources.loading} onClick={() => void resources.refresh()}><RefreshCw className={resources.loading ? "size-4 animate-spin" : "size-4"} /></IconTooltip>
+      <Button className="h-8 text-xs" variant="secondary" onClick={() => setForm({})}><GitBranch className="size-3.5" />{t("settings:resources.addRepository")}</Button>
+      <IconTooltip label={t("common:actions.refresh")} className="ml-auto" size="icon-sm" variant="ghost" disabled={resources.loading} onClick={() => void resources.refresh()}><RefreshCw className={resources.loading ? "size-4 animate-spin" : "size-4"} /></IconTooltip>
     </div>
     {resources.error !== null && <p role="alert" className="mb-3 text-xs text-destructive">{getSettingsError(resources.error)}</p>}
-    {showEmptyState && <p className="ade-empty-state">{t("暂无仓库或文件夹")}</p>}
+    {showEmptyState && <p className="ade-empty-state">{t("settings:resources.empty")}</p>}
     <div className="settings-list" aria-busy={resources.loading}>
       {resources.records.map((record) => <div key={record.id} className="resource-row">
         {record.kind === "repo" ? <GitBranch className="mt-1 size-4 shrink-0 text-muted-foreground" /> : <Folder className="mt-1 size-4 shrink-0 text-muted-foreground" />}
         <div className="min-w-0 flex-1"><h2 className="truncate text-[13px]">{record.name}</h2><p className="mt-1 break-all text-xs text-muted-foreground">{record.localPath}</p>
-          {record.kind === "repo" && <p className="mt-1 text-xs text-muted-foreground">{t("仓库")}</p>}
-          {!record.available && <p className="mt-1 text-xs text-destructive">{t("路径不可用")}</p>}
+          {record.kind === "repo" && <p className="mt-1 text-xs text-muted-foreground">{t("settings:resources.repository")}</p>}
+          {!record.available && <p className="mt-1 text-xs text-destructive">{t("settings:resources.unavailable")}</p>}
         </div>
-        <IconTooltip label={t("编辑") + ": " + record.name} variant="ghost" size="icon-sm" onClick={() => setForm({ record })}><Pencil className="size-3.5" /></IconTooltip>
-        <IconTooltip label={t("移除") + ": " + record.name} variant="ghost" size="icon-sm" onClick={() => { setRemoveError(null); setRemoving(record); }}><Trash2 className="size-3.5" /></IconTooltip>
+        <IconTooltip label={t("common:actions.edit") + ": " + record.name} variant="ghost" size="icon-sm" onClick={() => setForm({ record })}><Pencil className="size-3.5" /></IconTooltip>
+        <IconTooltip label={t("common:actions.remove") + ": " + record.name} variant="ghost" size="icon-sm" onClick={() => { setRemoveError(null); setRemoving(record); }}><Trash2 className="size-3.5" /></IconTooltip>
       </div>)}
     </div>
     {form && <ResourceDialog record={form.record} repositoriesDirectory={settings.repositoriesDirectory} onClose={() => setForm(null)} />}
     <Dialog open={Boolean(removing)} onOpenChange={(open) => { if (!open && !removingBusy) setRemoving(null); }}>
       <DialogContent showCloseButton={!removingBusy} onInteractOutside={(event) => { if (removingBusy) event.preventDefault(); }}>
-        <DialogHeader><DialogTitle>{t("移除资源？")}</DialogTitle><DialogDescription>{t("仅移除 Navo 中的记录，不删除本地目录及文件。")}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{t("settings:resources.removeTitle")}</DialogTitle><DialogDescription>{t("settings:resources.removeDescription")}</DialogDescription></DialogHeader>
         <p className="break-all text-xs">{removing?.localPath}</p>
         {removeError !== null && <p role="alert" className="text-xs text-destructive">{getSettingsError(removeError)}</p>}
-        <DialogFooter><Button variant="ghost" disabled={removingBusy} onClick={() => setRemoving(null)}>{t("取消")}</Button><Button variant="destructive" disabled={removingBusy} onClick={() => void removeRecord()}>{t("移除")}</Button></DialogFooter>
+        <DialogFooter><Button variant="ghost" disabled={removingBusy} onClick={() => setRemoving(null)}>{t("common:actions.cancel")}</Button><Button variant="destructive" disabled={removingBusy} onClick={() => void removeRecord()}>{t("common:actions.remove")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;

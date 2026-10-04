@@ -1,0 +1,45 @@
+{
+  "details": {
+    "close": "Close item details"
+  },
+  "display": {
+    "label": "Issue display options",
+    "mode": "Issue view mode",
+    "order": "Item order",
+    "groupingDescription": "Grouped by PR and ISSUE. Sorting only changes the display, not the original item order."
+  },
+  "filters": {
+    "label": "Filter items"
+  },
+  "empty": {
+    "matches": "No matching items",
+    "group": "No {{group}} items"
+  },
+  "toolbar": {
+    "label": "Issue toolbar"
+  },
+  "tags": {
+    "feature": "Feature",
+    "fix": "Fix",
+    "refactor": "Refactor",
+    "discussion": "Discussion"
+  },
+  "statuses": {
+    "review": "In review",
+    "merged": "Merged",
+    "draft": "Draft",
+    "todo": "To do",
+    "progress": "In progress",
+    "closed": "Closed"
+  },
+  "page": {
+    "label": "PR and ISSUE list"
+  },
+  "actions": {
+    "viewLabel": "View {{group}}: {{title}}"
+  },
+  "counts": {
+    "items_other": "{{count}} items",
+    "items_one": "{{count}} item"
+  }
+}

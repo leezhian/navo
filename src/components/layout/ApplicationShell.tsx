@@ -51,29 +51,29 @@ function RailButton({ active, label, icon: Icon, onClick }: RailButtonProps) {
 }
 
 export function ApplicationShell({ section, children, canGoBack, canGoForward, onSelectSection, onGoBack, onGoForward, onCreateTask }: ApplicationShellProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "workspace", "taskCreate", "settings", "tasks", "issues"]);
   return (
     <MacWindow headerActions={
       <>
-        <nav className="window-no-drag flex shrink-0 items-center gap-1" aria-label={translate("页面历史")}>
-          <Button aria-label={translate("后退")} className="size-7 text-muted-foreground" disabled={!canGoBack} size="icon" variant="ghost" onClick={onGoBack}><ArrowLeft aria-hidden="true" size={17} /></Button>
-          <Button aria-label={translate("前进")} className="size-7 text-muted-foreground" disabled={!canGoForward} size="icon" variant="ghost" onClick={onGoForward}><ArrowRight aria-hidden="true" size={17} /></Button>
+        <nav className="window-no-drag flex shrink-0 items-center gap-1" aria-label={translate("workspace:navigation.history")}>
+          <Button aria-label={translate("common:actions.back")} className="size-7 text-muted-foreground" disabled={!canGoBack} size="icon" variant="ghost" onClick={onGoBack}><ArrowLeft aria-hidden="true" size={17} /></Button>
+          <Button aria-label={translate("common:actions.forward")} className="size-7 text-muted-foreground" disabled={!canGoForward} size="icon" variant="ghost" onClick={onGoForward}><ArrowRight aria-hidden="true" size={17} /></Button>
         </nav>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <WorkspaceHeaderTabs onActivateWorkspace={() => onSelectSection("tasks")} />
-          <IconTooltip label={translate("创建任务")} className="window-no-drag size-7 shrink-0" variant="ghost" onClick={onCreateTask}><Plus className="size-4" /></IconTooltip>
+          <IconTooltip label={translate("taskCreate:actions.open")} className="window-no-drag size-7 shrink-0" variant="ghost" onClick={onCreateTask}><Plus className="size-4" /></IconTooltip>
         </div>
       </>
     }>
       <div className="navo-window-body">
-        <nav className="navo-navigation-rail" aria-label={translate("应用导航")}>
+        <nav className="navo-navigation-rail" aria-label={translate("workspace:navigation.label")}>
           <div className="flex flex-col gap-2">
             <RailButton active={section === "tasks"} label="Tasks" icon={ListTodo} onClick={() => onSelectSection("tasks")} />
             <RailButton active={section === "issue"} label="Issue" icon={CircleDot} onClick={() => onSelectSection("issue")} />
           </div>
-          <div className="mt-auto"><RailButton active={section === "settings"} label={translate("设置")} icon={Settings} onClick={() => onSelectSection("settings")} /></div>
+          <div className="mt-auto"><RailButton active={section === "settings"} label={translate("settings:title")} icon={Settings} onClick={() => onSelectSection("settings")} /></div>
         </nav>
-        <main className="navo-main-workspace" aria-label={section === "tasks" ? translate("任务面板") : section === "issue" ? translate("PR 与 ISSUE 列表") : translate("设置")}>{children}</main>
+        <main className="navo-main-workspace" aria-label={section === "tasks" ? translate("tasks:board.label") : section === "issue" ? translate("issues:page.label") : translate("settings:title")}>{children}</main>
       </div>
     </MacWindow>
   );

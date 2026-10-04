@@ -136,7 +136,7 @@ export function FileActionMenuContent({
   onClose,
   onToggleWrap,
 }: FileActionMenuContentProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   const fullPath = getFullPath(projectPath, file.displayPath);
 
   function runMenuAction(action: () => void) {
@@ -152,11 +152,11 @@ export function FileActionMenuContent({
         onClick={() => runMenuAction(() => openFileInVsCode(projectPath, file.displayPath))}
       >
         <Code2 className={fileActionIconClassName} />
-        <span>{translate("在 VS Code 中打开")}</span>
+        <span>{translate("review:files.openInEditor")}</span>
       </button>
       <div className="mx-2 my-1 h-px bg-border" />
       <button className={fileActionItemClassName} type="button" onClick={() => runMenuAction(() => copyFilePath(fullPath))}>
-        <span>{translate("复制路径")}</span>
+        <span>{translate("common:actions.copyPath")}</span>
       </button>
       {showWrapToggle && (
         <>
@@ -165,10 +165,10 @@ export function FileActionMenuContent({
             type="button"
             onClick={() => runMenuAction(() => copyFilePath(file.displayPath))}
           >
-            <span>{translate("复制相对路径")}</span>
+            <span>{translate("review:files.copyRelativePath")}</span>
           </button>
           <button className={fileActionItemClassName} type="button" onClick={() => runMenuAction(() => onToggleWrap?.())}>
-            <span>{wrapDiffLines ? translate("关闭自动换行") : translate("开启自动换行")}</span>
+            <span>{wrapDiffLines ? translate("review:diff.disableWordWrap") : translate("review:diff.enableWordWrap")}</span>
           </button>
         </>
       )}

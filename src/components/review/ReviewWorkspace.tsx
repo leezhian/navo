@@ -102,7 +102,7 @@ export function ReviewWorkspace({
   onToggleAllCollapsed,
   onToggleFile,
 }: ReviewWorkspaceProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   const codeViewRef = useRef<CodeViewHandle<LocalCommentMetadata>>(null);
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const { fileTreeWidth, isResizing, startResize } = useResizableFileTree(() => setIsFileTreeVisible(false));
@@ -147,10 +147,10 @@ export function ReviewWorkspace({
           transition={isResizing ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
         >
           <section className={getReviewPaneClassName(isFileTreeVisible)}>
-            {summary?.isLargeDiff && <ReviewNoticeBar>{translate("检测到大量差异：每次仅显示一个文件。")}</ReviewNoticeBar>}
+            {summary?.isLargeDiff && <ReviewNoticeBar>{translate("review:diff.largeNotice")}</ReviewNoticeBar>}
             {untrackedFileCount >= UNTRACKED_NOTICE_THRESHOLD && (
               <ReviewNoticeBar>
-                {translate("仅展示已跟踪文件的改动：已跳过 {{count}} 个未跟踪文件。若为生成物请清理后刷新。", { count: untrackedFileCount })}
+                {translate("review:diff.skippedUntracked", { count: untrackedFileCount })}
               </ReviewNoticeBar>
             )}
             <div className="relative min-h-0 flex-1">
@@ -217,13 +217,13 @@ function ReviewContent({
   onSettingsChange,
   onToggleFile,
 }: ReviewContentProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   const toggleWrapDiffLines = useCallback(() => {
     onSettingsChange((current) => ({ ...current, wrapDiffLines: !current.wrapDiffLines }));
   }, [onSettingsChange]);
 
   if (reviewError) {
-    return <StateBlock actionLabel={translate("刷新")} body={reviewError} title={translate("Git 命令失败")} onAction={onRefresh} />;
+    return <StateBlock actionLabel={translate("common:actions.refresh")} body={reviewError} title={translate("review:git.commandError")} onAction={onRefresh} />;
   }
 
   if (summary && summary.fileCount === 0) {
@@ -305,21 +305,21 @@ interface ReviewContentProps {
 function getEmptyReviewState(compareMode: CompareMode) {
   if (compareMode === "staged") {
     return {
-      actionLabel: translate("查看分支差异"),
-      body: translate("接受编辑内容并暂存"),
-      title: translate("无暂存更改"),
+      actionLabel: translate("review:diff.viewBranch"),
+      body: translate("review:files.acceptAndStage"),
+      title: translate("review:empty.staged"),
     };
   }
 
   if (compareMode === "unstaged") {
     return {
-      actionLabel: translate("查看分支差异"),
-      body: translate("代码更改将在此处显示"),
-      title: translate("无未暂存更改"),
+      actionLabel: translate("review:diff.viewBranch"),
+      body: translate("review:empty.changes"),
+      title: translate("review:empty.unstaged"),
     };
   }
 
   return {
-    title: translate("当前对比方式暂无改动。"),
+    title: translate("review:empty.comparison"),
   };
 }

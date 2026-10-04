@@ -12,7 +12,7 @@ interface TaskPagesProps {
 }
 
 export function TaskPages({ visible }: TaskPagesProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "workspace"]);
   const workspace = useTaskTabs();
   const split = workspace.activeSplit;
   const { containerRef, ratio, resizing, isCentered, separatorHandlers } = useTaskSplitResize(split, workspace.setSplitRatio);
@@ -35,7 +35,7 @@ export function TaskPages({ visible }: TaskPagesProps) {
       </div>;
     })}
     {split && <>
-      <div role="separator" tabIndex={0} aria-label={t("调整拆分视图大小")} aria-orientation={vertical ? "horizontal" : "vertical"}
+      <div role="separator" tabIndex={0} aria-label={t("workspace:split.resize")} aria-orientation={vertical ? "horizontal" : "vertical"}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}
         className="task-split-separator" data-orientation={split.orientation} data-centered={isCentered} style={separatorStyle} {...separatorHandlers} />
       {!split.secondTaskId && <div id={`split-picker-${split.id}`} className="task-page-position" style={secondStyle}>

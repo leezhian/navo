@@ -48,13 +48,13 @@ interface IssueSectionProps {
 }
 
 function IssueRow({ issue, selected, onSelect, display }: IssueRowProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "issues"]);
   const status = translate(issueStatuses[issue.status]);
   const showMetadata = display.showProject || display.showStatus || display.showDate;
 
   return (
     <li>
-      <Button className="issue-row" variant="ghost" aria-pressed={selected} aria-label={translate("查看{{group}}：{{title}}", { group: issue.group, title: issue.title })} data-selected={selected} onClick={onSelect}>
+      <Button className="issue-row" variant="ghost" aria-pressed={selected} aria-label={translate("issues:actions.viewLabel", { group: issue.group, title: issue.title })} data-selected={selected} onClick={onSelect}>
       <span className="issue-row-main">
         {display.showTag && <span className="issue-tag" data-tag={issue.tag}>{translate(issueTags[issue.tag])}</span>}
         <span className="issue-row-title" title={issue.title}>{issue.title}</span>
@@ -70,7 +70,7 @@ function IssueRow({ issue, selected, onSelect, display }: IssueRowProps) {
 }
 
 function IssueSection({ group, icon: GroupIcon, issues, visible, display, filtered, selectedIssueId, onSelectIssue }: IssueSectionProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "issues"]);
   const headingId = "issue-group-" + group.toLowerCase();
   const [isOpen, setIsOpen] = useState(true);
   const reducedMotion = useReducedMotion();
@@ -80,11 +80,11 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
       <section className="issue-group" aria-labelledby={headingId} hidden={!visible}>
         <h2 className="issue-group-heading" id={headingId}>
           <Collapsible.Trigger asChild>
-            <Button className="issue-group-header" variant="ghost" aria-label={translate("{{group}} 分组", { group })}>
+            <Button className="issue-group-header" variant="ghost" aria-label={translate("common:groups.label", { group })}>
               <ChevronDown aria-hidden="true" className="issue-group-chevron" size={14} strokeWidth={1.65} />
               <GroupIcon aria-hidden="true" size={17} strokeWidth={1.65} />
               <span className="issue-group-title">{group}</span>
-              <span className="issue-group-count" aria-label={translate("{{count}} 个条目", { count: issues.length })}>{issues.length}</span>
+              <span className="issue-group-count" aria-label={translate("issues:counts.items", { count: issues.length })}>{issues.length}</span>
             </Button>
           </Collapsible.Trigger>
         </h2>
@@ -100,7 +100,7 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
                 transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
               >
                 <ul className="issue-group-list">
-                  {issues.length === 0 && <li className="ade-empty-state">{filtered ? translate("暂无匹配条目") : translate("暂无 {{group}}", { group })}</li>}
+                  {issues.length === 0 && <li className="ade-empty-state">{filtered ? translate("issues:empty.matches") : translate("issues:empty.group", { group })}</li>}
                   {issues.map((issue) => (
                     <IssueRow key={issue.id} issue={issue} selected={selectedIssueId === issue.id} onSelect={() => onSelectIssue(issue.id)} display={display} />
                   ))}
@@ -115,7 +115,7 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
 }
 
 export function IssueList() {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "issues"]);
   const issues = useIssueStore((state) => state.items);
   const refresh = useIssueStore((state) => state.refresh);
   const view = useIssueView(issues);
@@ -129,7 +129,7 @@ export function IssueList() {
   return (
     <ResizableWorkspace
       details={selectedIssue ? <IssueDetails issue={selectedIssue} onClose={() => setSelectedIssueId(null)} /> : null}
-      detailsHeadingId="issue-details-heading" listLabel={translate(view.display.mode === "board" ? "看板" : "列表")}>
+      detailsHeadingId="issue-details-heading" listLabel={translate(view.display.mode === "board" ? "common:display.board" : "common:display.list")}>
       <div className="issue-panel-content">
         <IssueToolbar issues={issues} filters={view.filters} display={view.display} projectNames={view.projectNames} hasFilters={view.hasFilters}
           onFiltersChange={view.setFilters} onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} onRefresh={refresh} />

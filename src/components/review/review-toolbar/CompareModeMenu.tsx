@@ -20,7 +20,7 @@ interface CompareModeMenuProps {
 }
 
 export function CompareModeMenu({ compareMode, fileCounts, onCompareModeChange }: CompareModeMenuProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "review"]);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

@@ -15,7 +15,7 @@ interface TaskTargetBranchProps {
 }
 
 export function TaskTargetBranch({ value, disabled, onConfirm }: TaskTargetBranchProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "taskCreate"]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -40,7 +40,7 @@ export function TaskTargetBranch({ value, disabled, onConfirm }: TaskTargetBranc
   }
 
   if (!editing) return <Button ref={triggerRef} type="button" variant="outline" disabled={disabled}
-    className="h-8 max-w-48 text-xs" aria-label={t("目标分支")} title={value || "Branch Name"}
+    className="h-8 max-w-48 text-xs" aria-label={t("taskCreate:branches.target")} title={value || "Branch Name"}
     onClick={() => { setDraft(value); setEditing(true); }}>
     <span className="truncate">{value || "Branch Name"}</span>
   </Button>;
@@ -52,11 +52,11 @@ export function TaskTargetBranch({ value, disabled, onConfirm }: TaskTargetBranc
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
       if (event.key === "Enter" && event.target instanceof HTMLInputElement) { event.preventDefault(); confirm(); }
     }}>
-    <Input autoFocus aria-label={t("目标分支")} disabled={disabled} value={draft}
+    <Input autoFocus aria-label={t("taskCreate:branches.target")} disabled={disabled} value={draft}
       size={Math.min(32, Math.max(16, draft.length + 1))}
       className="h-full w-auto flex-none rounded-none border-0 bg-transparent font-mono text-xs focus-visible:ring-0 md:text-xs dark:bg-transparent"
       onChange={(event) => setDraft(event.target.value)} />
-    <IconTooltip label={t("取消编辑分支名")} disabled={disabled} size="icon-xs" onClick={close}><X className="size-3" /></IconTooltip>
-    <IconTooltip label={t("确认分支名")} disabled={disabled} size="icon-xs" onClick={confirm}><Check className="size-3" /></IconTooltip>
+    <IconTooltip label={t("taskCreate:branches.cancelEdit")} disabled={disabled} size="icon-xs" onClick={close}><X className="size-3" /></IconTooltip>
+    <IconTooltip label={t("taskCreate:branches.confirmName")} disabled={disabled} size="icon-xs" onClick={confirm}><Check className="size-3" /></IconTooltip>
   </div>;
 }

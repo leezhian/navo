@@ -9,7 +9,7 @@ import classNames from "classnames";
 import { useTranslation } from "react-i18next";
 
 export function AboutSettingsPage() {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "settings"]);
   const translate = t;
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [updateResult, setUpdateResult] = useState<CheckForUpdatesResult | null>(null);
@@ -29,26 +29,31 @@ export function AboutSettingsPage() {
     } catch (error) {
       setUpdateResult({
         hasUpdate: false,
-        message: "检查更新失败",
+        message: "UPDATE_CHECK_FAILED",
       });
     } finally {
       setIsCheckingUpdates(false);
     }
   }
 
+  const updateMessage = !updateResult ? undefined
+    : updateResult.message === "UPDATES_UNAVAILABLE" ? t("settings:about.updatesUnavailable")
+    : updateResult.message === "UPDATE_CHECK_FAILED" ? t("settings:about.checkFailed")
+    : updateResult.message;
+
   return (
     <>
-      <SettingsPageHeader title={translate("关于")} />
+      <SettingsPageHeader title={translate("settings:pages.about")} />
 
       <section className="mb-6">
         <SettingsSectionHeader
           title={appInfo?.name ?? "Navo"}
         />
         <SettingsList>
-          <SettingsRow title={appInfo ? appInfo.version ? `v${appInfo.version}` : t("未知") : t("读取中")} description={updateResult ? t(updateResult.message === "UPDATES_UNAVAILABLE" ? "更新服务尚未接入。" : updateResult.message) : undefined}>
+          <SettingsRow title={appInfo ? appInfo.version ? `v${appInfo.version}` : t("common:fields.unknown") : t("common:status.loading")} description={updateMessage}>
             <Button className="h-8 rounded-lg px-3 text-xs font-normal" disabled={isCheckingUpdates} type="button" variant="secondary" onClick={handleCheckForUpdates}>
               <RefreshCw aria-hidden="true" className={classNames("size-3.5", isCheckingUpdates && "animate-spin")} />
-              {isCheckingUpdates ? translate("检查中") : translate("检查更新")}
+              {isCheckingUpdates ? translate("common:status.checking") : translate("settings:about.checkUpdates")}
             </Button>
           </SettingsRow>
         </SettingsList>
@@ -56,13 +61,13 @@ export function AboutSettingsPage() {
 
 
       <section>
-        <SettingsSectionHeader title={translate("支持")} description={translate("了解产品或反馈使用中遇到的问题。")} />
+        <SettingsSectionHeader title={translate("settings:about.support")} description={translate("settings:about.supportDescription")} />
         <SettingsList>
-          <SettingsRow title={translate("官网")} description={translate("查看 Navo 的产品信息")}>
-            <ExternalLinkButton target="website"><ExternalLink aria-hidden="true" className="size-3.5" />{translate("打开官网")}</ExternalLinkButton>
+          <SettingsRow title={translate("settings:about.website")} description={translate("settings:about.websiteDescription")}>
+            <ExternalLinkButton target="website"><ExternalLink aria-hidden="true" className="size-3.5" />{translate("settings:about.openWebsite")}</ExternalLinkButton>
           </SettingsRow>
-          <SettingsRow title={translate("问题反馈")} description={translate("报告问题，帮助改进使用体验")}>
-            <ExternalLinkButton target="report-bug"><Bug aria-hidden="true" className="size-3.5" />{translate("报告 Bug")}</ExternalLinkButton>
+          <SettingsRow title={translate("settings:about.feedback")} description={translate("settings:about.feedbackDescription")}>
+            <ExternalLinkButton target="report-bug"><Bug aria-hidden="true" className="size-3.5" />{translate("settings:about.reportBug")}</ExternalLinkButton>
           </SettingsRow>
         </SettingsList>
       </section>

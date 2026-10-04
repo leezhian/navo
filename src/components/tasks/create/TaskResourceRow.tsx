@@ -24,7 +24,7 @@ interface TaskResourceRowProps {
 }
 
 export function TaskResourceRow({ value, disabled, excludedIds, onChange, onReplace, onRemove }: TaskResourceRowProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "taskCreate"]);
   const git = value.info.git;
   const useCurrentBranch = value.mode === "current-branch";
   return <ButtonGroup className="w-max" aria-label={value.info.name}>
@@ -38,10 +38,10 @@ export function TaskResourceRow({ value, disabled, excludedIds, onChange, onRepl
       <label className="cursor-default">
         <Checkbox disabled={disabled || useCurrentBranch} checked={value.mode === "worktree"}
           onCheckedChange={(checked) => onChange({ ...value, mode: checked === true ? "worktree" : "new-branch" })} />
-        {t("独立 Worktree")}
+        {t("taskCreate:branches.worktree")}
       </label>
       </ButtonGroupText>
     </>}
-    <IconTooltip label={t("移除：{{title}}", { title: value.info.name })} disabled={disabled} variant="outline" size="icon" onClick={onRemove}><X className="size-3.5" /></IconTooltip>
+    <IconTooltip label={t("common:selection.removeItem", { title: value.info.name })} disabled={disabled} variant="outline" size="icon" onClick={onRemove}><X className="size-3.5" /></IconTooltip>
   </ButtonGroup>;
 }

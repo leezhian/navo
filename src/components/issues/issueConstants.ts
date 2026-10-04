@@ -1,25 +1,26 @@
 import type { IssueGroup, IssueStatus, IssueTag } from "@/domain/issues";
 import type { IssueDisplayOptions } from "@/domain/issueView";
+import type { TranslationKey } from "@/i18n/types";
 
 export const issueGroups: IssueGroup[] = ["PR", "ISSUE"];
 export const issueStatusOptions: IssueStatus[] = ["review", "merged", "draft", "todo", "progress", "closed"];
 export const issueTagOptions: IssueTag[] = ["feature", "fix", "refactor", "discussion"];
-export const issueDisplayFields: { key: keyof Pick<IssueDisplayOptions, "showTag" | "showProject" | "showStatus" | "showDate">; label: string }[] = [
-  { key: "showTag", label: "标签" },
-  { key: "showProject", label: "项目" },
-  { key: "showStatus", label: "状态" },
-  { key: "showDate", label: "时间" },
+export const issueDisplayFields: { key: keyof Pick<IssueDisplayOptions, "showTag" | "showProject" | "showStatus" | "showDate">; label: TranslationKey<"common"> }[] = [
+  { key: "showTag", label: "common:fields.tag" },
+  { key: "showProject", label: "common:fields.project" },
+  { key: "showStatus", label: "common:fields.status" },
+  { key: "showDate", label: "common:fields.time" },
 ];
 
-export const issueTags: Record<IssueTag, string> = {
-  feature: "功能", fix: "修复", refactor: "重构", discussion: "讨论",
+export const issueTags: Record<IssueTag, TranslationKey<"issues">> = {
+  feature: "issues:tags.feature", fix: "issues:tags.fix", refactor: "issues:tags.refactor", discussion: "issues:tags.discussion",
 };
 
-export const issueStatuses: Record<IssueStatus, string> = {
-  review: "待审查",
-  merged: "已合并",
-  draft: "草稿",
-  todo: "待处理",
-  progress: "进行中",
-  closed: "已关闭",
+export const issueStatuses: Record<IssueStatus, TranslationKey<"issues">> = {
+  review: "issues:statuses.review",
+  merged: "issues:statuses.merged",
+  draft: "issues:statuses.draft",
+  todo: "issues:statuses.todo",
+  progress: "issues:statuses.progress",
+  closed: "issues:statuses.closed",
 };

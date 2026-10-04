@@ -19,7 +19,7 @@ interface TaskTabMenuProps {
 }
 
 export function TaskTabMenu({ children, taskId, group, picker, onActivateWorkspace }: TaskTabMenuProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "workspace"]);
   const state = useTaskTabsStore();
   const split = group.split;
   const activeSplit = findTaskSplit(state.splits, state.activeTaskId);
@@ -36,26 +36,26 @@ export function TaskTabMenu({ children, taskId, group, picker, onActivateWorkspa
     <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
     <ContextMenuContent updatePositionStrategy="always">
       {split ? <ContextMenuSub>
-        <ContextMenuSubTrigger>{t("调整视图")}</ContextMenuSubTrigger>
+        <ContextMenuSubTrigger>{t("workspace:split.adjust")}</ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          <ContextMenuItem onSelect={() => state.cancelSplit(split.id)}>{t("取消拆分视图")}</ContextMenuItem>
+          <ContextMenuItem onSelect={() => state.cancelSplit(split.id)}>{t("workspace:split.cancel")}</ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => state.closeTask(split.firstTaskId)}>{t(stacked ? "关闭上方视图" : "关闭左侧视图")}</ContextMenuItem>
-          <ContextMenuItem onSelect={() => split.secondTaskId ? state.closeTask(split.secondTaskId) : state.cancelSplit(split.id)}>{t(stacked ? "关闭下方视图" : "关闭右侧视图")}</ContextMenuItem>
+          <ContextMenuItem onSelect={() => state.closeTask(split.firstTaskId)}>{t(stacked ? "workspace:split.closeTop" : "workspace:split.closeLeft")}</ContextMenuItem>
+          <ContextMenuItem onSelect={() => split.secondTaskId ? state.closeTask(split.secondTaskId) : state.cancelSplit(split.id)}>{t(stacked ? "workspace:split.closeBottom" : "workspace:split.closeRight")}</ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => state.setSplitOrientation(split.id, stacked ? "horizontal" : "vertical")}>{t(stacked ? "并排显示" : "堆叠显示")}</ContextMenuItem>
-          <ContextMenuItem disabled={!split.secondTaskId} onSelect={() => state.reverseSplit(split.id)}>{t("反转视图")}</ContextMenuItem>
+          <ContextMenuItem onSelect={() => state.setSplitOrientation(split.id, stacked ? "horizontal" : "vertical")}>{t(stacked ? "workspace:split.sideBySide" : "workspace:split.stack")}</ContextMenuItem>
+          <ContextMenuItem disabled={!split.secondTaskId} onSelect={() => state.reverseSplit(split.id)}>{t("workspace:split.reverse")}</ContextMenuItem>
         </ContextMenuSubContent>
       </ContextMenuSub> : activeSplit ? <ContextMenuSub>
-        <ContextMenuSubTrigger>{t("将标签页移至拆分视图")}</ContextMenuSubTrigger>
+        <ContextMenuSubTrigger>{t("workspace:split.moveInto")}</ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          <ContextMenuItem onSelect={() => { onActivateWorkspace(); state.swapIntoSplit(activeSplit.id, "first", taskId); }}>{t(activeSplit.orientation === "vertical" ? "与上方视图交换" : "与左侧视图交换")}</ContextMenuItem>
-          <ContextMenuItem disabled={!activeSplit.secondTaskId} onSelect={() => { onActivateWorkspace(); state.swapIntoSplit(activeSplit.id, "second", taskId); }}>{t(activeSplit.orientation === "vertical" ? "与下方视图交换" : "与右侧视图交换")}</ContextMenuItem>
+          <ContextMenuItem onSelect={() => { onActivateWorkspace(); state.swapIntoSplit(activeSplit.id, "first", taskId); }}>{t(activeSplit.orientation === "vertical" ? "workspace:split.swapTop" : "workspace:split.swapLeft")}</ContextMenuItem>
+          <ContextMenuItem disabled={!activeSplit.secondTaskId} onSelect={() => { onActivateWorkspace(); state.swapIntoSplit(activeSplit.id, "second", taskId); }}>{t(activeSplit.orientation === "vertical" ? "workspace:split.swapBottom" : "workspace:split.swapRight")}</ContextMenuItem>
         </ContextMenuSubContent>
-      </ContextMenuSub> : <ContextMenuItem onSelect={splitTask}>{t(combineWithActive ? "与当前标签拆分" : "拆分视图")}</ContextMenuItem>}
+      </ContextMenuSub> : <ContextMenuItem onSelect={splitTask}>{t(combineWithActive ? "workspace:split.withCurrent" : "workspace:split.create")}</ContextMenuItem>}
       <ContextMenuSeparator />
-      <ContextMenuItem onSelect={() => picker && split ? state.cancelSplit(split.id) : state.closeTask(taskId)}>{t("关闭")}</ContextMenuItem>
-      <ContextMenuItem disabled={taskTabGroups(state.taskIds, state.splits).length < 2} onSelect={() => { onActivateWorkspace(); state.closeOtherTasks(taskId); }}>{t("关闭其他")}</ContextMenuItem>
+      <ContextMenuItem onSelect={() => picker && split ? state.cancelSplit(split.id) : state.closeTask(taskId)}>{t("common:actions.close")}</ContextMenuItem>
+      <ContextMenuItem disabled={taskTabGroups(state.taskIds, state.splits).length < 2} onSelect={() => { onActivateWorkspace(); state.closeOtherTasks(taskId); }}>{t("workspace:tabs.closeOthers")}</ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>;
 }

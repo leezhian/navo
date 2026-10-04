@@ -1,4 +1,6 @@
 import type { AppSettings, DiffDarkThemePreset, DiffIndicatorMode, DiffLightThemePreset } from "./types";
+import { DEFAULT_LOCALE, normalizeLocale } from "../shared/locales";
+import type { TranslationKey } from "../i18n/types";
 
 export const DIFF_UI_FONT_SIZE_LIMITS = {
   max: 22,
@@ -10,13 +12,13 @@ export const DIFF_CODE_FONT_SIZE_LIMITS = {
   min: 10,
 };
 
-export const diffIndicatorOptions: Array<{ label: string; value: DiffIndicatorMode }> = [
+export const diffIndicatorOptions: Array<{ label: TranslationKey<"settings">; value: DiffIndicatorMode }> = [
   {
-    label: "颜色",
+    label: "settings:appearance.diff.indicatorColor",
     value: "color",
   },
   {
-    label: "+/-",
+    label: "settings:appearance.diff.indicatorSymbols",
     value: "symbols",
   },
 ];
@@ -85,7 +87,7 @@ export const diffDarkThemeOptions: Array<{ label: string; value: DiffDarkThemePr
 
 export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
   return {
-    locale: value.locale === "zh-CN" ? "zh-CN" : "en",
+    locale: normalizeLocale(value.locale),
     repositoriesDirectory: normalizePath(value.repositoriesDirectory, "~/Navo/repos"),
     worktreesDirectory: normalizePath(value.worktreesDirectory, "~/Navo/worktrees"),
     defaultTaskMode: value.defaultTaskMode === "new-branch" || value.defaultTaskMode === "current-branch" ? value.defaultTaskMode : "worktree",
@@ -127,7 +129,7 @@ const defaultDiffSettings: DiffSettings = {
 /** 应用默认配置：本地无存储或解析失败时的兜底，也是新安装后的初始值。 */
 export const defaultSettings: AppSettings = {
   ...defaultDiffSettings,
-  locale: "en",
+  locale: DEFAULT_LOCALE,
   repositoriesDirectory: "~/Navo/repos",
   worktreesDirectory: "~/Navo/worktrees",
   defaultTaskMode: "worktree",

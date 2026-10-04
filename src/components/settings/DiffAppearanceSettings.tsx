@@ -22,24 +22,24 @@ interface DiffAppearanceSettingsProps {
 }
 
 export function DiffAppearanceSettings({ resolvedTheme, settings, updateSettings }: DiffAppearanceSettingsProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "settings"]);
   return (
     <section>
-      <SettingsSectionHeader title={translate("代码差异")} description={translate("调整代码配色、字号和差异标记，效果即时预览。")} />
+      <SettingsSectionHeader title={translate("settings:appearance.diff.title")} description={translate("settings:appearance.diff.description")} />
       <SettingsList>
         <DiffThemeSettings settings={settings} updateSettings={updateSettings} />
-        <SettingsRow title={translate("代码字体大小")} description={translate("调整差异视图中代码使用的基础字号")}>
+        <SettingsRow title={translate("settings:appearance.diff.fontSize")} description={translate("settings:appearance.diff.fontSizeDescription")}>
           <NumberUnitInput
-            ariaLabel={translate("代码字体大小")}
+            ariaLabel={translate("settings:appearance.diff.fontSize")}
             max={DIFF_CODE_FONT_SIZE_LIMITS.max}
             min={DIFF_CODE_FONT_SIZE_LIMITS.min}
             value={settings.diffCodeFontSize}
             onChange={(value) => updateDiffSetting(updateSettings, "diffCodeFontSize", value)}
           />
         </SettingsRow>
-        <SettingsRow title={translate("差异标记")} description={translate("使用颜色或 +/- 标记显示更改")}>
+        <SettingsRow title={translate("settings:appearance.diff.indicators")} description={translate("settings:appearance.diff.indicatorsDescription")}>
           <SettingsChoiceControl
-            label={translate("差异标记")}
+            label={translate("settings:appearance.diff.indicators")}
             options={diffIndicatorOptions.map((option) => ({ ...option, label: translate(option.label) }))}
             value={settings.diffIndicatorMode}
             onValueChange={(value) => updateDiffSetting(updateSettings, "diffIndicatorMode", value)}

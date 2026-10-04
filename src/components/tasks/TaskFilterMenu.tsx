@@ -33,23 +33,23 @@ function toggleValue<Value extends string>(values: Value[], value: Value) {
 }
 
 export function TaskFilterMenu({ tasks, filters, projectNames, hasFilters, onFiltersChange, onClear }: TaskFilterMenuProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "tasks"]);
   return (
     <DropdownMenu>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button aria-label={translate("过滤任务")} className="workspace-toolbar-button" data-active={hasFilters} size="icon" variant="ghost">
+            <Button aria-label={translate("tasks:filters.label")} className="workspace-toolbar-button" data-active={hasFilters} size="icon" variant="ghost">
               <ListFilter aria-hidden="true" className="size-4" />
               {hasFilters && <span className="workspace-filter-indicator" aria-hidden="true" />}
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
-        <TooltipContent>{translate("过滤任务")}</TooltipContent>
+        <TooltipContent>{translate("tasks:filters.label")}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className={WORKSPACE_OPTIONS_PANEL_CLASS_NAME} sideOffset={8}>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="gap-2 px-2 py-1.5 text-xs"><Circle aria-hidden="true" />{translate("状态")}</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger className="gap-2 px-2 py-1.5 text-xs"><Circle aria-hidden="true" />{translate("common:fields.status")}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-52 rounded-xl p-2 shadow-md">
             {taskColumns.map(({ status }) => (
               <DropdownMenuCheckboxItem key={status} className="py-1.5 text-xs" checked={filters.statuses.includes(status)} onSelect={(event) => event.preventDefault()}
@@ -61,7 +61,7 @@ export function TaskFilterMenu({ tasks, filters, projectNames, hasFilters, onFil
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="gap-2 px-2 py-1.5 text-xs"><Folder aria-hidden="true" />{translate("项目")}</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger className="gap-2 px-2 py-1.5 text-xs"><Folder aria-hidden="true" />{translate("common:fields.project")}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="max-h-64 w-56 overflow-y-auto rounded-xl p-2 shadow-md">
             {projectNames.map((projectName) => (
               <DropdownMenuCheckboxItem key={projectName} className="py-1.5 text-xs" checked={filters.projects.includes(projectName)} onSelect={(event) => event.preventDefault()}
@@ -70,12 +70,12 @@ export function TaskFilterMenu({ tasks, filters, projectNames, hasFilters, onFil
                 <span className="ml-auto text-xs text-muted-foreground">{tasks.filter((task) => taskProjectNames(task).includes(projectName)).length}</span>
               </DropdownMenuCheckboxItem>
             ))}
-            {projectNames.length === 0 && <DropdownMenuItem disabled>{translate("暂无项目")}</DropdownMenuItem>}
+            {projectNames.length === 0 && <DropdownMenuItem disabled>{translate("common:empty.projects")}</DropdownMenuItem>}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <div className={WORKSPACE_OPTIONS_SECTION_CLASS_NAME}>
           <div className="flex justify-end">
-            <DropdownMenuItem className="px-2 py-1.5 text-xs text-muted-foreground" disabled={!hasFilters} onSelect={onClear}>{translate("重置")}</DropdownMenuItem>
+            <DropdownMenuItem className="px-2 py-1.5 text-xs text-muted-foreground" disabled={!hasFilters} onSelect={onClear}>{translate("common:actions.reset")}</DropdownMenuItem>
           </div>
         </div>
       </DropdownMenuContent>

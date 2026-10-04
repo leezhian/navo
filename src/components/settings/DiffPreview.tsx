@@ -44,7 +44,7 @@ interface DiffPreviewProps {
 }
 
 export function DiffPreview({ resolvedTheme, settings }: DiffPreviewProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "settings"]);
   const { diffLightTheme, diffDarkTheme } = settings;
   const themeKey = `${diffLightTheme}/${diffDarkTheme}`;
   const [preparation, setPreparation] = useState<{ themeKey: string; status: "ready" | "error" } | null>(null);
@@ -80,11 +80,11 @@ export function DiffPreview({ resolvedTheme, settings }: DiffPreviewProps) {
 
   return (
     <div className="settings-preview">
-      <div className="settings-preview-header"><span>{translate("实时预览")}</span><span>config.ts</span></div>
+      <div className="settings-preview-header"><span>{translate("settings:appearance.diff.preview")}</span><span>config.ts</span></div>
       {status === "ready" ? <PatchDiff key={themeKey} className="block max-h-[220px] overflow-hidden" disableWorkerPool options={options} patch={PREVIEW_PATCH} />
         : <div className="flex min-h-28 items-center justify-center gap-2 px-4 text-xs text-muted-foreground" role={status === "error" ? "alert" : "status"}>
-          <span>{translate(status === "error" ? "预览加载失败" : "读取中")}</span>
-          {status === "error" && <Button variant="ghost" size="sm" onClick={() => { setPreparation(null); setRetryAttempt((current) => current + 1); }}>{translate("重试")}</Button>}
+          <span>{translate(status === "error" ? "settings:appearance.diff.previewError" : "common:status.loading")}</span>
+          {status === "error" && <Button variant="ghost" size="sm" onClick={() => { setPreparation(null); setRetryAttempt((current) => current + 1); }}>{translate("common:actions.retry")}</Button>}
         </div>}
     </div>
   );

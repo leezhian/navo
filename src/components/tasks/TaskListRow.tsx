@@ -19,14 +19,14 @@ interface TaskListRowProps {
 }
 
 export function TaskListRow({ task, display, selected = false, onSelect, selectOnClick = false }: TaskListRowProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "tasks"]);
   const content = (
-    <Button aria-label={t("查看任务：{{title}}", { title: task.title })} aria-pressed={selected} className="task-list-row"
+    <Button aria-label={t("tasks:actions.viewLabel", { title: task.title })} aria-pressed={selected} className="task-list-row"
       draggable={false} tabIndex={onSelect ? 0 : -1} data-selected={selected} variant="ghost"
       onClick={(event) => { if (selectOnClick || event.detail === 0) onSelect?.(); }}>
       <span className="min-w-0 truncate" title={task.title}>{task.title}</span>
       <span className="task-list-metadata">
-        {display.showProject && <span className="task-project" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("未关联项目")}</span>}
+        {display.showProject && <span className="task-project" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
         {display.showDate && <time dateTime={task.date}>{formatDate(task.date)}</time>}
       </span>
     </Button>

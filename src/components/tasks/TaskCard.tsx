@@ -19,7 +19,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, selected = false, onSelect, selectOnClick = false, showDate = true, showProject = true }: TaskCardProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "tasks"]);
   const formattedDate = formatDate(task.date);
 
   const content = (
@@ -30,7 +30,7 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
       aria-pressed={onSelect ? selected : undefined}
-      aria-label={onSelect ? t("查看任务：{{title}}", { title: task.title }) : undefined}
+      aria-label={onSelect ? t("tasks:actions.viewLabel", { title: task.title }) : undefined}
       onClick={(event) => { if (selectOnClick || event.detail === 0) onSelect?.(); }}
       onKeyDown={(event) => {
         if (!onSelect || (event.key !== "Enter" && event.key !== " ")) return;
@@ -41,7 +41,7 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
       <h3 className="task-title" title={task.title}>{task.title}</h3>
       {(showDate || showProject) && <div className="task-metadata">
         {showDate && <time dateTime={task.date}>{formattedDate}</time>}
-        {showProject && <span className="task-project ml-auto" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("未关联项目")}</span>}
+        {showProject && <span className="task-project ml-auto" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
       </div>}
     </article>
   );

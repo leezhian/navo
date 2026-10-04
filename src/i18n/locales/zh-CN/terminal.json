@@ -1,0 +1,6 @@
+{
+  "starting": "正在启动终端...",
+  "exited": "终端已退出",
+  "startError": "终端启动失败",
+  "title": "终端"
+}

@@ -26,7 +26,7 @@ export function ViewOptionsMenu({
   onSettingsChange,
   onRefresh,
 }: ViewOptionsMenuProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   const tooltip = useDropdownTooltip();
 
   return (
@@ -44,20 +44,20 @@ export function ViewOptionsMenu({
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
-        <TooltipContent side="top">{translate("查看选项")}</TooltipContent>
+        <TooltipContent side="top">{translate("review:display.label")}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuItem onSelect={onRefresh}>
           <RefreshCw className="size-4 text-muted-foreground" />
-          <span>{translate("刷新")}</span>
+          <span>{translate("common:actions.refresh")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => updateWrapDiffLines(onSettingsChange)}>
           <WrapText className="size-4 text-muted-foreground" />
-          <span>{settings.wrapDiffLines ? translate("关闭差异换行") : translate("开启差异换行")}</span>
+          <span>{settings.wrapDiffLines ? translate("review:diff.disableWrapping") : translate("review:diff.enableWrapping")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => updateEnableTextDiff(onSettingsChange)}>
           <WholeWord className="size-4 text-muted-foreground" />
-          <span>{settings.enableTextDiff ? translate("禁用文字差异") : translate("启用文字差异")}</span>
+          <span>{settings.enableTextDiff ? translate("review:diff.disableWordDiff") : translate("review:diff.enableWordDiff")}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

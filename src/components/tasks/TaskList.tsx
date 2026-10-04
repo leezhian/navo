@@ -34,7 +34,7 @@ interface TaskListProps {
 }
 
 export function TaskList({ tasks, display, selectedTaskId, onSelectTask, dragPreview, dropTarget, pointerHandlers, filtered, collapsedStatuses, onGroupOpenChange }: TaskListProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "tasks"]);
   return (
     <motion.div className="task-list" layoutScroll {...pointerHandlers}>
       {taskColumns.map(({ status, icon: StatusIcon }) => {
@@ -48,7 +48,7 @@ export function TaskList({ tasks, display, selectedTaskId, onSelectTask, dragPre
             <header>
               <h2 id={headingId} className="m-0">
                 <Collapsible.Trigger asChild>
-                  <Button className="task-list-header" variant="ghost" aria-label={t("{{group}} 分组", { group: status })}>
+                  <Button className="task-list-header" variant="ghost" aria-label={t("common:groups.label", { group: status })}>
                     <ChevronDown aria-hidden="true" className="task-list-chevron text-muted-foreground" size={14} />
                     <StatusIcon aria-hidden="true" className="size-4 text-muted-foreground" />
                     <span>{status}</span><span className="font-normal text-muted-foreground">{groupTasks.length}</span>
@@ -69,7 +69,7 @@ export function TaskList({ tasks, display, selectedTaskId, onSelectTask, dragPre
                   )}
                 </Fragment>
               ))}
-              {groupTasks.length === 0 && <p className="ade-empty-state">{t(filtered ? "暂无匹配任务" : "暂无任务")}</p>}
+              {groupTasks.length === 0 && <p className="ade-empty-state">{t(filtered ? "tasks:empty.matches" : "tasks:empty.tasks")}</p>}
             </div>
             </Collapsible.Content>
           </section>

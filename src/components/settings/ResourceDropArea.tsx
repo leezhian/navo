@@ -13,7 +13,7 @@ interface ResourceDropAreaProps {
 }
 
 export function ResourceDropArea({ disabled, onChooseFolder, onDrop }: ResourceDropAreaProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "settings"]);
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
   const active = dragging && !disabled;
@@ -52,7 +52,7 @@ export function ResourceDropArea({ disabled, onChooseFolder, onDrop }: ResourceD
       resetDrag();
       if (!disabled && event.dataTransfer.types.includes("Files")) onDrop(event);
     }}>
-    <p className="text-xs leading-5 text-muted-foreground" aria-live="polite">{t(active ? "松开以添加目录" : "拖入目录，或选择已有本地文件夹。")}</p>
-    <Button type="button" className="mt-2 h-8 text-xs" variant="secondary" disabled={disabled} onClick={onChooseFolder}>{t("选择本地文件夹")}</Button>
+    <p className="text-xs leading-5 text-muted-foreground" aria-live="polite">{t(active ? "settings:resources.releaseToAdd" : "settings:resources.dropHint")}</p>
+    <Button type="button" className="mt-2 h-8 text-xs" variant="secondary" disabled={disabled} onClick={onChooseFolder}>{t("settings:resources.chooseLocalFolder")}</Button>
   </div>;
 }

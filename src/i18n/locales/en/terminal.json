@@ -1,0 +1,6 @@
+{
+  "starting": "Starting terminal…",
+  "exited": "Terminal exited",
+  "startError": "Terminal could not start",
+  "title": "Terminal"
+}

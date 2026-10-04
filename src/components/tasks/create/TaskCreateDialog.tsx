@@ -27,7 +27,7 @@ interface TaskCreateDialogProps {
 }
 
 export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: TaskCreateDialogProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "taskCreate"]);
   const draft = useTaskDraft(settings);
   const { loaded, pending } = useTaskStore();
   const [issueGroup, setIssueGroup] = useState<IssueGroup | null>(null);
@@ -50,12 +50,12 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
           if (disabled || issueGroup || resourcePicker || editingBranch) event.preventDefault();
         }}
         onInteractOutside={(event) => { if (disabled || issueGroup || resourcePicker) event.preventDefault(); }}>
-        <DialogTitle className="sr-only">{t("创建任务")}</DialogTitle>
+        <DialogTitle className="sr-only">{t("taskCreate:actions.open")}</DialogTitle>
         <div className="max-h-[65vh] space-y-2 overflow-y-auto p-0.5">
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2 pr-8">
-              <Button variant="secondary" className="h-8 text-xs" disabled={disabled} onClick={(event) => { pickerTriggerRef.current = event.currentTarget; setIssueGroup("ISSUE"); }}><CircleDot className="size-3.5" />{t("关联 Issue")}</Button>
-              <Button variant="secondary" className="h-8 text-xs" disabled={disabled} onClick={(event) => { pickerTriggerRef.current = event.currentTarget; setIssueGroup("PR"); }}><GitPullRequest className="size-3.5" />{t("关联 PR")}</Button>
+              <Button variant="secondary" className="h-8 text-xs" disabled={disabled} onClick={(event) => { pickerTriggerRef.current = event.currentTarget; setIssueGroup("ISSUE"); }}><CircleDot className="size-3.5" />{t("taskCreate:links.addIssue")}</Button>
+              <Button variant="secondary" className="h-8 text-xs" disabled={disabled} onClick={(event) => { pickerTriggerRef.current = event.currentTarget; setIssueGroup("PR"); }}><GitPullRequest className="size-3.5" />{t("taskCreate:links.addPullRequest")}</Button>
             </div>
             <TaskComposer description={draft.description} links={draft.links} attachments={draft.attachments} disabled={disabled}
               canCreate={canCreate} creating={draft.working} onCreate={() => void create()}
@@ -66,7 +66,7 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
           </div>
           <section>
             {draft.resources.length === 0
-              ? <Button ref={resourceTriggerRef} variant="ghost" className="h-8 text-xs" aria-label={t("添加仓库或文件夹")} disabled={disabled} onClick={() => setResourcePicker(true)}><Plus className="size-3.5" />{t("添加仓库或文件夹")}</Button>
+              ? <Button ref={resourceTriggerRef} variant="ghost" className="h-8 text-xs" aria-label={t("taskCreate:resources.add")} disabled={disabled} onClick={() => setResourcePicker(true)}><Plus className="size-3.5" />{t("taskCreate:resources.add")}</Button>
               : <div className="max-h-64 space-y-1 overflow-auto overscroll-contain p-0.5">
                 {draft.resources.map((resource, index) => <div key={resource.resourceId} className="flex w-max items-center gap-2">
                   <TaskResourceRow value={resource} disabled={disabled}
@@ -74,7 +74,7 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
                     onChange={(next) => draft.setResources((current) => current.map((item) => item.resourceId === resource.resourceId ? next : item))}
                     onReplace={(id) => draft.addResources([id], resource.resourceId)}
                     onRemove={() => draft.setResources((current) => current.filter((item) => item.resourceId !== resource.resourceId))} />
-                  {index === draft.resources.length - 1 && <IconTooltip ref={resourceTriggerRef} label={t("添加仓库或文件夹")} disabled={disabled} variant="secondary" size="icon" onClick={() => setResourcePicker(true)}><Plus className="size-3.5" /></IconTooltip>}
+                  {index === draft.resources.length - 1 && <IconTooltip ref={resourceTriggerRef} label={t("taskCreate:resources.add")} disabled={disabled} variant="secondary" size="icon" onClick={() => setResourcePicker(true)}><Plus className="size-3.5" /></IconTooltip>}
                 </div>)}
               </div>}
           </section>

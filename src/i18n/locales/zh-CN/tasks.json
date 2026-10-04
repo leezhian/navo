@@ -1,0 +1,63 @@
+{
+  "fields": {
+    "noProject": "未关联项目",
+    "title": "任务标题"
+  },
+  "details": {
+    "links": "关联条目",
+    "attachments": "附件",
+    "title": "任务详情",
+    "close": "关闭任务详情"
+  },
+  "actions": {
+    "addResource": "添加资源",
+    "openPage": "打开任务页面",
+    "view": "查看任务",
+    "viewLabel": "查看任务：{{title}}",
+    "openInTab": "以标签页打开"
+  },
+  "dialogs": {
+    "renameTitle": "重命名任务",
+    "deleteTitle": "删除任务？",
+    "renameDescription": "只修改任务标题，不影响描述与分支。",
+    "deleteDescription": "删除任务及附件副本，不删除原文件、仓库、分支或 Worktree。"
+  },
+  "page": {
+    "label": "任务页面：{{title}}"
+  },
+  "recovery": {
+    "retainedDirectories": "上次任务创建未完成，以下工作目录已保留，请检查。"
+  },
+  "feedback": {
+    "createdHidden": "任务已创建，但被当前筛选隐藏。"
+  },
+  "loading": "正在加载任务",
+  "errors": {
+    "invalid": "任务内容无效，请检查描述和所选资源。",
+    "invalidTitle": "请输入不超过 160 字的任务标题。",
+    "notFound": "任务已被删除，请刷新列表。",
+    "busy": "任务操作正在进行，请稍后重试。",
+    "legacyInvalid": "旧任务数据损坏，未覆盖原记录，请修复后重试。"
+  },
+  "board": {
+    "label": "任务面板"
+  },
+  "counts": {
+    "tasks_other": "{{count}} 个任务"
+  },
+  "empty": {
+    "matches": "暂无匹配任务",
+    "tasks": "暂无任务"
+  },
+  "display": {
+    "label": "任务显示选项",
+    "mode": "任务显示方式",
+    "order": "任务排序"
+  },
+  "filters": {
+    "label": "过滤任务"
+  },
+  "toolbar": {
+    "label": "任务面板工具栏"
+  }
+}

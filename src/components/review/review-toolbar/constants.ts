@@ -1,7 +1,8 @@
 import type { CompareMode } from "@/domain/types";
+import type { TranslationKey } from "@/i18n/types";
 
-export const compareModeLabels: Record<CompareMode, string> = {
-  unstaged: "未暂存",
-  staged: "已暂存",
-  branch: "分支",
+export const compareModeLabels: Record<CompareMode, TranslationKey<"review">> = {
+  unstaged: "review:compare.unstaged",
+  staged: "review:compare.staged",
+  branch: "review:branches.label",
 };

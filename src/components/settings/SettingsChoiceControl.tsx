@@ -5,7 +5,7 @@ interface SettingsChoiceControlProps<Value extends string> {
   /** 单选组的无障碍名称，使用对应设置项的中文标题。 */
   label: string;
   /** 选项保持稳定的业务值，图标仅用于辅助识别主题。 */
-  options: { value: Value; label: string; icon?: LucideIcon }[];
+  options: readonly { value: Value; label: string; icon?: LucideIcon }[];
   /** 当前已保存的设置值。 */
   value: Value;
   /** 选择后立即更新设置，支持键盘方向键切换。 */

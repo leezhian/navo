@@ -20,7 +20,7 @@ interface TaskResourceSelectProps {
 }
 
 export function TaskResourceSelect({ value, excludedIds, disabled, onSelect }: TaskResourceSelectProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "taskCreate", "settings"]);
   const resources = useResourceStore();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -47,20 +47,20 @@ export function TaskResourceSelect({ value, excludedIds, disabled, onSelect }: T
 
   return <Popover.Root open={open} onOpenChange={changeOpen}>
     <Popover.Trigger asChild>
-      <Button type="button" variant="outline" disabled={disabled} className="h-8 max-w-48 justify-start px-2 text-xs" aria-label={t("切换工作目录")} title={value.name}>
+      <Button type="button" variant="outline" disabled={disabled} className="h-8 max-w-48 justify-start px-2 text-xs" aria-label={t("taskCreate:resources.replace")} title={value.name}>
         <Icon className="size-3.5 shrink-0" /><span className="truncate">{value.name}</span><ChevronsUpDown className="ml-auto size-3 shrink-0" />
       </Button>
     </Popover.Trigger>
-    <Popover.Portal><Popover.Content align="start" sideOffset={6} aria-label={t("切换工作目录")} className="z-50 w-72 rounded-xl border bg-popover p-3 text-popover-foreground shadow-md">
-      <Input autoFocus aria-label={t("搜索资源")} placeholder={t("搜索仓库或文件夹…")} value={search} onChange={(event) => setSearch(event.target.value)} className="mb-2 h-8 text-xs" />
+    <Popover.Portal><Popover.Content align="start" sideOffset={6} aria-label={t("taskCreate:resources.replace")} className="z-50 w-72 rounded-xl border bg-popover p-3 text-popover-foreground shadow-md">
+      <Input autoFocus aria-label={t("taskCreate:resources.search")} placeholder={t("taskCreate:resources.searchPlaceholder")} value={search} onChange={(event) => setSearch(event.target.value)} className="mb-2 h-8 text-xs" />
       <div className="max-h-64 overflow-auto" aria-busy={resources.loading || disabled}>
         {visible.map((record) => <Button key={record.id} type="button" variant="ghost" className="h-8 w-full justify-start text-xs"
           disabled={disabled || !record.available || excludedIds.includes(record.id)} onClick={() => void select(record.id)}>
           <span className="truncate">{record.name}</span>
-          {!record.available && <span className="ml-auto shrink-0 text-muted-foreground">{t("路径不可用")}</span>}
+          {!record.available && <span className="ml-auto shrink-0 text-muted-foreground">{t("settings:resources.unavailable")}</span>}
           {record.id === value.resourceId && <Check className="ml-auto size-3.5 shrink-0" />}
         </Button>)}
-        {resources.loaded && resources.error === null && !visible.length && <p className="p-2 text-xs text-muted-foreground">{t("暂无仓库或文件夹")}</p>}
+        {resources.loaded && resources.error === null && !visible.length && <p className="p-2 text-xs text-muted-foreground">{t("settings:resources.empty")}</p>}
       </div>
       {(error !== null || resources.error !== null) && <p role="alert" className="mt-2 text-xs text-destructive">{getTaskError(error ?? resources.error)}</p>}
     </Popover.Content></Popover.Portal>

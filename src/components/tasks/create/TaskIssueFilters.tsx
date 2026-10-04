@@ -19,39 +19,39 @@ interface TaskIssueFiltersProps {
 const ANY_VALUE = "__any__";
 
 export function TaskIssueFilters({ group, providers, repositories, value, onChange }: TaskIssueFiltersProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "taskCreate", "issues"]);
   return (
     <div className="flex shrink-0 items-center gap-2">
       <Select value={value.provider ? "provider:" + value.provider : ANY_VALUE}
         onValueChange={(selected) => onChange((current) => ({ ...current, provider: selected === ANY_VALUE ? "" : selected.slice(9) }))}>
-        <SelectTrigger aria-label={t("服务商筛选")} className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label={t("taskCreate:filters.provider.label")} className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value={ANY_VALUE}>{t("全部服务商")}</SelectItem>
+          <SelectItem value={ANY_VALUE}>{t("taskCreate:filters.provider.any")}</SelectItem>
           {providers.map((provider) => <SelectItem key={provider} value={"provider:" + provider}>{provider}</SelectItem>)}
         </SelectContent>
       </Select>
       <Select value={value.repository ? "repo:" + value.repository : ANY_VALUE}
         onValueChange={(selected) => onChange((current) => ({ ...current, repository: selected === ANY_VALUE ? "" : selected.slice(5) }))}>
-        <SelectTrigger aria-label={t("仓库筛选")} className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label={t("taskCreate:filters.repository.label")} className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value={ANY_VALUE}>{t("全部仓库")}</SelectItem>
+          <SelectItem value={ANY_VALUE}>{t("taskCreate:filters.repository.any")}</SelectItem>
           {repositories.map((repository) => <SelectItem key={repository} value={"repo:" + repository}>{repository}</SelectItem>)}
         </SelectContent>
       </Select>
       {group === "PR" && <Select value={value.prState} onValueChange={(prState: PullRequestStateFilter) => onChange((current) => ({ ...current, prState }))}>
-        <SelectTrigger aria-label={t("PR 状态筛选")} className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label={t("taskCreate:filters.pullRequestState.label")} className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="any">{t("全部状态")}</SelectItem>
-          <SelectItem value="open">{t("开放")}</SelectItem>
-          <SelectItem value="draft">{t("草稿")}</SelectItem>
+          <SelectItem value="any">{t("taskCreate:filters.pullRequestState.any")}</SelectItem>
+          <SelectItem value="open">{t("taskCreate:filters.pullRequestState.open")}</SelectItem>
+          <SelectItem value="draft">{t("issues:statuses.draft")}</SelectItem>
         </SelectContent>
       </Select>}
       <Select value={value.taskLink} onValueChange={(taskLink: TaskLinkFilter) => onChange((current) => ({ ...current, taskLink }))}>
-        <SelectTrigger aria-label={t("任务关联筛选")} className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label={t("taskCreate:filters.taskLink.label")} className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="any">{t("不限")}</SelectItem>
-          <SelectItem value="linked">{t("已关联任务")}</SelectItem>
-          <SelectItem value="unlinked">{t("未关联任务")}</SelectItem>
+          <SelectItem value="any">{t("taskCreate:filters.taskLink.any")}</SelectItem>
+          <SelectItem value="linked">{t("taskCreate:filters.taskLink.linked")}</SelectItem>
+          <SelectItem value="unlinked">{t("taskCreate:filters.taskLink.unlinked")}</SelectItem>
         </SelectContent>
       </Select>
     </div>

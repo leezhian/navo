@@ -21,9 +21,9 @@ interface ResourceDialogProps {
 }
 
 export function ResourceDialog({ record, repositoriesDirectory, onClose, onReturnFocus }: ResourceDialogProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "settings"]);
   const form = useResourceForm({ record, repositoriesDirectory, onSaved: onClose });
-  const title = record ? "编辑资源" : "添加仓库";
+  const title = record ? "settings:resources.editTitle" : "settings:resources.addRepository";
   const disabled = form.busy || form.choosing;
 
   return <Dialog open onOpenChange={(open) => { if (!open && !disabled) onClose(); }}>
@@ -31,16 +31,16 @@ export function ResourceDialog({ record, repositoriesDirectory, onClose, onRetur
       onCloseAutoFocus={(event) => { if (onReturnFocus) { event.preventDefault(); onReturnFocus(); } }}>
       <DialogHeader>
         <DialogTitle>{t(title)}</DialogTitle>
-        {record && <DialogDescription id="resource-dialog-description" className="text-xs leading-5">{t("修改名称或本地路径不会更改 Git remote。")}</DialogDescription>}
+        {record && <DialogDescription id="resource-dialog-description" className="text-xs leading-5">{t("settings:resources.editDescription")}</DialogDescription>}
       </DialogHeader>
       <form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); void form.submit(); }}>
-        {form.isClone && <label className="grid gap-2 text-xs">{t("仓库地址")}<Input autoFocus disabled={disabled} placeholder="https://github.com/team/repo.git" value={form.url} onChange={(event) => form.setUrl(event.target.value)} required /></label>}
-        {!record && <DialogDescription id="resource-dialog-description" className="text-xs leading-5">{t("粘贴仓库地址以克隆，或选择已有仓库的文件夹。")}</DialogDescription>}
+        {form.isClone && <label className="grid gap-2 text-xs">{t("settings:resources.url")}<Input autoFocus disabled={disabled} placeholder="https://github.com/team/repo.git" value={form.url} onChange={(event) => form.setUrl(event.target.value)} required /></label>}
+        {!record && <DialogDescription id="resource-dialog-description" className="text-xs leading-5">{t("settings:resources.cloneHint")}</DialogDescription>}
         {record && <>
-          <label className="grid gap-2 text-xs">{t("名称")}<Input autoFocus disabled={disabled} value={form.name} maxLength={100} onChange={(event) => form.setName(event.target.value)} required /></label>
-          <label className="grid gap-2 text-xs">{t("本地路径")}
+          <label className="grid gap-2 text-xs">{t("common:fields.name")}<Input autoFocus disabled={disabled} value={form.name} maxLength={100} onChange={(event) => form.setName(event.target.value)} required /></label>
+          <label className="grid gap-2 text-xs">{t("settings:resources.localPath")}
             <div className="flex gap-2"><Input disabled={disabled} value={form.localPath} onChange={(event) => form.setLocalPath(event.target.value)} required />
-              <IconTooltip label={t("选择目录")} variant="secondary" size="icon" disabled={disabled} onClick={() => void form.chooseFolder()}><FolderOpen className="size-4" /></IconTooltip>
+              <IconTooltip label={t("settings:general.chooseDirectory")} variant="secondary" size="icon" disabled={disabled} onClick={() => void form.chooseFolder()}><FolderOpen className="size-4" /></IconTooltip>
             </div>
           </label>
         </>}
@@ -48,9 +48,9 @@ export function ResourceDialog({ record, repositoriesDirectory, onClose, onRetur
         {form.progress && <pre role="status" className="max-h-28 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 text-[11px] leading-5">{form.progress}</pre>}
         {form.error !== null && <p role="alert" className="text-xs leading-5 text-destructive">{getSettingsError(form.error)}</p>}
         <DialogFooter>
-          {form.busy && form.isClone ? <Button type="button" variant="secondary" disabled={form.cancelling} onClick={() => void form.cancelClone()}>{t(form.cancelling ? "取消中…" : "取消克隆")}</Button>
-            : <Button type="button" variant="ghost" disabled={disabled} onClick={onClose}>{t("取消")}</Button>}
-          <Button type="submit" disabled={disabled}>{t(form.busy ? form.isClone ? "克隆中…" : "保存中…" : record ? "保存" : "确认")}</Button>
+          {form.busy && form.isClone ? <Button type="button" variant="secondary" disabled={form.cancelling} onClick={() => void form.cancelClone()}>{t(form.cancelling ? "settings:resources.cancelling" : "settings:resources.cancelClone")}</Button>
+            : <Button type="button" variant="ghost" disabled={disabled} onClick={onClose}>{t("common:actions.cancel")}</Button>}
+          <Button type="submit" disabled={disabled}>{t(form.busy ? form.isClone ? "settings:resources.cloning" : "common:status.saving" : record ? "common:actions.save" : "common:actions.confirm")}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

@@ -13,13 +13,13 @@ interface WorkspaceSortControlProps {
 }
 
 export function WorkspaceSortControl({ value, onChange }: WorkspaceSortControlProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common"]);
   const ascending = value.sortDirection === "asc";
   const DirectionIcon = ascending ? ArrowUpNarrowWide : ArrowDownWideNarrow;
-  const directionLabel = t(ascending ? "升序，点击切换为降序" : "降序，点击切换为升序");
+  const directionLabel = t(ascending ? "common:sort.ascendingAction" : "common:sort.descendingAction");
   return (
     <div className="mt-4 flex items-center justify-between gap-4">
-      <span className="text-xs text-muted-foreground">{t("排序")}</span>
+      <span className="text-xs text-muted-foreground">{t("common:sort.label")}</span>
       <div className="flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -31,11 +31,11 @@ export function WorkspaceSortControl({ value, onChange }: WorkspaceSortControlPr
           <TooltipContent>{directionLabel}</TooltipContent>
         </Tooltip>
         <Select value={value.sortField} onValueChange={(sortField: ViewSortField) => onChange({ ...value, sortField })}>
-          <SelectTrigger aria-label={t("排序属性")} className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label={t("common:sort.property")} className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="date">{t("日期")}</SelectItem>
-            <SelectItem value="title">{t("标题")}</SelectItem>
-            <SelectItem value="project">{t("项目")}</SelectItem>
+            <SelectItem value="date">{t("common:fields.date")}</SelectItem>
+            <SelectItem value="title">{t("common:fields.title")}</SelectItem>
+            <SelectItem value="project">{t("common:fields.project")}</SelectItem>
           </SelectContent>
         </Select>
       </div>

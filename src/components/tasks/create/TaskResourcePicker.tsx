@@ -23,7 +23,7 @@ interface TaskResourcePickerProps {
 }
 
 export function TaskResourcePicker({ excludedIds, repositoriesDirectory, onConfirm, onClose, onReturnFocus }: TaskResourcePickerProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "taskCreate", "settings"]);
   const resources = useResourceStore();
   const [keyword, setKeyword] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -43,9 +43,9 @@ export function TaskResourcePicker({ excludedIds, repositoriesDirectory, onConfi
   <Dialog open onOpenChange={(open) => { if (!open && !busy && !adding) onClose(); }}>
     <DialogContent className="sm:max-w-[680px]" showCloseButton={!busy} onEscapeKeyDown={(event) => { if (busy || adding) event.preventDefault(); }} onInteractOutside={(event) => { if (busy || adding) event.preventDefault(); }}
       onCloseAutoFocus={(event) => { event.preventDefault(); onReturnFocus(); }}>
-      <DialogHeader><DialogTitle>{t("添加工作目录")}</DialogTitle><DialogDescription>{t("与设置中的仓库和文件夹共用资源列表。")}</DialogDescription></DialogHeader>
-      <div className="flex gap-2"><Input autoFocus aria-label={t("搜索资源")} placeholder={t("搜索名称或路径…")} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
-        <Button ref={addButtonRef} variant="secondary" disabled={busy} onClick={() => setAdding(true)}><Plus className="size-3.5" />{t("添加仓库")}</Button></div>
+      <DialogHeader><DialogTitle>{t("taskCreate:resources.pickerTitle")}</DialogTitle><DialogDescription>{t("taskCreate:resources.sharedDescription")}</DialogDescription></DialogHeader>
+      <div className="flex gap-2"><Input autoFocus aria-label={t("taskCreate:resources.search")} placeholder={t("settings:resources.searchPlaceholder")} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+        <Button ref={addButtonRef} variant="secondary" disabled={busy} onClick={() => setAdding(true)}><Plus className="size-3.5" />{t("settings:resources.addRepository")}</Button></div>
       <div className="max-h-[50vh] min-h-40 overflow-auto" aria-busy={resources.loading || busy}>
         {visible.map((record) => {
           const disabled = busy || !record.available || excludedIds.includes(record.id);
@@ -53,13 +53,13 @@ export function TaskResourcePicker({ excludedIds, repositoriesDirectory, onConfi
           return <label key={record.id} className="flex cursor-default items-center gap-3 rounded-lg px-2 py-3 hover:bg-muted/40">
             <Checkbox disabled={disabled} checked={selected.includes(record.id)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, record.id] : current.filter((id) => id !== record.id))} />
             <Icon className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1"><span className="block truncate text-xs">{record.name}</span><span className="mt-1 block truncate text-xs text-muted-foreground" title={record.localPath}>{record.localPath}</span></span>
-            {!record.available && <span className="text-xs text-destructive">{t("路径不可用")}</span>}
+            {!record.available && <span className="text-xs text-destructive">{t("settings:resources.unavailable")}</span>}
           </label>;
         })}
-        {resources.loaded && resources.error === null && visible.length === 0 && <p className="p-4 text-xs text-muted-foreground">{t("暂无仓库或文件夹")}</p>}
+        {resources.loaded && resources.error === null && visible.length === 0 && <p className="p-4 text-xs text-muted-foreground">{t("settings:resources.empty")}</p>}
       </div>
       {(error !== null || resources.error !== null) && <p role="alert" className="text-xs text-destructive">{getTaskError(error ?? resources.error)}</p>}
-      <DialogFooter><Button variant="ghost" disabled={busy} onClick={onClose}>{t("取消")}</Button><Button disabled={busy || selected.length === 0} onClick={() => void confirm()}>{t(busy ? "检查中…" : "确认")}</Button></DialogFooter>
+      <DialogFooter><Button variant="ghost" disabled={busy} onClick={onClose}>{t("common:actions.cancel")}</Button><Button disabled={busy || selected.length === 0} onClick={() => void confirm()}>{t(busy ? "common:status.checkingProgress" : "common:actions.confirm")}</Button></DialogFooter>
       {adding && <ResourceDialog repositoriesDirectory={repositoriesDirectory} onClose={() => setAdding(false)} onReturnFocus={() => addButtonRef.current?.focus()} />}
     </DialogContent>
   </Dialog>

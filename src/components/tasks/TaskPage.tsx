@@ -10,8 +10,8 @@ interface TaskPageProps {
 }
 
 export function TaskPage({ task, onClose }: TaskPageProps) {
-  const { t } = useTranslation();
-  return <section className="h-full overflow-hidden rounded-[14px] bg-background" aria-label={t("任务页面：{{title}}", { title: task.title })}>
+  const { t } = useTranslation(["common", "tasks"]);
+  return <section className="h-full overflow-hidden rounded-[14px] bg-background" aria-label={t("tasks:page.label", { title: task.title })}>
     <TaskDetails task={task} headingId={`task-page-heading-${task.id}`} onClose={onClose} />
   </section>;
 }

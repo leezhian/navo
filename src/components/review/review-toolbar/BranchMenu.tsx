@@ -34,7 +34,7 @@ export function BranchMenu({
   onSearchChange,
   onSettingsChange,
 }: BranchMenuProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   const tooltip = useDropdownTooltip();
 
   return (
@@ -66,12 +66,12 @@ export function BranchMenu({
           <Search className="size-3.5" />
           <Input
             className="h-7 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-            placeholder={translate("搜索分支")}
+            placeholder={translate("review:branches.search")}
             value={branchSearch}
             onChange={(event) => onSearchChange(event.target.value)}
           />
         </div>
-        <DropdownMenuLabel>{translate("分支")}</DropdownMenuLabel>
+        <DropdownMenuLabel>{translate("review:branches.label")}</DropdownMenuLabel>
         {branchOptions.map((branch) => (
           <BranchOption
             active={settings.targetBranch === branch}

@@ -27,11 +27,11 @@ interface IssueToolbarProps {
 }
 
 export function IssueToolbar({ issues, filters, display, projectNames, hasFilters, onFiltersChange, onDisplayChange, onClearFilters, onRefresh }: IssueToolbarProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "issues"]);
   return (
-    <div className="workspace-toolbar" role="toolbar" aria-label={translate("Issue 列表工具栏")}>
+    <div className="workspace-toolbar" role="toolbar" aria-label={translate("issues:toolbar.label")}>
       <div className="ml-auto flex items-center gap-2">
-        {hasFilters && <Button className="h-6 px-2 text-xs font-normal text-muted-foreground" size="xs" variant="ghost" onClick={onClearFilters}>{translate("重置")}</Button>}
+        {hasFilters && <Button className="h-6 px-2 text-xs font-normal text-muted-foreground" size="xs" variant="ghost" onClick={onClearFilters}>{translate("common:actions.reset")}</Button>}
         <IssueFilterMenu issues={issues} filters={filters} projectNames={projectNames} hasFilters={hasFilters} onFiltersChange={onFiltersChange} onClear={onClearFilters} />
         <IssueDisplayMenu display={display} onDisplayChange={onDisplayChange} />
         <WorkspaceRefreshButton onRefresh={onRefresh} />

@@ -21,7 +21,7 @@ function App() {
   const navigation = useAppNavigation();
   const taskTabs = useTaskTabs();
   const [creatingTask, setCreatingTask] = useState(false);
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "settings"]);
   const { loaded, loading, loadError, saveError, saving, bootstrap, retrySave } = useSettingsStore();
 
   useEffect(() => {
@@ -36,9 +36,9 @@ function App() {
   }, [navigation.selectSection]);
 
   if (!loaded) return <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background p-8 text-sm">
-    {loading || loadError === null ? t("读取中") : <>
-      <p role="alert">{t("设置加载失败，未覆盖已有配置。")}</p><p className="text-xs text-muted-foreground">{getSettingsError(loadError)}</p>
-      <Button variant="secondary" onClick={() => void bootstrap()}>{t("重试")}</Button>
+    {loading || loadError === null ? t("common:status.loading") : <>
+      <p role="alert">{t("settings:errors.load")}</p><p className="text-xs text-muted-foreground">{getSettingsError(loadError)}</p>
+      <Button variant="secondary" onClick={() => void bootstrap()}>{t("common:actions.retry")}</Button>
     </>}
   </div>;
 
@@ -47,9 +47,9 @@ function App() {
       <ApplicationShell section={navigation.section} canGoBack={navigation.canGoBack} canGoForward={navigation.canGoForward}
         onGoBack={navigation.goBack} onGoForward={navigation.goForward} onSelectSection={navigation.selectSection} onCreateTask={() => setCreatingTask(true)}>
         {saveError !== null && <div role="alert" className="settings-save-alert">
-          <span>{t("设置尚未保存，请重试。")} {getSettingsError(saveError)}</span><Button className="h-7 text-xs" variant="secondary" onClick={retrySave}>{t("重试")}</Button>
+          <span>{t("settings:errors.unsaved")} {getSettingsError(saveError)}</span><Button className="h-7 text-xs" variant="secondary" onClick={retrySave}>{t("common:actions.retry")}</Button>
         </div>}
-        <span role="status" className="sr-only">{saving ? t("保存中…") : ""}</span>
+        <span role="status" className="sr-only">{saving ? t("common:status.saving") : ""}</span>
         <div className="h-full" hidden={navigation.section !== "tasks" || taskTabs.activeTaskId !== null}><TaskBoard /></div>
         <TaskPages visible={navigation.section === "tasks" && taskTabs.activeTaskId !== null} />
         <div className="h-full" hidden={navigation.section !== "issue"}><IssueList /></div>

@@ -1,4 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
+import type { AppLocale } from "../shared/locales";
 
 /** 历史会话的 Agent 来源，顺序即筛选菜单的展示顺序。 */
 export const AGENT_TYPES = ["Claude Code", "ChatGPT", "OpenCode", "Qoder"] as const;
@@ -65,7 +66,7 @@ export interface ReviewSession {
 
 export interface AppSettings {
   /** 界面语言，首次使用默认英文。 */
-  locale: "en" | "zh-CN";
+  locale: AppLocale;
   /** 新克隆和未来 worktree 的默认位置，支持用户目录缩写。 */
   repositoriesDirectory: string;
   worktreesDirectory: string;

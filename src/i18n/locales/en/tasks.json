@@ -1,0 +1,64 @@
+{
+  "fields": {
+    "noProject": "No project",
+    "title": "Task title"
+  },
+  "details": {
+    "links": "Linked items",
+    "attachments": "Attachments",
+    "title": "Task details",
+    "close": "Close task details"
+  },
+  "actions": {
+    "addResource": "Add resource",
+    "openPage": "Open task page",
+    "view": "View task",
+    "viewLabel": "View task: {{title}}",
+    "openInTab": "Open in tab"
+  },
+  "dialogs": {
+    "renameTitle": "Rename task",
+    "deleteTitle": "Delete task?",
+    "renameDescription": "Only changes the task title, not its description or branch.",
+    "deleteDescription": "Deletes the task and attachment copies. Original files, repos, branches and worktrees are kept."
+  },
+  "page": {
+    "label": "Task page: {{title}}"
+  },
+  "recovery": {
+    "retainedDirectories": "A previous task creation did not finish. These working directories were retained for inspection."
+  },
+  "feedback": {
+    "createdHidden": "Task created, but hidden by the current filters."
+  },
+  "loading": "Loading tasks",
+  "errors": {
+    "invalid": "Invalid task. Check the description and selected resources.",
+    "invalidTitle": "Enter a task title up to 160 characters.",
+    "notFound": "This task was removed. Refresh the list.",
+    "busy": "A task operation is in progress. Try again shortly.",
+    "legacyInvalid": "Legacy task data is invalid and has not been overwritten. Repair it and retry."
+  },
+  "board": {
+    "label": "Task board"
+  },
+  "counts": {
+    "tasks_other": "{{count}} tasks",
+    "tasks_one": "{{count}} task"
+  },
+  "empty": {
+    "matches": "No matching tasks",
+    "tasks": "No tasks"
+  },
+  "display": {
+    "label": "Task display options",
+    "mode": "Task view",
+    "order": "Task order"
+  },
+  "filters": {
+    "label": "Filter tasks"
+  },
+  "toolbar": {
+    "label": "Task toolbar"
+  }
+}

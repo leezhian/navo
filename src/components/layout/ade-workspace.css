@@ -122,6 +122,7 @@
 }
 
 .task-column-header h2 { margin: 0; font-size: 12px; font-weight: 500; letter-spacing: 0.035em; }
+.task-panel-content :is(.task-column-header, .task-list-header) { cursor: default; user-select: none; -webkit-user-select: none; }
 .column-status-icon { flex-shrink: 0; color: var(--muted-foreground); }
 .task-column[data-status="DONE"] .column-status-icon { color: #788c83; }
 .task-column[data-status="ARCHIVED"] .column-status-icon { color: var(--muted-foreground); }

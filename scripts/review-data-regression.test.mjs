@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
+import { createLoader } from "./helpers/load-typescript.mjs";
 
 const projectRoot = process.cwd();
 const compiledDir = path.join(tmpdir(), "navo-regression-tests");
@@ -150,8 +151,8 @@ test("应用名称和 preload API 统一为 Navo", () => {
   assert.doesNotMatch(preloadSource, /vibeReviewer/);
 });
 
-test("读取旧设置保留外观偏好，但丢弃 Agent 监听配置", async () => {
-  const { defaultSettings, normalizeAppSettings } = await importTs("src/domain/settings.ts");
+test("读取旧设置保留外观偏好，但丢弃 Agent 监听配置", () => {
+  const { defaultSettings, normalizeAppSettings } = createLoader()("src/domain/settings.ts");
   const settings = normalizeAppSettings({
     ...defaultSettings,
     theme: "dark",

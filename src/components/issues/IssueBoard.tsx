@@ -23,7 +23,7 @@ interface IssueBoardProps {
 }
 
 export function IssueBoard({ issues, display, groups, filtered, selectedIssueId, onSelectIssue }: IssueBoardProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "issues"]);
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup id="issue-board">
@@ -37,7 +37,7 @@ export function IssueBoard({ issues, display, groups, filtered, selectedIssueId,
                 <header className="task-column-header">
                   <GroupIcon aria-hidden="true" className="column-status-icon" size={17} strokeWidth={1.65} />
                   <h2 id={headingId}>{group}</h2>
-                  <span className="column-task-count" aria-label={t("{{count}} 个条目", { count: groupIssues.length })}>{groupIssues.length}</span>
+                  <span className="column-task-count" aria-label={t("issues:counts.items", { count: groupIssues.length })}>{groupIssues.length}</span>
                 </header>
                 <motion.div className="task-column-content" layoutScroll>
                   {groupIssues.map((issue) => (
@@ -45,7 +45,7 @@ export function IssueBoard({ issues, display, groups, filtered, selectedIssueId,
                       <IssueCard issue={issue} display={display} selected={selectedIssueId === issue.id} onSelect={() => onSelectIssue(issue.id)} />
                     </motion.div>
                   ))}
-                  {groupIssues.length === 0 && <p className="ade-empty-state">{filtered ? t("暂无匹配条目") : t("暂无 {{group}}", { group })}</p>}
+                  {groupIssues.length === 0 && <p className="ade-empty-state">{filtered ? t("issues:empty.matches") : t("issues:empty.group", { group })}</p>}
                 </motion.div>
               </section>
             );

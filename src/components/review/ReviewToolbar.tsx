@@ -67,7 +67,7 @@ export function ReviewToolbar({
   onToggleAllCollapsed,
   onToggleFileTree,
 }: ReviewToolbarProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   const { commentBodies, getExportableComments, copyExportTemplate } = useReviewComments();
   const [branchSearch, setBranchSearch] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "copied" | "empty">("idle");
@@ -143,13 +143,13 @@ export function ReviewToolbar({
             {copyState === "copied" ? <Check className="size-4" /> : <ClipboardCopy className="size-4" />}
           </IconTooltip>
           <IconTooltip
-            label={isAllCollapsed ? translate("展开全部差异") : translate("折叠全部差异")}
+            label={isAllCollapsed ? translate("review:diff.expandAll") : translate("review:diff.collapseAll")}
             onClick={onToggleAllCollapsed}
           >
             {isAllCollapsed ? <ListTree className="size-4" /> : <ListCollapse className="size-4" />}
           </IconTooltip>
           <IconTooltip
-            label={settings.diffViewMode === "split" ? translate("切换到统一视图") : translate("切换到分栏视图")}
+            label={settings.diffViewMode === "split" ? translate("review:diff.switchUnified") : translate("review:diff.switchSplit")}
             onClick={() => toggleDiffView(onSettingsChange)}
           >
             {settings.diffViewMode === "split" ? (
@@ -160,7 +160,7 @@ export function ReviewToolbar({
           </IconTooltip>
           <IconTooltip
             className={isFileTreeVisible ? "bg-muted text-foreground" : undefined}
-            label={isFileTreeVisible ? translate("隐藏文件树") : translate("显示文件树")}
+            label={isFileTreeVisible ? translate("review:files.hideTree") : translate("review:files.showTree")}
             onClick={onToggleFileTree}
           >
             {isFileTreeVisible ? <FolderOpen className="size-4" /> : <FolderClosed className="size-4" />}
@@ -174,14 +174,14 @@ export function ReviewToolbar({
 
 function getCopyCommentsLabel(copyState: "idle" | "copied" | "empty", hasExportableComments: boolean) {
   if (copyState === "copied") {
-    return translate("已复制审查评论");
+    return translate("review:comments.copied");
   }
 
   if (copyState === "empty" || !hasExportableComments) {
-    return translate("暂无已保存的评论");
+    return translate("review:comments.empty");
   }
 
-  return translate("复制审查评论");
+  return translate("review:comments.copy");
 }
 
 function formatChangeCount(count: number) {

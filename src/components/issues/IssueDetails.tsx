@@ -14,14 +14,14 @@ interface IssueDetailsProps {
 }
 
 export function IssueDetails({ issue, onClose }: IssueDetailsProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "issues"]);
   const reducedMotion = useReducedMotion();
 
   return (
     <div className="task-details-inner">
       <header className="task-details-header">
-        <h2 id="issue-details-heading">{issue.group} {translate("详情")}</h2>
-        <Button aria-label={translate("关闭条目详情")} className="task-details-close" size="icon" variant="ghost" onClick={onClose}>
+        <h2 id="issue-details-heading">{issue.group} {translate("common:fields.details")}</h2>
+        <Button aria-label={translate("issues:details.close")} className="task-details-close" size="icon" variant="ghost" onClick={onClose}>
           <X aria-hidden="true" size={17} strokeWidth={1.65} />
         </Button>
       </header>
@@ -36,10 +36,10 @@ export function IssueDetails({ issue, onClose }: IssueDetailsProps) {
         >
           <h3 className="task-details-title">{issue.title}</h3>
           <dl className="task-details-metadata">
-            <div><dt>{translate("标签")}</dt><dd><span className="issue-tag" data-tag={issue.tag}>{translate(issueTags[issue.tag])}</span></dd></div>
-            <div><dt>{translate("项目")}</dt><dd>{issue.projectName}</dd></div>
-            <div><dt>{translate("状态")}</dt><dd><span className="issue-status" data-status={issue.status}>{translate(issueStatuses[issue.status])}</span></dd></div>
-            <div><dt>{translate("时间")}</dt><dd><time dateTime={issue.date}>{formatDate(issue.date)}</time></dd></div>
+            <div><dt>{translate("common:fields.tag")}</dt><dd><span className="issue-tag" data-tag={issue.tag}>{translate(issueTags[issue.tag])}</span></dd></div>
+            <div><dt>{translate("common:fields.project")}</dt><dd>{issue.projectName}</dd></div>
+            <div><dt>{translate("common:fields.status")}</dt><dd><span className="issue-status" data-status={issue.status}>{translate(issueStatuses[issue.status])}</span></dd></div>
+            <div><dt>{translate("common:fields.time")}</dt><dd><time dateTime={issue.date}>{formatDate(issue.date)}</time></dd></div>
           </dl>
         </motion.div>
       </AnimatePresence>

@@ -31,7 +31,7 @@ interface HeaderGroupProps extends WorkspaceHeaderTabsProps {
 }
 
 function HeaderGroup({ group, taskMap, activeTaskId, listRef, onClose, onCancelSplit, onActivateWorkspace }: HeaderGroupProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "workspace"]);
   const controls = useDragControls();
   const reducedMotion = useReducedMotion();
   const [dragging, setDragging] = useState(false);
@@ -50,24 +50,24 @@ function HeaderGroup({ group, taskMap, activeTaskId, listRef, onClose, onCancelS
             onPointerDown={(event) => { if (event.button === 0 && event.isPrimary) controls.start(event); }}>
             <ListTodo aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{task.title}</span>
           </Tabs.Trigger>
-          <Button aria-label={t("关闭标签：{{title}}", { title: task.title })} className="navo-workspace-tab-close text-muted-foreground hover:text-foreground" size="icon-xs" variant="ghost" onClick={() => onClose(id)}><X aria-hidden="true" className="size-3" /></Button>
+          <Button aria-label={t("workspace:tabs.closeLabel", { title: task.title })} className="navo-workspace-tab-close text-muted-foreground hover:text-foreground" size="icon-xs" variant="ghost" onClick={() => onClose(id)}><X aria-hidden="true" className="size-3" /></Button>
         </div>
       </TaskTabMenu>;
     })}
     {pendingSplit && <TaskTabMenu taskId={pendingSplit.firstTaskId} group={group} picker onActivateWorkspace={onActivateWorkspace}>
       <div className="navo-workspace-tab" data-state={active ? "active" : "inactive"}>
-        <Tabs.Trigger value={pendingSplit.id} className="navo-workspace-tab-trigger" title={t("选择标签页")} aria-controls={`split-picker-${pendingSplit.id}`}
+        <Tabs.Trigger value={pendingSplit.id} className="navo-workspace-tab-trigger" title={t("workspace:split.pickerTitle")} aria-controls={`split-picker-${pendingSplit.id}`}
           onPointerDown={(event) => { if (event.button === 0 && event.isPrimary) controls.start(event); }}>
-          <PanelsTopLeft aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{t("选择标签页")}</span>
+          <PanelsTopLeft aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{t("workspace:split.pickerTitle")}</span>
         </Tabs.Trigger>
-        <Button aria-label={t("关闭选择标签页")} className="navo-workspace-tab-close" size="icon-xs" variant="ghost" onClick={() => onCancelSplit(pendingSplit.id)}><X className="size-3" /></Button>
+        <Button aria-label={t("workspace:split.closePicker")} className="navo-workspace-tab-close" size="icon-xs" variant="ghost" onClick={() => onCancelSplit(pendingSplit.id)}><X className="size-3" /></Button>
       </div>
     </TaskTabMenu>}
   </Reorder.Item>;
 }
 
 export function WorkspaceHeaderTabs({ onActivateWorkspace }: WorkspaceHeaderTabsProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "workspace"]);
   const listRef = useRef<HTMLDivElement>(null);
   const workspace = useTaskTabs();
   function selectTab(id: string) {
@@ -78,7 +78,7 @@ export function WorkspaceHeaderTabs({ onActivateWorkspace }: WorkspaceHeaderTabs
 
   return <MotionConfig reducedMotion="user">
     <Tabs.Root className="min-w-0 flex-1" value={workspace.activeTaskId ?? ""} onValueChange={selectTab}>
-      <Tabs.List aria-label={t("工作区标签")} asChild>
+      <Tabs.List aria-label={t("workspace:tabs.label")} asChild>
         <Reorder.Group ref={listRef} as="div" axis="x" values={workspace.groups.map((group) => group.id)} onReorder={workspace.reorderTasks} layoutScroll className="window-no-drag navo-workspace-tabs">
           {workspace.groups.map((group) => <HeaderGroup key={group.id} group={group} taskMap={workspace.taskMap} activeTaskId={workspace.activeTaskId} listRef={listRef}
             onActivateWorkspace={onActivateWorkspace} onClose={workspace.closeTask} onCancelSplit={workspace.cancelSplit} />)}

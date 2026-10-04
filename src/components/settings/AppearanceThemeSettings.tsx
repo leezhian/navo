@@ -6,9 +6,9 @@ import { SettingsList, SettingsRow, SettingsSectionHeader } from "./settingsPrim
 import { SettingsChoiceControl } from "./SettingsChoiceControl";
 
 const appThemeOptions = [
-  { icon: Monitor, label: "跟随系统", value: "system" as const },
-  { icon: Sun, label: "浅色", value: "light" as const },
-  { icon: Moon, label: "深色", value: "dark" as const },
+  { icon: Monitor, label: "settings:appearance.system" as const, value: "system" as const },
+  { icon: Sun, label: "settings:appearance.light" as const, value: "light" as const },
+  { icon: Moon, label: "settings:appearance.dark" as const, value: "dark" as const },
 ];
 
 interface AppearanceThemeSettingsProps {
@@ -19,13 +19,13 @@ interface AppearanceThemeSettingsProps {
 }
 
 export function AppearanceThemeSettings({ settings, updateSettings }: AppearanceThemeSettingsProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "settings"]);
   return (
     <section className="mb-6">
-      <SettingsSectionHeader title={translate("视觉风格")} />
+      <SettingsSectionHeader title={translate("settings:appearance.style")} />
       <SettingsList>
-        <SettingsRow title={translate("颜色模式")} description={translate("选择浅色、深色或跟随系统外观")}>
-          <SettingsChoiceControl<ThemePreference> label={translate("颜色模式")} options={appThemeOptions.map((option) => ({ ...option, label: translate(option.label) }))} value={settings.theme}
+        <SettingsRow title={translate("settings:appearance.colorMode")} description={translate("settings:appearance.colorModeDescription")}>
+          <SettingsChoiceControl<ThemePreference> label={translate("settings:appearance.colorMode")} options={appThemeOptions.map((option) => ({ ...option, label: translate(option.label) }))} value={settings.theme}
             onValueChange={(theme) => updateSettings((current) => ({ ...current, theme }))} />
         </SettingsRow>
       </SettingsList>

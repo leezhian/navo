@@ -20,16 +20,16 @@ interface TaskDetailsProps {
 }
 
 export function TaskDetails({ task, onClose, onOpenPage, headingId = "task-details-heading" }: TaskDetailsProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "tasks"]);
   const reducedMotion = useReducedMotion();
 
   return (
     <div className="task-details-inner">
       <header className="task-details-header">
-        <h2 id={headingId}>{translate("任务详情")}</h2>
+        <h2 id={headingId}>{translate("tasks:details.title")}</h2>
         <div className="flex items-center gap-1">
-          {onOpenPage && <IconTooltip label={translate("打开任务页面")} className="task-details-close" onClick={onOpenPage}><SquareArrowOutUpRight aria-hidden="true" size={17} strokeWidth={1.65} /></IconTooltip>}
-          <Button aria-label={translate("关闭任务详情")} className="task-details-close" size="icon" variant="ghost" onClick={onClose}>
+          {onOpenPage && <IconTooltip label={translate("tasks:actions.openPage")} className="task-details-close" onClick={onOpenPage}><SquareArrowOutUpRight aria-hidden="true" size={17} strokeWidth={1.65} /></IconTooltip>}
+          <Button aria-label={translate("tasks:details.close")} className="task-details-close" size="icon" variant="ghost" onClick={onClose}>
             <X aria-hidden="true" size={17} strokeWidth={1.65} />
           </Button>
         </div>
@@ -45,9 +45,9 @@ export function TaskDetails({ task, onClose, onOpenPage, headingId = "task-detai
         >
           <h3 className="task-details-title">{task.title}</h3>
           <dl className="task-details-metadata">
-            <div><dt>{translate("状态")}</dt><dd>{task.status}</dd></div>
-            <div><dt>{translate("日期")}</dt><dd><time dateTime={task.date}>{formatDate(task.date)}</time></dd></div>
-            <div><dt>{translate("项目")}</dt><dd>{taskProjectNames(task).join(", ") || translate("未关联项目")}</dd></div>
+            <div><dt>{translate("common:fields.status")}</dt><dd>{task.status}</dd></div>
+            <div><dt>{translate("common:fields.date")}</dt><dd><time dateTime={task.date}>{formatDate(task.date)}</time></dd></div>
+            <div><dt>{translate("common:fields.project")}</dt><dd>{taskProjectNames(task).join(", ") || translate("tasks:fields.noProject")}</dd></div>
           </dl>
           <TaskContextDetails task={task} />
         </motion.div>

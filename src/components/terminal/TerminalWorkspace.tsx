@@ -13,7 +13,7 @@ interface TerminalWorkspaceProps {
 }
 
 export function TerminalWorkspace({ title, sessionId, cwd }: TerminalWorkspaceProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "terminal"]);
   const { html, handleKeyDown, handlePaste, paletteStyle, status, terminalRef } = useTerminalSession({
     cwd,
     sessionId,
@@ -28,7 +28,7 @@ export function TerminalWorkspace({ title, sessionId, cwd }: TerminalWorkspacePr
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-background pt-12">
       <div
         ref={terminalRef}
-        aria-label={title + " " + translate("终端")}
+        aria-label={title + " " + translate("terminal:title")}
         className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-none bg-[#111318] px-3 py-2 font-mono text-[13px] leading-4 text-[#f4f4f5] outline-none"
         role="textbox"
         style={paletteStyle as CSSProperties}
@@ -36,9 +36,9 @@ export function TerminalWorkspace({ title, sessionId, cwd }: TerminalWorkspacePr
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
       >
-        {shouldShowStartingMessage && <div>{translate("正在启动终端...")}</div>}
-        {!html && status === "exited" && <div>{translate("终端已退出")}</div>}
-        {!html && status === "error" && <div className="text-destructive">{translate("终端启动失败")}</div>}
+        {shouldShowStartingMessage && <div>{translate("terminal:starting")}</div>}
+        {!html && status === "exited" && <div>{translate("terminal:exited")}</div>}
+        {!html && status === "error" && <div className="text-destructive">{translate("terminal:startError")}</div>}
         {html && <div dangerouslySetInnerHTML={{ __html: html }} />}
       </div>
     </section>

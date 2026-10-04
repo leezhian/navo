@@ -1,0 +1,80 @@
+{
+  "actions": {
+    "open": "Create task",
+    "creating": "Creating…"
+  },
+  "composer": {
+    "description": "Task description",
+    "placeholder": "Describe the task…"
+  },
+  "links": {
+    "addIssue": "Add issue",
+    "addPullRequest": "Add PR",
+    "resizePreview": "Resize list and preview",
+    "unknownProvider": "Unknown provider",
+    "loadError": "Unable to load task associations",
+    "search": "Search items",
+    "searchPlaceholder": "Search titles or projects…",
+    "emptyPreview": "Select an item to preview"
+  },
+  "attachments": {
+    "add": "Add images or files"
+  },
+  "resources": {
+    "title": "Working directories",
+    "add": "Add repo or folder",
+    "replace": "Switch working directory",
+    "pickerTitle": "Add working directories",
+    "sharedDescription": "Uses the same repos and folders as Settings.",
+    "search": "Search resources",
+    "searchPlaceholder": "Search repos or folders…"
+  },
+  "filters": {
+    "provider": {
+      "label": "Filter by provider",
+      "any": "Any provider"
+    },
+    "pullRequestState": {
+      "label": "Filter by PR state",
+      "any": "Any State",
+      "open": "Open"
+    },
+    "repository": {
+      "any": "Any Repo",
+      "label": "Filter by repository"
+    },
+    "taskLink": {
+      "any": "Any",
+      "linked": "Has a task",
+      "unlinked": "Not task yet",
+      "label": "Filter by task association"
+    }
+  },
+  "branches": {
+    "selectSource": "Choose base branch",
+    "source": "Base branch",
+    "searchPlaceholder": "Search branches…",
+    "local": "Local branches",
+    "remote": "Remote branches",
+    "noMatches": "No matching branches",
+    "worktree": "Isolated worktree",
+    "repositoryBranch": "New branch in repo",
+    "useCurrent": "Use current branch",
+    "detachedHead": "Detached HEAD",
+    "target": "Target branch",
+    "cancelEdit": "Cancel branch name edit",
+    "confirmName": "Confirm branch name"
+  },
+  "errors": {
+    "invalidBranch": "Invalid branch name. Change the name or the branch prefix in Settings.",
+    "branchExists": "The target branch already exists. Choose another name.",
+    "invalidSource": "The base branch is no longer available. Select it again.",
+    "emptyRepository": "The repo has no commits yet. A task workspace cannot be created.",
+    "dirtyRepository": "The repo has uncommitted changes. Resolve them or use an isolated worktree.",
+    "resourceChanged": "The working directory or branch changed. Select the resource again.",
+    "duplicateResource": "A repo or directory cannot be added more than once.",
+    "filesOnly": "Only files can be attached, not directories.",
+    "attachmentMissing": "An attachment is no longer available. Choose the file again.",
+    "retained": "Creation did not finish. Some branches or working directories were kept. Inspect them before retrying."
+  }
+}

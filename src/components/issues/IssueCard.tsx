@@ -16,13 +16,13 @@ interface IssueCardProps {
 }
 
 export function IssueCard({ issue, display, selected = false, onSelect }: IssueCardProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "issues"]);
   const showMetadata = display.showProject || display.showStatus || display.showDate;
   return (
     <article className="task-card issue-card" draggable={false} data-selected={selected}
       role={onSelect ? "button" : undefined} tabIndex={onSelect ? 0 : undefined}
       aria-pressed={onSelect ? selected : undefined}
-      aria-label={onSelect ? translate("查看{{group}}：{{title}}", { group: issue.group, title: issue.title }) : undefined}
+      aria-label={onSelect ? translate("issues:actions.viewLabel", { group: issue.group, title: issue.title }) : undefined}
       onClick={() => onSelect?.()}
       onKeyDown={(event) => {
         if (!onSelect || (event.key !== "Enter" && event.key !== " ")) return;

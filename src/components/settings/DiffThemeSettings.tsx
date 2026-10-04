@@ -19,20 +19,20 @@ interface DiffThemeSettingsProps {
 }
 
 export function DiffThemeSettings({ settings, updateSettings }: DiffThemeSettingsProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "settings"]);
   return (
     <>
-      <SettingsRow title={translate("浅色代码主题")} description={translate("浅色模式下的代码语法高亮配色")}>
+      <SettingsRow title={translate("settings:appearance.diff.lightCodeTheme")} description={translate("settings:appearance.diff.lightDescription")}>
         <ThemeSelect
-          ariaLabel={translate("浅色主题")}
+          ariaLabel={translate("settings:appearance.diff.lightTheme")}
           options={diffLightThemeOptions}
           value={settings.diffLightTheme}
           onChange={(value) => updateDiffTheme(updateSettings, "diffLightTheme", value)}
         />
       </SettingsRow>
-      <SettingsRow title={translate("深色代码主题")} description={translate("深色模式下的代码语法高亮配色")}>
+      <SettingsRow title={translate("settings:appearance.diff.darkCodeTheme")} description={translate("settings:appearance.diff.darkDescription")}>
         <ThemeSelect
-          ariaLabel={translate("深色主题")}
+          ariaLabel={translate("settings:appearance.diff.darkTheme")}
           options={diffDarkThemeOptions}
           value={settings.diffDarkTheme}
           onChange={(value) => updateDiffTheme(updateSettings, "diffDarkTheme", value)}

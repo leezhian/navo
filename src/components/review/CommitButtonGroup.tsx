@@ -26,7 +26,7 @@ interface CommitButtonGroupProps {
  * 无改动但有未推送提交时变为直接推送；两者皆无则置灰。
  */
 export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
-  const { t: translate } = useTranslation();
+  const { t: translate } = useTranslation(["common", "review"]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isOpeningDialog, setIsOpeningDialog] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
@@ -94,7 +94,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
         {showPushMode ? (
           <IconTooltip
             disabled={isPushing || isOpeningDialog || statusError !== null}
-            label={statusError ? translate("无法读取 Git 状态") : translate("推送 {{count}} 个未推送提交", { count: status?.aheadCount ?? 0 })}
+            label={statusError ? translate("review:git.statusError") : translate("review:commit.pushCount", { count: status?.aheadCount ?? 0 })}
             variant="outline"
             onClick={() => {
               void pushDirectly();
@@ -105,7 +105,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
         ) : (
           <IconTooltip
             disabled={!hasLocalChanges || isOpeningDialog || statusError !== null}
-            label={statusError ? translate("无法读取 Git 状态") : translate("提交更改")}
+            label={statusError ? translate("review:git.statusError") : translate("review:commit.title")}
             variant="outline"
             onClick={() => {
               void openDialog();
@@ -117,7 +117,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              aria-label={translate("更多提交操作")}
+              aria-label={translate("review:commit.moreActions")}
               className="w-5 text-muted-foreground hover:text-foreground"
               disabled={!hasAvailableAction || isPushing || isOpeningDialog || statusError !== null}
               size="icon-sm"
@@ -135,7 +135,7 @@ export function CommitButtonGroup({ projectPath }: CommitButtonGroupProps) {
               }}
             >
               {showPushMode ? <CloudUpload className="size-4" /> : <GitCommitHorizontal className="size-4" />}
-              {translate("提交或推送")}</DropdownMenuItem>
+              {translate("review:commit.submitOrPush")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </ButtonGroup>

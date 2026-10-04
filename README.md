@@ -7,6 +7,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - [PRD.md](PRD.md)：产品概述、范围边界与页面需求索引。
 - [docs/prd/](docs/prd/)：按页面维护的功能、交互、布局细节及验收标准；设置按子页面拆分。
 - [DESIGN.md](DESIGN.md)：通用设计风格和规范，不收录具体功能方案。
+- [docs/i18n.md](docs/i18n.md)：语义翻译 key、语言资源、类型约束及新增语言流程。
 
 ## 功能概览
 
@@ -37,7 +38,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - lucide-react：图标。
 - @pierre/diffs：Git diff 解析和 diff 内容渲染。
 - motion：界面动效。
-- i18next / react-i18next：全局界面国际化，中文 key 对应集中英文资源。
+- i18next / react-i18next：语义 key 与模块命名空间，各语言独立 JSON 资源；渲染进程和原生菜单共用语言注册表。
 - zustand：设置、资源记录及集成占位状态的渲染缓存，不重复持久化主进程配置。
 - node:sqlite：Electron 主进程内置 SQLite，无需额外原生依赖。
 - node-pty：创建和管理真实 Shell 伪终端。
@@ -108,6 +109,7 @@ npm run package
 npm run make
 npm run publish
 npm run lint
+npm run test:i18n
 ```
 
 - `start`：启动开发态 Electron 应用。
@@ -115,6 +117,7 @@ npm run lint
 - `make`：生成分发安装包。
 - `publish`：发布分发产物。
 - `lint`：运行 ESLint。
+- `test:i18n`：检查翻译完整性、插值、复数、语言切换、原生菜单及 key 类型约束。
 
 ## 项目结构
 
@@ -122,7 +125,7 @@ npm run lint
 - src/components/tasks：任务看板、任务卡片与详情。
 - src/components/issues：PR/ISSUE 分组列表、看板、状态标签及详情。
 - src/components/settings：常规、外观与 diff 预览、仓库/文件夹、集成占位和关于。
-- src/i18n：翻译资源、初始化及按语言格式化日期。
+- src/i18n：分语言/命名空间的资源、类型声明、初始化及按语言格式化日期。
 - src/stores：设置与资源渲染缓存、迁移和保存状态。
 - src/components/review：保留的 diff 弹窗与审查组件。
 - src/components/terminal：保留的终端渲染和生命周期能力。
@@ -223,6 +226,7 @@ src/components/ui/icon-tooltip.tsx
 
 - npm run lint：检查所有 TypeScript / TSX。
 - npx tsc --noEmit：检查类型及模块集成。
+- npm run test:i18n：检查所有已注册语言的资源完整性和国际化回归。
 - node --test scripts/*.test.mjs：审查、任务、SQLite 设置读写/迁移/事务回滚/损坏保护、资源 CRUD、克隆错误与取消、日志和翻译回归；预览回归使用隔离用户目录启动隐藏 Electron 窗口，需要桌面环境（Linux CI 需提供虚拟显示）。
 - git diff --check：检查补丁空白错误。
 - npm run build：打包 Electron 应用；包含 Vite renderer 构建和原生依赖准备。

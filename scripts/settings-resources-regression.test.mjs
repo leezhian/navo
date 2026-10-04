@@ -1,39 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { access, mkdir, mkdtemp, readFile, rm, stat, symlink, truncate, writeFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
-import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import ts from "typescript";
+import { createLoader } from "./helpers/load-typescript.mjs";
 
-const require = createRequire(import.meta.url);
-
-function createLoader(mocks = {}) {
-  const cache = new Map();
-  function load(file) {
-    const absolute = path.resolve(file);
-    if (cache.has(absolute)) return cache.get(absolute).exports;
-    const module = { exports: {} };
-    cache.set(absolute, module);
-    const { outputText } = ts.transpileModule(readFileSync(absolute, "utf8"), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
-    });
-    const localRequire = (name) => {
-      if (name in mocks) return mocks[name];
-      if (name.startsWith(".")) return load(path.resolve(path.dirname(absolute), name) + ".ts");
-      if (name.startsWith("@/")) return load("src/" + name.slice(2) + ".ts");
-      return require(name);
-    };
-    new Function("require", "module", "exports", outputText)(localRequire, module, module.exports);
-    return module.exports;
-  }
-  return load;
-}
 
 async function temporaryDirectory(context) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-regression-"));
@@ -42,6 +18,11 @@ async function temporaryDirectory(context) {
 }
 
 const load = createLoader();
+const { resources, namespaces } = load("src/i18n/resources.ts");
+const { createInstance } = await import("i18next");
+const testI18n = createInstance();
+await testI18n.init({ resources, ns: namespaces, lng: "zh-CN", fallbackLng: false, initAsync: false });
+const translate = testI18n.getFixedT("zh-CN", namespaces);
 const { defaultSettings, normalizeAppSettings } = load("src/domain/settings.ts");
 const { resolveResourcePath, validateCloneUrl, validateRepositoryName, redactCloneOutput } = load("src/main-process/services/resourcePaths.ts");
 const { getRepositoryName, getFolderName } = load("src/utils/resourceNames.ts");
@@ -54,7 +35,7 @@ test("资源读取不显示加载文案，刷新保留列表和空状态，失�
   } } })("src/stores/resourceStore.ts").useResourceStore;
   const { ResourcesSettingsPage } = createLoader({
     "@/stores/resourceStore": { useResourceStore: () => store.getState() },
-    "react-i18next": { useTranslation: () => ({ t: (value) => value }) },
+    "react-i18next": { useTranslation: () => ({ t: translate }) },
     "@/components/ui/button": { Button: "button" },
     "@/components/ui/icon-tooltip": { IconTooltip: ({ label, children, ...props }) => createElement("button", { ...props, "aria-label": label }, children) },
     "@/components/ui/dialog": { Dialog: () => null },
@@ -97,7 +78,7 @@ test("集成列表显示五个平台图标，自托管版本共用品牌标识�
   const primitives = load("src/components/settings/settingsPrimitives.tsx");
   const { IntegrationsSettingsPage } = createLoader({
     "@/stores/integrationStore": { useIntegrationStore: () => ({ providers, loading: false, refresh: async () => undefined }) },
-    "react-i18next": { useTranslation: () => ({ t: (value) => value }) },
+    "react-i18next": { useTranslation: () => ({ t: translate }) },
     "@/components/ui/button": { Button: "button" },
     "@/components/ui/icon-tooltip": { IconTooltip: () => null },
     "./settingsPrimitives": primitives,
@@ -634,45 +615,4 @@ test("迁移失败保留旧配置，重试成功后只使用主进程 SQLite", a
     assert.equal(state.disk.theme, "light");
     assert.equal(useSettingsStore.getState().saveError, null);
   } finally { globalThis.window = originalWindow; globalThis.localStorage = originalStorage; }
-});
-
-test("翻译覆盖所有静态 UI 文案并保留动态占位符", () => {
-  const { english } = load("src/i18n/translations.ts");
-  for (const [key, value] of Object.entries(english)) {
-    assert.ok(value.trim());
-    const placeholders = (text) => [...text.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]).sort();
-    assert.deepEqual(placeholders(key), placeholders(value), key);
-  }
-  assert.equal(english["外观"], "Appearance");
-  assert.equal(english["重置"], "Reset");
-  function inspect(directory) {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const file = path.join(directory, entry.name);
-      if (entry.isDirectory()) { inspect(file); continue; }
-      if (!file.endsWith(".tsx")) continue;
-      const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-      function visit(node) {
-        if (ts.isJsxText(node)) assert.ok(!/\p{Script=Han}/u.test(node.text), "Untranslated JSX text in " + file);
-        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && ["t", "translate"].includes(node.expression.text)) {
-          const key = node.arguments[0];
-          if (key && ts.isStringLiteral(key) && /\p{Script=Han}/u.test(key.text)) assert.ok(key.text in english, "Missing translation: " + key.text);
-        }
-        ts.forEachChild(node, visit);
-      }
-      visit(source);
-    }
-  }
-  inspect("src/components");
-});
-
-test("语言切换即刻翻译文案和日期，插值不改变任务内容", async () => {
-  const module = createLoader()("src/i18n/index.ts");
-  const title = "自定义任务名称";
-  assert.equal(module.default.language, "en");
-  assert.equal(module.t("查看任务：{{title}}", { title }), "View task: " + title);
-  assert.match(module.formatDate("2026-09-30"), /Sep/);
-  await module.default.changeLanguage("zh-CN");
-  assert.equal(module.t("外观"), "外观");
-  assert.equal(module.t("查看任务：{{title}}", { title }), "查看任务：" + title);
-  assert.match(module.formatDate("2026-09-30"), /年/);
 });
