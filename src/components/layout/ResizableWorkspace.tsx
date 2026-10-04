@@ -17,7 +17,7 @@ interface ResizableWorkspaceProps {
 export function ResizableWorkspace({ children, details, detailsHeadingId, listLabel }: ResizableWorkspaceProps) {
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
-  const { workspaceRef, detailsWidth, isResizing, boardPercentage, separatorHandlers } = useResizableWorkspace();
+  const { workspaceRef, detailsWidth, isResizing, isCentered, boardPercentage, separatorHandlers } = useResizableWorkspace();
   const transition = { duration: reducedMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] as const };
 
   return (
@@ -30,7 +30,7 @@ export function ResizableWorkspace({ children, details, detailsHeadingId, listLa
             aria-valuemin={0} aria-valuemax={100} aria-valuenow={boardPercentage}
             aria-valuetext={t("{{label}} {{percent}}%，详情 {{details}}%", { label: listLabel, percent: boardPercentage, details: 100 - boardPercentage })}
             className="task-panel-separator" initial={{ width: 0 }} animate={{ width: TASK_PANEL_GAP }} exit={{ width: 0 }}
-            transition={transition} {...separatorHandlers} />
+            data-centered={isCentered} transition={transition} {...separatorHandlers} />
         )}
         {details && (
           <motion.aside key="workspace-details" className="task-details-panel" aria-labelledby={detailsHeadingId}

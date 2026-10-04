@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import type { TaskSplit } from "@/domain/taskSplit";
+import { snapResizeRatio } from "@/utils/resizeSnap";
 
 const GAP = 8;
 const KEYBOARD_STEP = 24;
@@ -8,7 +9,7 @@ const KEYBOARD_STEP = 24;
 /** 双任务视图使用对称尺寸约束，不改变任务看板侧栏的默认宽度规则。 */
 export function useTaskSplitResize(split: TaskSplit | undefined, onRatioChange: (id: string, ratio: number) => void) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const session = useRef<{ pointerId: number; start: number; ratio: number; extent: number; splitId: string } | null>(null);
+  const session = useRef<{ pointerId: number; start: number; ratio: number; extent: number; splitId: string; snapped: boolean } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [resizing, setResizing] = useState(false);
   const vertical = split?.orientation === "vertical";
@@ -35,11 +36,11 @@ export function useTaskSplitResize(split: TaskSplit | undefined, onRatioChange: 
   }
 
   return {
-    containerRef, ratio, resizing,
+    containerRef, ratio, resizing, isCentered: extent > 0 && Math.abs(ratio - 0.5) * extent < 0.5,
     separatorHandlers: {
       onPointerDown(event: PointerEvent<HTMLDivElement>) {
         if (!split || !extent || event.button !== 0 || !event.isPrimary) return;
-        session.current = { pointerId: event.pointerId, start: vertical ? event.clientY : event.clientX, ratio, extent, splitId: split.id };
+        session.current = { pointerId: event.pointerId, start: vertical ? event.clientY : event.clientX, ratio, extent, splitId: split.id, snapped: ratio === 0.5 };
         event.preventDefault();
         event.currentTarget.focus();
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -48,7 +49,10 @@ export function useTaskSplitResize(split: TaskSplit | undefined, onRatioChange: 
       onPointerMove(event: PointerEvent<HTMLDivElement>) {
         const current = session.current;
         if (!current || current.pointerId !== event.pointerId || current.splitId !== split?.id) return;
-        onRatioChange(current.splitId, clamp(current.ratio + ((vertical ? event.clientY : event.clientX) - current.start) / current.extent));
+        const nextRatio = current.ratio + ((vertical ? event.clientY : event.clientX) - current.start) / current.extent;
+        const snappedRatio = clamp(snapResizeRatio(nextRatio, current.extent, current.snapped));
+        current.snapped = snappedRatio === 0.5;
+        onRatioChange(current.splitId, snappedRatio);
       },
       onPointerUp: end,
       onPointerCancel: end,
@@ -59,7 +63,8 @@ export function useTaskSplitResize(split: TaskSplit | undefined, onRatioChange: 
         const next = vertical ? "ArrowDown" : "ArrowRight";
         if (event.key !== previous && event.key !== next) return;
         event.preventDefault();
-        onRatioChange(split.id, clamp(ratio + (event.key === next ? KEYBOARD_STEP : -KEYBOARD_STEP) / extent));
+        const nextRatio = ratio + (event.key === next ? KEYBOARD_STEP : -KEYBOARD_STEP) / extent;
+        onRatioChange(split.id, clamp(snapResizeRatio(nextRatio, extent)));
       },
     },
   };

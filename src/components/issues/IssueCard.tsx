@@ -23,7 +23,7 @@ export function IssueCard({ issue, display, selected = false, onSelect }: IssueC
       role={onSelect ? "button" : undefined} tabIndex={onSelect ? 0 : undefined}
       aria-pressed={onSelect ? selected : undefined}
       aria-label={onSelect ? translate("查看{{group}}：{{title}}", { group: issue.group, title: issue.title }) : undefined}
-      onClick={(event) => { if (display.order !== "default" || event.detail === 0) onSelect?.(); }}
+      onClick={() => onSelect?.()}
       onKeyDown={(event) => {
         if (!onSelect || (event.key !== "Enter" && event.key !== " ")) return;
         event.preventDefault();

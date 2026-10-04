@@ -22,43 +22,15 @@ async function importTs(file) {
 const { moveTask } = await importTs("src/utils/taskState.ts");
 const { navigateTo, stepNavigation } = await importTs("src/domain/navigation.ts");
 const { isTask, isIssueItem, parseStoredItems } = await importTs("src/utils/adeDataValidation.ts");
-const { filterTasks, orderTasks } = await importTs("src/utils/taskView.ts");
-const { filterIssues, orderIssues, moveIssue, mergeIssueItems } = await importTs("src/utils/issueView.ts");
+const { filterTasks, orderTasks, getTaskStatusDropTarget } = await importTs("src/utils/taskView.ts");
+const { filterIssues, orderIssues } = await importTs("src/utils/issueView.ts");
+const { snapResizeRatio } = await importTs("src/utils/resizeSnap.ts");
 const { bindDevelopmentTools } = await importTs("src/main-process/developmentTools.ts");
 const { useTaskTabsStore } = await importTs("src/stores/taskTabsStore.ts");
 const { taskTabGroups } = await importTs("src/domain/taskSplit.ts");
 const first = { id: "first", title: "任务一", date: "2026-09-30", projectName: "navo", status: "TODO" };
 const second = { ...first, id: "second", title: "任务二" };
 const third = { ...first, id: "third", status: "DONE" };
-
-test("Issue 刷新更新内容和增删结果，保留已有手动顺序且不修改输入", () => {
-  const original = [third, second, first];
-  const updated = { ...first, title: "更新后的标题" };
-  const added = { ...first, id: "new" };
-  assert.deepEqual(mergeIssueItems(original, [updated, third, added]), [third, updated, added]);
-  assert.deepEqual(original, [third, second, first]);
-  assert.deepEqual(mergeIssueItems(original, []), []);
-  assert.deepEqual(mergeIssueItems([], [added]), [added]);
-});
-
-test("Issue 同类型手动排序保留隐藏项、类型和另一组顺序，拒绝非法目标", () => {
-  const firstPR = { ...first, id: "pr1", group: "PR", status: "review" };
-  const hiddenPR = { ...firstPR, id: "hidden" };
-  const secondPR = { ...firstPR, id: "pr2" };
-  const issue = { ...firstPR, id: "issue1", group: "ISSUE", status: "todo" };
-  const otherIssue = { ...issue, id: "issue2" };
-  const items = [firstPR, hiddenPR, issue, secondPR, otherIssue];
-  const moved = moveIssue(items, "pr2", "PR", "pr1");
-  assert.deepEqual(moved.filter((item) => item.group === "PR"), [secondPR, firstPR, hiddenPR]);
-  assert.deepEqual(moved.filter((item) => item.group === "ISSUE"), [issue, otherIssue]);
-  assert.deepEqual(moveIssue(items, "pr1", "PR", null).filter((item) => item.group === "PR"), [hiddenPR, secondPR, firstPR]);
-  assert.deepEqual(moveIssue(items, "issue2", "ISSUE", "issue1").filter((item) => item.group === "ISSUE"), [otherIssue, issue]);
-  for (const [id, group, before] of [["pr1", "ISSUE", null], ["pr1", "PR", "issue1"], ["pr1", "PR", "missing"], ["missing", "PR", null], ["pr1", "PR", "pr1"]]) {
-    assert.equal(moveIssue(items, id, group, before), items);
-  }
-  assert.deepEqual(new Set(moved.map((item) => item.id)), new Set(items.map((item) => item.id)));
-  assert.deepEqual(items, [firstPR, hiddenPR, issue, secondPR, otherIssue]);
-});
 
 test("任务标签按标识去重，未打开任务不会被激活，返回面板保留标签", () => {
   useTaskTabsStore.setState({ taskIds: [], activeTaskId: null });
@@ -312,12 +284,11 @@ test("任务筛选同类条件取并集，不同条件取交集，并保留原�
   assert.deepEqual(filterTasks(tasks, { statuses: [], projects: ["missing"] }), []);
 });
 
-test("日期排序只改变显示，日期相同时保留自定义顺序", () => {
+test("日期排序只改变显示，日期相同时按标识稳定排序", () => {
   const older = { ...third, date: "2026-09-28" };
   const tasks = [first, older, second];
-  assert.equal(orderTasks(tasks, "manual"), tasks);
-  assert.deepEqual(orderTasks(tasks, "newest"), [first, second, older]);
-  assert.deepEqual(orderTasks(tasks, "oldest"), [older, first, second]);
+  assert.deepEqual(orderTasks(tasks, { sortField: "date", sortDirection: "desc" }), [first, second, older]);
+  assert.deepEqual(orderTasks(tasks, { sortField: "date", sortDirection: "asc" }), [older, first, second]);
   assert.deepEqual(tasks, [first, older, second]);
 });
 
@@ -352,10 +323,40 @@ test("Issue 时间排序稳定且不修改原始顺序或条目元信息", () =>
   const older = { ...second, group: "ISSUE", tag: "fix", status: "todo", date: "2026-09-28" };
   const sameDate = { ...newest, id: "same-date" };
   const issues = [newest, older, sameDate];
-  assert.equal(orderIssues(issues, "default"), issues);
-  assert.deepEqual(orderIssues(issues, "newest"), [newest, sameDate, older]);
-  assert.deepEqual(orderIssues(issues, "oldest"), [older, newest, sameDate]);
-  assert.equal(orderIssues(issues, "newest")[0], newest);
+  assert.deepEqual(orderIssues(issues, { sortField: "date", sortDirection: "desc" }), [newest, sameDate, older]);
+  assert.deepEqual(orderIssues(issues, { sortField: "date", sortDirection: "asc" }), [older, newest, sameDate]);
+  assert.equal(orderIssues(issues, { sortField: "date", sortDirection: "desc" })[0], newest);
   assert.deepEqual(issues, [newest, older, sameDate]);
-  assert.deepEqual(orderIssues([], "oldest"), []);
+  assert.deepEqual(orderIssues([], { sortField: "date", sortDirection: "asc" }), []);
+});
+
+test("排序属性和方向独立，拖拽只选择目标状态，同组不能改顺序", () => {
+  const alpha = { ...first, id: "alpha", title: "Alpha", projectName: "Zulu", date: "2026-01-02" };
+  const beta = { ...first, id: "beta", title: "Beta", projectName: "Alpha", date: "2026-01-03", status: "DONE" };
+  const gamma = { ...first, id: "gamma", title: "Gamma", projectName: "Beta", date: "2026-01-01", status: "DONE" };
+  const items = [alpha, beta, gamma];
+  assert.deepEqual(orderTasks(items, { sortField: "title", sortDirection: "asc" }), [alpha, beta, gamma]);
+  assert.deepEqual(orderTasks(items, { sortField: "title", sortDirection: "desc" }), [gamma, beta, alpha]);
+  assert.deepEqual(orderTasks(items, { sortField: "project", sortDirection: "asc" }), [beta, gamma, alpha]);
+  const dated = orderTasks(items, { sortField: "date", sortDirection: "desc" });
+  assert.deepEqual(getTaskStatusDropTarget(dated, "alpha", "DONE"), { status: "DONE" });
+  assert.deepEqual(getTaskStatusDropTarget(dated, "alpha", "ARCHIVED"), { status: "ARCHIVED" });
+  assert.equal(getTaskStatusDropTarget(dated, "alpha", "TODO"), null);
+  assert.equal(getTaskStatusDropTarget(dated, "missing", "DONE"), null);
+  const issues = items.map((item) => ({ ...item, group: "PR", tag: "feature", status: "review" }));
+  assert.deepEqual(orderIssues(issues, { sortField: "title", sortDirection: "desc" }).map(item => item.id), ["gamma", "beta", "alpha"]);
+  assert.deepEqual(orderIssues(issues, { sortField: "project", sortDirection: "asc" }).map(item => item.id), ["beta", "gamma", "alpha"]);
+  assert.deepEqual(items, [alpha, beta, gamma]);
+});
+
+test("均分吸附使用像素阈值，吸入和脱离范围不同且不受布局方向影响", () => {
+  for (const extent of [512, 1024]) {
+    assert.equal(snapResizeRatio(0.5 + 8 / extent, extent), 0.5);
+    assert.equal(snapResizeRatio(0.5 - 8 / extent, extent), 0.5);
+    assert.equal(snapResizeRatio(0.5 + 12 / extent, extent), 0.5 + 12 / extent);
+    assert.equal(snapResizeRatio(0.5 + 12 / extent, extent, true), 0.5);
+    assert.equal(snapResizeRatio(0.5 - 16 / extent, extent, true), 0.5);
+    assert.equal(snapResizeRatio(0.5 + 24 / extent, extent, true), 0.5 + 24 / extent);
+  }
+  assert.equal(snapResizeRatio(0.3, 0), 0.3);
 });

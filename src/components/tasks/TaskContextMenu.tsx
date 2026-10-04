@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import { useTaskStore } from "@/stores/taskStore";
+import { useTaskTabsStore } from "@/stores/taskTabsStore";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ interface TaskContextMenuProps {
 export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps) {
   const { t } = useTranslation();
   const store = useTaskStore();
+  const openTask = useTaskTabsStore((state) => state.openTask);
   const [action, setAction] = useState<"rename" | "delete" | null>(null);
   const [title, setTitle] = useState(task.title);
   async function confirm() {
@@ -32,12 +34,13 @@ export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps
       {/* 重复右击只更新 Radix 的虚拟锚点，需要持续跟踪其位置变化。 */}
       <ContextMenuContent updatePositionStrategy="always">
         <ContextMenuItem onSelect={onOpen}>{t("打开")}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => { openTask(task.id); onOpen(); }}>{t("以标签页打开")}</ContextMenuItem>
         <ContextMenuItem disabled={store.pending} onSelect={() => { setTitle(task.title); setAction("rename"); }}>{t("重命名")}</ContextMenuItem>
         {/* TODO: 任务创建后的资源增补流程在后续需求中接入。 */}
         {task.status !== "ARCHIVED" && <ContextMenuItem disabled>{t("添加资源")}</ContextMenuItem>}
         <ContextMenuSeparator />
         <ContextMenuItem disabled={store.pending} onSelect={() => { void (task.status === "ARCHIVED" ? store.restore(task.id) : store.move(task.id, "ARCHIVED", null)); }}>{t(task.status === "ARCHIVED" ? "恢复" : "归档")}</ContextMenuItem>
-        <ContextMenuItem disabled={store.pending} className="text-destructive" onSelect={() => setAction("delete")}>{t("删除")}</ContextMenuItem>
+        <ContextMenuItem disabled={store.pending} variant="destructive" onSelect={() => setAction("delete")}>{t("删除")}</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
     <Dialog open={action !== null} onOpenChange={(open) => { if (!open && !store.pending) setAction(null); }}>

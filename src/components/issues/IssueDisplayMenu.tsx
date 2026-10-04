@@ -3,10 +3,10 @@ import type { Dispatch, SetStateAction } from "react";
 import { Columns3, List, SlidersHorizontal } from "lucide-react";
 import { Popover, RadioGroup } from "radix-ui";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { WorkspaceSortControl } from "@/components/layout/WorkspaceSortControl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { WORKSPACE_OPTIONS_PANEL_CLASS_NAME, WORKSPACE_OPTIONS_SECTION_CLASS_NAME } from "@/components/layout/workspaceOptions";
-import type { IssueDisplayOptions, IssueOrder, IssueViewMode } from "@/domain/issueView";
+import type { IssueDisplayOptions, IssueViewMode } from "@/domain/issueView";
 import { issueDisplayFields } from "./issueConstants";
 
 interface IssueDisplayMenuProps {
@@ -36,18 +36,7 @@ export function IssueDisplayMenu({ display, onDisplayChange }: IssueDisplayMenuP
             <RadioGroup.Item className="task-view-choice" value="list"><List aria-hidden="true" className="size-4" />{translate("列表")}</RadioGroup.Item>
             <RadioGroup.Item className="task-view-choice" value="board"><Columns3 aria-hidden="true" className="size-4" />{translate("看板")}</RadioGroup.Item>
           </RadioGroup.Root>
-          <div className="mt-4 flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">{translate("排序")}</span>
-            <Select value={display.order} onValueChange={(order: IssueOrder) => onDisplayChange((current) => ({ ...current, order }))}>
-              <SelectTrigger aria-label={translate("条目排序")} className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">{translate("自定义顺序")}</SelectItem>
-                <SelectItem value="newest">{translate("时间从新到旧")}</SelectItem>
-                <SelectItem value="oldest">{translate("时间从旧到新")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <p className="mt-3 text-xs leading-5 text-muted-foreground">{translate("按 PR 和 ISSUE 分组。看板在自定义顺序下支持同类型拖拽，不支持跨类型移动。")}</p>
+          <WorkspaceSortControl value={display} onChange={(sort) => onDisplayChange((current) => ({ ...current, ...sort }))} />
           <div className={WORKSPACE_OPTIONS_SECTION_CLASS_NAME}>
             <p className="mb-3 text-xs text-muted-foreground">{translate("展示字段")}</p>
             <div className="flex flex-wrap gap-2">

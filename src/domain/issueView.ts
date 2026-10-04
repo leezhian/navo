@@ -1,6 +1,6 @@
 import type { IssueGroup, IssueStatus, IssueTag } from "./issues";
+import type { ViewSortOptions } from "./viewSort";
 
-export type IssueOrder = "default" | "newest" | "oldest";
 export type IssueViewMode = "list" | "board";
 
 export interface IssueFilters {
@@ -11,11 +11,9 @@ export interface IssueFilters {
   tags: IssueTag[];
 }
 
-export interface IssueDisplayOptions {
+export interface IssueDisplayOptions extends ViewSortOptions {
   /** 默认列表，面板按 PR 和 ISSUE 分列展示。 */
   mode: IssueViewMode;
-  /** 排序仅改变组内展示，不修改原始条目顺序。 */
-  order: IssueOrder;
   /** 标签、项目、状态和时间的列表显隐，不影响标题或详情。 */
   showTag: boolean;
   showProject: boolean;

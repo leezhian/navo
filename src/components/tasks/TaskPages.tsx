@@ -15,7 +15,7 @@ export function TaskPages({ visible }: TaskPagesProps) {
   const { t } = useTranslation();
   const workspace = useTaskTabs();
   const split = workspace.activeSplit;
-  const { containerRef, ratio, resizing, separatorHandlers } = useTaskSplitResize(split, workspace.setSplitRatio);
+  const { containerRef, ratio, resizing, isCentered, separatorHandlers } = useTaskSplitResize(split, workspace.setSplitRatio);
   const vertical = split?.orientation === "vertical";
   const firstSize = `calc((100% - 8px) * ${ratio})`;
   const secondStart = `calc((100% - 8px) * ${ratio} + 8px)`;
@@ -37,7 +37,7 @@ export function TaskPages({ visible }: TaskPagesProps) {
     {split && <>
       <div role="separator" tabIndex={0} aria-label={t("调整拆分视图大小")} aria-orientation={vertical ? "horizontal" : "vertical"}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}
-        className="task-split-separator" data-orientation={split.orientation} style={separatorStyle} {...separatorHandlers} />
+        className="task-split-separator" data-orientation={split.orientation} data-centered={isCentered} style={separatorStyle} {...separatorHandlers} />
       {!split.secondTaskId && <div id={`split-picker-${split.id}`} className="task-page-position" style={secondStyle}>
         <SplitPagePicker tasks={workspace.tabs.filter((task) => !findTaskSplit(workspace.splits, task.id))}
           onSelect={(id) => workspace.completeSplit(split.id, id)} onCancel={() => workspace.cancelSplit(split.id)} />

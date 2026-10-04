@@ -6,8 +6,8 @@ import { taskProjectNames } from "@/utils/taskProjects";
 
 export function useTaskView(tasks: Task[]) {
   const [filters, setFilters] = useState<TaskFilters>({ statuses: [], projects: [] });
-  const [display, setDisplay] = useState<TaskDisplayOptions>({ mode: "board", order: "manual", showDate: true, showProject: true });
-  const visibleTasks = orderTasks(filterTasks(tasks, filters), display.order);
+  const [display, setDisplay] = useState<TaskDisplayOptions>({ mode: "board", sortField: "date", sortDirection: "desc", showDate: true, showProject: true });
+  const visibleTasks = orderTasks(filterTasks(tasks, filters), display);
   const projectNames = [...new Set(tasks.flatMap(taskProjectNames))].sort((left, right) => left.localeCompare(right));
   const hasFilters = filters.statuses.length > 0 || filters.projects.length > 0;
 

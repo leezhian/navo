@@ -7,7 +7,7 @@ import { test } from "node:test";
 import electron from "electron";
 import { createServer } from "vite";
 
-test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 60000 }, async () => {
+test("属性排序、任务跨状态拖拽、列表看板与刷新冷却", { timeout: 60000 }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-issue-board-ui-"));
   const { default: tailwindcss } = await import("@tailwindcss/vite");
   const server = await createServer({
@@ -32,7 +32,7 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
       useSettingsStore.setState({ loaded: true, settings: {...defaultSettings, locale: 'zh-CN'} });
       const tasks = ['任务工作区', 'Agent 运行状态', '多项目上下文'].map((title, index) => ({
         id: ['workspace', 'agent', 'context'][index], title, description: '任务正文：' + title,
-        status: 'TODO', date: '2026-10-04', projectName: 'navo', links: [], resources: [], attachments: [],
+        status: 'TODO', date: ['2026-10-02', '2026-10-03', '2026-10-01'][index], projectName: 'navo', links: [], resources: [], attachments: [],
       }));
       window.navo = {
         window: { getIsFullScreen: async () => false, onFullScreenChange: () => () => {} },
@@ -58,7 +58,9 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
         window.refreshCalls += 1;
         return new Promise(resolve => { window.finishRefresh = () => resolve({ tasks: useTaskStore.getState().tasks.map(task => ({ ...task, title: task.title + ' refreshed' })), recoveryWarnings: [] }); });
       };
+      window.taskMoves = [];
       window.navo.tasks.move = async (id, status, beforeId) => {
+        window.taskMoves.push({ id, status, beforeId });
         const tasks = useTaskStore.getState().tasks;
         const current = tasks.find(task => task.id === id);
         const remaining = tasks.filter(task => task.id !== id);
@@ -90,11 +92,15 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
             await new Promise(resolve => setTimeout(resolve, 16));
             window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x + (to.x - from.x) * step / 12), y: Math.round(from.y + (to.y - from.y) * step / 12), button: 'left', modifiers: ['leftButtonDown'] });
           }
+          const feedback = await window.webContents.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(window.readDragFeedback?.()))))");
           window.webContents.sendInputEvent({ type: 'mouseUp', ...to, button: 'left', clickCount: 1 });
+          return feedback;
         });
         try {
           await window.loadURL(${JSON.stringify(`http://127.0.0.1:${server.httpServer.address().port}/__issue_board_test`)});
 
+          window.webContents.debugger.attach("1.3");
+          await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
           await window.webContents.executeJavaScript(\`(async () => {
             const pause = (duration = 300) => new Promise(resolve => setTimeout(resolve, duration));
             async function waitFor(check, message) {
@@ -108,6 +114,11 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
             const order = name => [...group(name).querySelectorAll('[data-board-item]')].map(item => item.dataset.boardItem).join(',');
             const center = element => { const rect = element.getBoundingClientRect(); return {x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2)}; };
             const sidebar = () => document.querySelector('aside.task-details-panel');
+            window.readDragFeedback = () => ({
+              groups: [...document.querySelectorAll('[data-drop-target="true"]')].map(group => group.dataset.boardGroup),
+              targetPlaceholders: document.querySelectorAll('[data-drop-target="true"] [data-board-placeholder]').length,
+              sourcePlaceholders: document.querySelectorAll('[data-board-placeholder]').length,
+            });
             async function closePanel() {
               document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
               await pause();
@@ -123,8 +134,9 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
             }
             async function sorting(label) {
               await displayPanel();
-              document.querySelector('[aria-label="条目排序"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+              document.querySelector('[aria-label="排序属性"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
               await waitFor(() => document.querySelector('[role="option"]'), 'Missing sort options');
+              if ([...document.querySelectorAll('[role="option"]')].some(option => option.textContent === '自定义顺序')) throw new Error('Manual sorting must be removed');
               [...document.querySelectorAll('[role="option"]')].find(option => option.textContent === label).click();
               await waitFor(() => !document.querySelector('[role="listbox"]'), 'Sort selection must close');
               await closePanel();
@@ -144,44 +156,58 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
               await closePanel();
             }
             await waitFor(() => document.querySelector('[aria-label="Issue"]'), 'Missing app');
+            const initiallyDark = document.documentElement.classList.contains('dark');
+            for (const dark of [false, true]) {
+              document.documentElement.classList.toggle('dark', dark);
+              document.querySelector('[aria-label="查看任务：任务工作区"]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: 160, clientY: 180 }));
+              const deleteItem = () => [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === '删除');
+              await waitFor(() => deleteItem(), 'Missing task delete menu item');
+              await pause(80);
+              const warningColor = getComputedStyle(deleteItem()).color;
+              const initialBackground = getComputedStyle(deleteItem()).backgroundColor;
+              await window.testInput.hover({ x: 20, y: 20 });
+              await window.testInput.hover(center(deleteItem()));
+              await waitFor(() => document.activeElement === deleteItem(), 'Delete item must receive focus');
+              if (getComputedStyle(deleteItem()).color !== warningColor) throw new Error('Delete hover must preserve warning text color');
+              if (getComputedStyle(deleteItem()).backgroundColor === initialBackground) throw new Error('Delete hover must show a warning background');
+              await closePanel();
+            }
+            document.documentElement.classList.toggle('dark', initiallyDark);
             document.querySelector('[aria-label="Issue"]').click();
             await waitFor(() => document.querySelectorAll('.issue-row').length === 5, 'Default must be list');
             if (board()) throw new Error('Board must not be the default');
             document.querySelector('[aria-label="PR 分组"]').click();
             await pause();
             await mode('board');
-            if (board().querySelectorAll('[data-board-group]').length !== 2) throw new Error('Board must have PR and ISSUE columns');
-            await dragCard('pr3', { ...center(card('pr1')), y: Math.round(card('pr1').getBoundingClientRect().top + 5) });
-            if (order('PR') !== 'pr3,pr1,pr2') throw new Error('Same type reorder failed: ' + order('PR'));
-            if (sidebar()) throw new Error('Dragging must not open details');
-            const beforeCross = JSON.stringify(window.issueItems());
+            if (board().querySelectorAll('[data-board-group]').length !== 2 || order('PR') !== 'pr2,pr3,pr1') throw new Error('Board must group by type and default to newest date');
+            const originalIssues = JSON.stringify(window.issueItems());
+            await dragCard('pr1', center(card('pr2')));
             await dragCard('pr3', center(card('issue1')));
-            if (JSON.stringify(window.issueItems()) !== beforeCross) throw new Error('PR must not move into ISSUE or reorder on a rejected drop');
-            await dragCard('issue1', center(card('pr1')));
-            if (JSON.stringify(window.issueItems()) !== beforeCross) throw new Error('ISSUE must not move into PR');
-            await dragCard('issue2', { ...center(card('issue1')), y: Math.round(card('issue1').getBoundingClientRect().top + 5) });
-            if (order('ISSUE') !== 'issue2,issue1') throw new Error('ISSUE reorder failed');
+            if (JSON.stringify(window.issueItems()) !== originalIssues || order('PR') !== 'pr2,pr3,pr1') throw new Error('Issue dragging must not reorder or change type');
+            await displayPanel();
+            document.querySelector('[aria-label="降序，点击切换为升序"]').click();
+            await closePanel();
+            if (order('PR') !== 'pr1,pr3,pr2') throw new Error('Direction icon must reverse date order');
+            await sorting('项目');
+            if (order('PR') !== 'pr1,pr3,pr2') throw new Error('Project sorting must preserve ascending direction');
+            await displayPanel();
+            document.querySelector('[aria-label="升序，点击切换为降序"]').click();
+            await closePanel();
+            if (order('PR') !== 'pr2,pr1,pr3') throw new Error('Project descending must be independent of date order');
+            await sorting('标题');
+            if (order('PR') !== 'pr2,pr3,pr1') throw new Error('Title property must preserve descending direction');
+            await sorting('项目');
             await mode('list');
             if (document.querySelector('[aria-label="PR 分组"]').getAttribute('aria-expanded') !== 'false') throw new Error('List collapse must survive view switching');
             document.querySelector('[aria-label="PR 分组"]').click();
             await pause();
             const rowTitles = [...document.querySelectorAll('#issue-group-pr + div .issue-row-title')].map(item => item.textContent);
-            if (rowTitles.join(',') !== 'PR Three,PR One,PR Two') throw new Error('List must share manual order');
+            if (rowTitles.join(',') !== 'PR Two,PR One,PR Three') throw new Error('List must share sort property and direction');
             await mode('board');
             await filterProject();
-            if (card('pr2')) throw new Error('Project filter must apply to board');
-            await dragCard('pr1', { ...center(card('pr3')), y: Math.round(card('pr3').getBoundingClientRect().top + 5) });
-            if (order('PR') !== 'pr1,pr3' || window.issueItems().length !== 5) throw new Error('Filtered reorder must preserve hidden items');
+            if (card('pr2') || order('PR') !== 'pr1,pr3') throw new Error('Filtering must preserve attribute sorting');
             document.querySelector('.issue-panel-content .workspace-toolbar button').click();
             await waitFor(() => card('pr2'), 'Reset must restore hidden item');
-            const manualOrder = order('PR');
-            await sorting('时间从新到旧');
-            if (order('PR') !== 'pr2,pr3,pr1') throw new Error('Date sorting failed');
-            const beforeDateDrag = JSON.stringify(window.issueItems());
-            await dragCard('pr1', center(card('pr2')));
-            if (JSON.stringify(window.issueItems()) !== beforeDateDrag || order('PR') !== 'pr2,pr3,pr1') throw new Error('Date sorting must disable manual drag');
-            await sorting('自定义顺序');
-            if (order('PR') !== manualOrder) throw new Error('Date sorting must not overwrite manual order');
             card('pr1').querySelector('[role="button"]').click();
             await waitFor(() => sidebar()?.textContent.includes('PR One'), 'Board card opens details');
             await mode('list');
@@ -194,11 +220,50 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
             if (!board() || board().closest('[hidden]')) throw new Error('Module switch must preserve board mode');
             document.querySelector('[aria-label="Tasks"]').click();
             await pause();
-            const task = document.querySelector('[data-task-id="workspace"]');
-            const destination = document.querySelector('.task-panel-content [data-board-group="DONE"] [data-board-content]');
-            const targetRect = destination.getBoundingClientRect();
-            await window.testInput.drag(center(task), { x: Math.round(targetRect.x + targetRect.width / 2), y: Math.round(targetRect.y + 35) });
-            await waitFor(() => window.taskItems().find(item => item.id === 'workspace').status === 'DONE', 'Task cross-status dragging must still work');
+            const taskRoot = () => document.querySelector('.task-panel-content');
+            const taskCard = id => taskRoot().querySelector('[data-task-id="' + id + '"]');
+            const taskGroup = status => taskRoot().querySelector('[data-board-group="' + status + '"]');
+            const taskOrder = status => [...taskGroup(status).querySelectorAll('[data-task-id]')].map(item => item.dataset.taskId).join(',');
+            async function taskDrag(id, target) {
+              const expectedStatus = document.elementFromPoint(target.x, target.y)?.closest('[data-board-group]')?.dataset.boardGroup;
+              const sourceStatus = window.taskItems().find(item => item.id === id).status;
+              const feedback = await window.testInput.drag(center(taskCard(id)), target);
+              if (feedback.targetPlaceholders || feedback.sourcePlaceholders !== 1) throw new Error('Only the source may keep a placeholder while dragging');
+              if (expectedStatus && expectedStatus !== sourceStatus) {
+                if (feedback.groups.join(',') !== expectedStatus) throw new Error('Valid drop group must highlight');
+              } else if (feedback.groups.length) throw new Error('Same-status and invalid drop areas must not show acceptance feedback');
+              await waitFor(() => !document.querySelector('.task-drag-overlay'), 'Task drag must settle or cancel');
+              await pause();
+              if (document.querySelector('[data-drop-target="true"]')) throw new Error('Drop feedback must clear after the drag');
+            }
+            if (taskOrder('TODO') !== 'agent,workspace,context') throw new Error('Tasks must default to date descending');
+            await taskDrag('workspace', center(taskCard('agent')));
+            if (window.taskMoves.length || taskOrder('TODO') !== 'agent,workspace,context') throw new Error('Dragging within the same status must not save or change order');
+            const emptyTarget = taskGroup('DONE').querySelector('[data-board-content]').getBoundingClientRect();
+            await taskDrag('workspace', { x: Math.round(emptyTarget.x + emptyTarget.width / 2), y: Math.round(emptyTarget.y + 35) });
+            if (window.taskItems().find(item => item.id === 'workspace').status !== 'DONE') throw new Error('Task cross-status dragging must work under date sorting');
+            const doneBounds = taskGroup('DONE').getBoundingClientRect();
+            await taskDrag('agent', { x: Math.round(doneBounds.x + doneBounds.width / 2), y: Math.round(doneBounds.bottom - 25) });
+            if (taskOrder('DONE') !== 'agent,workspace') throw new Error('Cross-status drop must use attribute order, not pointer insertion position');
+            await taskDrag('context', { x: 1100, y: 30 });
+            if (window.taskMoves.length !== 2) throw new Error('Invalid drop must not save');
+            taskRoot().querySelector('[aria-label="显示选项"]').click();
+            await waitFor(() => document.querySelector('[aria-label="任务显示方式"]'), 'Missing Tasks display settings');
+            document.querySelector('[aria-label="任务显示方式"] [value="list"]').click();
+            await closePanel();
+            await taskDrag('workspace', center(taskCard('agent')));
+            if (window.taskMoves.length !== 2 || taskOrder('DONE') !== 'agent,workspace') throw new Error('List must not allow manual reordering');
+            await taskDrag('context', center(taskGroup('DONE').querySelector('header')));
+            if (taskOrder('DONE') !== 'agent,workspace,context') throw new Error('List drag onto group header must change status and auto-sort');
+            await taskDrag('workspace', center(taskGroup('TODO').querySelector('header')));
+            if (taskOrder('TODO') !== 'workspace') throw new Error('List must accept a drop into an empty status group');
+            taskRoot().querySelector('[aria-label="显示选项"]').click();
+            await waitFor(() => document.querySelector('[aria-label="任务显示方式"]'), 'Missing Tasks display settings');
+            document.querySelector('[aria-label="降序，点击切换为升序"]').click();
+            await closePanel();
+            await taskDrag('workspace', center(taskGroup('DONE').querySelector('header')));
+            if (taskOrder('DONE') !== 'context,workspace,agent') throw new Error('List cross-status drop must respect ascending sort');
+            if (window.taskMoves.some(move => move.beforeId !== null)) throw new Error('Drag must not submit a manual insertion position');
             const taskRefresh = () => document.querySelector('.task-panel-content [aria-label="刷新"]');
             const issueRefresh = () => document.querySelector('.issue-panel-content [aria-label="刷新"]');
             const initialStorage = JSON.stringify({ ...localStorage });
@@ -223,11 +288,12 @@ test("Issue 列表和看板、Tasks 拖拽以及两页刷新冷却", { timeout: 
             document.querySelector('[aria-label="Issue"]').click();
             await pause();
             if (issueRefresh().disabled) throw new Error('Issue and Tasks must have independent cooldowns');
-            const issueIds = window.issueItems().map(item => item.id).join(',');
+            const issueIds = window.issueItems().map(item => item.id).reverse().join(',');
+            const displayedIssueOrder = order('PR');
             localStorage.setItem('navo:development:issues', JSON.stringify(window.issueItems().slice().reverse().map(item => ({ ...item, title: item.title + ' updated' }))));
             issueRefresh().click();
             await waitFor(() => issueRefresh().disabled, 'Issue refresh must enter cooldown');
-            if (window.issueItems().map(item => item.id).join(',') !== issueIds || !window.issueItems()[0].title.endsWith(' updated')) throw new Error('Issue refresh must read data and preserve manual order');
+            if (window.issueItems().map(item => item.id).join(',') !== issueIds || !window.issueItems()[0].title.endsWith(' updated') || order('PR') !== displayedIssueOrder) throw new Error('Issue refresh must read data and preserve sort settings');
             await mode('list');
             if (!issueRefresh().disabled) throw new Error('View switching must preserve cooldown');
             document.querySelector('[aria-label="Tasks"]').click();

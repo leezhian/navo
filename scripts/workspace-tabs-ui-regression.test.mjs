@@ -79,7 +79,9 @@ test("真实任务标签：详情提升、拆分交换、布局调整与右键�
             await new Promise(resolve => setTimeout(resolve, 16));
             window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x + (to.x - from.x) * step / 12), y: Math.round(from.y + (to.y - from.y) * step / 12), button: 'left', modifiers: ['leftButtonDown'] });
           }
+          const feedback = await window.webContents.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(window.readResizeFeedback?.()))))");
           window.webContents.sendInputEvent({ type: 'mouseUp', ...to, button: 'left', clickCount: 1 });
+          return feedback;
         });
         try {
           await window.loadURL(${JSON.stringify(`http://127.0.0.1:${server.httpServer.address().port}/__tabs_test`)});
@@ -97,6 +99,30 @@ test("真实任务标签：详情提升、拆分交换、布局调整与右键�
             const active = () => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent;
             const item = (label) => [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent.startsWith(label));
             const menuRect = () => document.querySelector('[role="menu"]')?.getBoundingClientRect();
+            window.readResizeFeedback = () => {
+              const divider = [...document.querySelectorAll('[role="separator"][data-centered]')].find(element => element.closest('[data-resizing="true"]'));
+              return divider ? {
+                centered: divider.dataset.centered === 'true',
+                lineVisible: Number(getComputedStyle(divider, '::after').opacity) > 0,
+                value: Number(divider.getAttribute('aria-valuenow')),
+              } : null;
+            };
+            async function checkSnap(divider, vertical = false) {
+              const parent = divider.parentElement.getBoundingClientRect();
+              const dragToOffset = async offset => {
+                const rect = divider.getBoundingClientRect();
+                const from = { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
+                const to = vertical ? { x: from.x, y: Math.round(parent.y + parent.height / 2 + offset) } : { x: Math.round(parent.x + parent.width / 2 + offset), y: from.y };
+                return window.testInput.drag(from, to);
+              };
+              const snapped = await dragToOffset(5);
+              if (!snapped?.centered || !snapped.lineVisible || snapped.value !== 50) throw new Error('Dragging near the midpoint must snap exactly to 50/50 and highlight the divider');
+              const held = await dragToOffset(12);
+              if (!held?.centered || !held.lineVisible) throw new Error('Small pointer movement must stay snapped without flicker');
+              const released = await dragToOffset(24);
+              if (released?.centered) throw new Error('Moving beyond the release distance must leave the snap');
+              await waitFor(() => !divider.closest('[data-resizing="true"]'), 'Pointer release must end resizing');
+            }
             async function openMenu(title, clientX = 80, clientY = 80) {
               tab(title).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2, isPrimary: true, pointerType: 'mouse' }));
               tab(title).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX, clientY }));
@@ -121,10 +147,26 @@ test("真实任务标签：详情提升、拆分交换、布局调整与右键�
               await waitFor(() => active() === title && visiblePage()?.textContent.includes('任务正文：' + title), 'Promoting details must open the actual task page');
               await waitFor(() => !sidebar(), 'Promotion must close the sidebar');
             }
+            async function openTaskInTab(title) {
+              taskItem(title).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: 160, clientY: 180 }));
+              await waitFor(() => item('以标签页打开'), 'Task context menu must offer Open in tab');
+              item('以标签页打开').click();
+              await waitFor(() => active() === title && visiblePage()?.textContent.includes('任务正文：' + title), 'Context action must open the task page');
+              await waitFor(() => !sidebar(), 'Open in tab must close the task sidebar');
+            }
             await waitFor(() => document.querySelectorAll('.task-card').length === 3, 'Missing task fixture');
             if (tabs().length) throw new Error('Placeholder tabs must not be present');
             await preview('任务工作区');
             if (tabs().length) throw new Error('A normal task click must not create a tab');
+            await checkSnap(document.querySelector('.task-panel-separator'));
+            await openTaskInTab('任务工作区');
+            if (tabs().length !== 1) throw new Error('Board context action must create one tab');
+            await overview();
+            await openTaskInTab('任务工作区');
+            if (tabs().length !== 1) throw new Error('Repeated context action must not duplicate tabs');
+            await openMenu('任务工作区');
+            item('关闭').click();
+            await waitFor(() => tabs().length === 0 && !visiblePage(), 'Closing context-opened tab must restore overview');
             await promote('任务工作区');
             const createEntry = () => document.querySelector('button[aria-label="创建任务"]');
             const tabList = () => document.querySelector('[role="tablist"]');
@@ -156,6 +198,8 @@ test("真实任务标签：详情提升、拆分交换、布局调整与右键�
             await overview();
             await preview('多项目上下文');
             if (tabs().length !== 1) throw new Error('New list item must remain a sidebar preview');
+            await openTaskInTab('多项目上下文');
+            if (tabs().length !== 2) throw new Error('List context action must create one task tab');
             window.seedTabs();
             await waitFor(() => tabs().length === 3, 'Missing seeded task tabs');
             await openMenu('Agent 运行状态');
@@ -230,11 +274,13 @@ test("真实任务标签：详情提升、拆分交换、布局调整与右键�
             const dividerStart = center(separator());
             await window.testInput.drag(dividerStart, { x: dividerStart.x + 36, y: dividerStart.y });
             await waitFor(() => page('workspace').getBoundingClientRect().width > initialLeft.width + 25, 'Native pointer dragging must resize the split');
+            await checkSnap(separator());
             separator().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
             await waitFor(() => page('workspace').getBoundingClientRect().width > initialLeft.width + 10, 'Horizontal split must support resizing');
             const horizontalRatio = separator().getAttribute('aria-valuenow');
             await menuAction('任务工作区', '堆叠显示', '调整视图');
             await waitFor(() => separator()?.getAttribute('aria-orientation') === 'horizontal', 'Stacking must use a horizontal divider');
+            await checkSnap(separator(), true);
             const topRect = page('workspace').getBoundingClientRect();
             const bottomRect = page('agent').getBoundingClientRect();
             if (Math.abs(topRect.width - bottomRect.width) > 1 || Math.abs(bottomRect.top - topRect.bottom - 8) > 1) throw new Error('Stacked pages must appear top and bottom');
