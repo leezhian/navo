@@ -25,9 +25,171 @@ const { isTask, isIssueItem, parseStoredItems } = await importTs("src/utils/adeD
 const { filterTasks, orderTasks } = await importTs("src/utils/taskView.ts");
 const { filterIssues, orderIssues } = await importTs("src/utils/issueView.ts");
 const { bindDevelopmentTools } = await importTs("src/main-process/developmentTools.ts");
+const { useTaskTabsStore } = await importTs("src/stores/taskTabsStore.ts");
+const { taskTabGroups } = await importTs("src/domain/taskSplit.ts");
 const first = { id: "first", title: "任务一", date: "2026-09-30", projectName: "navo", status: "TODO" };
 const second = { ...first, id: "second", title: "任务二" };
 const third = { ...first, id: "third", status: "DONE" };
+
+test("任务标签按标识去重，未打开任务不会被激活，返回面板保留标签", () => {
+  useTaskTabsStore.setState({ taskIds: [], activeTaskId: null });
+  const tabs = useTaskTabsStore.getState();
+  assert.equal(tabs.activateTask("first"), false);
+  tabs.openTask("first"); tabs.openTask("second"); tabs.openTask("first");
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["first", "second"]);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "first");
+  tabs.showOverview();
+  assert.equal(useTaskTabsStore.getState().activeTaskId, null);
+  assert.equal(tabs.activateTask("second"), true);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "second");
+});
+
+test("标签重排后关闭遵循当前顺序，非当前关闭不改变选中", () => {
+  useTaskTabsStore.setState({ taskIds: ["first", "second", "third"], activeTaskId: "second" });
+  const tabs = useTaskTabsStore.getState();
+  tabs.reorderTasks(["third", "second", "first"]);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "second");
+  tabs.closeTask("third");
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "second");
+  tabs.closeTask("second");
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "first");
+  tabs.openTask("third"); tabs.closeTask("third");
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "first");
+  tabs.closeTask("first");
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, []);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, null);
+});
+
+test("关闭其他保留目标，非法排序不丢失标签，删除任务清理页面", () => {
+  useTaskTabsStore.setState({ taskIds: ["first", "second", "third"], activeTaskId: "first" });
+  const tabs = useTaskTabsStore.getState();
+  tabs.reorderTasks(["first"]); tabs.reorderTasks(["first", "first", "third"]); tabs.reorderTasks(["first", "second", "missing"]);
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["first", "second", "third"]);
+  tabs.retainTasks(["third"]);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "third");
+  tabs.openTask("first"); tabs.closeOtherTasks("third");
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["third"]);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "third");
+  tabs.closeOtherTasks("missing");
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["third"]);
+  tabs.retainTasks([]);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, null);
+});
+
+test("拆分待选页只接受独立标签，拒绝自身、重复和嵌套", () => {
+  useTaskTabsStore.setState({ taskIds: ["first", "second", "third", "fourth", "fifth"], activeTaskId: null, splits: [] });
+  const actions = useTaskTabsStore.getState();
+  actions.startSplit("first");
+  const pending = useTaskTabsStore.getState().splits[0];
+  assert.equal(pending.secondTaskId, null);
+  actions.completeSplit(pending.id, "first");
+  assert.equal(useTaskTabsStore.getState().splits[0].secondTaskId, null);
+  actions.startSplit("third", "fourth");
+  actions.completeSplit(pending.id, "third");
+  assert.equal(useTaskTabsStore.getState().splits[0].secondTaskId, null);
+  actions.completeSplit(pending.id, "second");
+  actions.startSplit("first", "fifth");
+  assert.equal(useTaskTabsStore.getState().splits.length, 2);
+  assert.equal(useTaskTabsStore.getState().splits[0].secondTaskId, "second");
+  actions.activateTask("first");
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "first");
+});
+
+test("独立标签交换到左右视图时，旧页面准确回到独立标签原位置", () => {
+  for (const side of ["first", "second"]) {
+    useTaskTabsStore.setState({ taskIds: ["outside", "first", "second", "after"], activeTaskId: "first", splits: [] });
+    const actions = useTaskTabsStore.getState();
+    actions.startSplit("first", "second");
+    const split = useTaskTabsStore.getState().splits[0];
+    actions.setSplitOrientation(split.id, "vertical");
+    actions.setSplitRatio(split.id, 0.6);
+    actions.swapIntoSplit(split.id, side, "outside");
+    const state = useTaskTabsStore.getState();
+    assert.deepEqual(state.taskIds, side === "first" ? ["first", "outside", "second", "after"] : ["second", "first", "outside", "after"]);
+    assert.equal(state.splits[0][side === "first" ? "firstTaskId" : "secondTaskId"], "outside");
+    assert.equal(state.splits[0].ratios.vertical, 0.6);
+    assert.equal(state.activeTaskId, "outside");
+    assert.equal(state.splits[0].id, split.id);
+  }
+});
+
+test("方向比例分别保存，反转不丢焦点，组合可整体重排和取消", () => {
+  useTaskTabsStore.setState({ taskIds: ["first", "outside", "second"], activeTaskId: "first", splits: [] });
+  const actions = useTaskTabsStore.getState();
+  actions.startSplit("first", "second");
+  const split = useTaskTabsStore.getState().splits[0];
+  actions.setSplitRatio(split.id, 0.6);
+  actions.setSplitOrientation(split.id, "vertical");
+  actions.setSplitRatio(split.id, 0.4);
+  actions.reverseSplit(split.id);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "first");
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["second", "first", "outside"]);
+  assert.deepEqual(useTaskTabsStore.getState().splits[0].ratios, { horizontal: 0.6, vertical: 0.4 });
+  actions.reorderTasks(["outside", split.id]);
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["outside", "second", "first"]);
+  actions.cancelSplit(split.id);
+  assert.equal(useTaskTabsStore.getState().splits.length, 0);
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["outside", "second", "first"]);
+});
+
+test("关闭组合任何一侧后激活剩余页，关闭其他保留整个组合", () => {
+  for (const closed of ["first", "second"]) {
+    useTaskTabsStore.setState({ taskIds: ["first", "second", "outside"], activeTaskId: null, splits: [] });
+    const actions = useTaskTabsStore.getState();
+    actions.startSplit("first", "second");
+    actions.activateTask(closed);
+    actions.closeTask(closed);
+    assert.equal(useTaskTabsStore.getState().splits.length, 0);
+    assert.equal(useTaskTabsStore.getState().activeTaskId, closed === "first" ? "second" : "first");
+  }
+  const actions = useTaskTabsStore.getState();
+  actions.openTask("second"); actions.startSplit("first", "second"); actions.closeOtherTasks("second");
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["first", "second"]);
+  assert.equal(useTaskTabsStore.getState().splits.length, 1);
+  actions.retainTasks(["second"]);
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["second"]);
+  assert.equal(useTaskTabsStore.getState().splits.length, 0);
+});
+
+test("取消待选页保留原页，删除待选组合的原页不遗留空标签", () => {
+  useTaskTabsStore.setState({ taskIds: ["first", "second"], activeTaskId: null, splits: [] });
+  const actions = useTaskTabsStore.getState();
+  actions.startSplit("first"); actions.cancelSplit(useTaskTabsStore.getState().splits[0].id);
+  assert.deepEqual(useTaskTabsStore.getState().taskIds, ["first", "second"]);
+  actions.startSplit("first"); actions.closeTask("first");
+  assert.equal(useTaskTabsStore.getState().splits.length, 0);
+  assert.equal(useTaskTabsStore.getState().activeTaskId, "second");
+});
+
+test("连续拆分、交换、删除后任务和组合标识始终唯一", () => {
+  useTaskTabsStore.setState({ taskIds: [], activeTaskId: null, splits: [] });
+  const actions = useTaskTabsStore.getState();
+  const ids = ["first", "second", "third", "fourth", "fifth"];
+  let seed = 17;
+  const next = (max) => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed % max; };
+  for (let iteration = 0; iteration < 300; iteration += 1) {
+    const state = useTaskTabsStore.getState();
+    const id = ids[next(ids.length)];
+    const split = state.splits[next(Math.max(1, state.splits.length))];
+    switch (next(8)) {
+      case 0: actions.openTask(id); break;
+      case 1: actions.closeTask(id); break;
+      case 2: actions.startSplit(id, next(2) ? ids[next(ids.length)] : undefined); break;
+      case 3: if (split) actions.completeSplit(split.id, id); break;
+      case 4: if (split) actions.swapIntoSplit(split.id, next(2) ? "first" : "second", id); break;
+      case 5: if (split) actions.reverseSplit(split.id); break;
+      case 6: if (split) actions.cancelSplit(split.id); break;
+      case 7: actions.retainTasks(ids.filter((value) => value !== id)); break;
+    }
+    const result = useTaskTabsStore.getState();
+    assert.equal(new Set(result.taskIds).size, result.taskIds.length);
+    assert.ok(result.activeTaskId === null || result.taskIds.includes(result.activeTaskId));
+    const members = result.splits.flatMap((group) => [group.firstTaskId, ...(group.secondTaskId ? [group.secondTaskId] : [])]);
+    assert.equal(new Set(members).size, members.length);
+    assert.ok(members.every((value) => result.taskIds.includes(value)));
+    assert.deepEqual(taskTabGroups(result.taskIds, result.splits).flatMap((group) => group.taskIds), result.taskIds);
+  }
+});
 
 test("开发模式的 DevTools 快捷键不依赖菜单，按键只切换一次", () => {
   const webContents = new EventEmitter();

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { LayoutGroup, MotionConfig, motion } from "motion/react";
 import { TaskCard } from "./TaskCard";
@@ -16,6 +16,7 @@ import type { TaskDisplayOptions } from "@/domain/taskView";
 import { useTasks } from "@/hooks/useTasks";
 import { useTaskView } from "@/hooks/useTaskView";
 import { useTaskDrag } from "@/hooks/useTaskDrag";
+import { useTaskTabsStore } from "@/stores/taskTabsStore";
 import type { TaskDragPreview, TaskDropTarget } from "@/hooks/useTaskDrag";
 
 const LAYOUT_TRANSITION = { duration: 0.2, ease: [0.22, 1, 0.36, 1] as const };
@@ -90,16 +91,20 @@ export function TaskBoard() {
   const { tasks, move, pending, loaded, loading, error, recoveryWarnings, bootstrap, requestedTaskId, requestOpen } = useTasks();
   const view = useTaskView(tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const { taskIds: openTaskIds, activateTask, openTask } = useTaskTabsStore();
+  const selectTask = useCallback((taskId: string) => {
+    setSelectedTaskId(activateTask(taskId) ? null : taskId);
+  }, [activateTask]);
   const selectedTask = view.visibleTasks.find((task) => task.id === selectedTaskId);
   const canDrag = loaded && !pending && view.display.mode === "board" && view.display.order === "manual";
   const requestedVisible = view.visibleTasks.some((task) => task.id === requestedTaskId);
   useEffect(() => {
-    if (requestedTaskId && requestedVisible) { setSelectedTaskId(requestedTaskId); requestOpen(null); }
-  }, [requestedTaskId, requestedVisible, requestOpen]);
+    if (requestedTaskId && (requestedVisible || openTaskIds.includes(requestedTaskId))) { selectTask(requestedTaskId); requestOpen(null); }
+  }, [requestedTaskId, requestedVisible, openTaskIds, selectTask, requestOpen]);
   const { dragPreview, dropTarget, dropDuration, pointerHandlers } = useTaskDrag({
     tasks: view.visibleTasks,
     onMove: (taskId, target) => { void move(taskId, target.status, target.beforeTaskId); },
-    onTaskClick: setSelectedTaskId,
+    onTaskClick: selectTask,
   });
   const taskColumns = columnDefinitions.map((column) => ({ ...column, tasks: view.visibleTasks.filter((task) => task.status === column.status) }));
 
@@ -107,7 +112,7 @@ export function TaskBoard() {
     <MotionConfig reducedMotion="user">
       <LayoutGroup id="task-board">
         <ResizableWorkspace
-          details={selectedTask ? <TaskDetails task={selectedTask} onClose={() => setSelectedTaskId(null)} /> : null}
+          details={selectedTask ? <TaskDetails task={selectedTask} onClose={() => setSelectedTaskId(null)} onOpenPage={() => { openTask(selectedTask.id); setSelectedTaskId(null); }} /> : null}
           detailsHeadingId="task-details-heading"
           listLabel={translate("任务面板")}
         >
@@ -123,10 +128,10 @@ export function TaskBoard() {
                 {taskColumns.map((column) => (
                   <TaskColumn key={column.status} column={column} dragPreview={dragPreview}
                     dropTarget={dropTarget?.status === column.status ? dropTarget : null}
-                    selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId} display={view.display} filtered={view.hasFilters} />
+                    selectedTaskId={selectedTaskId} onSelectTask={selectTask} display={view.display} filtered={view.hasFilters} />
                 ))}
               </motion.div>
-            ) : <TaskList tasks={view.visibleTasks} display={view.display} selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId} />}
+            ) : <TaskList tasks={view.visibleTasks} display={view.display} selectedTaskId={selectedTaskId} onSelectTask={selectTask} />}
           </div>
         </ResizableWorkspace>
         {dragPreview && createPortal(

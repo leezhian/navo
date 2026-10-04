@@ -1,5 +1,7 @@
 import { ApplicationShell } from "./components/layout/ApplicationShell";
 import { TaskBoard } from "./components/tasks/TaskBoard";
+import { TaskPages } from "./components/tasks/TaskPages";
+import { useTaskTabs } from "./hooks/useTaskTabs";
 import { IssueList } from "./components/issues/IssueList";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -17,6 +19,7 @@ import { getSettingsError } from "./services/settingsErrors";
 function App() {
   const { resolvedTheme, settings, updateSettings } = useLocalSettings();
   const navigation = useAppNavigation();
+  const taskTabs = useTaskTabs();
   const [creatingTask, setCreatingTask] = useState(false);
   const { t } = useTranslation();
   const { loaded, loading, loadError, saveError, saving, bootstrap, retrySave } = useSettingsStore();
@@ -47,7 +50,8 @@ function App() {
           <span>{t("设置尚未保存，请重试。")} {getSettingsError(saveError)}</span><Button className="h-7 text-xs" variant="secondary" onClick={retrySave}>{t("重试")}</Button>
         </div>}
         <span role="status" className="sr-only">{saving ? t("保存中…") : ""}</span>
-        <div className="h-full" hidden={navigation.section !== "tasks"}><TaskBoard /></div>
+        <div className="h-full" hidden={navigation.section !== "tasks" || taskTabs.activeTaskId !== null}><TaskBoard /></div>
+        <TaskPages visible={navigation.section === "tasks" && taskTabs.activeTaskId !== null} />
         <div className="h-full" hidden={navigation.section !== "issue"}><IssueList /></div>
         <div className="h-full" hidden={navigation.section !== "settings"}>
           <SettingsPanel settings={settings} resolvedTheme={resolvedTheme} updateSettings={updateSettings} />

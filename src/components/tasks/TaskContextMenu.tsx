@@ -14,7 +14,7 @@ interface TaskContextMenuProps {
   children: ReactElement;
   /** 当前任务状态决定归档/恢复及资源占位入口。 */
   task: Task;
-  /** 打开现有独立详情，不接入顶部真实工作区。 */
+  /** 已有任务标签时直接激活，否则打开独立侧栏详情。 */
   onOpen: () => void;
 }
 

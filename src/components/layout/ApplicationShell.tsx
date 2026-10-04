@@ -22,7 +22,7 @@ interface ApplicationShellProps {
   /** 顶部后退与前进操作。 */
   onGoBack: () => void;
   onGoForward: () => void;
-  /** 仅打开任务创建弹窗，不改变占位标签的选中与排序逻辑。 */
+  /** 打开任务创建弹窗，不自动生成任务标签页。 */
   onCreateTask: () => void;
 }
 
@@ -59,8 +59,10 @@ export function ApplicationShell({ section, children, canGoBack, canGoForward, o
           <Button aria-label={translate("后退")} className="size-7 text-muted-foreground" disabled={!canGoBack} size="icon" variant="ghost" onClick={onGoBack}><ArrowLeft aria-hidden="true" size={17} /></Button>
           <Button aria-label={translate("前进")} className="size-7 text-muted-foreground" disabled={!canGoForward} size="icon" variant="ghost" onClick={onGoForward}><ArrowRight aria-hidden="true" size={17} /></Button>
         </nav>
-        <WorkspaceHeaderTabs />
-        <IconTooltip label={translate("创建任务")} className="window-no-drag size-7 shrink-0" variant="ghost" onClick={onCreateTask}><Plus className="size-4" /></IconTooltip>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <WorkspaceHeaderTabs onActivateWorkspace={() => onSelectSection("tasks")} />
+          <IconTooltip label={translate("创建任务")} className="window-no-drag size-7 shrink-0" variant="ghost" onClick={onCreateTask}><Plus className="size-4" /></IconTooltip>
+        </div>
       </>
     }>
       <div className="navo-window-body">

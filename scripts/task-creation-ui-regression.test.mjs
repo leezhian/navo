@@ -407,6 +407,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
               document.querySelector('.task-card').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:80,clientY:80}));
               await waitFor(() => document.querySelector('[role="menu"]'), 'Missing task context menu');
               const menu = document.querySelector('[role="menu"]');
+              if ([...menu.querySelectorAll('[role="menuitem"]')].some(item => getComputedStyle(item).fontSize !== '12px')) throw new Error('Task context menus must use the same 12px typography as tabs');
               const item = [...menu.querySelectorAll('[role="menuitem"]')].find(item => item.textContent.trim() === action);
               if (!item) throw new Error('Missing task action: ' + action);
               item.click();
@@ -454,7 +455,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
               await click('确认');
               await waitFor(() => !document.querySelector('.task-card'), 'Fixture cleanup failed');
             }
-            if (document.querySelectorAll('[role="tab"]').length !== 3) throw new Error('Placeholder tabs were changed');
+            if (document.querySelectorAll('[role="tab"]').length !== 0) throw new Error('Creating tasks must not automatically open task tabs');
             return 'Task creation, shared resources, attachments and task menu passed';
           })()\`);
           console.log(result);
