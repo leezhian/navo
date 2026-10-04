@@ -1,7 +1,10 @@
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
-import type { Task } from "@/domain/tasks";
+import { ChevronDown } from "lucide-react";
+import { Collapsible } from "radix-ui";
+import { Button } from "@/components/ui/button";
+import type { Task, TaskStatus } from "@/domain/tasks";
 import type { TaskDisplayOptions } from "@/domain/taskView";
 import type { TaskDragPreview, TaskDropTarget, useTaskDrag } from "@/hooks/useTaskDrag";
 import { taskColumns } from "./taskConstants";
@@ -24,9 +27,13 @@ interface TaskListProps {
   pointerHandlers?: ReturnType<typeof useTaskDrag>["pointerHandlers"];
   /** 区分无任务与筛选无结果。 */
   filtered: boolean;
+  /** 收起的状态组，由页面保留，切换到看板后不重置。 */
+  collapsedStatuses: TaskStatus[];
+  /** 独立更新指定状态组的展开状态，不影响任务数据和详情。 */
+  onGroupOpenChange: (status: TaskStatus, open: boolean) => void;
 }
 
-export function TaskList({ tasks, display, selectedTaskId, onSelectTask, dragPreview, dropTarget, pointerHandlers, filtered }: TaskListProps) {
+export function TaskList({ tasks, display, selectedTaskId, onSelectTask, dragPreview, dropTarget, pointerHandlers, filtered, collapsedStatuses, onGroupOpenChange }: TaskListProps) {
   const { t } = useTranslation();
   return (
     <motion.div className="task-list" layoutScroll {...pointerHandlers}>
@@ -34,12 +41,22 @@ export function TaskList({ tasks, display, selectedTaskId, onSelectTask, dragPre
         const groupTasks = tasks.filter((task) => task.status === status);
         const target = dropTarget?.status === status ? dropTarget : null;
         const headingId = "task-list-" + status.toLowerCase();
+        const open = !collapsedStatuses.includes(status);
         return (
-          <section key={status} aria-labelledby={headingId} className="task-list-group" data-board-group={status} data-drop-target={!!target}>
-            <header className="task-list-header">
-              <StatusIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-              <h2 id={headingId}>{status}</h2><span className="text-muted-foreground">{groupTasks.length}</span>
+          <Collapsible.Root key={status} open={open} onOpenChange={(nextOpen) => onGroupOpenChange(status, nextOpen)} asChild>
+          <section aria-labelledby={headingId} className="task-list-group" data-board-group={status} data-drop-target={!!target}>
+            <header>
+              <h2 id={headingId} className="m-0">
+                <Collapsible.Trigger asChild>
+                  <Button className="task-list-header" variant="ghost" aria-label={t("{{group}} 分组", { group: status })}>
+                    <ChevronDown aria-hidden="true" className="task-list-chevron text-muted-foreground" size={14} />
+                    <StatusIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+                    <span>{status}</span><span className="font-normal text-muted-foreground">{groupTasks.length}</span>
+                  </Button>
+                </Collapsible.Trigger>
+              </h2>
             </header>
+            <Collapsible.Content className="task-list-collapse">
             <div className="task-list-group-content" data-board-content="">
               {groupTasks.map((task) => (
                 <Fragment key={task.id}>
@@ -54,7 +71,9 @@ export function TaskList({ tasks, display, selectedTaskId, onSelectTask, dragPre
               ))}
               {groupTasks.length === 0 && <p className="ade-empty-state">{t(filtered ? "暂无匹配任务" : "暂无任务")}</p>}
             </div>
+            </Collapsible.Content>
           </section>
+          </Collapsible.Root>
         );
       })}
     </motion.div>

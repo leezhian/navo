@@ -76,7 +76,7 @@ test("属性排序、任务跨状态拖拽、列表看板与刷新冷却", { tim
   try {
     await server.listen();
     const preload = path.join(directory, "test-input.cjs");
-    await writeFile(preload, `const { contextBridge, ipcRenderer } = require('electron'); contextBridge.exposeInMainWorld('testInput', { drag: (from, to) => ipcRenderer.invoke('test:drag', from, to), hover: point => ipcRenderer.invoke('test:hover', point) });`);
+    await writeFile(preload, `const { contextBridge, ipcRenderer } = require('electron'); contextBridge.exposeInMainWorld('testInput', { drag: (from, to) => ipcRenderer.invoke('test:drag', from, to), hover: point => ipcRenderer.invoke('test:hover', point), click: point => ipcRenderer.invoke('test:click', point), press: key => ipcRenderer.invoke('test:press', key) });`);
     const runner = path.join(directory, "issue-board.cjs");
     await writeFile(runner, `
       const { app, BrowserWindow, ipcMain } = require('electron');
@@ -85,6 +85,16 @@ test("属性排序、任务跨状态拖拽、列表看板与刷新冷却", { tim
         app.dock?.hide();
         const window = new BrowserWindow({ show: false, width: 1200, height: 800, webPreferences: { backgroundThrottling: false, preload: ${JSON.stringify(preload)} } });
         ipcMain.handle('test:hover', (_event, point) => window.webContents.sendInputEvent({ type: 'mouseMove', ...point }));
+        ipcMain.handle('test:click', (_event, point) => {
+          window.webContents.sendInputEvent({ type: 'mouseMove', ...point });
+          window.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 });
+          window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 });
+        });
+        ipcMain.handle('test:press', (_event, key) => {
+          window.webContents.sendInputEvent({ type: 'keyDown', keyCode: key });
+          window.webContents.sendInputEvent({ type: 'char', keyCode: key === 'Enter' ? String.fromCharCode(13) : ' ' });
+          window.webContents.sendInputEvent({ type: 'keyUp', keyCode: key });
+        });
         ipcMain.handle('test:drag', async (_event, from, to) => {
           window.webContents.sendInputEvent({ type: 'mouseMove', ...from });
           window.webContents.sendInputEvent({ type: 'mouseDown', ...from, button: 'left', clickCount: 1 });
@@ -251,9 +261,39 @@ test("属性排序、任务跨状态拖拽、列表看板与刷新冷却", { tim
             await waitFor(() => document.querySelector('[aria-label="任务显示方式"]'), 'Missing Tasks display settings');
             document.querySelector('[aria-label="任务显示方式"] [value="list"]').click();
             await closePanel();
+            const groupButton = status => taskGroup(status).querySelector('[aria-expanded]');
+            if (['TODO', 'DONE', 'ARCHIVED'].some(status => groupButton(status).getAttribute('aria-expanded') !== 'true')) throw new Error('Task list groups must default to expanded');
+            await window.testInput.click(center(groupButton('DONE')));
+            await waitFor(() => groupButton('DONE').getAttribute('aria-expanded') === 'false' && !taskCard('workspace'), 'Clicking the group header must collapse its items');
+            if (groupButton('TODO').getAttribute('aria-expanded') !== 'true') throw new Error('Task groups must collapse independently');
+            for (const value of ['board', 'list']) {
+              taskRoot().querySelector('[aria-label="显示选项"]').click();
+              await waitFor(() => document.querySelector('[aria-label="任务显示方式"]'), 'Missing view controls');
+              document.querySelector('[aria-label="任务显示方式"] [value="' + value + '"]').click();
+              await closePanel();
+            }
+            if (groupButton('DONE').getAttribute('aria-expanded') !== 'false') throw new Error('Collapsed task groups must survive layout switching');
+            document.querySelector('[aria-label="Issue"]').click();
+            await pause();
+            document.querySelector('[aria-label="Tasks"]').click();
+            await pause();
+            if (groupButton('DONE').getAttribute('aria-expanded') !== 'false') throw new Error('Collapsed task groups must survive module navigation');
+            groupButton('ARCHIVED').focus();
+            await waitFor(() => document.activeElement === groupButton('ARCHIVED'), 'Group header must be keyboard focusable');
+            await window.testInput.press('Enter');
+            await waitFor(() => groupButton('ARCHIVED').getAttribute('aria-expanded') === 'false', 'Enter must collapse an empty group');
+            await window.testInput.press('Space');
+            await waitFor(() => groupButton('ARCHIVED').getAttribute('aria-expanded') === 'true', 'Space must expand an empty group');
+            await window.testInput.click(center(groupButton('DONE')));
+            await waitFor(() => taskCard('workspace'), 'Reopening must restore the task rows');
             await taskDrag('workspace', center(taskCard('agent')));
             if (window.taskMoves.length !== 2 || taskOrder('DONE') !== 'agent,workspace') throw new Error('List must not allow manual reordering');
+            await window.testInput.click(center(groupButton('DONE')));
+            await waitFor(() => !taskCard('workspace'), 'Destination group must be collapsed before drop');
             await taskDrag('context', center(taskGroup('DONE').querySelector('header')));
+            if (groupButton('DONE').getAttribute('aria-expanded') !== 'false' || !groupButton('DONE').textContent.includes('3')) throw new Error('Dropping into a collapsed group must update count without opening it');
+            await window.testInput.click(center(groupButton('DONE')));
+            await waitFor(() => taskCard('workspace'), 'Group must reopen after accepting a drop');
             if (taskOrder('DONE') !== 'agent,workspace,context') throw new Error('List drag onto group header must change status and auto-sort');
             await taskDrag('workspace', center(taskGroup('TODO').querySelector('header')));
             if (taskOrder('TODO') !== 'workspace') throw new Error('List must accept a drop into an empty status group');

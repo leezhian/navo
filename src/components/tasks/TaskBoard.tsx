@@ -83,6 +83,7 @@ export function TaskBoard() {
   const { tasks, move, pending, loaded, loading, error, recoveryWarnings, bootstrap, requestedTaskId, requestOpen } = useTasks();
   const view = useTaskView(tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [collapsedStatuses, setCollapsedStatuses] = useState<TaskStatus[]>([]);
   const { taskIds: openTaskIds, activateTask, openTask } = useTaskTabsStore();
   const selectTask = useCallback((taskId: string) => {
     setSelectedTaskId(activateTask(taskId) ? null : taskId);
@@ -99,6 +100,12 @@ export function TaskBoard() {
     onTaskClick: selectTask,
   });
   const taskColumns = columnDefinitions.map((column) => ({ ...column, tasks: view.visibleTasks.filter((task) => task.status === column.status) }));
+  function handleGroupOpenChange(status: TaskStatus, open: boolean) {
+    setCollapsedStatuses((current) => {
+      if (open) return current.filter((item) => item !== status);
+      return current.includes(status) ? current : [...current, status];
+    });
+  }
 
   return (
     <MotionConfig reducedMotion="user">
@@ -124,7 +131,8 @@ export function TaskBoard() {
                 ))}
               </motion.div>
             ) : <TaskList tasks={view.visibleTasks} display={view.display} selectedTaskId={selectedTaskId} onSelectTask={selectTask}
-              dragPreview={dragPreview} dropTarget={dropTarget} pointerHandlers={canDrag ? pointerHandlers : undefined} filtered={view.hasFilters} />}
+              dragPreview={dragPreview} dropTarget={dropTarget} pointerHandlers={canDrag ? pointerHandlers : undefined} filtered={view.hasFilters}
+              collapsedStatuses={collapsedStatuses} onGroupOpenChange={handleGroupOpenChange} />}
           </div>
         </ResizableWorkspace>
         {dragPreview && createPortal(

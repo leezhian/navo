@@ -4,6 +4,7 @@ import { Columns3, List, SlidersHorizontal } from "lucide-react";
 import { Popover, RadioGroup } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { WorkspaceSortControl } from "@/components/layout/WorkspaceSortControl";
+import { useNestedPopoverDismiss } from "@/hooks/useNestedPopoverDismiss";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TaskDisplayOptions, TaskViewMode } from "@/domain/taskView";
 import { WORKSPACE_OPTIONS_PANEL_CLASS_NAME, WORKSPACE_OPTIONS_SECTION_CLASS_NAME } from "@/components/layout/workspaceOptions";
@@ -17,6 +18,7 @@ interface TaskDisplayMenuProps {
 
 export function TaskDisplayMenu({ display, onDisplayChange }: TaskDisplayMenuProps) {
   const { t: translate } = useTranslation();
+  const { contentRef, onPointerDownOutside } = useNestedPopoverDismiss();
   return (
     <Popover.Root>
       <Tooltip>
@@ -28,7 +30,7 @@ export function TaskDisplayMenu({ display, onDisplayChange }: TaskDisplayMenuPro
         <TooltipContent>{translate("显示选项")}</TooltipContent>
       </Tooltip>
       <Popover.Portal>
-        <Popover.Content aria-label={translate("任务显示选项")} align="end" sideOffset={8}
+        <Popover.Content ref={contentRef} onPointerDownOutside={onPointerDownOutside} aria-label={translate("任务显示选项")} align="end" sideOffset={8}
           className={WORKSPACE_OPTIONS_PANEL_CLASS_NAME + " z-50 max-h-[var(--radix-popover-content-available-height)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95"}>
           <RadioGroup.Root aria-label={translate("任务显示方式")} className="flex gap-2" value={display.mode}
             onValueChange={(mode: TaskViewMode) => onDisplayChange((current) => ({ ...current, mode }))}>
