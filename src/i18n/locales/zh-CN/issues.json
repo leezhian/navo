@@ -13,7 +13,8 @@
   },
   "empty": {
     "matches": "暂无匹配条目",
-    "group": "暂无 {{group}}"
+    "assignedTitle": "暂无分配给你的 PR 或 Issue",
+    "assignedDescription": "此列表展示你创建、被分配或被提及的工作。如需浏览组织中的其他内容，请前往新建任务 → Issues > 全部可见。"
   },
   "toolbar": {
     "label": "Issue 列表工具栏"

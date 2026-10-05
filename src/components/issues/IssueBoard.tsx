@@ -12,17 +12,15 @@ interface IssueBoardProps {
   issues: IssueItem[];
   /** 与列表共享排序和字段显隐设置。 */
   display: IssueDisplayOptions;
-  /** 可见类型，固定按 PR、ISSUE 顺序展示。 */
+  /** 含匹配条目的可见类型，固定按 PR、ISSUE 顺序展示。 */
   groups: IssueGroup[];
-  /** 用于区分无数据和筛选无结果。 */
-  filtered: boolean;
   /** 详情选中项，切换显示方式时保留。 */
   selectedIssueId: string | null;
   /** 打开独立右侧详情。 */
   onSelectIssue: (issueId: string) => void;
 }
 
-export function IssueBoard({ issues, display, groups, filtered, selectedIssueId, onSelectIssue }: IssueBoardProps) {
+export function IssueBoard({ issues, display, groups, selectedIssueId, onSelectIssue }: IssueBoardProps) {
   const { t } = useTranslation(["common", "issues"]);
   return (
     <MotionConfig reducedMotion="user">
@@ -45,7 +43,6 @@ export function IssueBoard({ issues, display, groups, filtered, selectedIssueId,
                       <IssueCard issue={issue} display={display} selected={selectedIssueId === issue.id} onSelect={() => onSelectIssue(issue.id)} />
                     </motion.div>
                   ))}
-                  {groupIssues.length === 0 && <p className="ade-empty-state">{filtered ? t("issues:empty.matches") : t("issues:empty.group", { group })}</p>}
                 </motion.div>
               </section>
             );

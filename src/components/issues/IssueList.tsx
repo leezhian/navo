@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Collapsible } from "radix-ui";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import { issueStatuses, issueTags } from "./issueConstants";
+import { issueGroups, issueStatuses, issueTags } from "./issueConstants";
 import { useIssueStore } from "@/stores/issueStore";
 import type { IssueGroup, IssueItem } from "@/domain/issues";
 import type { IssueDisplayOptions } from "@/domain/issueView";
@@ -14,6 +14,7 @@ import { useIssueView } from "@/hooks/useIssueView";
 import { IssueDetails } from "./IssueDetails";
 import { IssueToolbar } from "./IssueToolbar";
 import { IssueBoard } from "./IssueBoard";
+import { IssueEmptyState } from "./IssueEmptyState";
 import { ResizableWorkspace } from "@/components/layout/ResizableWorkspace";
 
 
@@ -39,8 +40,6 @@ interface IssueSectionProps {
   visible: boolean;
   /** 当前列表展示设置。 */
   display: IssueDisplayOptions;
-  /** 当前存在过滤条件，用于区分无数据和无匹配结果。 */
-  filtered: boolean;
   /** 当前选中的条目标识，未打开详情时为 null。 */
   selectedIssueId: string | null;
   /** 打开指定条目的详情，保持分组的展开状态。 */
@@ -69,7 +68,7 @@ function IssueRow({ issue, selected, onSelect, display }: IssueRowProps) {
   );
 }
 
-function IssueSection({ group, icon: GroupIcon, issues, visible, display, filtered, selectedIssueId, onSelectIssue }: IssueSectionProps) {
+function IssueSection({ group, icon: GroupIcon, issues, visible, display, selectedIssueId, onSelectIssue }: IssueSectionProps) {
   const { t: translate } = useTranslation(["common", "issues"]);
   const headingId = "issue-group-" + group.toLowerCase();
   const [isOpen, setIsOpen] = useState(true);
@@ -100,7 +99,6 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, filter
                 transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
               >
                 <ul className="issue-group-list">
-                  {issues.length === 0 && <li className="ade-empty-state">{filtered ? translate("issues:empty.matches") : translate("issues:empty.group", { group })}</li>}
                   {issues.map((issue) => (
                     <IssueRow key={issue.id} issue={issue} selected={selectedIssueId === issue.id} onSelect={() => onSelectIssue(issue.id)} display={display} />
                   ))}
@@ -121,10 +119,10 @@ export function IssueList() {
   const view = useIssueView(issues);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const selectedIssue = view.visibleIssues.find((issue) => issue.id === selectedIssueId);
-  const showPR = view.filters.groups.length === 0 || view.filters.groups.includes("PR");
-  const showIssue = view.filters.groups.length === 0 || view.filters.groups.includes("ISSUE");
   const pullRequests = view.visibleIssues.filter((issue) => issue.group === "PR");
   const issueItems = view.visibleIssues.filter((issue) => issue.group === "ISSUE");
+  const visibleGroups = issueGroups.filter((group) => group === "PR" ? pullRequests.length > 0 : issueItems.length > 0);
+  const isEmpty = view.visibleIssues.length === 0;
 
   return (
     <ResizableWorkspace
@@ -133,14 +131,15 @@ export function IssueList() {
       <div className="issue-panel-content">
         <IssueToolbar issues={issues} filters={view.filters} display={view.display} projectNames={view.projectNames} hasFilters={view.hasFilters}
           onFiltersChange={view.setFilters} onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} onRefresh={refresh} />
-        {view.display.mode === "board" && <IssueBoard issues={view.visibleIssues} display={view.display}
-          groups={view.filters.groups.length ? view.filters.groups : ["PR", "ISSUE"]} filtered={view.hasFilters}
+        {isEmpty && <IssueEmptyState hasItems={issues.length > 0} />}
+        {!isEmpty && view.display.mode === "board" && <IssueBoard issues={view.visibleIssues} display={view.display}
+          groups={visibleGroups}
           selectedIssueId={selectedIssueId} onSelectIssue={setSelectedIssueId} />}
-        <div className="issue-list" hidden={view.display.mode !== "list"}>
+        <div className="issue-list" hidden={isEmpty || view.display.mode !== "list"}>
           <div className="issue-list-content">
-            <IssueSection group="PR" icon={GitPullRequest} issues={pullRequests} visible={showPR} display={view.display} filtered={view.hasFilters}
+            <IssueSection group="PR" icon={GitPullRequest} issues={pullRequests} visible={pullRequests.length > 0} display={view.display}
               selectedIssueId={selectedIssueId} onSelectIssue={setSelectedIssueId} />
-            <IssueSection group="ISSUE" icon={CircleDot} issues={issueItems} visible={showIssue} display={view.display} filtered={view.hasFilters}
+            <IssueSection group="ISSUE" icon={CircleDot} issues={issueItems} visible={issueItems.length > 0} display={view.display}
               selectedIssueId={selectedIssueId} onSelectIssue={setSelectedIssueId} />
           </div>
         </div>

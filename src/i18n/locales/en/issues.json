@@ -13,7 +13,8 @@
   },
   "empty": {
     "matches": "No matching items",
-    "group": "No {{group}} items"
+    "assignedTitle": "No assigned PRs or issues",
+    "assignedDescription": "This list shows work you authored, are assigned, or were mentioned in. To browse everything else in your organizations, use New task → Issues > All visible."
   },
   "toolbar": {
     "label": "Issue toolbar"

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import electron from "electron";
 import { createServer } from "vite";
 
-test("属性排序、任务跨状态拖拽、列表看板与刷新冷却", { timeout: 60000 }, async () => {
+test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与刷新冷却", { timeout: 60000 }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-issue-board-ui-"));
   const { default: tailwindcss } = await import("@tailwindcss/vite");
   const server = await createServer({
@@ -48,6 +48,8 @@ test("属性排序、任务跨状态拖拽、列表看板与刷新冷却", { tim
         { id: 'issue2', group: 'ISSUE', title: 'Issue Two', tag: 'discussion', projectName: 'navo', status: 'progress', date: '2026-10-02' },
       ] });
       window.issueItems = () => useIssueStore.getState().items;
+      window.setIssueItems = (items) => useIssueStore.setState({ items });
+      window.setLocale = (locale) => i18n.changeLanguage(locale);
       window.taskItems = () => useTaskStore.getState().tasks;
       let clockOffset = 0;
       const actualNow = Date.now;
@@ -186,6 +188,36 @@ test("属性排序、任务跨状态拖拽、列表看板与刷新冷却", { tim
             document.querySelector('[aria-label="Issue"]').click();
             await waitFor(() => document.querySelectorAll('.issue-row').length === 5, 'Default must be list');
             if (board()) throw new Error('Board must not be the default');
+            const initialIssueItems = window.issueItems();
+            const emptyState = () => document.querySelector('.issue-panel-content [role="status"]');
+            const visibleListGroups = () => [...document.querySelectorAll('.issue-group')].filter(section => section.getClientRects().length > 0);
+            for (const layout of ['list', 'board']) {
+              await mode(layout);
+              for (const type of ['PR', 'ISSUE']) {
+                window.setIssueItems(initialIssueItems.filter(item => item.group === type));
+                await waitFor(() => layout === 'board' ? board()?.querySelectorAll('[data-board-group]').length === 1 : visibleListGroups().length === 1, 'Empty groups must be hidden');
+                if (layout === 'board' && !group(type)) throw new Error('Board must show only the non-empty type');
+                if (layout === 'list' && visibleListGroups()[0].getAttribute('aria-labelledby') !== 'issue-group-' + type.toLowerCase()) throw new Error('List must show only the non-empty type');
+              }
+              window.setIssueItems([]);
+              await waitFor(() => emptyState()?.textContent.includes('暂无分配给你的 PR 或 Issue'), 'Empty data must show the assigned empty state');
+              if (board() || visibleListGroups().length) throw new Error('Empty page must not show groups');
+              if (!document.querySelector('.issue-panel-content [role="toolbar"]')) throw new Error('Empty page must retain toolbar');
+              await window.setLocale('en');
+              await waitFor(() => emptyState()?.textContent.includes('No assigned PRs or issues'), 'Empty title must support English');
+              if (!emptyState().textContent.includes('This list shows work you authored, are assigned, or were mentioned in. To browse everything else in your organizations, use New task → Issues > All visible.')) throw new Error('Missing assigned empty description');
+              await window.setLocale('zh-CN');
+              window.setIssueItems(initialIssueItems);
+              await waitFor(() => !emptyState(), 'Restoring data must clear the empty state');
+              await filterProject();
+              window.setIssueItems(initialIssueItems.filter(item => item.projectName === 'other'));
+              await waitFor(() => emptyState()?.textContent === '暂无匹配条目', 'Filtered emptiness must not claim there are no assigned items');
+              if (board() || visibleListGroups().length) throw new Error('Filtered empty page must hide groups');
+              document.querySelector('.issue-panel-content .workspace-toolbar button').click();
+              window.setIssueItems(initialIssueItems);
+              await waitFor(() => !emptyState(), 'Reset must restore content');
+            }
+            await mode('list');
             document.querySelector('[aria-label="PR 分组"]').click();
             await pause();
             await mode('board');
