@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getTaskError } from "@/services/taskErrors";
+import { TaskDeleteDialog } from "./TaskDeleteDialog";
 
 interface TaskContextMenuProps {
   /** 卡片或列表行作为原始触发节点，不新增影响拖拽的布局包装。 */
@@ -26,7 +27,7 @@ export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps
   const [action, setAction] = useState<"rename" | "delete" | null>(null);
   const [title, setTitle] = useState(task.title);
   async function confirm() {
-    const success = action === "rename" ? await store.rename(task.id, title) : await store.remove(task.id);
+    const success = await store.rename(task.id, title);
     if (success) setAction(null);
   }
   return <>
@@ -43,12 +44,13 @@ export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps
         <ContextMenuItem disabled={store.pending} variant="destructive" onSelect={() => setAction("delete")}>{t("common:actions.delete")}</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-    <Dialog open={action !== null} onOpenChange={(open) => { if (!open && !store.pending) setAction(null); }}>
+    {action === "delete" && <TaskDeleteDialog task={task} onClose={() => setAction(null)} />}
+    <Dialog open={action === "rename"} onOpenChange={(open) => { if (!open && !store.pending) setAction(null); }}>
       <DialogContent showCloseButton={!store.pending} onEscapeKeyDown={(event) => { if (store.pending) event.preventDefault(); }} onInteractOutside={(event) => { if (store.pending) event.preventDefault(); }}>
-        <DialogHeader><DialogTitle>{t(action === "rename" ? "tasks:dialogs.renameTitle" : "tasks:dialogs.deleteTitle")}</DialogTitle><DialogDescription>{t(action === "rename" ? "tasks:dialogs.renameDescription" : "tasks:dialogs.deleteDescription")}</DialogDescription></DialogHeader>
-        {action === "rename" ? <Input autoFocus aria-label={t("tasks:fields.title")} disabled={store.pending} value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && title.trim() && !store.pending) void confirm(); }} /> : <p className="text-sm">{task.title}</p>}
+        <DialogHeader><DialogTitle>{t("tasks:dialogs.renameTitle")}</DialogTitle><DialogDescription>{t("tasks:dialogs.renameDescription")}</DialogDescription></DialogHeader>
+        <Input autoFocus aria-label={t("tasks:fields.title")} disabled={store.pending} value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && title.trim() && !store.pending) void confirm(); }} />
         {store.error !== null && <p role="alert" className="text-xs text-destructive">{getTaskError(store.error)}</p>}
-        <DialogFooter><Button variant="ghost" disabled={store.pending} onClick={() => setAction(null)}>{t("common:actions.cancel")}</Button><Button variant={action === "delete" ? "destructive" : "default"} disabled={store.pending || (action === "rename" && !title.trim())} onClick={() => void confirm()}>{t("common:actions.confirm")}</Button></DialogFooter>
+        <DialogFooter><Button variant="ghost" disabled={store.pending} onClick={() => setAction(null)}>{t("common:actions.cancel")}</Button><Button disabled={store.pending || !title.trim()} onClick={() => void confirm()}>{t("common:actions.confirm")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;

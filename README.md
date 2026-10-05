@@ -137,7 +137,7 @@ npm run test:i18n
 
 ## 本地数据兼容
 
-新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置保存在 Electron `userData/app.db`，资源仍写入 `userData/resources.json` 并串行原子替换。设置数据库使用内置 `node:sqlite`，按字段存入 `settings(key, value)`，值为 JSON 编码，开启 WAL、FULL 同步与 3 秒忙等待；整组更新以事务提交，主进程读写共用队列，提交成功才更新缓存，退出时等待已排队的保存。连接按操作打开并关闭，数据库文件新建权限为 `0600`，`user_version = 3` 记录当前结构版本，拒绝写入更高版本的数据库。
+新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置保存在 Electron `userData/app.db`，资源仍写入 `userData/resources.json` 并串行原子替换。设置数据库使用内置 `node:sqlite`，按字段存入 `settings(key, value)`，值为 JSON 编码，开启 WAL、FULL 同步与 3 秒忙等待；整组更新以事务提交，主进程读写共用队列，提交成功才更新缓存，退出时等待已排队的保存。连接按操作打开并关闭，数据库文件新建权限为 `0600`，`user_version = 4` 记录当前结构版本，拒绝写入更高版本的数据库。
 
 配置读取优先级为：SQLite 设置 → 旧 `settings.json` → localStorage 的 `navo-settings` / `vibe-reviewer-settings` → 默认值。仅在数据库尚无设置时尝试旧 JSON，规范化后整组导入，成功保留原文件作为备份，之后不再回读或写入；没有旧 JSON 时才由渲染进程迁移旧浏览器设置，写入成功后移除旧键。损坏的数据库、非法 JSON、迁移或保存失败会明确提示，不静默回退默认值或覆盖旧记录。Tasks 及其关联保存在同一 SQLite 数据库中，以 development/production 命名空间隔离。首次加载且任务库尚未初始化时，迁移原 localStorage 任务键，保留标识与顺序，成功后清理旧键；损坏数据不静默覆盖，空列表有独立初始化标记。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因更名而假定远端已改名。
 
@@ -146,12 +146,12 @@ npm run test:i18n
 ## 任务创建与恢复
 
 - 任务契约位于 `src/shared/taskTypes.ts`；主进程 `TaskService` 校验并串行创建，`taskStore` 为渲染缓存。
-- `appDatabase.ts` 统一升级数据库；任务、资源关联、条目关联、普通链接、附件分别保存在 `tasks`、`task_resources`、`task_links`、`task_web_links`、`task_attachments`。创建日志使用 `task_operations`，保留的工作区使用 `managed_workspaces`。
+- `appDatabase.ts` 统一升级数据库；任务、资源关联、条目关联、普通链接、附件分别保存在 `tasks`、`task_resources`、`task_links`、`task_web_links`、`task_attachments`。创建日志使用 `task_operations`，保留的工作区使用 `managed_workspaces`，分步删除进度使用 `task_deletions`。
 - 实际探测 Git 能力，选择本地/远程跟踪分支。空目标名按设置前缀加八位随机短 ID 生成；手动名称不加前缀，自动名冲突重试，不覆盖已有分支。
 - Worktree 使用设置目录下的 `<任务 UUID>/<仓库名>-<序号>`；关闭隔离后明确选择原目录新建分支或当前分支。原目录切换要求干净，不覆盖被忽略的文件。
 - 文件选择器签发窗口专属标识，创建接口不接收任意附件路径。附件副本位于 `userData/task-files/<命名空间>/<任务 UUID>/`，数据库只记录元信息，图片按需生成小预览。
 - 创建先记录操作清单，再准备文件和 Git 工作区，最后事务写入任务。失败和启动恢复只撤销本次已确认生成、HEAD 未变化且没有用户改动的内容；无法安全撤销则保留现场并提示。SQLite 不承担 Git/文件系统回滚。
-- 删除任务不删除原文件、仓库、分支或 Worktree；保留的工作区元数据不会级联删除。删除任务时同步关闭其标签；单独关闭标签不删除任务。
+- 删除任务默认保留所有目录和分支；确认弹窗可选择清理本任务创建且身份可验证的独立 Worktree 及本地分支。当前分支模式、原仓库、共享/锁定工作区与无法证明归属的旧记录始终保留；不删除远端引用。主进程签发窗口绑定的一次性预检查凭据，复核文件状态及分支 tip 后执行，清理进度持久化，失败保留任务、不自动续删。删除成功同步关闭任务标签；单独关闭标签不删除任务。
 
 ## Electron 通信
 

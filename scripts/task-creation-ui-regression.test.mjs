@@ -83,6 +83,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
           rename: async (id,title) => persisted = persisted.map(task => task.id === id ? { ...task,title } : task),
           move: async (id,status) => persisted = persisted.map(task => task.id === id ? { ...task,status,archivedFrom: task.status } : task),
           restore: async (id) => persisted = persisted.map(task => task.id === id ? { ...task,status: task.archivedFrom || 'TODO' } : task),
+          inspectDeletion: async () => ({ token: 'fixture-confirmation', canDeleteWorktrees: false, blocked: false, items: [] }),
           remove: async (id) => persisted = persisted.filter(task => task.id !== id),
         }
       };
@@ -607,7 +608,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await waitFor(() => document.querySelector('[data-status="TODO"] .task-card'), 'Restore failed');
             await menu('删除');
             await waitFor(() => dialog()?.textContent.includes('删除任务？'), 'Missing delete confirmation');
-            await click('确认');
+            await click('删除任务');
             await waitFor(() => !document.querySelector('.task-card'), 'Delete failed');
             for (const mode of ['new-branch', 'current-branch']) {
               document.querySelector('button[aria-label="创建任务"]').click();
@@ -633,7 +634,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
               if (mode === 'current-branch' && (resource.sourceBranch !== 'refs/heads/main' || resource.targetBranch !== '')) throw new Error('Current branch payload must not request a new branch');
               await menu('删除');
               await waitFor(() => dialog()?.textContent.includes('删除任务？'), 'Missing cleanup confirmation');
-              await click('确认');
+              await click('删除任务');
               await waitFor(() => !document.querySelector('.task-card'), 'Fixture cleanup failed');
             }
             if (document.querySelectorAll('[role="tab"]').length !== 0) throw new Error('Creating tasks must not automatically open task tabs');

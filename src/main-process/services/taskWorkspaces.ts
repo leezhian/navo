@@ -1,4 +1,4 @@
-import { lstat, mkdir, rmdir } from "node:fs/promises";
+import { lstat, mkdir, realpath, rmdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { TaskResource, TaskResourceInfo, TaskResourceInput } from "../../shared/taskTypes";
 import { generateTaskBranch, gitValue, taskGit, validateNewBranch } from "./taskGit";
@@ -79,6 +79,14 @@ export async function createWorkspace(step: WorkspaceStep, persist: () => Promis
   if (resource.mode === "worktree") {
     await taskGit(step.repository, ["worktree", "add", resource.workingPath, resource.targetBranch]);
     step.worktreeCreated = true;
+    const directory = await stat(resource.workingPath, { bigint: true });
+    const commonDirectory = await realpath(await taskGit(resource.workingPath, ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    const common = await stat(commonDirectory, { bigint: true });
+    resource.ownership = {
+      path: await realpath(resource.workingPath), directoryId: directory.dev + ":" + directory.ino,
+      gitDirectory: await realpath(await taskGit(resource.workingPath, ["rev-parse", "--absolute-git-dir"])),
+      commonDirectory, commonDirectoryId: common.dev + ":" + common.ino,
+    };
   } else {
     await taskGit(step.repository, ["switch", "--no-overwrite-ignore", resource.targetBranch]);
     step.checkedOut = true;

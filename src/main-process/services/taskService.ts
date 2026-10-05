@@ -12,6 +12,8 @@ import { inspectTaskResource } from "./taskGit";
 import { TaskAttachmentSelections, attachmentPreview, createAttachmentDirectory, removeAttachmentDirectory } from "./taskAttachments";
 import { createWorkspace, createWorkspaceDirectory, prepareWorkspace, rollbackWorkspaces } from "./taskWorkspaces";
 import type { TaskCreationManifest } from "./taskWorkspaces";
+import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
+import { TaskDeletionService } from "./taskDeletionService";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
@@ -22,10 +24,12 @@ export class TaskService {
   private readonly resources: ResourceService;
   private queue: Promise<unknown> = Promise.resolve();
   private recovered = false;
+  readonly deletion: TaskDeletionService;
 
   constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings) {
     this.repository = new TaskRepository(path.join(userData, "app.db"), namespace);
     this.resources = new ResourceService(path.join(userData, "resources.json"));
+    this.deletion = new TaskDeletionService(this.repository);
   }
 
   private serialize<Result>(operation: () => Promise<Result>): Promise<Result> {
@@ -164,13 +168,14 @@ export class TaskService {
     }));
   }
 
-  remove(id: string) {
-    return this.serialize(async () => {
-      const result = await this.repository.update((tasks) => { requireTask(tasks, id); return tasks.filter((task) => task.id !== id); });
-      // 删除任务不删除仓库、分支或 Worktree；只清理应用管理的附件副本。
-      if (REQUEST_ID.test(id)) await removeAttachmentDirectory(this.attachmentDirectory(id)).catch(() => undefined);
-      return result;
-    });
+  inspectDeletion(id: string, options: TaskDeletionOptions, ownerId = 0) {
+    return this.serialize(() => this.deletion.preview(id, options, ownerId));
+  }
+
+  remove(id: string, confirmation?: TaskDeletionConfirmation, ownerId = 0) {
+    return this.serialize(() => this.deletion.remove(id, confirmation, ownerId, async () => {
+      if (REQUEST_ID.test(id)) await removeAttachmentDirectory(this.attachmentDirectory(id));
+    }));
   }
 
   async previewAttachment(taskId: string, attachmentId: string) {

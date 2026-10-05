@@ -1,4 +1,47 @@
 {
+  "deletion": {
+    "description": "将删除「{{title}}」及其关联记录和附件副本。",
+    "keepByDefault": "默认保留 Worktree 和分支。",
+    "keepExisting": "现有工作目录和分支将保留。",
+    "irreversible": "此操作无法撤销。",
+    "deleteWorktrees": "同时删除 Worktree",
+    "deleteBranches": "同时删除本地分支",
+    "checking": "正在检查删除范围…",
+    "confirm": "删除任务",
+    "deleting": "正在删除…",
+    "willDelete": "将被删除",
+    "kept": "保留",
+    "completed": "已完成",
+    "worktreeRemoved": "Worktree 已删除。",
+    "branchRemoved": "本地分支已删除。",
+    "branchKept": "本地分支保留",
+    "uncommitted_other": "将丢失 {{count}} 个未提交文件。",
+    "ignored_other": "同时删除 {{count}} 个被 Git 忽略的文件。",
+    "detached": "Detached HEAD：删除后提交可能无法再访问。",
+    "clean": "未发现未提交或忽略文件。",
+    "unpublished": "无法确认提交是否已推送，删除分支可能丢失本地提交。",
+    "pushed": "将删除本地分支；根据本地远端引用，未发现独有提交。",
+    "unpushed_other": "将删除本地分支；{{count}} 个提交不在已知远端引用中，可能丢失。",
+    "localRefs": "提交检查仅依据本地远端跟踪引用，未联网核实。不会删除远端分支。",
+    "reasons": {
+      "existing": "使用现有工作区，不删除目录或分支。",
+      "unowned": "无法确认是该任务创建的 Worktree，保留。",
+      "shared": "其他任务仍在使用，保留。",
+      "changed": "资源身份或分支已变化，保留。",
+      "main": "仓库主工作区，保留。",
+      "locked": "Worktree 已锁定，保留。",
+      "missing": "磁盘资源已不存在，不继续清理。",
+      "protected": "受保护的主分支，保留。",
+      "inUse": "其他工作区或任务仍在使用此分支，保留。",
+      "inspectionFailed": "无法完整检查资源，请重试或取消清理选项。"
+    },
+    "errors": {
+      "changed": "资源状态已变化。请查看更新后的清单，再次确认删除。",
+      "confirmation": "删除确认已失效。请查看更新后的清单，再次确认。",
+      "inspection": "无法完成安全检查。请重试，或取消清理选项以仅删除任务。",
+      "failed": "删除未全部完成，任务已保留。已完成的清理无法撤销；请检查清单后重试，或取消清理选项以保留剩余资源。"
+    }
+  },
   "fields": {
     "noProject": "未关联项目",
     "title": "任务标题"

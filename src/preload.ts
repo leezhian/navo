@@ -38,7 +38,8 @@ const api: NavoApi = {
     rename: (id, title) => ipcRenderer.invoke(ipcChannels.tasksRename, id, title),
     move: (id, status, beforeId) => ipcRenderer.invoke(ipcChannels.tasksMove, id, status, beforeId),
     restore: (id) => ipcRenderer.invoke(ipcChannels.tasksRestore, id),
-    remove: (id) => ipcRenderer.invoke(ipcChannels.tasksRemove, id),
+    inspectDeletion: (id, options) => ipcRenderer.invoke(ipcChannels.tasksInspectDeletion, id, options),
+    remove: (id, confirmation) => ipcRenderer.invoke(ipcChannels.tasksRemove, id, confirmation),
   },
   settings: {
     load: () => ipcRenderer.invoke(ipcChannels.settingsLoad),

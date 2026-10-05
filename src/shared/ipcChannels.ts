@@ -10,6 +10,7 @@ export const ipcChannels = {
   tasksMove: "tasks:move",
   tasksRestore: "tasks:restore",
   tasksRemove: "tasks:remove",
+  tasksInspectDeletion: "tasks:inspect-deletion",
   settingsLoad: "settings:load",
   settingsSave: "settings:save",
   settingsChooseDirectory: "settings:choose-directory",

@@ -4,6 +4,7 @@ import { TaskService } from "../services/taskService";
 import { getCurrentSettings } from "../services/settingsService";
 import type { CreateTaskInput } from "../../shared/taskTypes";
 import type { Task, TaskStatus } from "../../domain/tasks";
+import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
 
 let tasks: TaskService | null = null;
 export async function flushTasks() { await tasks?.flush(); }
@@ -22,7 +23,7 @@ export function registerTaskHandlers() {
     const ownerId = event.sender.id;
     if (!owners.has(ownerId)) {
       owners.add(ownerId);
-      event.sender.once("destroyed", () => { service.files.release(ownerId); owners.delete(ownerId); });
+      event.sender.once("destroyed", () => { service.files.release(ownerId); service.deletion.forgetOwner(ownerId); owners.delete(ownerId); });
     }
     const result = await dialog.showOpenDialog(window, { defaultPath: app.getPath("home"), properties: ["openFile", "multiSelections"] });
     return result.canceled ? [] : service.files.add(ownerId, result.filePaths);
@@ -35,5 +36,13 @@ export function registerTaskHandlers() {
   ipcMain.handle(ipcChannels.tasksRename, (_event, id: string, title: string) => service.rename(id, title));
   ipcMain.handle(ipcChannels.tasksMove, (_event, id: string, status: TaskStatus, beforeId: string | null) => service.move(id, status, beforeId));
   ipcMain.handle(ipcChannels.tasksRestore, (_event, id: string) => service.restore(id));
-  ipcMain.handle(ipcChannels.tasksRemove, (_event, id: string) => service.remove(id));
+  ipcMain.handle(ipcChannels.tasksInspectDeletion, (event, id: string, options: TaskDeletionOptions) => {
+    if (!owners.has(event.sender.id)) {
+      const ownerId = event.sender.id;
+      owners.add(ownerId);
+      event.sender.once("destroyed", () => { service.files.release(ownerId); service.deletion.forgetOwner(ownerId); owners.delete(ownerId); });
+    }
+    return service.inspectDeletion(id, options, event.sender.id);
+  });
+  ipcMain.handle(ipcChannels.tasksRemove, (event, id: string, confirmation?: TaskDeletionConfirmation) => service.remove(id, confirmation, event.sender.id));
 }

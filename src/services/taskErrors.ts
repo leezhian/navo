@@ -3,6 +3,10 @@ import type { TranslationKey } from "@/i18n/types";
 import { getSettingsError } from "./settingsErrors";
 
 const messages: Record<string, TranslationKey<"tasks" | "taskCreate">> = {
+  TASK_DELETE_CHANGED: "tasks:deletion.errors.changed",
+  TASK_DELETE_CONFIRMATION: "tasks:deletion.errors.confirmation",
+  TASK_DELETE_INSPECTION: "tasks:deletion.errors.inspection",
+  TASK_DELETE_FAILED: "tasks:deletion.errors.failed",
   TASK_INVALID: "tasks:errors.invalid",
   TASK_INVALID_TITLE: "tasks:errors.invalidTitle",
   TASK_NOT_FOUND: "tasks:errors.notFound",

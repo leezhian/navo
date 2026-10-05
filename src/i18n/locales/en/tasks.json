@@ -1,4 +1,50 @@
 {
+  "deletion": {
+    "description": "Removes “{{title}}” along with its associations and managed attachment copies.",
+    "keepByDefault": "Worktrees and branches are kept unless selected below.",
+    "keepExisting": "Existing working directories and branches will be kept.",
+    "irreversible": "This can't be undone.",
+    "deleteWorktrees": "Also delete worktrees",
+    "deleteBranches": "Also delete local branches",
+    "checking": "Checking deletion scope…",
+    "confirm": "Delete task",
+    "deleting": "Deleting…",
+    "willDelete": "Will be deleted",
+    "kept": "Kept",
+    "completed": "Completed",
+    "worktreeRemoved": "Worktree deleted.",
+    "branchRemoved": "Local branch deleted.",
+    "branchKept": "Local branch kept",
+    "uncommitted_one": "{{count}} uncommitted file will be lost.",
+    "uncommitted_other": "{{count}} uncommitted files will be lost.",
+    "ignored_one": "{{count}} Git-ignored file will also be deleted.",
+    "ignored_other": "{{count}} Git-ignored files will also be deleted.",
+    "detached": "Detached HEAD — commits may become unreachable after deletion.",
+    "clean": "No uncommitted or ignored files found.",
+    "unpublished": "Push status is unknown. Deleting the branch may lose local commits.",
+    "pushed": "Local branch will be deleted; no unique commits found against local remote-tracking refs.",
+    "unpushed_one": "Local branch will be deleted; {{count}} commit is absent from known remote refs and may be lost.",
+    "unpushed_other": "Local branch will be deleted; {{count}} commits are absent from known remote refs and may be lost.",
+    "localRefs": "Commit checks use local remote-tracking refs only, without contacting remotes. Remote branches are never deleted.",
+    "reasons": {
+      "existing": "Existing workspace — directory and branch are kept.",
+      "unowned": "Cannot verify task ownership of this worktree; kept.",
+      "shared": "Still used by other tasks; kept.",
+      "changed": "Resource identity or branch changed; kept.",
+      "main": "Repository's main worktree; kept.",
+      "locked": "Worktree is locked; kept.",
+      "missing": "Resource is already missing; no further cleanup.",
+      "protected": "Protected primary branch; kept.",
+      "inUse": "Branch is used by another worktree or task; kept.",
+      "inspectionFailed": "Cannot fully inspect this resource. Retry or turn off cleanup."
+    },
+    "errors": {
+      "changed": "Resources changed. Review the updated checklist and confirm again.",
+      "confirmation": "Deletion confirmation expired. Review the updated checklist and confirm again.",
+      "inspection": "Safety checks failed. Retry, or turn off cleanup to delete only the task.",
+      "failed": "Deletion did not finish. The task was kept; completed cleanup cannot be undone. Review and retry, or turn off cleanup to keep remaining resources."
+    }
+  },
   "fields": {
     "noProject": "No project",
     "title": "Task title"

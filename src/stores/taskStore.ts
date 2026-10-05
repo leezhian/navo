@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Task, TaskStatus } from "@/domain/tasks";
 import type { CreateTaskInput } from "@/shared/taskTypes";
+import type { TaskDeletionConfirmation } from "@/shared/taskDeletionTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { clearLegacyTasks, readLegacyTasks } from "@/services/adeData";
 import { moveTask } from "@/utils/taskState";
@@ -19,7 +20,7 @@ interface TaskState {
   rename: (id: string, title: string) => Promise<boolean>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
   restore: (id: string) => Promise<boolean>;
-  remove: (id: string) => Promise<boolean>;
+  remove: (id: string, confirmation?: TaskDeletionConfirmation) => Promise<boolean>;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => {
@@ -58,6 +59,6 @@ export const useTaskStore = create<TaskState>((set, get) => {
     rename: (id, title) => mutate(() => getTasksApi().rename(id, title)),
     move: (id, status, beforeId) => mutate(() => getTasksApi().move(id, status, beforeId), moveTask(get().tasks, id, status, beforeId)),
     restore: (id) => mutate(() => getTasksApi().restore(id)),
-    remove: (id) => mutate(() => getTasksApi().remove(id)),
+    remove: (id, confirmation) => mutate(() => getTasksApi().remove(id, confirmation)),
   };
 });

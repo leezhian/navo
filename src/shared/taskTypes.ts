@@ -1,5 +1,6 @@
 import type { IssueItem } from "../domain/issues";
 import type { Task, TaskStatus } from "../domain/tasks";
+import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview } from "./taskDeletionTypes";
 
 export type TaskExecutionMode = "worktree" | "new-branch" | "current-branch" | "folder";
 
@@ -29,6 +30,8 @@ export interface TaskResource extends TaskResourceInput {
   name: string;
   originalPath: string;
   workingPath: string;
+  /** 创建成功时记录的文件系统身份；旧记录缺失时不推断可删除归属。 */
+  ownership?: { path: string; directoryId: string; gitDirectory: string; commonDirectory: string; commonDirectoryId: string };
 }
 
 export interface TaskAttachment {
@@ -76,5 +79,6 @@ export interface TasksApi {
   rename(id: string, title: string): Promise<Task[]>;
   move(id: string, status: TaskStatus, beforeTaskId: string | null): Promise<Task[]>;
   restore(id: string): Promise<Task[]>;
-  remove(id: string): Promise<Task[]>;
+  inspectDeletion(id: string, options: TaskDeletionOptions): Promise<TaskDeletionPreview>;
+  remove(id: string, confirmation?: TaskDeletionConfirmation): Promise<Task[]>;
 }

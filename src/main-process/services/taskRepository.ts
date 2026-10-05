@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { Task } from "../../domain/tasks";
-import type { TaskAttachment } from "../../shared/taskTypes";
+import type { TaskAttachment, TaskResource } from "../../shared/taskTypes";
+import type { TaskDeletionProgress } from "../../shared/taskDeletionTypes";
 import { openAppDatabase } from "./appDatabase";
 
 export interface StoredAttachment extends TaskAttachment {
@@ -107,6 +108,40 @@ export class TaskRepository {
 
   clearOperation(id: string): Promise<void> {
     return this.access((database) => { database.prepare("DELETE FROM task_operations WHERE namespace = ? AND id = ?").run(this.namespace, id); });
+  }
+
+  deletionContext(taskId: string) {
+    return this.access((database) => ({
+      owned: database.prepare("SELECT path,branch,repository FROM managed_workspaces WHERE namespace = ? AND task_id = ?")
+        .all(this.namespace, taskId).map((row) => ({ path: String(row.path), branch: String(row.branch), repository: String(row.repository) })),
+      references: database.prepare("SELECT r.namespace,r.task_id,t.title,r.data FROM task_resources r JOIN tasks t ON t.namespace=r.namespace AND t.id=r.task_id")
+        .all().map((row) => ({ namespace: String(row.namespace), taskId: String(row.task_id), title: String(row.title), resource: JSON.parse(String(row.data)) as TaskResource })),
+      progress: database.prepare("SELECT data FROM task_deletions WHERE namespace = ? AND task_id = ?")
+        .all(this.namespace, taskId).map((row) => JSON.parse(String(row.data)) as TaskDeletionProgress),
+    }));
+  }
+
+  recordDeletion(taskId: string, progress: TaskDeletionProgress) {
+    return this.access((database) => {
+      database.prepare("INSERT INTO task_deletions VALUES (?,?,?,?) ON CONFLICT(namespace,task_id,resource_id) DO UPDATE SET data=excluded.data")
+        .run(this.namespace, taskId, progress.resourceId, JSON.stringify(progress));
+    });
+  }
+
+  completeDeletion(taskId: string): Promise<Task[]> {
+    return this.access((database) => transaction(database, () => {
+      const completed = database.prepare("SELECT resource_id,data FROM task_deletions WHERE namespace = ? AND task_id = ?").all(this.namespace, taskId);
+      const resources = database.prepare("SELECT data FROM task_resources WHERE namespace = ? AND task_id = ?").all(this.namespace, taskId)
+        .map((row) => JSON.parse(String(row.data)) as TaskResource);
+      for (const row of completed) {
+        if ((JSON.parse(String(row.data)) as TaskDeletionProgress).worktree !== "removed") continue;
+        const resource = resources.find((item) => item.resourceId === row.resource_id);
+        if (resource) database.prepare("DELETE FROM managed_workspaces WHERE namespace = ? AND task_id = ? AND path = ?")
+          .run(this.namespace, taskId, resource.workingPath);
+      }
+      database.prepare("DELETE FROM tasks WHERE namespace = ? AND id = ?").run(this.namespace, taskId);
+      return this.readTasks(database);
+    }));
   }
 }
 
