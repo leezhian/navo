@@ -2,8 +2,9 @@ import { mkdir, open } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
+import { removeLegacyDemoRecords } from "./migrations/removeLegacyDemoRecords";
 
-export const APP_SCHEMA_VERSION = 4;
+export const APP_SCHEMA_VERSION = 5;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -65,6 +66,7 @@ export async function openAppDatabase(filePath: string) {
             );
             PRAGMA user_version = ${APP_SCHEMA_VERSION};
           `);
+          removeLegacyDemoRecords(database);
           database.exec("COMMIT");
           void writeDiagnosticEvent("database.migrate.succeeded", { fromVersion: version, toVersion: APP_SCHEMA_VERSION });
         } catch (error) {

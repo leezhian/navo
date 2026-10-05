@@ -36,6 +36,8 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
       import { defaultSettings } from '/src/domain/settings.ts';
       import { useTaskStore } from '/src/stores/taskStore.ts';
       import { useIssueStore } from '/src/stores/issueStore.ts';
+      import { taskIssueFixtures } from '/scripts/fixtures/taskIssues.ts';
+      useIssueStore.setState({ items: taskIssueFixtures });
       import i18n from '/src/i18n/index.ts';
       await i18n.changeLanguage('zh-CN');
       window.setTestLanguage = language => i18n.changeLanguage(language);

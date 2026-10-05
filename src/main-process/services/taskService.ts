@@ -15,6 +15,7 @@ import { createWorkspace, createWorkspaceDirectory, prepareWorkspace, rollbackWo
 import type { TaskCreationManifest } from "./taskWorkspaces";
 import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
 import { TaskDeletionService } from "./taskDeletionService";
+import { isLegacyDemoTask } from "../../shared/legacyDemoRecords";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
@@ -85,7 +86,7 @@ export class TaskService {
     return diagnosticOperation("task.migrate", {}, async () => {
       return this.serialize(async () => {
         if (!Array.isArray(value) || !value.every(isTask) || new Set(value.map((task) => task.id)).size !== value.length) throw new Error("TASK_INVALID");
-        return this.repository.importLegacy(value.map((task) => ({
+        return this.repository.importLegacy(value.filter((task) => !isLegacyDemoTask(task)).map((task) => ({
           id: task.id, title: task.title, date: task.date, projectName: task.projectName, status: task.status,
         })));
       });
