@@ -4,7 +4,7 @@ import { ipcChannels } from "../../shared/ipcChannels";
 import type { CloneResourceParams, SaveResourceParams } from "../../shared/settingsTypes";
 import { loadSettings, saveSettings } from "../services/settingsService";
 import { ResourceService } from "../services/resourceService";
-import { clearDiagnosticLog, getDiagnosticLogFilePath, getDiagnosticLogStatus, prepareDiagnosticLogFile, writeDiagnosticEvent } from "../services/diagnosticLogService";
+import { clearDiagnosticLog, getDiagnosticLogFilePath, getDiagnosticLogStatus, prepareDiagnosticLogFile } from "../services/diagnosticLogService";
 import { validateDiagnosticLogPath } from "../services/diagnosticLogPath";
 import { updateApplicationMenu } from "../applicationMenu";
 
@@ -21,7 +21,6 @@ export function registerSettingsHandlers() {
   ipcMain.handle(ipcChannels.settingsSave, async (_event, value: unknown) => {
     const settings = await saveSettings(value);
     updateApplicationMenu(settings.locale);
-    void writeDiagnosticEvent("settings-saved");
     return settings;
   });
   ipcMain.handle(ipcChannels.settingsChooseDirectory, async (event) => {
@@ -51,12 +50,10 @@ export function registerSettingsHandlers() {
   ipcMain.handle(ipcChannels.resourcesList, () => service.list());
   ipcMain.handle(ipcChannels.resourcesSave, async (_event, params: SaveResourceParams) => {
     const record = await service.save(params);
-    void writeDiagnosticEvent("resource-added");
     return record;
   });
   ipcMain.handle(ipcChannels.resourcesRemove, async (_event, id: string) => {
     await service.remove(id);
-    void writeDiagnosticEvent("resource-removed");
   });
   ipcMain.handle(ipcChannels.resourcesClone, async (event, params: CloneResourceParams) => {
     const ownerId = event.sender.id;
@@ -64,17 +61,9 @@ export function registerSettingsHandlers() {
       boundOwners.add(ownerId);
       event.sender.once("destroyed", () => { void service.cancelAll(ownerId); boundOwners.delete(ownerId); });
     }
-    void writeDiagnosticEvent("clone-start");
-    try {
-      const record = await service.clone(params, ownerId, (progress) => {
-        if (!event.sender.isDestroyed()) event.sender.send(ipcChannels.resourcesCloneProgress, progress);
-      });
-      void writeDiagnosticEvent("clone-success");
-      return record;
-    } catch (error) {
-      void writeDiagnosticEvent(error instanceof Error && error.message === "CLONE_CANCELLED" ? "clone-cancelled" : "clone-failure");
-      throw error;
-    }
+    return service.clone(params, ownerId, (progress) => {
+      if (!event.sender.isDestroyed()) event.sender.send(ipcChannels.resourcesCloneProgress, progress);
+    });
   });
   ipcMain.handle(ipcChannels.resourcesCancelClone, (event, operationId: string) => service.cancel(operationId, event.sender.id));
 }

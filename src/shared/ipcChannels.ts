@@ -1,4 +1,5 @@
 export const ipcChannels = {
+  diagnosticsReport: "diagnostics:report",
   tasksLoad: "tasks:load",
   tasksImportLegacy: "tasks:import-legacy",
   tasksCreate: "tasks:create",

@@ -1,3 +1,4 @@
+import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { app } from "electron";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -19,46 +20,53 @@ export function getCurrentSettings() {
 }
 
 export function loadSettings() {
-  return serialize(async () => {
-    const databasePath = path.join(app.getPath("userData"), "app.db");
-    let value: unknown = await readSettingsDatabase(databasePath);
-    const needsMigration = value === null;
-    if (needsMigration) {
-      try {
-        value = JSON.parse(await readFile(path.join(app.getPath("userData"), "settings.json"), "utf8"));
-        if (value === null) throw new Error("INVALID_SETTINGS");
-      } catch (error) {
-        if (error instanceof SyntaxError) throw new Error("INVALID_SETTINGS");
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  return diagnosticOperation("settings.load", {}, async () => {
+    return serialize(async () => {
+      const databasePath = path.join(app.getPath("userData"), "app.db");
+      let value: unknown = await readSettingsDatabase(databasePath);
+      const needsMigration = value === null;
+      if (needsMigration) {
+        try {
+          value = JSON.parse(await readFile(path.join(app.getPath("userData"), "settings.json"), "utf8"));
+          if (value === null) throw new Error("INVALID_SETTINGS");
+        } catch (error) {
+          if (error instanceof SyntaxError) throw new Error("INVALID_SETTINGS");
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
       }
-    }
-    if (value !== null) {
-      if (typeof value !== "object" || Array.isArray(value)) throw new Error("INVALID_SETTINGS");
-      const normalized = normalizeAppSettings(value as Partial<AppSettings>);
-      resolveLocalPath(normalized.repositoriesDirectory);
-      resolveLocalPath(normalized.worktreesDirectory);
-      if (normalized.logFilePath) normalized.logFilePath = resolveDiagnosticLogPath(normalized.logFilePath);
-      // 仅在数据库没有设置时导入旧 JSON，成功后保留原文件作为备份，不再回读。
-      if (needsMigration) await writeSettingsDatabase(databasePath, normalized);
-      savedSettings = normalized;
-    } else {
-      savedSettings = null;
-    }
-    return { settings: savedSettings };
+      if (value !== null) {
+        if (typeof value !== "object" || Array.isArray(value)) throw new Error("INVALID_SETTINGS");
+        const normalized = normalizeAppSettings(value as Partial<AppSettings>);
+        resolveLocalPath(normalized.repositoriesDirectory);
+        resolveLocalPath(normalized.worktreesDirectory);
+        if (normalized.logFilePath) normalized.logFilePath = resolveDiagnosticLogPath(normalized.logFilePath);
+        // 仅在数据库没有设置时导入旧 JSON，成功后保留原文件作为备份，不再回读。
+        if (needsMigration) await diagnosticOperation("settings.migrate", {}, () => writeSettingsDatabase(databasePath, normalized));
+        savedSettings = normalized;
+      } else {
+        savedSettings = null;
+      }
+      return { settings: savedSettings };
+    });
   });
 }
 
 export function saveSettings(value: unknown): Promise<AppSettings> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return Promise.reject(new Error("INVALID_SETTINGS"));
-  const next = normalizeAppSettings(value as Partial<AppSettings>);
-  resolveLocalPath(next.repositoriesDirectory);
-  resolveLocalPath(next.worktreesDirectory);
-  return serialize(async () => {
-    if (next.logFilePath) next.logFilePath = await validateDiagnosticLogPath(next.logFilePath);
-    await writeSettingsDatabase(path.join(app.getPath("userData"), "app.db"), next);
-    savedSettings = next;
-    return next;
-  });
+  return diagnosticOperation("settings.save", {}, async () => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return Promise.reject(new Error("INVALID_SETTINGS"));
+    const next = normalizeAppSettings(value as Partial<AppSettings>);
+    resolveLocalPath(next.repositoriesDirectory);
+    resolveLocalPath(next.worktreesDirectory);
+    return serialize(async () => {
+      const previous = getCurrentSettings();
+      if (next.logFilePath) next.logFilePath = await validateDiagnosticLogPath(next.logFilePath);
+      await writeSettingsDatabase(path.join(app.getPath("userData"), "app.db"), next);
+      savedSettings = next;
+      const changedFields = (Object.keys(next) as Array<keyof AppSettings>).filter((key) => previous[key] !== next[key]);
+      void writeDiagnosticEvent("settings.save.succeeded", { changedFields });
+      return next;
+    });
+  }, { success: false });
 }
 
 export async function flushSettings() { await settingsQueue; }

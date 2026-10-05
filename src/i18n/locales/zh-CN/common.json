@@ -18,6 +18,7 @@
     "unknown": "未知"
   },
   "actions": {
+    "reload": "重新加载",
     "create": "创建",
     "rename": "重命名",
     "restore": "恢复",
@@ -74,6 +75,7 @@
     "failed": "刷新失败，请重试"
   },
   "errors": {
+    "applicationFailed": "应用遇到异常，请重新加载后重试。",
     "operationFailed": "操作失败，请重试。"
   }
 }

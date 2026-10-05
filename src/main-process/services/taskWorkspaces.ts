@@ -1,3 +1,4 @@
+import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { lstat, mkdir, realpath, rmdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { TaskResource, TaskResourceInfo, TaskResourceInput } from "../../shared/taskTypes";
@@ -103,38 +104,45 @@ async function exists(filePath: string) {
 
 /** 只撤销已确认属于本次创建、且 HEAD 与工作区均未被用户改动的内容；不使用 --force。 */
 export async function rollbackWorkspaces(manifest: TaskCreationManifest): Promise<boolean> {
-  let retained = false;
-  for (const step of [...manifest.steps].reverse()) {
-    const { resource } = step;
-    if (resource.mode === "folder" || resource.mode === "current-branch") continue;
-    try {
-      if (resource.mode === "worktree" && await exists(resource.workingPath)) {
-        if (!step.worktreeCreated || (await lstat(resource.workingPath)).isSymbolicLink()
-          || await taskGit(resource.workingPath, ["rev-parse", "HEAD"]) !== step.baseCommit
-          || await taskGit(resource.workingPath, ["status", "--porcelain", "--untracked-files=all", "--ignored"])) { retained = true; continue; }
-        await taskGit(step.repository, ["worktree", "remove", resource.workingPath]);
-      }
-      if (resource.mode === "new-branch") {
-        const current = await gitValue(step.repository, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
-        if (current === resource.targetBranch) {
-          if (!step.checkedOut || await taskGit(step.repository, ["status", "--porcelain"])
-            || await taskGit(step.repository, ["rev-parse", "HEAD"]) !== step.baseCommit) { retained = true; continue; }
-          await taskGit(step.repository, step.previousBranch ? ["switch", "--no-overwrite-ignore", step.previousBranch] : ["switch", "--no-overwrite-ignore", "--detach", step.previousHead]);
+  return diagnosticOperation("worktree.rollback", { resourceCount: manifest.steps.length }, async () => {
+    let retained = false;
+    for (const step of [...manifest.steps].reverse()) {
+      const { resource } = step;
+      if (resource.mode === "folder" || resource.mode === "current-branch") continue;
+      try {
+        if (resource.mode === "worktree" && await exists(resource.workingPath)) {
+          if (!step.worktreeCreated || (await lstat(resource.workingPath)).isSymbolicLink()
+            || await taskGit(resource.workingPath, ["rev-parse", "HEAD"]) !== step.baseCommit
+            || await taskGit(resource.workingPath, ["status", "--porcelain", "--untracked-files=all", "--ignored"])) { retained = true; continue; }
+          await taskGit(step.repository, ["worktree", "remove", resource.workingPath]);
         }
+        if (resource.mode === "new-branch") {
+          const current = await gitValue(step.repository, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+          if (current === resource.targetBranch) {
+            if (!step.checkedOut || await taskGit(step.repository, ["status", "--porcelain"])
+              || await taskGit(step.repository, ["rev-parse", "HEAD"]) !== step.baseCommit) { retained = true; continue; }
+            await taskGit(step.repository, step.previousBranch ? ["switch", "--no-overwrite-ignore", step.previousBranch] : ["switch", "--no-overwrite-ignore", "--detach", step.previousHead]);
+          }
+        }
+        const ref = "refs/heads/" + resource.targetBranch;
+        const head = await taskGit(step.repository, ["for-each-ref", "--format=%(objectname)", ref]);
+        if (head) {
+          const worktrees = await taskGit(step.repository, ["worktree", "list", "--porcelain"]);
+          if (!step.branchCreated || head !== step.baseCommit || worktrees.split("\n").includes("branch " + ref)) { retained = true; continue; }
+          await taskGit(step.repository, ["update-ref", "-d", ref, step.baseCommit]);
+        }
+      } catch (error) {
+        retained = true;
+        void writeDiagnosticEvent("worktree.rollback.failed", { resourceId: resource.resourceId, error });
       }
-      const ref = "refs/heads/" + resource.targetBranch;
-      const head = await taskGit(step.repository, ["for-each-ref", "--format=%(objectname)", ref]);
-      if (head) {
-        const worktrees = await taskGit(step.repository, ["worktree", "list", "--porcelain"]);
-        if (!step.branchCreated || head !== step.baseCommit || worktrees.split("\n").includes("branch " + ref)) { retained = true; continue; }
-        await taskGit(step.repository, ["update-ref", "-d", ref, step.baseCommit]);
-      }
-    } catch { retained = true; }
-  }
-  if (manifest.workspaceDirectoryOwned) {
-    try { await rmdir(manifest.workspaceDirectory); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") retained = true; }
-  } else if (manifest.steps.some((step) => step.resource.mode === "worktree") && await exists(manifest.workspaceDirectory)) retained = true;
-  return retained;
+    }
+    if (manifest.workspaceDirectoryOwned) {
+      try { await rmdir(manifest.workspaceDirectory); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") retained = true; }
+    } else if (manifest.steps.some((step) => step.resource.mode === "worktree") && await exists(manifest.workspaceDirectory)) retained = true;
+    if (retained) void writeDiagnosticEvent("task.cleanup_retained", { resourceCount: manifest.steps.length });
+    else void writeDiagnosticEvent("worktree.rollback.succeeded", { resourceCount: manifest.steps.length });
+    return retained;
+  }, { started: true, success: false });
 }
 
 export async function createWorkspaceDirectory(manifest: TaskCreationManifest, persist: () => Promise<void>) {

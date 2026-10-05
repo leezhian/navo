@@ -3,6 +3,7 @@ import type { Task } from "../../domain/tasks";
 import type { TaskAttachment, TaskResource } from "../../shared/taskTypes";
 import type { TaskDeletionProgress } from "../../shared/taskDeletionTypes";
 import { openAppDatabase } from "./appDatabase";
+import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 
 export interface StoredAttachment extends TaskAttachment {
   storageName: string;
@@ -148,5 +149,8 @@ export class TaskRepository {
 function transaction<Result>(database: DatabaseSync, operation: () => Result): Result {
   database.exec("BEGIN IMMEDIATE");
   try { const result = operation(); database.exec("COMMIT"); return result; }
-  catch (error) { database.exec("ROLLBACK"); throw error; }
+  catch (error) {
+    void writeDiagnosticEvent("database.transaction_failed", { error });
+    database.exec("ROLLBACK"); throw error;
+  }
 }

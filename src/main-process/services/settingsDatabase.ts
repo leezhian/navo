@@ -1,5 +1,6 @@
 import type { AppSettings } from "../../domain/types";
 import { openAppDatabase as openDatabase } from "./appDatabase";
+import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 
 export async function readSettingsDatabase(filePath: string): Promise<Partial<AppSettings> | null> {
   const database = await openDatabase(filePath);
@@ -25,6 +26,7 @@ export async function writeSettingsDatabase(filePath: string, settings: AppSetti
       for (const [key, value] of Object.entries(settings)) statement.run(key, JSON.stringify(value));
       database.exec("COMMIT");
     } catch (error) {
+      void writeDiagnosticEvent("database.transaction_failed", { error });
       // 一次设置更新要么全部提交，要么保留旧值，不能留下部分更新的配置。
       database.exec("ROLLBACK");
       throw error;

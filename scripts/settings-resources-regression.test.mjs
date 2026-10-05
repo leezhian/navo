@@ -432,7 +432,7 @@ test("SQLite 文件或字段损坏不回退旧 JSON，也不覆盖原数据", as
   } finally { database.close(); }
 });
 
-test("诊断日志固定单文件，只包含应用事件和时间，清理不删除其他文件", async (context) => {
+test("诊断日志使用分级 JSONL 单文件，清理不删除其他文件", async (context) => {
   const directory = await temporaryDirectory(context);
   const logDirectory = path.join(directory, "logs");
   await mkdir(logDirectory);
@@ -441,10 +441,13 @@ test("诊断日志固定单文件，只包含应用事件和时间，清理不�
   const load = createLoader({ electron: { app: { getPath: () => directory } } });
   const logger = load("src/main-process/services/diagnosticLogService.ts");
   assert.equal(logger.getDiagnosticLogFilePath(), path.join(logDirectory, "navo.log"));
-  await logger.writeDiagnosticEvent("app-start");
+  await logger.writeDiagnosticEvent("app.started");
   const filename = logger.getDiagnosticLogFilePath();
   const content = await readFile(filename, "utf8");
-  assert.deepEqual(Object.keys(JSON.parse(content.trim())).sort(), ["event", "time"]);
+  const entry = JSON.parse(content.trim());
+  assert.deepEqual(Object.keys(entry).sort(), ["data", "event", "level", "schemaVersion", "scope", "time"]);
+  assert.equal(entry.level, "INFO");
+  assert.equal(entry.schemaVersion, 1);
   await logger.clearDiagnosticLog();
   assert.equal(await readFile(filename, "utf8"), "");
   assert.equal(await readFile(path.join(logDirectory, "keep.txt"), "utf8"), "keep");
@@ -455,12 +458,12 @@ test("诊断日志固定单文件，只包含应用事件和时间，清理不�
 test("诊断日志超过 20 MB 时重置同一文件，不产生额外日志文件", async (context) => {
   const directory = await temporaryDirectory(context);
   const logger = createLoader({ electron: { app: { getPath: () => directory } } })("src/main-process/services/diagnosticLogService.ts");
-  await logger.writeDiagnosticEvent("app-start");
+  await logger.writeDiagnosticEvent("app.started");
   const filename = logger.getDiagnosticLogFilePath();
   await truncate(filename, logger.MAX_DIAGNOSTIC_LOG_BYTES);
-  await logger.writeDiagnosticEvent("settings-saved");
+  await logger.writeDiagnosticEvent("settings.save.succeeded");
   const entries = (await readFile(filename, "utf8")).trim().split("\n").map((entry) => JSON.parse(entry));
-  assert.deepEqual(entries.map((entry) => entry.event), ["settings-saved"]);
+  assert.deepEqual(entries.map((entry) => entry.event), ["settings.save.succeeded"]);
   assert.ok((await stat(filename)).size <= 20 * 1024 * 1024);
   assert.deepEqual(readdirSync(path.dirname(filename)), ["navo.log"]);
 });
@@ -468,9 +471,9 @@ test("诊断日志超过 20 MB 时重置同一文件，不产生额外日志文�
 test("日志写入和清理串行，清理后继续记录新事件", async (context) => {
   const directory = await temporaryDirectory(context);
   const logger = createLoader({ electron: { app: { getPath: () => directory } } })("src/main-process/services/diagnosticLogService.ts");
-  await Promise.all([logger.writeDiagnosticEvent("app-start"), logger.clearDiagnosticLog(), logger.writeDiagnosticEvent("resource-added")]);
+  await Promise.all([logger.writeDiagnosticEvent("app.started"), logger.clearDiagnosticLog(), logger.writeDiagnosticEvent("resource.add.succeeded")]);
   const entries = (await readFile(logger.getDiagnosticLogFilePath(), "utf8")).trim().split("\n").map((entry) => JSON.parse(entry));
-  assert.deepEqual(entries.map((entry) => entry.event), ["resource-added"]);
+  assert.deepEqual(entries.map((entry) => entry.event), ["resource.add.succeeded"]);
 });
 
 test("日志清理失败向调用方报错，修复后允许重试", async (context) => {
@@ -478,7 +481,7 @@ test("日志清理失败向调用方报错，修复后允许重试", async (cont
   const logger = createLoader({ electron: { app: { getPath: () => directory } } })("src/main-process/services/diagnosticLogService.ts");
   const filename = logger.getDiagnosticLogFilePath();
   await mkdir(filename, { recursive: true });
-  await assert.rejects(logger.clearDiagnosticLog(), /EISDIR/);
+  await assert.rejects(logger.clearDiagnosticLog(), /INVALID_LOG_FILE/);
   assert.equal((await logger.getDiagnosticLogStatus()).failed, true);
   await rm(filename, { recursive: true });
   await logger.clearDiagnosticLog();
@@ -510,17 +513,18 @@ test("修改日志路径持久化，写入、定位准备及清理均作用于�
   const load = createLoader({ electron: { app: { getPath: () => directory } } });
   const settings = load("src/main-process/services/settingsService.ts");
   const logger = load("src/main-process/services/diagnosticLogService.ts");
-  await logger.writeDiagnosticEvent("app-start");
+  await logger.writeDiagnosticEvent("app.started");
   const originalPath = logger.getDiagnosticLogFilePath();
-  const originalContent = await readFile(originalPath, "utf8");
   const customPath = path.join(directory, "custom", "diagnostics.log");
   await settings.saveSettings({ ...defaultSettings, logFilePath: customPath });
+  await logger.flushDiagnosticLog();
+  const originalContent = await readFile(originalPath, "utf8");
   assert.equal(logger.getDiagnosticLogFilePath(), customPath);
   assert.equal(await logger.prepareDiagnosticLogFile(), customPath);
-  assert.equal(await readFile(customPath, "utf8"), "");
-  await logger.writeDiagnosticEvent("settings-saved");
+  assert.ok((await readFile(customPath, "utf8")).includes("settings.save.succeeded"));
+  await logger.writeDiagnosticEvent("resource.add.succeeded");
   const customContent = await readFile(customPath, "utf8");
-  assert.equal(JSON.parse(customContent.trim()).event, "settings-saved");
+  assert.equal(JSON.parse(customContent.trim().split("\n").at(-1)).event, "resource.add.succeeded");
   await logger.prepareDiagnosticLogFile();
   assert.equal(await readFile(customPath, "utf8"), customContent);
   assert.equal((await settings.loadSettings()).settings.logFilePath, customPath);

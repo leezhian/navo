@@ -1,3 +1,4 @@
+import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import path from "node:path";
 import type { AppSettings } from "../../domain/types";
 import type { Task, TaskStatus } from "../../domain/tasks";
@@ -52,120 +53,138 @@ export class TaskService {
   }
 
   load(): Promise<TaskBootstrap> {
-    return this.serialize(async () => {
-      if (!this.recovered) {
-        for (const operation of await this.repository.operations()) {
-          if (operation.state !== "pending") continue;
-          const manifest: TaskCreationManifest = JSON.parse(operation.manifest);
-          // SQLite 无法撤销 Git / 文件系统操作；无法确认安全的中断现场必须保留。
-          let retained = await rollbackWorkspaces(manifest);
-          if (manifest.attachmentDirectoryOwned) {
-            try { await removeAttachmentDirectory(this.attachmentDirectory(operation.id)); } catch { retained = true; }
+    return diagnosticOperation("task.load", {}, async () => {
+      return this.serialize(async () => {
+        if (!this.recovered) {
+          for (const operation of await this.repository.operations()) {
+            if (operation.state !== "pending") continue;
+            const manifest: TaskCreationManifest = JSON.parse(operation.manifest);
+            // SQLite 无法撤销 Git / 文件系统操作；无法确认安全的中断现场必须保留。
+            let retained = await rollbackWorkspaces(manifest);
+            if (manifest.attachmentDirectoryOwned) {
+              try { await removeAttachmentDirectory(this.attachmentDirectory(operation.id)); } catch { retained = true; }
+            }
+            if (retained) await this.repository.recordOperation(operation.id, "retained", manifest);
+            else await this.repository.clearOperation(operation.id);
           }
-          if (retained) await this.repository.recordOperation(operation.id, "retained", manifest);
-          else await this.repository.clearOperation(operation.id);
+          this.recovered = true;
         }
-        this.recovered = true;
-      }
-      const operations = await this.repository.operations();
-      return {
-        tasks: await this.repository.load(),
-        recoveryWarnings: operations.map((operation) => {
-          const manifest: TaskCreationManifest = JSON.parse(operation.manifest);
-          return manifest.steps.filter((step) => step.resource.mode !== "folder").map((step) => step.resource.workingPath + " · " + step.resource.targetBranch).join("\n") || manifest.attachmentDirectory;
-        }),
-      };
-    });
+        const operations = await this.repository.operations();
+        return {
+          tasks: await this.repository.load(),
+          recoveryWarnings: operations.map((operation) => {
+            const manifest: TaskCreationManifest = JSON.parse(operation.manifest);
+            return manifest.steps.filter((step) => step.resource.mode !== "folder").map((step) => step.resource.workingPath + " · " + step.resource.targetBranch).join("\n") || manifest.attachmentDirectory;
+          }),
+        };
+      });
+    }, { success: false });
   }
 
   importLegacy(value: Task[]) {
-    return this.serialize(async () => {
-      if (!Array.isArray(value) || !value.every(isTask) || new Set(value.map((task) => task.id)).size !== value.length) throw new Error("TASK_INVALID");
-      return this.repository.importLegacy(value.map((task) => ({
-        id: task.id, title: task.title, date: task.date, projectName: task.projectName, status: task.status,
-      })));
+    return diagnosticOperation("task.migrate", {}, async () => {
+      return this.serialize(async () => {
+        if (!Array.isArray(value) || !value.every(isTask) || new Set(value.map((task) => task.id)).size !== value.length) throw new Error("TASK_INVALID");
+        return this.repository.importLegacy(value.map((task) => ({
+          id: task.id, title: task.title, date: task.date, projectName: task.projectName, status: task.status,
+        })));
+      });
     });
   }
 
   create(input: CreateTaskInput, ownerId: number): Promise<Task> {
-    return this.serialize(async () => {
-      validateCreateInput(input);
-      const existing = (await this.repository.load())?.find((task) => task.id === input.requestId);
-      if (existing) return existing;
-      if ((await this.repository.operations()).some((operation) => operation.id === input.requestId)) throw new Error("TASK_CREATE_RETAINED");
-      const settings = this.getSettings();
-      const selectedFiles = await this.files.prepare(ownerId, input.attachmentIds);
-      const infos = await Promise.all(input.resources.map((resource) => this.inspectResource(resource.resourceId)));
-      const roots = infos.map((info) => info.git?.root ?? info.path);
-      if (new Set(roots).size !== roots.length) throw new Error("TASK_DUPLICATE_RESOURCE");
-      const manifest: TaskCreationManifest = {
-        workspaceDirectory: path.join(resolveResourcePath(settings.worktreesDirectory), input.requestId),
-        workspaceDirectoryOwned: false, attachmentDirectory: this.attachmentDirectory(input.requestId),
-        attachmentDirectoryOwned: false, steps: [],
-      };
-      for (let index = 0; index < infos.length; index += 1) {
-        manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, index + 1));
-      }
-      const persist = () => this.repository.recordOperation(input.requestId, "pending", manifest);
-      await persist();
-      try {
-        if (selectedFiles.length) {
-          await createAttachmentDirectory(manifest.attachmentDirectory);
-          manifest.attachmentDirectoryOwned = true;
-          await persist();
-        }
-        const attachments = await this.files.copy(manifest.attachmentDirectory, selectedFiles);
-        await createWorkspaceDirectory(manifest, persist);
-        for (const step of manifest.steps) await createWorkspace(step, persist);
-        const resources = manifest.steps.map((step) => step.resource);
-        const description = input.description.trim();
-        const task: Task = {
-          id: input.requestId, title: Array.from(description.split(/\r?\n/)[0].trim()).slice(0, 80).join(""),
-          description, date: new Date().toISOString(), projectName: resources[0]?.name ?? "", status: "TODO",
-          resources, links: input.links, webLinks: (input.webLinks ?? []).map(({ id, url, title }) => ({ id, url, title: title.trim() })),
-          attachments: attachments.map(({ id, name, size }) => ({ id, name, size })),
+    return diagnosticOperation("task.create", { taskId: input?.requestId, resourceCount: Array.isArray(input?.resources) ? input.resources.length : undefined, attachmentCount: Array.isArray(input?.attachmentIds) ? input.attachmentIds.length : undefined }, async () => {
+      return this.serialize(async () => {
+        validateCreateInput(input);
+        const existing = (await this.repository.load())?.find((task) => task.id === input.requestId);
+        if (existing) return existing;
+        if ((await this.repository.operations()).some((operation) => operation.id === input.requestId)) throw new Error("TASK_CREATE_RETAINED");
+        const settings = this.getSettings();
+        const selectedFiles = await this.files.prepare(ownerId, input.attachmentIds);
+        const infos = await Promise.all(input.resources.map((resource) => this.inspectResource(resource.resourceId)));
+        const roots = infos.map((info) => info.git?.root ?? info.path);
+        if (new Set(roots).size !== roots.length) throw new Error("TASK_DUPLICATE_RESOURCE");
+        const manifest: TaskCreationManifest = {
+          workspaceDirectory: path.join(resolveResourcePath(settings.worktreesDirectory), input.requestId),
+          workspaceDirectoryOwned: false, attachmentDirectory: this.attachmentDirectory(input.requestId),
+          attachmentDirectoryOwned: false, steps: [],
         };
-        await this.repository.create(task, attachments);
-        this.files.release(ownerId, input.attachmentIds);
-        return task;
-      } catch (error) {
-        let retained = await rollbackWorkspaces(manifest);
-        if (manifest.attachmentDirectoryOwned) {
-          try { await removeAttachmentDirectory(manifest.attachmentDirectory); } catch { retained = true; }
+        for (let index = 0; index < infos.length; index += 1) {
+          manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, index + 1));
         }
-        if (retained) {
-          await this.repository.recordOperation(input.requestId, "retained", manifest);
-          throw new Error("TASK_CREATE_RETAINED");
+        const persist = () => this.repository.recordOperation(input.requestId, "pending", manifest);
+        await persist();
+        try {
+          if (selectedFiles.length) {
+            await createAttachmentDirectory(manifest.attachmentDirectory);
+            manifest.attachmentDirectoryOwned = true;
+            await persist();
+          }
+          const attachments = await this.files.copy(manifest.attachmentDirectory, selectedFiles);
+          await createWorkspaceDirectory(manifest, persist);
+          for (const step of manifest.steps) {
+            if (step.resource.mode === "worktree" || step.resource.mode === "new-branch") {
+              await diagnosticOperation(step.resource.mode === "worktree" ? "worktree.create" : "branch.create",
+                { resourceId: step.resource.resourceId }, () => createWorkspace(step, persist), { started: true });
+            } else await createWorkspace(step, persist);
+          }
+          const resources = manifest.steps.map((step) => step.resource);
+          const description = input.description.trim();
+          const task: Task = {
+            id: input.requestId, title: Array.from(description.split(/\r?\n/)[0].trim()).slice(0, 80).join(""),
+            description, date: new Date().toISOString(), projectName: resources[0]?.name ?? "", status: "TODO",
+            resources, links: input.links, webLinks: (input.webLinks ?? []).map(({ id, url, title }) => ({ id, url, title: title.trim() })),
+            attachments: attachments.map(({ id, name, size }) => ({ id, name, size })),
+          };
+          await this.repository.create(task, attachments);
+          this.files.release(ownerId, input.attachmentIds);
+          return task;
+        } catch (error) {
+          let retained = await rollbackWorkspaces(manifest);
+          if (manifest.attachmentDirectoryOwned) {
+            try { await removeAttachmentDirectory(manifest.attachmentDirectory); } catch { retained = true; }
+          }
+          if (retained) {
+            void writeDiagnosticEvent("task.cleanup_retained", { taskId: input.requestId, resourceCount: manifest.steps.length });
+            await this.repository.recordOperation(input.requestId, "retained", manifest);
+            throw new Error("TASK_CREATE_RETAINED");
+          }
+          await this.repository.clearOperation(input.requestId);
+          throw error;
         }
-        await this.repository.clearOperation(input.requestId);
-        throw error;
-      }
-    });
+      });
+    }, { started: true });
   }
 
   rename(id: string, title: string) {
-    return this.serialize(async () => {
-      if (typeof title !== "string" || !title.trim() || title.trim().length > 160) throw new Error("TASK_INVALID_TITLE");
-      return this.repository.update((tasks) => {
-        requireTask(tasks, id);
-        return tasks.map((task) => task.id === id ? { ...task, title: title.trim() } : task);
+    return diagnosticOperation("task.rename", { taskId: id }, async () => {
+      return this.serialize(async () => {
+        if (typeof title !== "string" || !title.trim() || title.trim().length > 160) throw new Error("TASK_INVALID_TITLE");
+        return this.repository.update((tasks) => {
+          requireTask(tasks, id);
+          return tasks.map((task) => task.id === id ? { ...task, title: title.trim() } : task);
+        });
       });
     });
   }
 
   move(id: string, status: TaskStatus, beforeTaskId: string | null) {
-    return this.serialize(() => this.repository.update((tasks) => {
-      requireTask(tasks, id);
-      if (!TASK_STATUSES.includes(status) || (beforeTaskId !== null && typeof beforeTaskId !== "string")) throw new Error("TASK_INVALID");
-      return moveTask(tasks, id, status, beforeTaskId);
-    }));
+    return diagnosticOperation("task.move", { taskId: id, status }, async () => {
+      return this.serialize(() => this.repository.update((tasks) => {
+        requireTask(tasks, id);
+        if (!TASK_STATUSES.includes(status) || (beforeTaskId !== null && typeof beforeTaskId !== "string")) throw new Error("TASK_INVALID");
+        return moveTask(tasks, id, status, beforeTaskId);
+      }));
+    });
   }
 
   restore(id: string) {
-    return this.serialize(() => this.repository.update((tasks) => {
-      const task = requireTask(tasks, id);
-      return task.status === "ARCHIVED" ? moveTask(tasks, id, task.archivedFrom ?? "TODO", null) : tasks;
-    }));
+    return diagnosticOperation("task.restore", { taskId: id }, async () => {
+      return this.serialize(() => this.repository.update((tasks) => {
+        const task = requireTask(tasks, id);
+        return task.status === "ARCHIVED" ? moveTask(tasks, id, task.archivedFrom ?? "TODO", null) : tasks;
+      }));
+    });
   }
 
   inspectDeletion(id: string, options: TaskDeletionOptions, ownerId = 0) {
@@ -173,9 +192,11 @@ export class TaskService {
   }
 
   remove(id: string, confirmation?: TaskDeletionConfirmation, ownerId = 0) {
-    return this.serialize(() => this.deletion.remove(id, confirmation, ownerId, async () => {
-      if (REQUEST_ID.test(id)) await removeAttachmentDirectory(this.attachmentDirectory(id));
-    }));
+    return diagnosticOperation("task.delete", { taskId: id }, async () => {
+      return this.serialize(() => this.deletion.remove(id, confirmation, ownerId, async () => {
+        if (REQUEST_ID.test(id)) await removeAttachmentDirectory(this.attachmentDirectory(id));
+      }));
+    }, { started: true });
   }
 
   async previewAttachment(taskId: string, attachmentId: string) {

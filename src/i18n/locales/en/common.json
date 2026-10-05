@@ -18,6 +18,7 @@
     "unknown": "Unknown"
   },
   "actions": {
+    "reload": "Reload",
     "create": "Create",
     "rename": "Rename",
     "restore": "Restore",
@@ -74,6 +75,7 @@
     "failed": "Refresh failed. Please try again."
   },
   "errors": {
+    "applicationFailed": "The app encountered a problem. Reload to try again.",
     "operationFailed": "Operation failed. Please retry."
   }
 }

@@ -11,7 +11,8 @@ import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ip
 import { stopAllProjectWatchers } from "./main-process/services/projectChangeWatcher";
 import { flushTasks, registerTaskHandlers } from "./main-process/ipc/taskHandlers";
 import { registerSettingsHandlers, stopResourceOperations } from "./main-process/ipc/settingsHandlers";
-import { writeDiagnosticEvent } from "./main-process/services/diagnosticLogService";
+import { flushDiagnosticLog, initializeDiagnosticLog, writeDiagnosticEvent } from "./main-process/services/diagnosticLogService";
+import { bindProcessDiagnostics, bindWindowDiagnostics, registerDiagnosticHandlers } from "./main-process/diagnostics/diagnosticRuntime";
 import { flushSettings, getCurrentSettings, loadSettings } from "./main-process/services/settingsService";
 import { updateApplicationMenu } from "./main-process/applicationMenu";
 import { startReviewSessionWatcher, stopReviewSessionWatcher } from "./main-process/services/reviewSessionWatcher";
@@ -27,6 +28,7 @@ if (!existsSync(app.getPath("userData")) && existsSync(legacyUserDataPath)) {
   app.setPath("userData", legacyUserDataPath);
 }
 
+bindProcessDiagnostics();
 startApplication();
 
 const createWindow = () => {
@@ -51,6 +53,7 @@ const createWindow = () => {
   });
 
   bindWindowStateEvents(mainWindow);
+  bindWindowDiagnostics(mainWindow);
   bindDevelopmentTools(mainWindow, Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL));
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -65,16 +68,18 @@ const createWindow = () => {
 function startApplication() {
   app.on("ready", async () => {
     try { await loadSettings(); } catch { console.error("Settings could not be loaded"); }
+    initializeDiagnosticLog();
+    registerDiagnosticHandlers();
     updateApplicationMenu(getCurrentSettings().locale);
     registerSettingsHandlers();
     registerTaskHandlers();
-    void writeDiagnosticEvent("app-start");
+    void writeDiagnosticEvent("app.started", { version: app.getVersion(), platform: process.platform });
     registerAppHandlers();
     registerReviewHandlers();
     registerTerminalHandlers();
     registerWindowHandlers();
     startReviewSessionWatcher().catch((error: unknown) => {
-      console.error(error instanceof Error ? error.message : String(error));
+      void writeDiagnosticEvent("app.watcher_failed", { error });
     });
     createWindow();
   });
@@ -91,7 +96,12 @@ function startApplication() {
     stopAllProjectWatchers();
     destroyAllTerminals();
     // 等待设置与日志队列完成再退出；磁盘异常不阻塞无限等待。
-    void Promise.race([Promise.all([stoppedResources, flushSettings(), flushTasks(), writeDiagnosticEvent("app-stop")]), new Promise((resolve) => setTimeout(resolve, 5000))]).finally(() => {
+    const finishShutdown = async () => {
+      await Promise.allSettled([stoppedResources, flushSettings(), flushTasks()]);
+      await writeDiagnosticEvent("app.stopped");
+      await flushDiagnosticLog();
+    };
+    void Promise.race([finishShutdown(), new Promise((resolve) => setTimeout(resolve, 5000))]).finally(() => {
       shutdownComplete = true;
       app.quit();
     });

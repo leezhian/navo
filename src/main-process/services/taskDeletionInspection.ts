@@ -5,6 +5,7 @@ import type { TaskResource } from "../../shared/taskTypes";
 import type { TaskDeletionItem, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
 import type { TaskRepository } from "./taskRepository";
 import { branchOid, deletionFingerprint, deletionGit, directoryIdentity, pathExists, workingCopyRisk, worktreeList } from "./taskDeletionGit";
+import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 
 type DeletionContext = Awaited<ReturnType<TaskRepository["deletionContext"]>>;
 export interface InspectedDeletionItem {
@@ -115,7 +116,8 @@ export async function inspectDeletionItem(task: Task, resource: TaskResource, op
       item.unpushedCommits = Number(count);
     }
     evidence = { evidence, remoteRefs };
-  } catch {
+  } catch (error) {
+    void writeDiagnosticEvent("worktree.inspect.failed", { taskId: task.id, resourceId: resource.resourceId, error });
     item.worktreeAction = "keep";
     item.branchAction = "keep";
     item.worktreeReason = "inspectionFailed";

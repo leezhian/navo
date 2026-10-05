@@ -2,8 +2,8 @@ import { constants } from "node:fs";
 import { access, open, stat } from "node:fs/promises";
 import path from "node:path";
 import { resolveResourcePath } from "./resourcePaths";
-
-export const DIAGNOSTIC_EVENTS = ["app-start", "app-stop", "settings-saved", "resource-added", "resource-removed", "clone-start", "clone-success", "clone-failure", "clone-cancelled"] as const;
+import { MAX_DIAGNOSTIC_ENTRY_BYTES } from "../../shared/diagnosticTypes";
+import { isDiagnosticLogEntry } from "../diagnostics/diagnosticLogFormat";
 
 export function resolveDiagnosticLogPath(value: string) {
   const filePath = resolveResourcePath(value);
@@ -23,12 +23,12 @@ export async function validateDiagnosticLogPath(value: string) {
   if (fileStat.size === 0) return filePath;
   const handle = await open(filePath, "r");
   try {
-    const buffer = Buffer.alloc(4096);
+    const buffer = Buffer.alloc(MAX_DIAGNOSTIC_ENTRY_BYTES);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     const firstLine = buffer.toString("utf8", 0, bytesRead).split("\n")[0];
     let entry;
     try { entry = JSON.parse(firstLine); } catch { throw new Error("LOG_FILE_IN_USE"); }
-    if (!entry || !DIAGNOSTIC_EVENTS.includes(entry.event) || typeof entry.time !== "string" || !Number.isFinite(Date.parse(entry.time)) || Object.keys(entry).length !== 2) throw new Error("LOG_FILE_IN_USE");
+    if (!isDiagnosticLogEntry(entry)) throw new Error("LOG_FILE_IN_USE");
   } finally { await handle.close(); }
   return filePath;
 }

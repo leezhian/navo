@@ -27,6 +27,9 @@ import type {
 } from "./shared/terminalTypes";
 
 const api: NavoApi = {
+  diagnostics: {
+    report: (report) => ipcRenderer.invoke(ipcChannels.diagnosticsReport, report),
+  },
   tasks: {
     load: () => ipcRenderer.invoke(ipcChannels.tasksLoad),
     importLegacy: (value) => ipcRenderer.invoke(ipcChannels.tasksImportLegacy, value),

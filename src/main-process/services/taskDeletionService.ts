@@ -4,6 +4,7 @@ import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview
 import { TaskRepository } from "./taskRepository";
 import { inspectDeletionItem, ownsWorkspace } from "./taskDeletionInspection";
 import { branchOid, deletionFingerprint, deletionGit, pathExists, worktreeList } from "./taskDeletionGit";
+import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 
 const CONFIRMATION_LIFETIME_MS = 5 * 60 * 1000;
 const KEEP_RESOURCES: TaskDeletionOptions = { deleteWorktrees: false, deleteBranches: false };
@@ -55,6 +56,12 @@ export class TaskDeletionService {
     if (inspection.blocked) throw new Error("TASK_DELETE_INSPECTION");
     try {
       for (const entry of inspection.entries) {
+        if (options.deleteWorktrees && entry.item.worktreeAction === "keep") {
+          void writeDiagnosticEvent("worktree.kept", { resourceId: entry.item.resourceId, reason: entry.item.worktreeReason });
+        }
+        if (options.deleteBranches && entry.item.branchAction === "keep" && entry.item.branchReason) {
+          void writeDiagnosticEvent("branch.kept", { resourceId: entry.item.resourceId, reason: entry.item.branchReason });
+        }
         if (entry.item.worktreeAction !== "delete" && entry.item.branchAction !== "delete") continue;
         const current = await this.inspect(taskId, options);
         const latest = current.entries.find((item) => item.item.resourceId === entry.item.resourceId);
@@ -66,7 +73,9 @@ export class TaskDeletionService {
           const checked = await this.inspect(taskId, options);
           if (checked.entries.find((item) => item.item.resourceId === entry.item.resourceId)?.fingerprint !== entry.fingerprint) throw new Error("TASK_DELETE_CHANGED");
           const force = entry.item.uncommittedFiles > 0 || entry.item.ignoredFiles > 0;
-          await deletionGit(entry.resource.originalPath, ["worktree", "remove", ...(force ? ["--force"] : []), "--", entry.resource.workingPath]);
+          await diagnosticOperation("worktree.delete", {
+            resourceId: entry.item.resourceId, uncommittedFiles: entry.item.uncommittedFiles, ignoredFiles: entry.item.ignoredFiles,
+          }, () => deletionGit(entry.resource.originalPath, ["worktree", "remove", ...(force ? ["--force"] : []), "--", entry.resource.workingPath]), { started: true });
         }
         progress.worktree = "removed";
         await this.repository.recordDeletion(taskId, progress);
@@ -83,7 +92,8 @@ export class TaskDeletionService {
           if (worktrees.some((worktree) => worktree.branch === "refs/heads/" + entry.resource.targetBranch)
             || await branchOid(entry.resource.originalPath, entry.resource.targetBranch) !== entry.branchOid) throw new Error("TASK_DELETE_CHANGED");
           // CAS 防止预检查之后分支 tip 被外部 Git 改写；绝不执行远端删除。
-          await deletionGit(entry.resource.originalPath, ["update-ref", "--no-deref", "-d", "refs/heads/" + entry.resource.targetBranch, entry.branchOid]);
+          await diagnosticOperation("branch.delete", { resourceId: entry.item.resourceId },
+            () => deletionGit(entry.resource.originalPath, ["update-ref", "--no-deref", "-d", "refs/heads/" + entry.resource.targetBranch, entry.branchOid]), { started: true });
           progress.branch = "removed";
           await this.repository.recordDeletion(taskId, progress);
         }
@@ -91,6 +101,7 @@ export class TaskDeletionService {
       await removeAttachments();
       return await this.repository.completeDeletion(taskId);
     } catch (error) {
+      void writeDiagnosticEvent("task.cleanup_retained", { taskId, error });
       if (error instanceof Error && error.message === "TASK_DELETE_CHANGED") throw error;
       throw new Error("TASK_DELETE_FAILED");
     }
