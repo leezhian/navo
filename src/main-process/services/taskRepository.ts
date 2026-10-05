@@ -21,6 +21,7 @@ export class TaskRepository {
       const taskId = String(row.id);
       const resources = database.prepare("SELECT data FROM task_resources WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
       const links = database.prepare("SELECT data FROM task_links WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
+      const webLinks = database.prepare("SELECT id,url,title FROM task_web_links WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
       const attachments = database.prepare("SELECT id,name,size FROM task_attachments WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
       return {
         id: taskId, title: String(row.title), description: String(row.description), date: String(row.date),
@@ -28,6 +29,7 @@ export class TaskRepository {
         archivedFrom: row.archived_from === "TODO" || row.archived_from === "DONE" ? row.archived_from : undefined,
         resources: resources.map((item) => JSON.parse(String(item.data))),
         links: links.map((item) => JSON.parse(String(item.data))),
+        webLinks: webLinks.map((item) => ({ id: String(item.id), url: String(item.url), title: String(item.title) })),
         attachments: attachments.map((item) => ({ id: String(item.id), name: String(item.name), size: Number(item.size) })),
       };
     });
@@ -62,6 +64,9 @@ export class TaskRepository {
           .run(this.namespace, task.id, resource.workingPath, resource.targetBranch, resource.originalPath);
       });
       for (const link of task.links ?? []) database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run(this.namespace, task.id, link.id, JSON.stringify(link));
+      task.webLinks?.forEach((link, position) => {
+        database.prepare("INSERT INTO task_web_links VALUES (?,?,?,?,?,?)").run(this.namespace, task.id, link.id, position, link.url, link.title);
+      });
       for (const file of attachments) database.prepare("INSERT INTO task_attachments VALUES (?,?,?,?,?,?)")
         .run(this.namespace, task.id, file.id, file.name, file.size, file.storageName);
       database.prepare("INSERT OR IGNORE INTO task_state VALUES (?,1)").run(this.namespace);

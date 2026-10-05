@@ -77,7 +77,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
           create: async (input) => {
             window.createdInputs.push(input);
             const resources = input.resources.map(resource => ({ ...resource, name: info(resource.resourceId).name, originalPath: info(resource.resourceId).path, workingPath: info(resource.resourceId).path }));
-            const task = { id: input.requestId, title: input.description.trim().split(String.fromCharCode(10))[0], description: input.description, date: new Date().toISOString(), projectName: resources[0]?.name ?? '', status: 'TODO', resources, links: input.links, attachments: input.attachmentIds.map(id => ({ id, name: 'notes.txt', size: 12 })) };
+            const task = { id: input.requestId, title: input.description.trim().split(String.fromCharCode(10))[0], description: input.description, date: new Date().toISOString(), projectName: resources[0]?.name ?? '', status: 'TODO', resources, links: input.links, webLinks: input.webLinks, attachments: input.attachmentIds.map(id => ({ id, name: 'notes.txt', size: 12 })) };
             persisted = [task, ...persisted]; return task;
           },
           rename: async (id,title) => persisted = persisted.map(task => task.id === id ? { ...task,title } : task),
@@ -178,7 +178,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             const composer = () => dialog()?.querySelector('[data-slot="input-group"]');
             if (!composer()?.contains(description) || !composer().parentElement.nextElementSibling?.contains(button('添加仓库或文件夹'))) throw new Error('Resource entry must directly follow the combined input container');
             if (composer().children.length !== 2) throw new Error('Empty composer must contain only the textarea and bottom bar');
-            const attachmentButton = () => composer()?.querySelector('button[aria-label="添加图片或文件"]');
+            const attachmentButton = () => composer()?.querySelector('button[aria-label="添加附件或链接"]');
             if (!attachmentButton() || attachmentButton().textContent.trim() || !description.nextElementSibling?.contains(attachmentButton())) throw new Error('Attachment entry must be an icon in the bottom bar');
             const createButton = [...composer().querySelectorAll('button')].find(item => item.textContent === '创建');
             if (!createButton?.disabled || createButton.parentElement !== attachmentButton().parentElement) throw new Error('Create must share the input bottom bar and remain disabled for an empty description');
@@ -222,7 +222,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             const draftTextarea = draftDialog.querySelector('textarea');
             function assertDialogStack(count) {
               const layers = [...document.querySelectorAll('[role="dialog"]')];
-              if (layers.length !== count || !draftTextarea.isConnected || draftDialog.getAttribute('data-state') !== 'open') throw new Error('Parent dialogs must stay mounted and open beneath children');
+              if (layers.length !== count || !draftTextarea.isConnected || draftDialog.getAttribute('data-state') !== 'open') throw new Error('Parent dialogs must stay mounted and open beneath children: expected=' + count + ', actual=' + layers.length + ', connected=' + draftTextarea.isConnected + ', state=' + draftDialog.getAttribute('data-state'));
               for (const layer of layers) {
                 if (getComputedStyle(layer).display === 'none' || getComputedStyle(layer).visibility === 'hidden' || layer.getBoundingClientRect().height === 0) throw new Error('Parent dialogs must remain visible');
               }
@@ -506,7 +506,59 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             if (targetButton()?.textContent !== 'Branch Name' || targetInput() || worktree().disabled) throw new Error('Ordinary local branch must restore branch creation and worktree selection');
             worktree().click();
             await waitFor(() => worktree().getAttribute('data-state') === 'checked', 'Worktree checkbox did not restore');
-            attachmentButton().click();
+            const parentTaskDialog = dialog();
+            async function attachmentOption(label) {
+              await mouseClick(attachmentButton());
+              await waitFor(() => document.querySelector('[role="menu"]'), 'Attachment menu did not open');
+              const items = [...document.querySelectorAll('[role="menuitem"]')];
+              if (items.length !== 2) throw new Error('Attachment menu must have exactly two options');
+              await mouseClick(items.find(item => item.textContent.trim() === label));
+            }
+            async function openWebLink() {
+              await attachmentOption('添加链接');
+              await waitFor(() => dialog()?.querySelector('input[type="url"]'), 'Link dialog did not open');
+              if (document.querySelectorAll('[role="dialog"]').length !== 2) throw new Error('Link dialog must retain the parent');
+              await waitFor(() => document.activeElement === dialog().querySelector('input[type="url"]'), 'URL field must receive focus');
+            }
+            for (const action of ['escape', 'close', 'outside']) {
+              await openWebLink();
+              if (action === 'escape') await window.testInput.escape();
+              else if (action === 'close') await click('关闭');
+              else await window.testInput.click({ x: 5, y: 5 });
+              await waitFor(() => dialog() === parentTaskDialog, 'Closing link dialog must not close the parent');
+              await waitFor(() => document.activeElement === attachmentButton(), 'Attachment focus not restored');
+            }
+            await openWebLink();
+            if (!dialog().querySelector('button[type="submit"]').disabled) throw new Error('URL must be required');
+            fill(dialog().querySelector('input[type="url"]'), 'not a url');
+            await click('添加');
+            await waitFor(() => dialog()?.querySelector('[role="alert"]'), 'Invalid link must show validation');
+            await window.setTestLanguage('en');
+            await waitFor(() => dialog()?.textContent.includes('Any url - docs, a spec, a ticket.'), 'Link help must support English');
+            if (dialog().querySelectorAll('input')[1].placeholder !== 'Optional') throw new Error('Optional hint must be in the title placeholder');
+            await window.setTestLanguage('zh-CN');
+            await waitFor(() => dialog()?.querySelectorAll('input')[1]?.placeholder === '选填', 'Title placeholder must support Chinese');
+            const linkLabels = [...dialog().querySelectorAll('label')].map(label => label.textContent.trim());
+            if (linkLabels.join(',') !== '链接,标题') throw new Error('Link labels must not show required or optional markers');
+            fill(dialog().querySelector('input[type="url"]'), '  https://example.com/spec  ');
+            fill(dialog().querySelectorAll('input')[1], '  设计规范  ');
+            await click('添加');
+            await waitFor(() => dialog() === parentTaskDialog && composer()?.textContent.includes('设计规范'), 'Named link not added');
+            await openWebLink();
+            fill(dialog().querySelector('input[type="url"]'), 'https://example.com/docs');
+            await click('添加');
+            await waitFor(() => dialog() === parentTaskDialog && composer()?.textContent.includes('https://example.com/docs'), 'Untitled link must show its URL');
+            await openWebLink();
+            fill(dialog().querySelector('input[type="url"]'), 'https://example.com/remove');
+            await click('添加');
+            await waitFor(() => dialog() === parentTaskDialog && composer()?.textContent.includes('https://example.com/remove'), 'Removable link not added');
+            composer().querySelector('button[aria-label="移除：https://example.com/remove"]').click();
+            await waitFor(() => !composer()?.textContent.includes('https://example.com/remove'), 'Link must be removable');
+            await click('关闭');
+            await waitFor(() => !dialog(), 'Task dialog did not close');
+            document.querySelector('button[aria-label="创建任务"]').click();
+            await waitFor(() => composer()?.textContent.includes('设计规范'), 'Closing and reopening must retain link draft');
+            await attachmentOption('添加图片或文件');
             await waitFor(() => dialog()?.textContent.includes('reference.png'), 'Attachments were not shown');
             if (!composer()?.textContent.includes('reference.png') || !composer().textContent.includes('notes.txt')) throw new Error('Attachments must be echoed inside the composer');
             for (const name of ['reference.png', 'notes.txt']) {
@@ -522,6 +574,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await waitFor(() => !dialog() && document.querySelector('.task-card'), 'Task was not created in board');
             const input = window.createdInputs[0];
             if (input.resources.length !== 2 || input.links.length !== 2 || input.attachmentIds.length !== 1) throw new Error('Task context was not submitted');
+            if (input.webLinks.length !== 2 || input.webLinks[0].title !== '设计规范' || input.webLinks[0].url !== 'https://example.com/spec' || input.webLinks[1].title !== '') throw new Error('Web links must submit separately with optional trimmed titles');
             if (input.resources[0].targetBranch !== '' || input.resources[0].mode !== 'worktree') throw new Error('Branch settings not preserved');
             if (!document.querySelector('[data-status="TODO"] .task-card')) throw new Error('Task was not placed in TODO');
             const taskCard = document.querySelector('.task-card');

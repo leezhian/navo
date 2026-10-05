@@ -18,7 +18,16 @@
     "emptyPreview": "选择条目查看预览"
   },
   "attachments": {
+    "menu": "添加附件或链接",
     "add": "添加图片或文件"
+  },
+  "webLinks": {
+    "add": "添加链接",
+    "title": "链接",
+    "url": "链接",
+    "titlePlaceholder": "选填",
+    "invalidUrl": "请输入有效的 HTTP 或 HTTPS 链接，且不要包含账号密码。",
+    "description": "可以添加文档、规范、工单等任意网页链接。填写标题作为条目名称，留空则显示链接。"
   },
   "resources": {
     "title": "工作目录",

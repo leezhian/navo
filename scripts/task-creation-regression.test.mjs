@@ -86,8 +86,50 @@ test("数据库从设置 v1 升级，任务迁移一次且开发与正式数据�
   assert.deepEqual((await dev.load()).tasks, []);
   const upgraded = await openAppDatabase(path.join(directory, "app.db"));
   assert.equal(upgraded.prepare("SELECT value FROM settings WHERE key='theme'").get().value, '"dark"');
-  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 2);
+  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 3);
   upgraded.close();
+});
+
+test("普通链接独立保存、重启恢复，旧 v2 数据升级不受影响", async (context) => {
+  const { directory, settings, service, inputFor } = await setup(context);
+  const existing = await service.create(await inputFor([]), 1);
+  const database = new DatabaseSync(path.join(directory, "app.db"));
+  database.exec("DROP TABLE task_web_links; PRAGMA user_version = 2");
+  database.close();
+  const input = await inputFor([]);
+  input.webLinks = [
+    { id: randomUUID(), url: "https://example.com/spec?version=1#intro", title: "  需求规范  " },
+    { id: randomUUID(), url: "https://example.com/ticket", title: "" },
+  ];
+  const task = await service.create(input, 1);
+  assert.equal(task.webLinks[0].title, "需求规范");
+  assert.equal(task.webLinks[1].title, "");
+  assert.deepEqual(task.links, []);
+  const restarted = new TaskService(directory, "production", () => settings);
+  assert.deepEqual((await restarted.load()).tasks.find((item) => item.id === task.id).webLinks, task.webLinks);
+  assert.deepEqual((await restarted.load()).tasks.find((item) => item.id === existing.id).webLinks, []);
+  await restarted.rename(task.id, "新标题");
+  await restarted.move(task.id, "DONE", null);
+  assert.deepEqual((await restarted.load()).tasks.find((item) => item.id === task.id).webLinks, task.webLinks);
+  const dev = new TaskService(directory, "development", () => settings);
+  assert.equal((await dev.load()).tasks, null);
+  await restarted.remove(task.id);
+  const check = await openAppDatabase(path.join(directory, "app.db"));
+  assert.equal(check.prepare("SELECT count(*) AS count FROM task_web_links").get().count, 0);
+  check.close();
+});
+
+test("主进程拒绝无效普通链接，不创建任务或工作区", async (context) => {
+  const { service, inputFor } = await setup(context);
+  const input = await inputFor([]);
+  const valid = { id: randomUUID(), url: "https://example.com", title: "" };
+  for (const webLinks of [
+    null, {}, [null], [{ ...valid, url: "" }], [{ ...valid, url: "example.com" }],
+    [{ ...valid, url: "javascript:alert(1)" }], [{ ...valid, url: "file:///etc/passwd" }],
+    [{ ...valid, url: "https://user:password@example.com" }], [{ ...valid, url: "https://example.com/" + "a".repeat(8192) }],
+    [{ ...valid, title: "a".repeat(201) }], [{ ...valid, id: "" }], [valid, valid],
+  ]) await assert.rejects(service.create({ ...input, webLinks }, 1), /TASK_INVALID/);
+  assert.equal((await service.load()).tasks, null);
 });
 
 test("多仓库创建 Worktree、远程默认分支和短随机目标名，重试不重复创建", async (context) => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link2 } from "lucide-react";
 import type { Task } from "@/domain/tasks";
 import type { TaskAttachment } from "@/shared/taskTypes";
 import { getTasksApi } from "@/services/taskApi";
@@ -24,6 +25,7 @@ export function TaskContextDetails({ task }: TaskContextDetailsProps) {
   return <div className="mt-6 space-y-5 text-xs">
     {task.description && <section><h4 className="mb-2 text-muted-foreground">{t("taskCreate:composer.description")}</h4><p className="whitespace-pre-wrap break-words leading-6">{task.description}</p></section>}
     {!!task.links?.length && <section><h4 className="mb-2 text-muted-foreground">{t("tasks:details.links")}</h4><div className="space-y-2">{task.links.map((link) => <p key={link.id} className="rounded-lg bg-muted/40 p-2"><span className="mr-2 text-muted-foreground">{link.group}</span>{link.title}</p>)}</div></section>}
+    {!!task.webLinks?.length && <section><h4 className="mb-2 text-muted-foreground">{t("taskCreate:webLinks.title")}</h4><div className="space-y-2">{task.webLinks.map((link) => <p key={link.id} title={link.url} className="flex items-center gap-2 rounded-lg bg-muted/40 p-2"><Link2 className="size-3.5 shrink-0 text-muted-foreground" /><span className="min-w-0 truncate">{link.title || link.url}</span></p>)}</div></section>}
     {!!task.resources?.length && <section><h4 className="mb-2 text-muted-foreground">{t("taskCreate:resources.title")}</h4><div className="space-y-2">{task.resources.map((resource) => <div key={resource.resourceId} className="rounded-lg bg-muted/40 p-3">
       <p className="font-medium">{resource.name}</p><p className="mt-1 break-all text-muted-foreground">{resource.workingPath}</p>
       {resource.mode !== "folder" && <p className="mt-2 break-all">{resource.targetBranch}{resource.mode === "worktree" && <span className="ml-2 text-muted-foreground">Worktree</span>}</p>}

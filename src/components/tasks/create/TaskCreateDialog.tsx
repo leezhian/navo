@@ -14,6 +14,7 @@ import { TaskResourceRow } from "./TaskResourceRow";
 import { TaskResourcePicker } from "./TaskResourcePicker";
 import { TaskIssuePicker } from "./TaskIssuePicker";
 import { TaskComposer } from "./TaskComposer";
+import { TaskWebLinkDialog } from "./TaskWebLinkDialog";
 
 interface TaskCreateDialogProps {
   /** 弹窗关闭后保留本次窗口内草稿，创建成功后清空。 */
@@ -32,6 +33,8 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
   const { loaded, pending } = useTaskStore();
   const [issueGroup, setIssueGroup] = useState<IssueGroup | null>(null);
   const [resourcePicker, setResourcePicker] = useState(false);
+  const [webLinkDialog, setWebLinkDialog] = useState(false);
+  const attachmentTriggerRef = useRef<HTMLButtonElement>(null);
   const pickerTriggerRef = useRef<HTMLButtonElement | null>(null);
   const resourceTriggerRef = useRef<HTMLButtonElement>(null);
   const disabled = draft.working || pending;
@@ -43,13 +46,13 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
     if (task) { onOpenChange(false); onCreated(task); }
   }
   return <>
-    <Dialog open={open} onOpenChange={(next) => { if (!disabled && !issueGroup && !resourcePicker) onOpenChange(next); }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!disabled && !issueGroup && !resourcePicker && !webLinkDialog) onOpenChange(next); }}>
       <DialogContent className="sm:max-w-[760px]" showCloseButton={!disabled} aria-describedby={undefined}
         onEscapeKeyDown={(event) => {
           const editingBranch = event.target instanceof HTMLElement && event.target.closest("[data-task-branch-editor]");
-          if (disabled || issueGroup || resourcePicker || editingBranch) event.preventDefault();
+          if (disabled || issueGroup || resourcePicker || webLinkDialog || editingBranch) event.preventDefault();
         }}
-        onInteractOutside={(event) => { if (disabled || issueGroup || resourcePicker) event.preventDefault(); }}>
+        onInteractOutside={(event) => { if (disabled || issueGroup || resourcePicker || webLinkDialog) event.preventDefault(); }}>
         <DialogTitle className="sr-only">{t("taskCreate:actions.open")}</DialogTitle>
         <div className="max-h-[65vh] space-y-2 overflow-y-auto p-0.5">
           <div className="space-y-2">
@@ -58,6 +61,8 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
               <Button variant="secondary" className="h-8 text-xs" disabled={disabled} onClick={(event) => { pickerTriggerRef.current = event.currentTarget; setIssueGroup("PR"); }}><GitPullRequest className="size-3.5" />{t("taskCreate:links.addPullRequest")}</Button>
             </div>
             <TaskComposer description={draft.description} links={draft.links} attachments={draft.attachments} disabled={disabled}
+              webLinks={draft.webLinks} attachmentTriggerRef={attachmentTriggerRef} onAddWebLink={() => setWebLinkDialog(true)}
+              onRemoveWebLink={(id) => draft.setWebLinks((current) => current.filter((link) => link.id !== id))}
               canCreate={canCreate} creating={draft.working} onCreate={() => void create()}
               onDescriptionChange={draft.setDescription}
               onChooseFiles={() => void draft.chooseFiles()}
@@ -88,6 +93,10 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
           onReturnFocus={() => resourceTriggerRef.current?.focus()}
           excludedIds={draft.resources.map((resource) => resource.resourceId)}
           onClose={() => setResourcePicker(false)} onConfirm={(ids) => draft.addResources(ids)} />}
+        {webLinkDialog && <TaskWebLinkDialog onReturnFocus={() => attachmentTriggerRef.current?.focus()}
+          onClose={() => setWebLinkDialog(false)} onConfirm={(link) => {
+            draft.setWebLinks((current) => [...current, link]); setWebLinkDialog(false);
+          }} />}
       </DialogContent>
     </Dialog>
   </>;

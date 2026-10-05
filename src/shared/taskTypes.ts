@@ -39,12 +39,22 @@ export interface TaskAttachment {
   preview?: string;
 }
 
+export interface TaskWebLink {
+  id: string;
+  /** 独立网页链接，不自动转换为 Issue 或 PR。 */
+  url: string;
+  /** 空字符串时使用 URL 作为展示名称。 */
+  title: string;
+}
+
 export interface CreateTaskInput {
   /** 同一草稿重试复用标识，防止提交成功但响应丢失后重复创建。 */
   requestId: string;
   description: string;
   resources: TaskResourceInput[];
   links: IssueItem[];
+  /** 普通链接与带状态的 Issue/PR 关联分开保存；旧调用可不传。 */
+  webLinks?: TaskWebLink[];
   /** 系统文件选择器签发的标识，不接收任意磁盘路径。 */
   attachmentIds: string[];
 }

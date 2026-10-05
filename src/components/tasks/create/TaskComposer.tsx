@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { Link2, Paperclip, X } from "lucide-react";
+import { Link2, X } from "lucide-react";
+import type { Ref } from "react";
 import type { IssueItem } from "@/domain/issues";
-import type { TaskAttachment } from "@/shared/taskTypes";
+import type { TaskAttachment, TaskWebLink } from "@/shared/taskTypes";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
-import { IconTooltip } from "@/components/ui/icon-tooltip";
+import { TaskAttachmentMenu } from "./TaskAttachmentMenu";
 
 interface TaskComposerProps {
   /** 纯文本任务描述，关联条目和附件不混入文本。 */
@@ -13,6 +14,14 @@ interface TaskComposerProps {
   links: IssueItem[];
   /** 已选附件，仅回显名称，不展示缩略图和大小。 */
   attachments: TaskAttachment[];
+  /** 普通链接仅回显标题或 URL，不混入 Issue/PR 关联。 */
+  webLinks: TaskWebLink[];
+  /** 添加链接弹窗关闭后的焦点恢复位置。 */
+  attachmentTriggerRef: Ref<HTMLButtonElement>;
+  /** 打开普通链接子弹窗。 */
+  onAddWebLink: () => void;
+  /** 仅移除当前草稿中的普通链接。 */
+  onRemoveWebLink: (id: string) => void;
   /** 创建或加载期间禁止编辑与移除。 */
   disabled: boolean;
   /** 由任务表单统一校验描述、目录与提交状态后决定是否可创建。 */
@@ -31,9 +40,9 @@ interface TaskComposerProps {
   onRemoveAttachment: (id: string) => void;
 }
 
-export function TaskComposer({ description, links, attachments, disabled, canCreate, creating, onCreate, onDescriptionChange, onChooseFiles, onRemoveLink, onRemoveAttachment }: TaskComposerProps) {
+export function TaskComposer({ description, links, attachments, webLinks, attachmentTriggerRef, onAddWebLink, onRemoveWebLink, disabled, canCreate, creating, onCreate, onDescriptionChange, onChooseFiles, onRemoveLink, onRemoveAttachment }: TaskComposerProps) {
   const { t } = useTranslation(["common", "taskCreate"]);
-  const hasContext = links.length > 0 || attachments.length > 0;
+  const hasContext = links.length > 0 || attachments.length > 0 || webLinks.length > 0;
 
   return <InputGroup className="flex h-auto flex-col items-stretch rounded-xl bg-background shadow-none has-[[data-slot=input-group-control]:focus-visible]:border-input has-[[data-slot=input-group-control]:focus-visible]:ring-0">
     {hasContext && <div className="flex max-h-40 flex-wrap items-start gap-1.5 overflow-y-auto px-3 pt-3 pb-1">
@@ -41,6 +50,11 @@ export function TaskComposer({ description, links, attachments, disabled, canCre
         <span className="shrink-0 text-muted-foreground">{link.group}</span>
         <span className="min-w-0 max-w-64 truncate" title={link.title}>{link.title}</span>
         <Button variant="ghost" size="icon-xs" className="size-5" disabled={disabled} aria-label={t("common:selection.removeItem", { title: link.title })} onClick={() => onRemoveLink(link.id)}><X className="size-3" /></Button>
+      </div>)}
+      {webLinks.map((link) => <div key={link.id} className="flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-1 text-xs">
+        <Link2 aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 max-w-64 truncate" title={link.url}>{link.title || link.url}</span>
+        <Button variant="ghost" size="icon-xs" className="size-5" disabled={disabled} aria-label={t("common:selection.removeItem", { title: link.title || link.url })} onClick={() => onRemoveWebLink(link.id)}><X className="size-3" /></Button>
       </div>)}
       {attachments.map((file) => <div key={file.id} className="flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-1 text-xs">
         <Link2 aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
@@ -52,7 +66,7 @@ export function TaskComposer({ description, links, attachments, disabled, canCre
       onChange={(event) => onDescriptionChange(event.target.value)} maxLength={100000}
       className="field-sizing-content min-h-[calc(1lh+1.5rem)] max-h-[calc(8lh+1.5rem)] resize-none overflow-y-auto rounded-xl p-3 text-sm leading-5" />
     <InputGroupAddon align="block-end" className="justify-between px-2 pb-2">
-      <IconTooltip label={t("taskCreate:attachments.add")} disabled={disabled} size="icon-sm" onClick={onChooseFiles}><Paperclip className="size-3.5" /></IconTooltip>
+      <TaskAttachmentMenu disabled={disabled} triggerRef={attachmentTriggerRef} onChooseFiles={onChooseFiles} onAddLink={onAddWebLink} />
       <Button type="button" size="sm" disabled={!canCreate} onClick={onCreate}>{t(creating ? "taskCreate:actions.creating" : "common:actions.create")}</Button>
     </InputGroupAddon>
   </InputGroup>;

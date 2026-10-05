@@ -2,7 +2,7 @@ import { mkdir, open } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-export const APP_SCHEMA_VERSION = 2;
+export const APP_SCHEMA_VERSION = 3;
 
 export async function openAppDatabase(filePath: string) {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -38,6 +38,12 @@ export async function openAppDatabase(filePath: string) {
           CREATE TABLE IF NOT EXISTS task_attachments (
             namespace TEXT NOT NULL, task_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL,
             size INTEGER NOT NULL, storage_name TEXT NOT NULL,
+            PRIMARY KEY(namespace, task_id, id),
+            FOREIGN KEY(namespace, task_id) REFERENCES tasks(namespace, id) ON DELETE CASCADE
+          );
+          CREATE TABLE IF NOT EXISTS task_web_links (
+            namespace TEXT NOT NULL, task_id TEXT NOT NULL, id TEXT NOT NULL,
+            position INTEGER NOT NULL, url TEXT NOT NULL, title TEXT NOT NULL,
             PRIMARY KEY(namespace, task_id, id),
             FOREIGN KEY(namespace, task_id) REFERENCES tasks(namespace, id) ON DELETE CASCADE
           );

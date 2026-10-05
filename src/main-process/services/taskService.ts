@@ -2,6 +2,7 @@ import path from "node:path";
 import type { AppSettings } from "../../domain/types";
 import type { Task, TaskStatus } from "../../domain/tasks";
 import type { CreateTaskInput, TaskBootstrap, TaskResourceInput } from "../../shared/taskTypes";
+import { isTaskWebLink } from "../../utils/taskWebLinks";
 import { isIssueItem, isTask } from "../../utils/adeDataValidation";
 import { moveTask } from "../../utils/taskState";
 import { ResourceService } from "./resourceService";
@@ -117,7 +118,8 @@ export class TaskService {
         const task: Task = {
           id: input.requestId, title: Array.from(description.split(/\r?\n/)[0].trim()).slice(0, 80).join(""),
           description, date: new Date().toISOString(), projectName: resources[0]?.name ?? "", status: "TODO",
-          resources, links: input.links, attachments: attachments.map(({ id, name, size }) => ({ id, name, size })),
+          resources, links: input.links, webLinks: (input.webLinks ?? []).map(({ id, url, title }) => ({ id, url, title: title.trim() })),
+          attachments: attachments.map(({ id, name, size }) => ({ id, name, size })),
         };
         await this.repository.create(task, attachments);
         this.files.release(ownerId, input.attachmentIds);
@@ -189,6 +191,8 @@ function validateCreateInput(value: CreateTaskInput) {
     || typeof value.description !== "string" || !value.description.trim() || value.description.length > 100000
     || !Array.isArray(value.resources) || !value.resources.every(isResourceInput)
     || !Array.isArray(value.links) || !value.links.every(isIssueItem)
+    || (value.webLinks !== undefined && (!Array.isArray(value.webLinks) || !value.webLinks.every(isTaskWebLink)
+      || new Set(value.webLinks.map((item) => item.id)).size !== value.webLinks.length))
     || !Array.isArray(value.attachmentIds) || !value.attachmentIds.every((id) => typeof id === "string" && REQUEST_ID.test(id))
     || new Set(value.resources.map((item) => item.resourceId)).size !== value.resources.length
     || new Set(value.links.map((item) => item.id)).size !== value.links.length

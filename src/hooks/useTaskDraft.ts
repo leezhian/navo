@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { AppSettings } from "@/domain/types";
 import type { IssueItem } from "@/domain/issues";
-import type { TaskAttachment, TaskResourceInfo, TaskResourceInput } from "@/shared/taskTypes";
+import type { TaskAttachment, TaskResourceInfo, TaskResourceInput, TaskWebLink } from "@/shared/taskTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { useTaskStore } from "@/stores/taskStore";
 
@@ -13,6 +13,7 @@ export interface TaskResourceDraft extends TaskResourceInput {
 export function useTaskDraft(settings: AppSettings) {
   const [description, setDescription] = useState("");
   const [links, setLinks] = useState<IssueItem[]>([]);
+  const [webLinks, setWebLinks] = useState<TaskWebLink[]>([]);
   const [resources, setResources] = useState<TaskResourceDraft[]>([]);
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [working, setWorking] = useState(false);
@@ -57,7 +58,7 @@ export function useTaskDraft(settings: AppSettings) {
   }
 
   function reset() {
-    setDescription(""); setLinks([]); setResources([]); setAttachments([]); setError(null);
+    setDescription(""); setLinks([]); setWebLinks([]); setResources([]); setAttachments([]); setError(null);
     requestId.current = crypto.randomUUID();
   }
 
@@ -68,7 +69,7 @@ export function useTaskDraft(settings: AppSettings) {
       const task = await useTaskStore.getState().create({
         requestId: requestId.current, description,
         resources: resources.map(({ resourceId, mode, sourceBranch, targetBranch }) => ({ resourceId, mode, sourceBranch, targetBranch })),
-        links, attachmentIds: attachments.map((file) => file.id),
+        links, webLinks, attachmentIds: attachments.map((file) => file.id),
       });
       reset();
       return task;
@@ -79,5 +80,5 @@ export function useTaskDraft(settings: AppSettings) {
     } finally { setWorking(false); }
   }
 
-  return { description, setDescription, links, setLinks, resources, setResources, attachments, working, error, addResources, chooseFiles, removeAttachment, submit };
+  return { description, setDescription, links, setLinks, webLinks, setWebLinks, resources, setResources, attachments, working, error, addResources, chooseFiles, removeAttachment, submit };
 }

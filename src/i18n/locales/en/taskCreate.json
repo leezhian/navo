@@ -18,7 +18,16 @@
     "emptyPreview": "Select an item to preview"
   },
   "attachments": {
+    "menu": "Add attachment or link",
     "add": "Add images or files"
+  },
+  "webLinks": {
+    "add": "Add link",
+    "title": "Links",
+    "url": "URL",
+    "titlePlaceholder": "Optional",
+    "invalidUrl": "Enter a valid HTTP or HTTPS URL without embedded credentials.",
+    "description": "Any url - docs, a spec, a ticket. Add a title to label the row, or leave it and the url shows."
   },
   "resources": {
     "title": "Working directories",

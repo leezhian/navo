@@ -1,5 +1,5 @@
 import type { IssueItem } from "./issues";
-import type { TaskAttachment, TaskResource } from "../shared/taskTypes";
+import type { TaskAttachment, TaskResource, TaskWebLink } from "../shared/taskTypes";
 
 export type TaskStatus = "TODO" | "DONE" | "ARCHIVED";
 
@@ -18,6 +18,8 @@ export interface Task {
   description?: string;
   resources?: TaskResource[];
   links?: IssueItem[];
+  /** 用户添加的文档、规范等普通网页链接。 */
+  webLinks?: TaskWebLink[];
   attachments?: TaskAttachment[];
   /** 归档前的状态，用于恢复；旧记录缺省恢复 TODO。 */
   archivedFrom?: "TODO" | "DONE";
