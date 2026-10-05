@@ -156,6 +156,40 @@ test("多仓库创建 Worktree、远程默认分支和短随机目标名，重�
   for (const resource of task.resources) await access(resource.workingPath);
 });
 
+test("同名本地和远程分支始终选择远程完整引用，任务基线不会错位", async (context) => {
+  const { repo, service, inputFor } = await setup(context);
+  const record = await repo("repo");
+  const remoteCommit = await git(record.localPath, "rev-parse", "refs/remotes/origin/main");
+  await writeFile(path.join(record.localPath, "sample.txt"), "local change\n");
+  await git(record.localPath, "commit", "-am", "local change");
+  await git(record.localPath, "branch", "origin/main");
+  assert.notEqual(await git(record.localPath, "rev-parse", "refs/heads/origin/main"), remoteCommit);
+  assert.equal((await service.inspectResource(record.id)).git.defaultSource, "refs/remotes/origin/main");
+  const task = await service.create(await inputFor([record]), 1);
+  assert.equal(await git(task.resources[0].workingPath, "rev-parse", "HEAD"), remoteCommit);
+  await git(record.localPath, "update-ref", "refs/remotes/origin/release", remoteCommit);
+  await git(record.localPath, "branch", "origin/release");
+  await git(record.localPath, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/release");
+  assert.equal((await service.inspectResource(record.id)).git.defaultSource, "refs/remotes/origin/release");
+});
+
+test("没有远程默认引用时按远程主分支、本地主分支、当前分支回退，并排除同名标签歧义", async (context) => {
+  const { repo, service, inputFor } = await setup(context);
+  const record = await repo("repo");
+  await git(record.localPath, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD");
+  await git(record.localPath, "branch", "origin/main");
+  assert.equal((await service.inspectResource(record.id)).git.defaultSource, "refs/remotes/origin/main");
+  await git(record.localPath, "update-ref", "-d", "refs/remotes/origin/main");
+  assert.equal((await service.inspectResource(record.id)).git.defaultSource, "refs/heads/main");
+  await git(record.localPath, "branch", "-m", "feature/current");
+  await git(record.localPath, "tag", "feature/current");
+  const info = await service.inspectResource(record.id);
+  assert.equal(info.git.defaultSource, "refs/heads/feature/current");
+  assert.equal(info.git.currentBranch, "feature/current");
+  const task = await service.create(await inputFor([record], ["new-branch"]), 1);
+  assert.equal(await git(record.localPath, "symbolic-ref", "HEAD"), "refs/heads/" + task.resources[0].targetBranch);
+});
+
 test("显式分支不叠加前缀，空前缀只生成八位短名，冲突或无效名不覆盖", async (context) => {
   const { repo, service, settings, inputFor } = await setup(context);
   const record = await repo("repo");

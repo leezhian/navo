@@ -29,7 +29,7 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
   const isClone = !record;
 
   useEffect(() => {
-    const unsubscribe = window.navo.resources.onCloneProgress((value) => {
+    const unsubscribe = resourceApi.onCloneProgress((value) => {
       if (value.operationId === operationId.current) setProgress(value.message);
     });
     return () => {
@@ -60,7 +60,7 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
     setChoosing(true);
     setError(null);
     try {
-      const path = window.navo.resources.getDroppedPath(event.dataTransfer.files[0]);
+      const path = resourceApi.getDroppedPath(event.dataTransfer.files[0]);
       if (!path) throw new Error("INVALID_DIRECTORY");
       const saved = await resourceApi.addFolder(path);
       upsert(saved);

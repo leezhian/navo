@@ -6,13 +6,15 @@ export const DIAGNOSTIC_OPERATIONS = [
   "attachment.select", "attachment.copy", "attachment.clear",
 ] as const;
 export type DiagnosticOperation = typeof DIAGNOSTIC_OPERATIONS[number];
-export type DiagnosticEvent = `${DiagnosticOperation}.${"started" | "succeeded" | "failed" | "cancelled"}`
-  | "app.started" | "app.stopped" | "app.uncaught" | "app.unhandled_rejection" | "app.watcher_failed"
-  | "database.open_failed" | "database.transaction_failed"
-  | "worktree.kept" | "branch.kept" | "task.cleanup_retained"
-  | "renderer.error" | "renderer.unhandled_rejection" | "renderer.react_error"
-  | "renderer.gone" | "renderer.unresponsive" | "renderer.responsive"
-  | "log.repeated" | "log.dropped";
+export const DIAGNOSTIC_RESULTS = ["started", "succeeded", "failed", "cancelled"] as const;
+export const DIAGNOSTIC_STANDALONE_EVENTS = [
+  "app.started", "app.stopped", "app.uncaught", "app.unhandled_rejection", "app.watcher_failed",
+  "database.open_failed", "database.transaction_failed", "worktree.kept", "branch.kept", "task.cleanup_retained",
+  "renderer.error", "renderer.unhandled_rejection", "renderer.react_error", "renderer.gone",
+  "renderer.unresponsive", "renderer.responsive", "log.repeated", "log.dropped",
+] as const;
+export type DiagnosticEvent = `${DiagnosticOperation}.${typeof DIAGNOSTIC_RESULTS[number]}`
+  | typeof DIAGNOSTIC_STANDALONE_EVENTS[number];
 export type DiagnosticLevel = "INFO" | "WARN" | "ERROR";
 
 export const MAX_DIAGNOSTIC_ENTRY_BYTES = 8192;
@@ -59,13 +61,8 @@ export interface RendererDiagnosticReport {
   stack?: string;
 }
 
-const standaloneEvents = new Set<string>([
-  "app.started", "app.stopped", "app.uncaught", "app.unhandled_rejection", "app.watcher_failed",
-  "database.open_failed", "database.transaction_failed", "worktree.kept", "branch.kept", "task.cleanup_retained",
-  "renderer.error", "renderer.unhandled_rejection", "renderer.react_error", "renderer.gone",
-  "renderer.unresponsive", "renderer.responsive", "log.repeated", "log.dropped",
-]);
+const standaloneEvents = new Set<string>(DIAGNOSTIC_STANDALONE_EVENTS);
 export function isDiagnosticEvent(value: unknown): value is DiagnosticEvent {
   return typeof value === "string" && (standaloneEvents.has(value)
-    || DIAGNOSTIC_OPERATIONS.some((operation) => ["started", "succeeded", "failed", "cancelled"].some((result) => value === operation + "." + result)));
+    || DIAGNOSTIC_OPERATIONS.some((operation) => DIAGNOSTIC_RESULTS.some((result) => value === operation + "." + result)));
 }

@@ -61,7 +61,7 @@ export async function createWorkspace(step: WorkspaceStep, persist: () => Promis
   if (resource.mode === "new-branch") {
     if (await taskGit(step.repository, ["status", "--porcelain"])
       || await taskGit(step.repository, ["rev-parse", "HEAD"]) !== step.previousHead
-      || (await gitValue(step.repository, ["symbolic-ref", "--quiet", "--short", "HEAD"]) ?? "") !== step.previousBranch) throw new Error("TASK_RESOURCE_CHANGED");
+      || (await gitValue(step.repository, ["symbolic-ref", "--quiet", "HEAD"]) ?? "") !== (step.previousBranch ? "refs/heads/" + step.previousBranch : "")) throw new Error("TASK_RESOURCE_CHANGED");
   }
   for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
@@ -117,8 +117,8 @@ export async function rollbackWorkspaces(manifest: TaskCreationManifest): Promis
           await taskGit(step.repository, ["worktree", "remove", resource.workingPath]);
         }
         if (resource.mode === "new-branch") {
-          const current = await gitValue(step.repository, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
-          if (current === resource.targetBranch) {
+          const current = await gitValue(step.repository, ["symbolic-ref", "--quiet", "HEAD"]);
+          if (current === "refs/heads/" + resource.targetBranch) {
             if (!step.checkedOut || await taskGit(step.repository, ["status", "--porcelain"])
               || await taskGit(step.repository, ["rev-parse", "HEAD"]) !== step.baseCommit) { retained = true; continue; }
             await taskGit(step.repository, step.previousBranch ? ["switch", "--no-overwrite-ignore", step.previousBranch] : ["switch", "--no-overwrite-ignore", "--detach", step.previousHead]);

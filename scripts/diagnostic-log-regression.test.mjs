@@ -9,6 +9,22 @@ import path from "node:path";
 import { test } from "node:test";
 import { createLoader } from "./helpers/load-typescript.mjs";
 
+test("诊断事件从单一清单生成，所有已声明事件可写入，未知事件被拒绝", () => {
+  const load = createLoader();
+  const { DIAGNOSTIC_OPERATIONS, DIAGNOSTIC_RESULTS, DIAGNOSTIC_STANDALONE_EVENTS, isDiagnosticEvent } = load("src/shared/diagnosticTypes.ts");
+  const { makeDiagnosticEntry } = load("src/main-process/diagnostics/diagnosticSanitizer.ts");
+  const events = [...DIAGNOSTIC_STANDALONE_EVENTS, ...DIAGNOSTIC_OPERATIONS.flatMap((operation) => DIAGNOSTIC_RESULTS.map((result) => operation + "." + result))];
+  assert.equal(events.length, new Set(events).size);
+  for (const event of events) {
+    assert.equal(isDiagnosticEvent(event), true, event);
+    assert.equal(makeDiagnosticEntry(event)?.event, event);
+  }
+  for (const event of [null, undefined, {}, "unknown", "app.missing", "task.create.missing"]) {
+    assert.equal(isDiagnosticEvent(event), false);
+    assert.equal(makeDiagnosticEntry(event), null);
+  }
+});
+
 const execute = promisify(execFile);
 async function fixture(context, mocks = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-diagnostics-"));

@@ -29,17 +29,17 @@ export async function inspectTaskResource(resource: ResourceRecord): Promise<Tas
   const root = await gitValue(directory, ["rev-parse", "--show-toplevel"]);
   const info: TaskResourceInfo = { resourceId: resource.id, name: resource.name, path: directory, git: null };
   if (!root) return info;
-  const currentBranch = await gitValue(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]) ?? "";
+  const currentRef = await gitValue(root, ["symbolic-ref", "--quiet", "HEAD"]);
+  const currentBranch = currentRef?.replace(/^refs\/heads\//, "") ?? "";
   const output = await taskGit(root, ["for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"]);
   const branches = output.split("\n").filter((ref) => ref && !ref.endsWith("/HEAD")).map((ref) => ({
     ref,
     name: ref.replace(/^refs\/(heads|remotes)\//, ""),
     kind: ref.startsWith("refs/heads/") ? "local" as const : "remote" as const,
   }));
-  const remoteHead = await gitValue(root, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
-  const candidates = [remoteHead, "origin/main", "origin/master", "main", "master", currentBranch];
-  const defaultName = candidates.find((candidate) => candidate && branches.some((branch) => branch.name === candidate));
-  const defaultSource = branches.find((branch) => branch.name === defaultName)?.ref ?? branches[0]?.ref ?? "";
+  const remoteHead = await gitValue(root, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]);
+  const candidates = [remoteHead, "refs/remotes/origin/main", "refs/remotes/origin/master", "refs/heads/main", "refs/heads/master", currentRef];
+  const defaultSource = candidates.find((candidate) => candidate && branches.some((branch) => branch.ref === candidate)) ?? branches[0]?.ref ?? "";
   info.git = { root: await realpath(root), currentBranch, defaultSource, branches };
   return info;
 }
