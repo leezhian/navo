@@ -29,6 +29,11 @@ if (!existsSync(app.getPath("userData")) && existsSync(legacyUserDataPath)) {
   app.setPath("userData", legacyUserDataPath);
 }
 
+// 打包后图标由 Forge 复制到 resources；开发时直接读取项目素材。
+const appIconPath = app.isPackaged
+  ? path.join(process.resourcesPath, "icon.png")
+  : path.join(app.getAppPath(), "assets/icons/icon.png");
+
 bindProcessDiagnostics();
 startApplication();
 
@@ -44,6 +49,7 @@ const createWindow = () => {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: TRAFFIC_LIGHT_POSITION,
     title: "Navo",
+    icon: appIconPath,
     vibrancy: usesNativeVibrancy ? "sidebar" : undefined,
     visualEffectState: usesNativeVibrancy ? "active" : undefined,
     webPreferences: {
@@ -68,6 +74,10 @@ const createWindow = () => {
 
 function startApplication() {
   app.on("ready", async () => {
+    // 开发时运行的是 Electron 通用宿主，需要显式替换 Dock 图标。
+    if (process.platform === "darwin" && !app.isPackaged) {
+      app.dock?.setIcon(appIconPath);
+    }
     try { await loadSettings(); } catch { console.error("Settings could not be loaded"); }
     initializeDiagnosticLog();
     registerDiagnosticHandlers();

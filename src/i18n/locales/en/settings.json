@@ -30,6 +30,8 @@
     "repositoriesDescription": "Default directory for cloned repositories. Scanned when you change it here or scan explicitly — never on startup — so repositories you remove stay removed.",
     "worktreesDirectory": "Worktrees directory",
     "worktreesDescription": "Default directory for new worktrees",
+    "tasksDirectory": "Tasks directory",
+    "tasksDirectoryDescription": "Default directory for task folders.",
     "chooseDirectory": "Choose directory",
     "tasks": "Tasks",
     "taskMode": "Task mode",

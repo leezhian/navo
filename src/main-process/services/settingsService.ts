@@ -39,6 +39,7 @@ export function loadSettings() {
         const normalized = normalizeAppSettings(value as Partial<AppSettings>);
         resolveLocalPath(normalized.repositoriesDirectory);
         resolveLocalPath(normalized.worktreesDirectory);
+        resolveLocalPath(normalized.tasksDirectory);
         if (normalized.logFilePath) normalized.logFilePath = resolveDiagnosticLogPath(normalized.logFilePath);
         // 仅在数据库没有设置时导入旧 JSON，成功后保留原文件作为备份，不再回读。
         if (needsMigration) await diagnosticOperation("settings.migrate", {}, () => writeSettingsDatabase(databasePath, normalized));
@@ -57,6 +58,7 @@ export function saveSettings(value: unknown): Promise<AppSettings> {
     const next = normalizeAppSettings(value as Partial<AppSettings>);
     resolveLocalPath(next.repositoriesDirectory);
     resolveLocalPath(next.worktreesDirectory);
+    resolveLocalPath(next.tasksDirectory);
     return serialize(async () => {
       const previous = getCurrentSettings();
       if (next.logFilePath) next.logFilePath = await validateDiagnosticLogPath(next.logFilePath);

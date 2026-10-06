@@ -21,7 +21,7 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
       await i18n.changeLanguage('zh-CN'); window.setLocale=locale=>i18n.changeLanguage(locale);
       let snapshot={defaultAgent:null,secureStorageAvailable:true,configurations:['claude','codex','grok','antigravity'].map(id=>({id,enabled:true,customPath:'',args:[],environmentNames:id==='claude'?['EXISTING_TOKEN']:[]}))};
       window.starts=[]; window.plans=[]; window.saved=[]; window.scans=0; const exits=new Set(); const output=new Set();
-      window.navo={settings:{getLogsStatus:async()=>({failed:false})},agents:{
+      window.navo={settings:{getLogsStatus:async()=>({failed:false}),chooseDirectory:async()=>window.directoryChoice??null},agents:{
         load:async()=>{if(!window.loaded){await new Promise(resolve=>window.releaseLoad=resolve);window.loaded=true;}return structuredClone(snapshot);}, scan:async()=>{window.scans++;if(window.scans===1)await new Promise(resolve=>window.releaseScan=resolve);if(window.holdScan){await new Promise(resolve=>window.resumeScan=resolve);window.holdScan=false;}return snapshot.configurations.map(config=>({id:config.id,status:config.id==='codex'?'missing':'installed',binaryPath:config.id==='codex'?null:config.customPath||'/test/'+config.id,version:config.id==='codex'?null:'1.2.3',source:'path',auth:config.id==='claude'?'signedIn':'unknown',actions:config.id==='codex'?['install']:config.id==='antigravity'?['manageLogin']:['login','logout','update']}));},
         save:async input=>{window.saved.push(input);if(window.failSave)throw new Error('AGENT_STORAGE_FAILED');if(input.customPath==='/test/invalid')throw new Error('AGENT_INVALID_PATH');snapshot.configurations=snapshot.configurations.map(config=>config.id===input.id?{id:input.id,enabled:input.enabled,customPath:input.customPath,args:input.args,environmentNames:input.environment.map(entry=>entry.name)}:config);return structuredClone(snapshot);},
         setDefault:async id=>{snapshot.defaultAgent=id;return structuredClone(snapshot);},chooseBinary:async()=>window.chooseResult===undefined?'/test/chosen-cli':window.chooseResult,openDocumentation:async()=>{},
@@ -29,7 +29,8 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         startOperation:async params=>{window.starts.push(params);for(const listener of output)listener({sessionId:params.sessionId,data:'TEST CLI OUTPUT\\r\\n'});},
       },terminal:{create:async()=>{throw new Error('Must not create a plain shell');},write:async()=>{},resize:async()=>{},destroy:async params=>{window.destroyed=params.sessionId;},onData:listener=>{output.add(listener);return()=>output.delete(listener);},onExit:listener=>{exits.add(listener);return()=>exits.delete(listener);}}};
       window.finish=code=>{const last=window.starts.at(-1);for(const listener of exits)listener({sessionId:last.sessionId,exitCode:code});};
-      createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(TooltipProvider,null,React.createElement(SettingsPanel,{settings:defaultSettings,resolvedTheme:'light',updateSettings:()=>{}}))));
+      function SettingsFixture(){const [settings,updateSettings]=React.useState(defaultSettings);window.currentAppSettings=settings;return React.createElement(SettingsPanel,{settings,resolvedTheme:'light',updateSettings});}
+      createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(TooltipProvider,null,React.createElement(SettingsFixture))));
     </script>`));
   });
   let child;
@@ -45,7 +46,21 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         async function wait(check,message){const end=Date.now()+8000;while(Date.now()<end){if(check())return;await pause();}throw new Error(message);}
         const button=(label,root=document)=>[...root.querySelectorAll('button')].find(item=>item.textContent.trim()===label);
         const dialog=()=>document.querySelector('[role="dialog"]');
-        await wait(()=>button('Agents'),'Missing settings navigation');button('Agents').click();
+        await wait(()=>button('Agents'),'Missing settings navigation');
+        const taskDirectory=()=>document.querySelector('input[aria-label="任务目录"]');
+        if(taskDirectory()?.value!=='~/Navo/tasks')throw new Error('Task directory must have a default path in General settings');
+        const directoryPicker=()=>document.querySelector('button[aria-label="选择目录: 任务目录"]');
+        window.directoryChoice='/fixtures/task-folders';directoryPicker().click();
+        await wait(()=>taskDirectory().value==='/fixtures/task-folders','Directory picker must update task directory');
+        if(window.currentAppSettings.repositoriesDirectory!=='~/Navo/repos'||window.currentAppSettings.worktreesDirectory!=='~/Navo/worktrees')throw new Error('Task directory must not change repository or worktree paths');
+        await wait(()=>!directoryPicker().disabled,'Directory picker must finish');
+        window.directoryChoice=null;directoryPicker().click();await pause();
+        if(taskDirectory().value!=='/fixtures/task-folders')throw new Error('Cancelling directory selection must preserve the path');
+        taskDirectory().focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(taskDirectory(),'/fixtures/edited-tasks');taskDirectory().dispatchEvent(new Event('input',{bubbles:true}));await pause();
+        taskDirectory().dispatchEvent(new FocusEvent('focusout',{bubbles:true}));
+        await wait(()=>window.currentAppSettings.tasksDirectory==='/fixtures/edited-tasks','Blur must commit manually edited task directory');
+        await window.setLocale('en');await wait(()=>document.querySelector('input[aria-label="Tasks directory"]'),'Task directory label must support English');
+        await window.setLocale('zh-CN');await wait(()=>button('Agents'),'Settings navigation must remain available');button('Agents').click();
         await wait(()=>window.releaseScan && window.releaseLoad,'Initial requests must start');
         if(document.querySelectorAll('.settings-list[aria-label]').length!==4)throw new Error('Initial detection must keep four cards visible instead of replacing the list with loading text');
         if(document.body.textContent.includes('正在检测') || document.body.textContent.includes('未安装'))throw new Error('Pending detection must not show loading text or a false missing state');

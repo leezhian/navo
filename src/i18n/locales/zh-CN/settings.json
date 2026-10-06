@@ -30,6 +30,8 @@
     "repositoriesDescription": "克隆仓库的默认目录。更改此目录或手动扫描时才扫描，启动时不扫描，因此移除的仓库不会重新出现。",
     "worktreesDirectory": "Worktree 目录",
     "worktreesDescription": "新建 Worktree 的默认目录。",
+    "tasksDirectory": "任务目录",
+    "tasksDirectoryDescription": "任务专属目录的默认存放位置。",
     "chooseDirectory": "选择目录",
     "tasks": "任务",
     "taskMode": "任务执行模式",

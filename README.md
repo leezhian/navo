@@ -92,6 +92,8 @@ electron-forge package
 
 构建过程会先运行 Vite 构建，再执行 Electron Forge 打包。首次打包可能需要访问网络下载或校验 Electron 相关资源；如果卡在 `Packaging application`、`Copying files`、`Preparing native dependencies` 或 `Finalizing package`，优先检查网络和 Electron 缓存。
 
+应用图标位于 `assets/icons/`：`icon.png` 为 1024 × 1024 透明底主图，`icon.icns` 用于 macOS，`icon.ico` 用于 Windows。更换图标时需同步更新三种格式并重新打包；开发模式下需重启 Electron 主进程才能更新 Dock 图标。
+
 macOS 构建产物通常位于：
 
 ```bash
@@ -148,6 +150,8 @@ Agent 主进程模块位于 `src/main-process/services/agents`，IPC 契约位�
 失效指纹包含配置、可执行路径、CLI 版本、可识别的认证状态/身份、相关认证环境变量摘要，以及 Claude/Codex/Grok 支持的凭证文件元数据；不读取凭证文件内容，不存储账号或 token 明文。未知认证状态不等同于未登录。无法提供稳定身份或凭证变更信号的 CLI（当前 Antigravity）通过 Navo 内登录管理操作和定期过期查询更新；外部账号切换不保证立即发现。
 
 Grok 能力探测仅发送 ACP `initialize`，读取 `_meta.modelState` 中的模型与模型级思考等级，不创建会话、不复用用户 leader。Antigravity 模型来自 `agy models` 的真实列表，模式及会话级思考等级来自 `agy --help`；帮助兼容 stdout/stderr，未返回模型级限制时不推断。协议探测及 Antigravity 模型查询均设 20 秒上限，普通帮助命令为 5 秒，不新增 SDK 或下载辅助服务。
+
+常规设置提供独立的任务目录 `tasksDirectory`，默认 `~/Navo/tasks`，支持输入路径或系统目录选择，并沿用 SQLite 设置存储。旧配置缺少该字段或留空时使用默认值；当前只保存目录偏好，不创建任务专属目录、不生成 Agent 规则文件，也不搬迁已有任务。
 
 配置读取优先级为：SQLite 设置 → 旧 `settings.json` → localStorage 的 `navo-settings` / `vibe-reviewer-settings` → 默认值。仅在数据库尚无设置时尝试旧 JSON，规范化后整组导入，成功保留原文件作为备份，之后不再回读或写入；没有旧 JSON 时才由渲染进程迁移旧浏览器设置，写入成功后移除旧键。损坏的数据库、非法 JSON、迁移或保存失败会明确提示，不静默回退默认值或覆盖旧记录。Tasks 及其关联保存在同一 SQLite 数据库中，以 development/production 命名空间隔离。首次加载且任务库尚未初始化时，迁移原 localStorage 任务键，保留标识与顺序，成功后清理旧键；损坏数据不静默覆盖，空列表有独立初始化标记。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因更名而假定远端已改名。
 

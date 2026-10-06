@@ -22,6 +22,8 @@ interface GeneralSettingsPageProps {
   updateSettings: Dispatch<SetStateAction<AppSettings>>;
 }
 
+type DirectorySettingKey = "repositoriesDirectory" | "worktreesDirectory" | "tasksDirectory";
+
 export function GeneralSettingsPage({ settings, updateSettings }: GeneralSettingsPageProps) {
   const { t } = useTranslation(["common", "settings"]);
   const defaultLogFilePath = useSettingsStore((state) => state.logFilePath);
@@ -30,7 +32,7 @@ export function GeneralSettingsPage({ settings, updateSettings }: GeneralSetting
   const [choosing, setChoosing] = useState(false);
   const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => updateSettings((current) => ({ ...current, [key]: value }));
 
-  async function chooseDirectory(key: "repositoriesDirectory" | "worktreesDirectory") {
+  async function chooseDirectory(key: DirectorySettingKey) {
     setChoosing(true);
     setError(null);
     try { const directory = await settingsApi.chooseDirectory(); if (directory) update(key, directory); }
@@ -38,7 +40,7 @@ export function GeneralSettingsPage({ settings, updateSettings }: GeneralSetting
     finally { setChoosing(false); }
   }
 
-  const directoryControl = (key: "repositoriesDirectory" | "worktreesDirectory", label: string, value: string) => <>
+  const directoryControl = (key: DirectorySettingKey, label: string, value: string) => <>
     <SettingsTextField label={label} value={value} onCommit={(next) => update(key, next.trim())} />
     <IconTooltip label={t("settings:general.chooseDirectory") + ": " + label} disabled={choosing} size="icon-sm" variant="secondary" onClick={() => void chooseDirectory(key)}><FolderOpen className="size-4" /></IconTooltip>
   </>;
@@ -51,6 +53,7 @@ export function GeneralSettingsPage({ settings, updateSettings }: GeneralSetting
       <SettingsList>
         <SettingsRow title={t("settings:general.repositoriesDirectory")} description={t("settings:general.repositoriesDescription")}>{directoryControl("repositoriesDirectory", t("settings:general.repositoriesDirectory"), settings.repositoriesDirectory)}</SettingsRow>
         <SettingsRow title={t("settings:general.worktreesDirectory")} description={t("settings:general.worktreesDescription")}>{directoryControl("worktreesDirectory", t("settings:general.worktreesDirectory"), settings.worktreesDirectory)}</SettingsRow>
+        <SettingsRow title={t("settings:general.tasksDirectory")} description={t("settings:general.tasksDirectoryDescription")}>{directoryControl("tasksDirectory", t("settings:general.tasksDirectory"), settings.tasksDirectory)}</SettingsRow>
       </SettingsList>
     </section>
     <section className="mb-6">

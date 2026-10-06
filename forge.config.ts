@@ -7,18 +7,24 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import path from 'node:path';
+
+const appIconPath = path.join(__dirname, 'assets/icons/icon');
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     name: 'Navo',
+    // Packager 会按目标平台选择同名的 .icns 或 .ico。
+    icon: appIconPath,
+    extraResource: [`${appIconPath}.png`],
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({ setupIcon: `${appIconPath}.ico` }),
     new MakerZIP({}, ['darwin']),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    new MakerRpm({ options: { icon: `${appIconPath}.png` } }),
+    new MakerDeb({ options: { icon: `${appIconPath}.png` } }),
   ],
   plugins: [
     // node-pty 包含原生模块和平台相关 spawn-helper，需要放在 asar 外才能运行。

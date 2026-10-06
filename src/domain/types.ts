@@ -70,6 +70,8 @@ export interface AppSettings {
   /** 新克隆和未来 worktree 的默认位置，支持用户目录缩写。 */
   repositoriesDirectory: string;
   worktreesDirectory: string;
+  /** 任务专属目录的默认根路径；当前仅保存配置，不创建目录或规则文件。 */
+  tasksDirectory: string;
   /** 保存默认策略，实际任务创建能力接入后消费。 */
   defaultTaskMode: "worktree" | "new-branch" | "current-branch";
   branchPrefix: string;
