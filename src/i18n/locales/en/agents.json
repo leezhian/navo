@@ -1,0 +1,61 @@
+{
+  "title": "Agents",
+  "list": "Supported agents",
+  "enabled": "Enabled",
+  "account": "Default CLI account",
+  "default": {
+    "title": "Default agent",
+    "description": "Preselected for future task sessions. Creating a task does not start an agent.",
+    "none": "Not selected",
+    "unavailable": "The default agent is disabled or unavailable. Select another agent."
+  },
+  "status": {
+    "installed": "Installed",
+    "notInstalled": "Not installed",
+    "detectionFailed": "Detection failed",
+    "unavailable": "Unavailable"
+  },
+  "auth": {
+    "signedIn": "Signed in",
+    "signedOut": "Not signed in",
+    "unknown": "Sign-in status unknown"
+  },
+  "actions": {
+    "install": "Install",
+    "update": "Update",
+    "updateAll": "Update all",
+    "scan": "Re-scan",
+    "login": "Sign in",
+    "logout": "Sign out",
+    "manageLogin": "Manage in terminal",
+    "instructions": "Official instructions"
+  },
+  "advanced": {
+    "title": "Advanced",
+    "binary": "Executable path",
+    "autoPath": "Detect automatically",
+    "chooseBinary": "Choose executable"
+  },
+  "operation": {
+    "title": "CLI operation",
+    "description": "Review the commands before running them. Installs and updates may download software; sign-in and sign-out affect the CLI's default account, including use outside Navo. Output is not saved to diagnostic logs.",
+    "manageHint": "This CLI does not provide a verified sign-in status command. Manage authentication in its own terminal interface, then stop and re-scan; Navo will not guess the result.",
+    "run": "Confirm and run",
+    "stop": "Stop and cancel remaining",
+    "running": "Running",
+    "waiting": "Waiting",
+    "success": "Command completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "errors": {
+    "invalid": "Check the agent configuration and executable path.",
+    "path": "Select an absolute path to an executable file.",
+    "unavailable": "This agent or operation is unavailable. Re-scan and try again.",
+    "busy": "Another CLI operation is running. Finish or stop it first.",
+    "expired": "The command plan has expired or changed. Open it again.",
+    "start": "Unable to start the CLI operation.",
+    "secureStorage": "Secure system storage is unavailable. New environment values cannot be saved.",
+    "storage": "Agent settings could not be read. Existing data has been preserved."
+  }
+}

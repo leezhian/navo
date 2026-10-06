@@ -5,6 +5,7 @@ import started from "electron-squirrel-startup";
 import { TRAFFIC_LIGHT_POSITION } from "./shared/windowLayout";
 import { bindDevelopmentTools } from "./main-process/developmentTools";
 import { registerAppHandlers } from "./main-process/ipc/appHandlers";
+import { flushAgentSettings, registerAgentHandlers } from "./main-process/ipc/agentHandlers";
 import { registerReviewHandlers } from "./main-process/ipc/reviewHandlers";
 import { destroyAllTerminals, registerTerminalHandlers } from "./main-process/ipc/terminalHandlers";
 import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
@@ -72,6 +73,7 @@ function startApplication() {
     registerDiagnosticHandlers();
     updateApplicationMenu(getCurrentSettings().locale);
     registerSettingsHandlers();
+    registerAgentHandlers();
     registerTaskHandlers();
     void writeDiagnosticEvent("app.started", { version: app.getVersion(), platform: process.platform });
     registerAppHandlers();
@@ -97,7 +99,7 @@ function startApplication() {
     destroyAllTerminals();
     // 等待设置与日志队列完成再退出；磁盘异常不阻塞无限等待。
     const finishShutdown = async () => {
-      await Promise.allSettled([stoppedResources, flushSettings(), flushTasks()]);
+      await Promise.allSettled([stoppedResources, flushSettings(), flushTasks(), flushAgentSettings()]);
       await writeDiagnosticEvent("app.stopped");
       await flushDiagnosticLog();
     };

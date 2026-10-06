@@ -2,8 +2,15 @@ import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
 import type { CSSProperties } from "react";
 import { useTerminalSession } from "./useTerminalSession";
+import type { TerminalSessionStatus } from "./terminalSessionManager";
 
 interface TerminalWorkspaceProps {
+  /** 主进程签发的设置操作凭据，不传时创建普通 Shell。 */
+  operationToken?: string;
+  /** CLI 操作面板不预留原审查页面的顶部空间。 */
+  compact?: boolean;
+  /** 初始化失败等终端状态反馈，退出码仍由终端事件提供。 */
+  onStatusChange?: (status: TerminalSessionStatus) => void;
   /** 当前终端 Tab 标题，用作终端区域的无障碍名称。 */
   title: string;
   /** 终端 Tab 的稳定 id，不能在 Tab 生命周期内变化。 */
@@ -12,20 +19,22 @@ interface TerminalWorkspaceProps {
   cwd?: string;
 }
 
-export function TerminalWorkspace({ title, sessionId, cwd }: TerminalWorkspaceProps) {
+export function TerminalWorkspace({ title, sessionId, cwd, operationToken, compact, onStatusChange }: TerminalWorkspaceProps) {
   const { t: translate } = useTranslation(["common", "terminal"]);
   const { html, handleKeyDown, handlePaste, paletteStyle, status, terminalRef } = useTerminalSession({
     cwd,
     sessionId,
+    operationToken,
   });
   const shouldShowStartingMessage = !html && (status === "starting" || status === "ready");
+  useEffect(() => { onStatusChange?.(status); }, [status, onStatusChange]);
 
   useEffect(() => {
     terminalRef.current?.focus();
   }, [sessionId, terminalRef]);
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-background pt-12">
+    <section className={"flex h-full min-h-0 min-w-0 flex-col bg-background " + (compact ? "" : "pt-12")}>
       <div
         ref={terminalRef}
         aria-label={title + " " + translate("terminal:title")}

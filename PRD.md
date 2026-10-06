@@ -4,7 +4,7 @@
 
 Navo 是面向本地开发者的 Agent 开发环境（ADE），将任务、项目工作区、Agent 会话、代码审查与终端操作组织在轻量桌面应用中。代码审查是开发流程的一部分，不是产品的唯一定位。
 
-当前提供 Tasks、Issue 与设置页面，以及可复用的代码审查弹窗和终端基础能力。已支持创建本地任务、关联多仓库/文件夹、准备分支/Worktree，以及将任务详情提升为真实标签页、组成双页拆分视图；真实 Agent 运行、跨项目上下文协调与远程平台接入仍待后续定义。
+当前提供 Tasks、Issue 与设置页面，以及可复用的代码审查弹窗和终端基础能力。已支持创建本地任务、关联多仓库/文件夹、准备分支/Worktree，以及将任务详情提升为真实标签页、组成双页拆分视图。Agent 设置支持本机四种 CLI 的探测、配置和可用的安装/登录操作；任务内 Agent 运行、跨项目上下文协调与远程平台接入仍待后续定义。
 
 ## 2. 文档组织
 
@@ -19,6 +19,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），将任务、项�
 | 设置入口与共用规则 | [设置概览](docs/prd/settings/README.md) |
 | 设置 → 常规 | [常规设置](docs/prd/settings/general.md) |
 | 设置 → 外观 | [外观设置](docs/prd/settings/appearance.md) |
+| 设置 → Agents | [Agents 设置](docs/prd/settings/agents.md) |
 | 设置 → 仓库与文件夹 | [仓库与文件夹](docs/prd/settings/resources.md) |
 | 设置 → 集成 | [集成设置](docs/prd/settings/integrations.md) |
 | 设置 → 关于 | [关于](docs/prd/settings/about.md) |

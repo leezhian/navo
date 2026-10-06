@@ -50,6 +50,7 @@ export function ensureManagedTerminalSession(
   cwd: string | undefined,
   cols: number,
   rows: number,
+  operationToken?: string,
 ): void {
   const existing = managedSessions.get(sessionId);
   if (existing) {
@@ -75,7 +76,7 @@ export function ensureManagedTerminalSession(
   const initialCols = cols;
   const initialRows = rows;
   const ghosttyReady = ghosttyVtClient.create(sessionId, cols, rows);
-  const ptyReady = createTerminal({ sessionId, cwd, cols, rows });
+  const ptyReady = createTerminal({ sessionId, cwd, cols, rows, operationToken });
 
   void Promise.all([ghosttyReady, ptyReady])
     .then(() => {

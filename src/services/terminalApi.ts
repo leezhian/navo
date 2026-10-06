@@ -6,8 +6,10 @@ import type {
   TerminalSessionParams,
   WriteTerminalParams,
 } from "../shared/terminalTypes";
+import { getAgentsApi } from "./agentApi";
 
 export function createTerminal(params: CreateTerminalParams): Promise<void> {
+  if (params.operationToken) return getAgentsApi().startOperation({ ...params, operationToken: params.operationToken });
   return window.navo.terminal.create(params);
 }
 

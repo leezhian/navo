@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { removeLegacyDemoRecords } from "./migrations/removeLegacyDemoRecords";
 
-export const APP_SCHEMA_VERSION = 5;
+export const APP_SCHEMA_VERSION = 6;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -23,6 +23,8 @@ export async function openAppDatabase(filePath: string) {
         try {
           database.exec(`
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS agent_configurations (id TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS agent_preferences (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS task_state (namespace TEXT PRIMARY KEY, initialized INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS tasks (
               namespace TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL,

@@ -8,7 +8,7 @@
 
 | 功能 | 已有基础 | 尚未实现 | 核对入口 |
 | --- | --- | --- | --- |
-| Agent 运行 | 本地任务、描述、附件、关联条目和工作目录 | Agent/模型选择、启动与停止、会话交互、权限请求、运行状态及失败恢复 | [任务页](../src/components/tasks/TaskPage.tsx)、[产品范围](../PRD.md) |
+| 任务内 Agent 运行 | 本地任务、描述、附件、关联条目和工作目录；Agent 设置已支持四种本机 CLI 的检测、启用、默认选择及可用的安装/登录操作 | 任务中的 Agent/模型选择、启动与停止、会话交互、权限请求、运行状态及失败恢复；多账号和富聊天未接入 | [任务页](../src/components/tasks/TaskPage.tsx)、[Agent 设置](prd/settings/agents.md) |
 | 多项目共享上下文 | 单个任务可关联多个仓库，准备分支或 Worktree | 将任务上下文交给实际 Agent，以及跨仓库执行与协作规则 | [创建任务需求](prd/task-create.md)、[产品范围](../PRD.md) |
 | 服务商授权 | GitHub、GitHub Enterprise、GitLab、GitLab Self-Hosted、Linear 列表 | 真实连接、凭证安全存储、失效处理与断开；具体采用 OAuth、Device Flow 或 Token 仍需按平台确定 | [集成服务](../src/services/integrationApi.ts)、[集成需求](prd/settings/integrations.md) |
 | Issue / PR 远程数据 | 本地列表/看板、筛选、详情及创建任务时关联 | 远程拉取与刷新、描述/评论等详情、与服务商状态同步；当前刷新仅重读本地数据 | [Issue 数据](../src/stores/issueStore.ts)、[Issue 需求](prd/issues.md) |

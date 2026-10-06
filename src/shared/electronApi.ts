@@ -1,5 +1,6 @@
 import type { GitFileSnapshot } from "../domain/diffParser";
 import type { TasksApi } from "./taskTypes";
+import type { AgentsApi } from "./agentTypes";
 import type { RendererDiagnosticReport } from "./diagnosticTypes";
 import type { CloneProgress, CloneResourceParams, ResourceRecord, SaveResourceParams, SettingsBootstrap } from "./settingsTypes";
 import type { AppSettings, CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
@@ -119,6 +120,7 @@ export interface CheckForUpdatesResult {
 export type WindowFullScreenListener = (isFullScreen: boolean) => void;
 
 export interface NavoApi {
+  agents: AgentsApi;
   diagnostics: {
     /** 报告受限异常，由主进程脱敏；不提供路径或任意对象写入能力。 */
     report(report: RendererDiagnosticReport): Promise<void>;

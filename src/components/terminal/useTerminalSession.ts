@@ -17,13 +17,15 @@ const MIN_COLUMNS = 2;
 const MIN_ROWS = 1;
 
 interface UseTerminalSessionParams {
+  /** 设置页操作凭据；同一会话只在首次创建 PTY 时消费。 */
+  operationToken?: string;
   /** 终端 Tab 的稳定 id，同时作为主进程 PTY 和 Ghostty 状态的关联键。 */
   sessionId: string;
   /** 新建 PTY 的工作目录，通常是当前审查项目根目录。 */
   cwd?: string;
 }
 
-export function useTerminalSession({ sessionId, cwd }: UseTerminalSessionParams) {
+export function useTerminalSession({ sessionId, cwd, operationToken }: UseTerminalSessionParams) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState("");
   const [status, setStatus] = useState(() => getManagedTerminalStatus(sessionId));
@@ -60,7 +62,7 @@ export function useTerminalSession({ sessionId, cwd }: UseTerminalSessionParams)
       }
 
       lastSize = { cols, rows };
-      ensureManagedTerminalSession(sessionId, cwd, cols, rows);
+      ensureManagedTerminalSession(sessionId, cwd, cols, rows, operationToken);
     };
 
     const observer = new ResizeObserver(() => {
@@ -78,7 +80,7 @@ export function useTerminalSession({ sessionId, cwd }: UseTerminalSessionParams)
         window.clearTimeout(resizeTimer);
       }
     };
-  }, [cwd, sessionId]);
+  }, [cwd, sessionId, operationToken]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const data = encodeTerminalKey(event);

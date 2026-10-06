@@ -134,7 +134,7 @@ test("真实任务标签：详情提升、拆分交换、布局调整与右键�
             const board = () => document.querySelector('.task-board');
             const taskItem = (title) => document.querySelector('[aria-label="查看任务：' + title + '"]');
             async function overview() {
-              document.querySelector('button[aria-label="Tasks"]').click();
+              document.querySelector('button[aria-label="任务"]').click();
               await waitFor(() => !visiblePage() && !board()?.closest('[hidden]'), 'Tasks navigation must restore the board');
             }
             async function preview(title) {

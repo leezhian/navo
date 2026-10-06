@@ -1,4 +1,6 @@
 import type { AppLocale } from "../shared/locales";
+import enAgents from "./locales/en/agents.json";
+import zhAgents from "./locales/zh-CN/agents.json";
 import enCommon from "./locales/en/common.json";
 import zhCommon from "./locales/zh-CN/common.json";
 import enTaskCreate from "./locales/en/taskCreate.json";
@@ -18,10 +20,11 @@ import zhTerminal from "./locales/zh-CN/terminal.json";
 import enNativeMenu from "./locales/en/nativeMenu.json";
 import zhNativeMenu from "./locales/zh-CN/nativeMenu.json";
 
-export const namespaces = ["common", "taskCreate", "settings", "tasks", "workspace", "issues", "review", "terminal", "nativeMenu"] as const;
+export const namespaces = ["common", "taskCreate", "settings", "tasks", "workspace", "issues", "review", "terminal", "nativeMenu", "agents"] as const;
 export const defaultNS = "common";
 
 const english = {
+  agents: enAgents,
   common: enCommon,
   taskCreate: enTaskCreate,
   settings: enSettings,
@@ -36,6 +39,7 @@ const english = {
 export const resources = {
   en: english,
   "zh-CN": {
+    agents: zhAgents,
     common: zhCommon,
     taskCreate: zhTaskCreate,
     settings: zhSettings,

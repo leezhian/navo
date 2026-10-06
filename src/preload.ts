@@ -27,6 +27,17 @@ import type {
 } from "./shared/terminalTypes";
 
 const api: NavoApi = {
+  agents: {
+    load: () => ipcRenderer.invoke(ipcChannels.agentsLoad),
+    scan: () => ipcRenderer.invoke(ipcChannels.agentsScan),
+    save: (input) => ipcRenderer.invoke(ipcChannels.agentsSave, input),
+    setDefault: (id) => ipcRenderer.invoke(ipcChannels.agentsSetDefault, id),
+    chooseBinary: () => ipcRenderer.invoke(ipcChannels.agentsChooseBinary),
+    openDocumentation: (id) => ipcRenderer.invoke(ipcChannels.agentsOpenDocumentation, id),
+    prepare: (id, action) => ipcRenderer.invoke(ipcChannels.agentsPrepare, id, action),
+    startOperation: (params) => ipcRenderer.invoke(ipcChannels.agentsStartOperation, params),
+    discardPlans: () => ipcRenderer.invoke(ipcChannels.agentsDiscardPlans),
+  },
   diagnostics: {
     report: (report) => ipcRenderer.invoke(ipcChannels.diagnosticsReport, report),
   },

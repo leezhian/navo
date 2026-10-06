@@ -17,6 +17,7 @@ const MIN_TERMINAL_DIMENSION = 1;
 const MAX_TERMINAL_DIMENSION = 500;
 
 interface TerminalRecord {
+  onFinish?: () => void;
   /** 创建该会话的渲染进程，避免不同窗口互相读写 PTY。 */
   owner: WebContents;
   pty: IPty;
@@ -28,7 +29,15 @@ interface TerminalRecord {
 const terminalRecords = new Map<string, TerminalRecord>();
 const terminalOwnerCleanupBound = new Set<number>();
 
-export function createTerminal(params: CreateTerminalParams, owner: WebContents): void {
+export interface TerminalLaunch {
+  command: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+  /** 完成或关闭时释放设置操作的互斥状态，不持久化终端输出。 */
+  onFinish: () => void;
+}
+
+export function createTerminal(params: CreateTerminalParams, owner: WebContents, launch?: TerminalLaunch): void {
   validateSessionId(params.sessionId);
   const existing = terminalRecords.get(params.sessionId);
   if (existing && existing.owner.id !== owner.id) {
@@ -37,13 +46,13 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents)
   destroyTerminal({ sessionId: params.sessionId }, owner.id);
 
   const shell = resolveShell();
-  const pty = spawn(shell, resolveShellArgs(shell), {
+  const pty = spawn(launch?.command ?? shell, launch?.args ?? resolveShellArgs(shell), {
     name: "xterm-256color",
     cols: normalizeDimension(params.cols),
     rows: normalizeDimension(params.rows),
     cwd: resolveWorkingDirectory(params.cwd),
     env: {
-      ...process.env,
+      ...(launch?.env ?? process.env),
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
       TERM_PROGRAM: "Navo",
@@ -51,6 +60,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents)
   });
 
   const record: TerminalRecord = {
+    onFinish: launch?.onFinish,
     owner,
     pty,
     pendingOutput: "",
@@ -75,9 +85,11 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents)
   });
 
   pty.onExit(({ exitCode, signal }) => {
+    if (record.isDisposed) return;
     flushTerminalOutput(params.sessionId, record);
     terminalRecords.delete(params.sessionId);
     record.isDisposed = true;
+    record.onFinish?.();
     if (!owner.isDestroyed()) {
       owner.send(ipcChannels.terminalExit, { sessionId: params.sessionId, exitCode, signal });
     }
@@ -103,6 +115,7 @@ export function destroyTerminal(params: TerminalSessionParams, ownerId?: number)
 
   terminalRecords.delete(params.sessionId);
   record.isDisposed = true;
+  record.onFinish?.();
   if (record.flushTimer) {
     clearTimeout(record.flushTimer);
     record.flushTimer = null;

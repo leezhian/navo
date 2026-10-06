@@ -5,6 +5,7 @@
     "closeOthers": "关闭其他"
   },
   "navigation": {
+    "tasks": "任务",
     "history": "页面历史",
     "label": "应用导航"
   },

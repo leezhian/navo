@@ -168,6 +168,17 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
               await closePanel();
             }
             await waitFor(() => document.querySelector('[aria-label="Issue"]'), 'Missing app');
+            const taskNavigation = label => document.querySelector('.navo-rail-button[aria-label="' + label + '"]');
+            await waitFor(() => taskNavigation('任务'), 'Tasks navigation must use the Chinese label');
+            await window.testInput.hover(center(taskNavigation('任务')));
+            await waitFor(() => document.querySelector('[role="tooltip"]')?.textContent === '任务', 'Tasks tooltip must be translated');
+            await window.setLocale('en');
+            await waitFor(() => taskNavigation('Tasks') && document.querySelector('[role="tooltip"]')?.textContent === 'Tasks', 'Open tooltip and accessible label must switch to English');
+            await window.setLocale('zh-CN');
+            await waitFor(() => taskNavigation('任务') && document.querySelector('[role="tooltip"]')?.textContent === '任务', 'Open tooltip must switch back to Chinese');
+            await window.testInput.hover({ x: 500, y: 700 });
+            await closePanel();
+            await waitFor(() => !document.querySelector('[role="tooltip"]'), 'Navigation tooltip must close before menu checks');
             const initiallyDark = document.documentElement.classList.contains('dark');
             for (const dark of [false, true]) {
               document.documentElement.classList.toggle('dark', dark);
@@ -255,12 +266,12 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
             await mode('list');
             if (!sidebar()?.textContent.includes('PR One')) throw new Error('View switch must preserve details selection');
             await mode('board');
-            document.querySelector('[aria-label="Tasks"]').click();
+            document.querySelector('[aria-label="任务"]').click();
             await pause();
             document.querySelector('[aria-label="Issue"]').click();
             await pause();
             if (!board() || board().closest('[hidden]')) throw new Error('Module switch must preserve board mode');
-            document.querySelector('[aria-label="Tasks"]').click();
+            document.querySelector('[aria-label="任务"]').click();
             await pause();
             const taskRoot = () => document.querySelector('.task-panel-content');
             const taskCard = id => taskRoot().querySelector('[data-task-id="' + id + '"]');
@@ -307,7 +318,7 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
             if (groupButton('DONE').getAttribute('aria-expanded') !== 'false') throw new Error('Collapsed task groups must survive layout switching');
             document.querySelector('[aria-label="Issue"]').click();
             await pause();
-            document.querySelector('[aria-label="Tasks"]').click();
+            document.querySelector('[aria-label="任务"]').click();
             await pause();
             if (groupButton('DONE').getAttribute('aria-expanded') !== 'false') throw new Error('Collapsed task groups must survive module navigation');
             groupButton('ARCHIVED').focus();
@@ -368,7 +379,7 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
             if (window.issueItems().map(item => item.id).join(',') !== issueIds || !window.issueItems()[0].title.endsWith(' updated') || order('PR') !== displayedIssueOrder) throw new Error('Issue refresh must read data and preserve sort settings');
             await mode('list');
             if (!issueRefresh().disabled) throw new Error('View switching must preserve cooldown');
-            document.querySelector('[aria-label="Tasks"]').click();
+            document.querySelector('[aria-label="任务"]').click();
             await pause();
             if (!taskRefresh().disabled) throw new Error('Module switching must preserve cooldown');
             window.advanceClock(61000);

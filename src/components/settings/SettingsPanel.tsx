@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { Folder, Info, Palette, Plug, Search, Settings } from "lucide-react";
+import { Bot, Folder, Info, Palette, Plug, Search, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,18 @@ import { AboutSettingsPage } from "./AboutSettingsPage";
 import { AppearanceThemeSettings } from "./AppearanceThemeSettings";
 import { DiffAppearanceSettings } from "./DiffAppearanceSettings";
 import { GeneralSettingsPage } from "./GeneralSettingsPage";
+import { AgentsSettingsPage } from "./AgentsSettingsPage";
 import { ResourcesSettingsPage } from "./ResourcesSettingsPage";
 import { IntegrationsSettingsPage } from "./IntegrationsSettingsPage";
 import { SettingsPageHeader } from "./settingsPrimitives";
 import type { AppSettings, ResolvedTheme } from "@/domain/types";
 import "./settings.css";
 
-type SettingsPage = "general" | "appearance" | "resources" | "integrations" | "about";
+type SettingsPage = "general" | "appearance" | "agents" | "resources" | "integrations" | "about";
 const settingsNavigation = [
   { id: "general" as const, title: "settings:pages.general" as const, icon: Settings },
   { id: "appearance" as const, title: "settings:pages.appearance" as const, icon: Palette },
+  { id: "agents" as const, title: "agents:title" as const, icon: Bot },
   { id: "resources" as const, title: "settings:pages.resources" as const, icon: Folder },
   { id: "integrations" as const, title: "settings:pages.integrations" as const, icon: Plug },
   { id: "about" as const, title: "settings:pages.about" as const, icon: Info },
@@ -33,7 +35,7 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ resolvedTheme, settings, updateSettings }: SettingsPanelProps) {
-  const { t } = useTranslation(["common", "settings"]);
+  const { t } = useTranslation(["common", "settings", "agents"]);
   const translate = t;
   const [activePage, setActivePage] = useState<SettingsPage>("general");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -62,6 +64,7 @@ export function SettingsPanel({ resolvedTheme, settings, updateSettings }: Setti
       <section className="navo-settings-content" aria-label={t(settingsNavigation.find((item) => item.id === activePage)?.title ?? "settings:title")}>
         <div className="mx-auto w-full max-w-[760px]">
           {activePage === "general" && <GeneralSettingsPage settings={settings} updateSettings={updateSettings} />}
+          {activePage === "agents" && <AgentsSettingsPage />}
           {activePage === "resources" && <ResourcesSettingsPage settings={settings} />}
           {activePage === "integrations" && <IntegrationsSettingsPage />}
           {activePage === "appearance" && <>

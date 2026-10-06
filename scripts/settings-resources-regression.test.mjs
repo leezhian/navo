@@ -351,7 +351,7 @@ test("旧 JSON 迁入 SQLite 并保留备份，重新加载只读取数据库", 
   const database = new DatabaseSync(path.join(directory, "app.db"));
   try {
     assert.equal(database.prepare("PRAGMA journal_mode").get().journal_mode, "wal");
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 5);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 6);
     assert.equal(JSON.parse(database.prepare("SELECT value FROM settings WHERE key = ?").get("theme").value), "dark");
   } finally { database.close(); }
   await writeFile(jsonPath, "invalid legacy JSON");
@@ -426,9 +426,9 @@ test("SQLite 文件或字段损坏不回退旧 JSON，也不覆盖原数据", as
     database.prepare("UPDATE settings SET value = ? WHERE key = ?").run("{invalid", "theme");
     await assert.rejects(service.loadSettings(), /INVALID_SETTINGS/);
     assert.equal(database.prepare("SELECT value FROM settings WHERE key = 'theme'").get().value, "{invalid");
-    database.exec("PRAGMA user_version = 6");
+    database.exec("PRAGMA user_version = 7");
     await assert.rejects(service.saveSettings(defaultSettings), /INVALID_SETTINGS/);
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 6);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 7);
   } finally { database.close(); }
 });
 

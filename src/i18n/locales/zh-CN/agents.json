@@ -1,0 +1,61 @@
+{
+  "title": "Agents",
+  "list": "支持的 Agent",
+  "enabled": "启用",
+  "account": "CLI 默认账号",
+  "default": {
+    "title": "默认 Agent",
+    "description": "用于后续任务会话的预选，创建任务不会自动启动 Agent。",
+    "none": "暂不选择",
+    "unavailable": "默认 Agent 已禁用或不可用，请重新选择。"
+  },
+  "status": {
+    "installed": "已安装",
+    "notInstalled": "未安装",
+    "detectionFailed": "检测失败",
+    "unavailable": "不可用"
+  },
+  "auth": {
+    "signedIn": "已登录",
+    "signedOut": "未登录",
+    "unknown": "登录状态未知"
+  },
+  "actions": {
+    "install": "安装",
+    "update": "更新",
+    "updateAll": "全部更新",
+    "scan": "重新扫描",
+    "login": "登录",
+    "logout": "退出登录",
+    "manageLogin": "在终端中管理",
+    "instructions": "官方说明"
+  },
+  "advanced": {
+    "title": "高级设置",
+    "binary": "可执行文件路径",
+    "autoPath": "自动检测",
+    "chooseBinary": "选择可执行文件"
+  },
+  "operation": {
+    "title": "CLI 操作",
+    "description": "请确认命令后再执行。安装和更新可能下载软件；登录或退出影响 CLI 默认账号，包括在 Navo 外的使用。终端输出不保存到诊断日志。",
+    "manageHint": "此 CLI 暂无已验证的登录状态查询命令。请在终端内使用其登录功能，完成后停止并重新扫描；Navo 不猜测登录结果。",
+    "run": "确认并执行",
+    "stop": "停止并取消剩余操作",
+    "running": "执行中",
+    "waiting": "待执行",
+    "success": "命令已完成",
+    "failed": "执行失败",
+    "cancelled": "已取消"
+  },
+  "errors": {
+    "invalid": "请检查 Agent 配置和可执行文件路径。",
+    "path": "请选择具有执行权限的文件绝对路径。",
+    "unavailable": "Agent 或操作不可用，请重新扫描后重试。",
+    "busy": "其他 CLI 操作正在执行，请先完成或停止。",
+    "expired": "命令计划已过期或配置已变化，请重新打开。",
+    "start": "无法启动 CLI 操作。",
+    "secureStorage": "系统安全存储不可用，无法保存新的环境变量值。",
+    "storage": "无法读取 Agent 设置，原有数据已保留。"
+  }
+}

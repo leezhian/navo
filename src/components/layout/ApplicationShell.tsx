@@ -68,7 +68,7 @@ export function ApplicationShell({ section, children, canGoBack, canGoForward, o
       <div className="navo-window-body">
         <nav className="navo-navigation-rail" aria-label={translate("workspace:navigation.label")}>
           <div className="flex flex-col gap-2">
-            <RailButton active={section === "tasks"} label="Tasks" icon={ListTodo} onClick={() => onSelectSection("tasks")} />
+            <RailButton active={section === "tasks"} label={translate("workspace:navigation.tasks")} icon={ListTodo} onClick={() => onSelectSection("tasks")} />
             <RailButton active={section === "issue"} label="Issue" icon={CircleDot} onClick={() => onSelectSection("issue")} />
           </div>
           <div className="mt-auto"><RailButton active={section === "settings"} label={translate("settings:title")} icon={Settings} onClick={() => onSelectSection("settings")} /></div>

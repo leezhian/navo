@@ -5,6 +5,7 @@
     "closeOthers": "Close others"
   },
   "navigation": {
+    "tasks": "Tasks",
     "history": "Navigation history",
     "label": "App navigation"
   },
