@@ -30,7 +30,7 @@ export function TaskAgentMenu({ value, options, disabled, open, onOpenChange, on
   const summary = value ? [value.modelName, agentEffortLabel(value.effort)].join(" · ") : t("taskCreate:agent.select");
   return <Popover.Root open={open} onOpenChange={onOpenChange}>
       <Tooltip>
-        <TooltipTrigger asChild><Popover.Trigger asChild><Button type="button" variant="ghost" size="sm" className="min-w-0 text-xs font-normal text-muted-foreground hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent" aria-label={t("taskCreate:agent.configure")} disabled={disabled}>
+        <TooltipTrigger asChild><Popover.Trigger asChild><Button type="button" variant="ghost" size="sm" className="min-w-0 border-0 px-0 text-xs font-normal text-muted-foreground hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent" aria-label={t("taskCreate:agent.configure")} disabled={disabled}>
           <Bot className="size-3.5 shrink-0" /><span data-slot="task-agent-summary" className="min-w-0 truncate">{summary}</span>
           {value && <span data-slot="task-agent-mode" className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] leading-4 text-secondary-foreground">{value.modeName}</span>}
           <ChevronDown className="size-3 shrink-0" />

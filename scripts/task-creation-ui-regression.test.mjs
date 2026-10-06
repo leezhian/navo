@@ -216,8 +216,12 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             if(!agentTrigger().contains(agentSummary())) throw new Error('Agent summary must be inside the clickable entry');
             if(agentTrigger().textContent.includes('Claude Code') || agentTrigger().hasAttribute('title')) throw new Error('Agent name must only appear in the detailed tooltip, not the trigger or a native title');
             const triggerBounds=agentTrigger().getBoundingClientRect();
+            const agentTriggerStyle=getComputedStyle(agentTrigger());
+            if(agentTriggerStyle.paddingLeft!=='0px'||agentTriggerStyle.paddingRight!=='0px'||agentTriggerStyle.borderLeftWidth!=='0px'||agentTriggerStyle.borderRightWidth!=='0px')throw new Error('Agent entry must not add horizontal padding or transparent borders');
             await window.testInput.hover({x:Math.round(triggerBounds.left+triggerBounds.width/2),y:Math.round(triggerBounds.top+triggerBounds.height/2)});
             await waitFor(()=>document.querySelector('[data-slot="task-agent-details"]'),'Hover must display per-field details');
+            const tooltipRect=document.querySelector('[data-slot="tooltip-content"]').getBoundingClientRect();
+            if(Math.abs(tooltipRect.right-agentTrigger().querySelector('.lucide-chevron-down').getBoundingClientRect().right)>1)throw new Error('Agent tooltip must align naturally with the chevron');
             const details=document.querySelector('[data-slot="task-agent-details"]').textContent;
             for(const detail of ['Claude Code','Claude runtime model','Default','low']) if(!details.includes(detail)) throw new Error('Missing tooltip detail: '+detail);
             await mouseClick(agentSummary());
@@ -225,7 +229,9 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             if(document.querySelectorAll('[data-slot="dialog-overlay"]').length!==1 || dialog().querySelector('[data-slot="dialog-close"]')) throw new Error('Agent menu must not add a modal overlay or close button');
             if(dialog().textContent.includes('重新扫描') || dialog().textContent.includes('不选择 Agent')) throw new Error('Removed actions must not appear in the agent menu');
             const menuRect=dialog().getBoundingClientRect(), triggerRect=agentTrigger().getBoundingClientRect();
-            if(menuRect.width>355 || Math.abs(menuRect.right-triggerRect.right)>2) throw new Error('Agent menu must be compact and right-aligned to its entry');
+            const chevronRect=agentTrigger().querySelector('.lucide-chevron-down').getBoundingClientRect();
+            if(menuRect.width>355 || Math.abs(menuRect.right-chevronRect.right)>1) throw new Error('Agent menu must be compact and right-aligned to the dropdown chevron');
+            if(Math.abs(triggerRect.top-menuRect.bottom-6)>1)throw new Error('Agent menu must sit 6px above the trigger');
             async function selectAgentOption(label, text) {
               await mouseClick(dialog().querySelector('button[aria-label="' + label + '"]'));
               await waitFor(() => document.querySelector('[role="listbox"]'), 'Missing selector list');
