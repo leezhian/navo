@@ -1,4 +1,5 @@
 import type { CreateTerminalParams } from "./terminalTypes";
+import type { AgentCapabilities, AgentCapabilitySnapshot } from "./agentCapabilities";
 
 export const AGENT_IDS = ["claude", "codex", "grok", "antigravity"] as const;
 export type AgentId = typeof AGENT_IDS[number];
@@ -53,6 +54,10 @@ export interface AgentOperationPlan {
 export interface AgentsApi {
   load(): Promise<AgentSettingsSnapshot>;
   scan(): Promise<AgentInstallation[]>;
+  capabilities(id: AgentId): Promise<AgentCapabilities>;
+  /** 只读取本地快照，不检测 CLI 或检查缓存过期。 */
+  capabilitySnapshot(): Promise<AgentCapabilitySnapshot>;
+  onCapabilitiesChanged(listener: () => void): () => void;
   save(input: SaveAgentConfiguration): Promise<AgentSettingsSnapshot>;
   setDefault(id: AgentId | null): Promise<AgentSettingsSnapshot>;
   chooseBinary(): Promise<string | null>;

@@ -49,6 +49,9 @@
     "cancelled": "Cancelled"
   },
   "errors": {
+    "restartRequired": "The app is still using an older agent interface. Fully restart Navo; reloading the window is not enough.",
+    "capabilities": "Model options are temporarily unavailable. Background refresh will retry, or rescan in Agents settings.",
+    "capabilitiesPending": "Waiting for model options to update in the background.",
     "invalid": "Check the agent configuration and executable path.",
     "path": "Select an absolute path to an executable file.",
     "unavailable": "This agent or operation is unavailable. Re-scan and try again.",

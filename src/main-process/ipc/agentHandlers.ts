@@ -7,13 +7,32 @@ import { ipcChannels } from "../../shared/ipcChannels";
 import { AgentService } from "../services/agents/agentService";
 import { agentCatalog } from "../services/agents/agentCatalog";
 import { requireAgentId } from "../services/agents/agentRepository";
+import type { TaskAgentSelection } from "../../shared/agentCapabilities";
+import { matchesAgentCapabilities } from "../../utils/taskAgentSelection";
 
 let service: AgentService | null = null;
-export async function flushAgentSettings() { await service?.repository.flush(); }
+export async function flushAgentSettings() {
+  await service?.capabilityCache.stop();
+  await service?.repository.flush();
+}
+
+export async function resolveTaskAgentSelection(selection: TaskAgentSelection): Promise<TaskAgentSelection> {
+  if (!service) throw new Error("TASK_AGENT_UNAVAILABLE");
+  try {
+    const capabilities = await service.capabilities(selection.agentId);
+    const model = capabilities.models.find((item) => item.id === selection.modelId);
+    const mode = capabilities.modes.find((item) => item.id === selection.modeId);
+    if (!model || !mode || !matchesAgentCapabilities(selection, capabilities)) throw new Error("TASK_AGENT_UNAVAILABLE");
+    return { ...selection, modelName: model.name, modeName: mode.name };
+  } catch { throw new Error("TASK_AGENT_UNAVAILABLE"); }
+}
 
 export function registerAgentHandlers() {
-  const agents = new AgentService(path.join(app.getPath("userData"), "app.db"));
+  const agents = new AgentService(path.join(app.getPath("userData"), "app.db"), () => {
+    for (const window of BrowserWindow.getAllWindows()) if (!window.webContents.isDestroyed()) window.webContents.send(ipcChannels.agentsCapabilitiesChanged);
+  });
   service = agents;
+  agents.capabilityCache.start();
   const owners = new Set<number>();
   function owner(event: IpcMainInvokeEvent) {
     if (event.senderFrame !== event.sender.mainFrame || !BrowserWindow.fromWebContents(event.sender)) throw new Error("AGENT_INVALID");
@@ -25,6 +44,8 @@ export function registerAgentHandlers() {
   }
   ipcMain.handle(ipcChannels.agentsLoad, (event) => { owner(event); return agents.repository.snapshot(); });
   ipcMain.handle(ipcChannels.agentsScan, (event) => { owner(event); return agents.scan(); });
+  ipcMain.handle(ipcChannels.agentsCapabilities, (event, id: AgentId) => { owner(event); return agents.capabilities(id); });
+  ipcMain.handle(ipcChannels.agentsCapabilitySnapshot, (event) => { owner(event); return agents.capabilityCache.snapshot(); });
   ipcMain.handle(ipcChannels.agentsSave, (event, input: SaveAgentConfiguration) => { owner(event); return agents.save(input); });
   ipcMain.handle(ipcChannels.agentsSetDefault, (event, id: AgentId | null) => { owner(event); return agents.setDefault(id); });
   ipcMain.handle(ipcChannels.agentsChooseBinary, async (event) => {

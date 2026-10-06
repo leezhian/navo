@@ -6,6 +6,14 @@ import path from "node:path";
 import { test } from "node:test";
 import electron from "electron";
 import { createServer } from "vite";
+import { createLoader } from "./helpers/load-typescript.mjs";
+import { grokInitialize, grokHelp, antigravityModels, antigravityHelp } from "./fixtures/agentCapabilities.mjs";
+
+const load = createLoader();
+const discoveredCapabilities = {
+  grok: load("src/main-process/services/agents/grokCapabilities.ts").parseGrokCapabilities(grokInitialize, grokHelp),
+  antigravity: load("src/main-process/services/agents/antigravityCapabilities.ts").parseAntigravityCapabilities(antigravityModels, antigravityHelp),
+};
 
 test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-task-ui-"));
@@ -54,6 +62,16 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
         { id: 'folder-b', name: 'folder-b', kind: 'folder', localPath: '/fixtures/folder-b', available: true },
       ];
       window.createdInputs = [];
+      const discoveredCapabilities = ${JSON.stringify(discoveredCapabilities)};
+      const cachedCapabilities = Object.fromEntries(['claude','codex','grok','antigravity'].map(id => [id, discoveredCapabilities[id] || {
+        agentId:id,defaultModelId:'runtime-model',defaultModeId:'default',models:[
+          {id:'runtime-model',name:id==='claude'?'Claude runtime model':'Codex runtime model',efforts:['low','high'],defaultEffort:'low'},
+          {id:'runtime-fast',name:'Runtime fast model',efforts:[],defaultEffort:null}
+        ],modes:[{id:'default',name:'Default'},{id:'plan',name:'Plan'}]
+      }]));
+      window.agentCacheReads = 0;
+      const agentCacheListeners = new Set();
+      window.publishAgentCache = () => agentCacheListeners.forEach(listener => listener());
       const info = (id) => {
         const record = records.find(record => record.id === id);
         const branch = id === 'repo-b' ? 'develop' : 'main';
@@ -63,6 +81,18 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
         } : null };
       };
       window.navo = {
+        agents: {
+          load: async () => ({defaultAgent:'claude',configurations:['claude','codex','grok','antigravity'].map(id=>({id,enabled:true}))}),
+          scan: async () => { throw new Error('Opening or switching must not scan CLI'); },
+          capabilities: async () => { throw new Error('Opening or switching must not query CLI capabilities'); },
+          capabilitySnapshot: async () => { window.agentCacheReads += 1; if(window.failAgentSnapshot)throw new Error('AGENT_RUNTIME_OUTDATED'); return {
+            settings: await window.navo.agents.load(),
+            installations:['claude','codex','grok','antigravity'].map(id=>({id,status:id==='grok'?'error':'installed',auth:['grok','antigravity'].includes(id)?'unknown':'signedIn'})),
+            entries:Object.fromEntries(Object.entries(cachedCapabilities).map(([id,capabilities])=>[id,{capabilities:structuredClone(capabilities),pending:false,error:window.failAgent===id?'AGENT_CAPABILITIES_FAILED':null}]))
+          }; },
+          onCapabilitiesChanged: listener => {agentCacheListeners.add(listener); return () => agentCacheListeners.delete(listener);},
+          setDefault: async () => { throw new Error('Task selection must not change global default'); }
+        },
         window: { getIsFullScreen: async () => false, onFullScreenChange: () => () => {} },
         settings: { chooseDirectory: async () => '/fixtures/extra' },
         resources: {
@@ -79,7 +109,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
           create: async (input) => {
             window.createdInputs.push(input);
             const resources = input.resources.map(resource => ({ ...resource, name: info(resource.resourceId).name, originalPath: info(resource.resourceId).path, workingPath: info(resource.resourceId).path }));
-            const task = { id: input.requestId, title: input.description.trim().split(String.fromCharCode(10))[0], description: input.description, date: new Date().toISOString(), projectName: resources[0]?.name ?? '', status: 'TODO', resources, links: input.links, webLinks: input.webLinks, attachments: input.attachmentIds.map(id => ({ id, name: 'notes.txt', size: 12 })) };
+            const task = { id: input.requestId, agent:input.agent, title: input.description.trim().split(String.fromCharCode(10))[0], description: input.description, date: new Date().toISOString(), projectName: resources[0]?.name ?? '', status: 'TODO', resources, links: input.links, webLinks: input.webLinks, attachments: input.attachmentIds.map(id => ({ id, name: 'notes.txt', size: 12 })) };
             persisted = [task, ...persisted]; return task;
           },
           rename: async (id,title) => persisted = persisted.map(task => task.id === id ? { ...task,title } : task),
@@ -179,12 +209,105 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
               if (!(button(label).compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Context buttons must precede the description');
             }
             const composer = () => dialog()?.querySelector('[data-slot="input-group"]');
+            const agentTrigger = () => document.querySelector('button[aria-label="任务 Agent 配置"]');
+            const agentSummary = () => document.querySelector('[data-slot="task-agent-summary"]');
+            await waitFor(() => agentSummary()?.textContent.includes('Claude runtime model'), 'Default agent must use real capability response');
+            const initialAgentCacheReads = window.agentCacheReads;
+            if(!agentTrigger().contains(agentSummary())) throw new Error('Agent summary must be inside the clickable entry');
+            if(agentTrigger().textContent.includes('Claude Code') || agentTrigger().hasAttribute('title')) throw new Error('Agent name must only appear in the detailed tooltip, not the trigger or a native title');
+            const triggerBounds=agentTrigger().getBoundingClientRect();
+            await window.testInput.hover({x:Math.round(triggerBounds.left+triggerBounds.width/2),y:Math.round(triggerBounds.top+triggerBounds.height/2)});
+            await waitFor(()=>document.querySelector('[data-slot="task-agent-details"]'),'Hover must display per-field details');
+            const details=document.querySelector('[data-slot="task-agent-details"]').textContent;
+            for(const detail of ['Claude Code','Claude runtime model','Default','low']) if(!details.includes(detail)) throw new Error('Missing tooltip detail: '+detail);
+            await mouseClick(agentSummary());
+            await waitFor(() => document.querySelector('[data-slot="task-agent-menu"]'), 'Agent configuration must be an anchored menu');
+            if(document.querySelectorAll('[data-slot="dialog-overlay"]').length!==1 || dialog().querySelector('[data-slot="dialog-close"]')) throw new Error('Agent menu must not add a modal overlay or close button');
+            if(dialog().textContent.includes('重新扫描') || dialog().textContent.includes('不选择 Agent')) throw new Error('Removed actions must not appear in the agent menu');
+            const menuRect=dialog().getBoundingClientRect(), triggerRect=agentTrigger().getBoundingClientRect();
+            if(menuRect.width>355 || Math.abs(menuRect.right-triggerRect.right)>2) throw new Error('Agent menu must be compact and right-aligned to its entry');
+            async function selectAgentOption(label, text) {
+              await mouseClick(dialog().querySelector('button[aria-label="' + label + '"]'));
+              await waitFor(() => document.querySelector('[role="listbox"]'), 'Missing selector list');
+              const option = [...document.querySelectorAll('[role="option"]')].find(item => item.textContent === text);
+              if (!option) throw new Error('Missing runtime option: ' + text);
+              await mouseClick(option);
+              await waitFor(() => !document.querySelector('[role="listbox"]'), 'Selection must close only its own menu');
+              if (document.querySelectorAll('[role="dialog"]').length !== 2) throw new Error('Select must not close either parent dialog');
+            }
+            await mouseClick(dialog().querySelector('button[aria-label="选择 Agent"]'));
+            await waitFor(() => document.querySelector('[role="listbox"]'), 'Missing eligible agents');
+            if(!document.querySelector('[role="listbox"]').textContent.includes('Grok Build') || !document.querySelector('[role="listbox"]').textContent.includes('Antigravity')) throw new Error('Unknown authentication and detection errors must not hide agents');
+            await mouseClick([...document.querySelectorAll('[role="option"]')].find(item => item.textContent === 'Codex'));
+            await waitFor(() => dialog().textContent.includes('Codex runtime model'), 'Agent switch must load its own capabilities');
+            await selectAgentOption('选择 Agent','Grok Build');
+            await waitFor(()=>dialog().textContent.includes('Grok Runtime'),'Grok must expose its real discovered model');
+            if(dialog().querySelector('[role="slider"]').getAttribute('aria-valuetext')!=='high')throw new Error('Grok must use the returned model default effort');
+            await selectAgentOption('模型','Grok Legacy');
+            if(dialog().querySelector('[role="slider"]').getAttribute('aria-valuemax')!=='2')throw new Error('Grok model changes must not retain unavailable xhigh effort');
+            await selectAgentOption('模型','Grok Simple');
+            if(dialog().querySelector('[role="slider"]'))throw new Error('Grok models without reasoning controls must not inherit them');
+            await selectAgentOption('选择 Agent','Antigravity');
+            await waitFor(()=>dialog().textContent.includes('Gemini Runtime (High)'),'Antigravity must expose the native CLI model list');
+            await selectAgentOption('模式','plan');
+            await selectAgentOption('模型','Claude Runtime (Thinking)');
+            if(dialog().querySelector('[role="slider"]').getAttribute('aria-valuemax')!=='5')throw new Error('Antigravity effort options must come from CLI help');
+            if(window.agentCacheReads!==initialAgentCacheReads)throw new Error('Opening menus and switching agents must not reload or revalidate the cache');
+            window.failAgent='grok';window.publishAgentCache();await selectAgentOption('选择 Agent','Grok Build');
+            await waitFor(()=>dialog().querySelector('button[aria-label="选择 Agent"]').textContent==='Grok Build'&&dialog().querySelector('button[aria-label="模型"]').disabled,'Failed capability reads must keep invalid options disabled');
+            if(dialog().querySelector('[role="alert"]')||dialog().textContent.includes('模型配置暂不可用'))throw new Error('Agent menu must not display capability error messages');
+            if(document.querySelector('[data-slot="dialog-content"]').querySelector('[role="alert"]'))throw new Error('Agent discovery errors must not appear in the create form');
+            if(document.body.textContent.includes('暂无已接入')||document.body.textContent.includes('不提供预设选项'))throw new Error('Removed unsupported-provider copy must never appear');
+            window.failAgent=null;window.publishAgentCache();
+            await selectAgentOption('选择 Agent','Codex');
+            await waitFor(()=>dialog().textContent.includes('Codex runtime model')&&!dialog().querySelector('[role="alert"]'),'Another agent must remain selectable after discovery fails');
+            window.failAgentSnapshot=true;window.publishAgentCache();
+            await waitFor(()=>dialog().querySelector('button[aria-label="模型"]').disabled,'Old IPC interfaces must still block invalid configuration');
+            if(dialog().querySelector('[role="alert"]')||dialog().textContent.includes('完整重启')||dialog().textContent.includes('旧的 Agent 接口'))throw new Error('Agent menu must not display restart or interface error messages');
+            window.failAgentSnapshot=false;window.publishAgentCache();
+            await waitFor(()=>!dialog().querySelector('button[aria-label="模型"]').disabled,'Background recovery must re-enable cached options');
+            await selectAgentOption('模型', 'Runtime fast model');
+            if(!dialog().textContent.includes('此模型未提供思考等级选项')) throw new Error('Unsupported thought levels must not be fabricated');
+            if(dialog().querySelector('[role="slider"]')) throw new Error('Unsupported thought levels must not show a slider');
+            await selectAgentOption('模型', 'Codex runtime model');
+            const effortSlider=()=>dialog().querySelector('[role="slider"][aria-label="思考等级"]');
+            await waitFor(()=>effortSlider()?.getAttribute('aria-valuetext')==='low','Model default effort must be selected');
+            const effortLabels=dialog().querySelector('[data-slot="task-agent-effort"]').textContent;
+            const stableMenuLeft=dialog().getBoundingClientRect().left;
+            if(!effortLabels.includes('low')||!effortLabels.includes('high')||effortLabels.includes('低')) throw new Error('Slider labels must preserve raw CLI values');
+            effortSlider().dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true,cancelable:true}));
+            await waitFor(()=>effortSlider().getAttribute('aria-valuetext')==='default','Home must restore CLI default without inventing a level');
+            effortSlider().dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+            await waitFor(()=>effortSlider().getAttribute('aria-valuetext')==='low','Arrow key must advance one real effort level');
+            const effortBounds=dialog().querySelector('[data-slot="task-agent-effort"]').getBoundingClientRect();
+            const thumbBounds=effortSlider().getBoundingClientRect();
+            await window.testInput.drag({x:Math.round(thumbBounds.left+thumbBounds.width/2),y:Math.round(thumbBounds.top+thumbBounds.height/2)},{x:Math.round(effortBounds.right-1),y:Math.round(thumbBounds.top+thumbBounds.height/2)});
+            await waitFor(()=>effortSlider().getAttribute('aria-valuetext')==='high','Dragging must select the final real level');
+            await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+            if(Math.abs(dialog().getBoundingClientRect().left-stableMenuLeft)>1) throw new Error('Changing thought levels must not shift the menu horizontally');
+            await selectAgentOption('模式','Plan');await click('使用默认 Agent');
+            await waitFor(() => dialog().textContent.includes('Claude runtime model'), 'Use default must restore global default agent for this task');
+            await selectAgentOption('选择 Agent', 'Codex');
+            await waitFor(() => dialog().textContent.includes('Codex runtime model'), 'Codex capabilities missing');
+            effortSlider().dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));
+            await waitFor(()=>effortSlider().getAttribute('aria-valuetext')==='high','End must select the highest returned effort level');
+            await selectAgentOption('模式','Plan');
+            const readsBeforeBackgroundUpdate = window.agentCacheReads;
+            window.publishAgentCache();
+            await waitFor(()=>window.agentCacheReads>readsBeforeBackgroundUpdate,'Background cache events must reach the open form');
+            await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+            if(effortSlider().getAttribute('aria-valuetext')!=='high' || !dialog().textContent.includes('Plan'))throw new Error('Background updates must preserve compatible model, effort and mode choices');
+            await window.testInput.escape();
+            await waitFor(() => document.querySelectorAll('[role="dialog"]').length === 1, 'Closing agent dialog must retain create dialog');
+            if(agentSummary().textContent!=='Codex runtime model · high' || agentTrigger().querySelector('[data-slot="task-agent-mode"]')?.textContent!=='Plan' || agentTrigger().textContent.includes('Codex ·')) throw new Error('Agent entry must show model and effort with a separate raw mode tag, without the agent name');
             if (!composer()?.contains(description) || !composer().parentElement.nextElementSibling?.contains(button('添加仓库或文件夹'))) throw new Error('Resource entry must directly follow the combined input container');
             if (composer().children.length !== 2) throw new Error('Empty composer must contain only the textarea and bottom bar');
             const attachmentButton = () => composer()?.querySelector('button[aria-label="添加附件或链接"]');
             if (!attachmentButton() || attachmentButton().textContent.trim() || !description.nextElementSibling?.contains(attachmentButton())) throw new Error('Attachment entry must be an icon in the bottom bar');
             const createButton = [...composer().querySelectorAll('button')].find(item => item.textContent === '创建');
-            if (!createButton?.disabled || createButton.parentElement !== attachmentButton().parentElement) throw new Error('Create must share the input bottom bar and remain disabled for an empty description');
+            const agentRect=agentTrigger().getBoundingClientRect(),createRect=createButton.getBoundingClientRect();
+            if(createButton.className.includes('rounded-l-none') || createButton.previousElementSibling!==agentTrigger() || Math.abs(createRect.left-agentRect.right-8)>1 || attachmentButton().parentElement===createButton.parentElement) throw new Error('Agent entry must sit immediately left of Create with a separate 8px gap');
+            if (!createButton?.disabled || createButton.closest('[data-slot="input-group-addon"]') !== attachmentButton().closest('[data-slot="input-group-addon"]')) throw new Error('Create must share the input bottom bar and remain disabled for an empty description');
             await document.fonts.ready;
             await waitFor(() => getComputedStyle(description).fieldSizing === 'content', 'Native textarea autosizing must be enabled');
             const textareaStyle = getComputedStyle(description);
@@ -442,7 +565,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await editTarget('discard-first-edit');
             const branchDraftInput = targetInput();
             await click('关联 PR');
-            await waitFor(() => dialog()?.querySelector('[role="checkbox"]'), 'Missing PR picker above the active branch editor');
+            await waitFor(() => dialog() !== draftDialog && dialog()?.querySelector('[role="checkbox"]'), 'Missing PR picker above the active branch editor');
             assertDialogStack(2);
             await click('取消');
             await waitFor(() => targetInput() === branchDraftInput, 'Unconfirmed branch editor must stay mounted beneath child dialogs');
@@ -576,6 +699,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await click('创建');
             await waitFor(() => !dialog() && document.querySelector('.task-card'), 'Task was not created in board');
             const input = window.createdInputs[0];
+            if(input.agent?.agentId!=='codex' || input.agent.modelId!=='runtime-model' || input.agent.effort!=='high' || input.agent.modeId!=='plan') throw new Error('Task must submit the chosen agent configuration');
             if (input.resources.length !== 2 || input.links.length !== 2 || input.attachmentIds.length !== 1) throw new Error('Task context was not submitted');
             if (input.webLinks.length !== 2 || input.webLinks[0].title !== '设计规范' || input.webLinks[0].url !== 'https://example.com/spec' || input.webLinks[1].title !== '') throw new Error('Web links must submit separately with optional trimmed titles');
             if (input.resources[0].targetBranch !== '' || input.resources[0].mode !== 'worktree') throw new Error('Branch settings not preserved');
@@ -644,7 +768,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
           })()\`);
           console.log(result);
           app.exit(0);
-        } catch (error) { console.error(error.message); app.exit(1); }
+        } catch (error) { console.error(error.stack); app.exit(1); }
       });
     `);
     const environment = { ...process.env };

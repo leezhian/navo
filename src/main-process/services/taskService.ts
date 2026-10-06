@@ -16,6 +16,8 @@ import type { TaskCreationManifest } from "./taskWorkspaces";
 import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
 import { TaskDeletionService } from "./taskDeletionService";
 import { isLegacyDemoTask } from "../../shared/legacyDemoRecords";
+import type { TaskAgentSelection } from "../../shared/agentCapabilities";
+import { isTaskAgentSelection } from "../../utils/taskAgentSelection";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
@@ -28,7 +30,8 @@ export class TaskService {
   private recovered = false;
   readonly deletion: TaskDeletionService;
 
-  constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings) {
+  constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings,
+    private readonly resolveAgent?: (selection: TaskAgentSelection) => Promise<TaskAgentSelection>) {
     this.repository = new TaskRepository(path.join(userData, "app.db"), namespace);
     this.resources = new ResourceService(path.join(userData, "resources.json"));
     this.deletion = new TaskDeletionService(this.repository);
@@ -100,6 +103,8 @@ export class TaskService {
         const existing = (await this.repository.load())?.find((task) => task.id === input.requestId);
         if (existing) return existing;
         if ((await this.repository.operations()).some((operation) => operation.id === input.requestId)) throw new Error("TASK_CREATE_RETAINED");
+        if (input.agent && !this.resolveAgent) throw new Error("TASK_AGENT_UNAVAILABLE");
+        const agent = input.agent && this.resolveAgent ? await this.resolveAgent(input.agent) : undefined;
         const settings = this.getSettings();
         const selectedFiles = await this.files.prepare(ownerId, input.attachmentIds);
         const infos = await Promise.all(input.resources.map((resource) => this.inspectResource(resource.resourceId)));
@@ -132,6 +137,7 @@ export class TaskService {
           const resources = manifest.steps.map((step) => step.resource);
           const description = input.description.trim();
           const task: Task = {
+            ...(agent ? { agent } : {}),
             id: input.requestId, title: Array.from(description.split(/\r?\n/)[0].trim()).slice(0, 80).join(""),
             description, date: new Date().toISOString(), projectName: resources[0]?.name ?? "", status: "TODO",
             resources, links: input.links, webLinks: (input.webLinks ?? []).map(({ id, url, title }) => ({ id, url, title: title.trim() })),
@@ -215,6 +221,7 @@ function requireTask(tasks: Task[], id: string) {
 
 function validateCreateInput(value: CreateTaskInput) {
   if (!value || typeof value !== "object" || !REQUEST_ID.test(value.requestId)
+    || (value.agent !== undefined && !isTaskAgentSelection(value.agent))
     || typeof value.description !== "string" || !value.description.trim() || value.description.length > 100000
     || !Array.isArray(value.resources) || !value.resources.every(isResourceInput)
     || !Array.isArray(value.links) || !value.links.every(isIssueItem)

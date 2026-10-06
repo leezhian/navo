@@ -1,4 +1,18 @@
 {
+  "agent": {
+    "configure": "任务 Agent 配置",
+    "select": "选择 Agent",
+    "model": "模型",
+    "mode": "模式",
+    "effort": "思考等级",
+    "noEffort": "此模型未提供思考等级选项",
+    "empty": "没有可选择的 Agent。请在设置 → Agents 中检查启用、安装和登录状态。",
+    "loading": "读取模型配置…",
+    "pending": "等待后台更新…",
+    "useDefault": "使用默认 Agent",
+    "unavailable": "所选 Agent、模型或配置已不可用，请重新选择。",
+    "bypassWarning": "此模式在后续运行时会跳过权限确认，请仅在可信工作区使用。"
+  },
   "actions": {
     "open": "创建任务",
     "creating": "创建中…"

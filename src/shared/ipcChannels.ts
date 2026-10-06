@@ -1,6 +1,9 @@
 export const ipcChannels = {
   agentsLoad: "agents:load",
   agentsScan: "agents:scan",
+  agentsCapabilities: "agents:capabilities",
+  agentsCapabilitySnapshot: "agents:capability-snapshot",
+  agentsCapabilitiesChanged: "agents:capabilities-changed",
   agentsSave: "agents:save",
   agentsSetDefault: "agents:set-default",
   agentsChooseBinary: "agents:choose-binary",

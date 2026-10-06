@@ -1,4 +1,18 @@
 {
+  "agent": {
+    "configure": "Task agent configuration",
+    "select": "Select agent",
+    "model": "Model",
+    "mode": "Mode",
+    "effort": "Thought level",
+    "noEffort": "This model provides no thought-level options",
+    "empty": "No agents are available to select. Check enabled, installation and sign-in status in Settings → Agents.",
+    "loading": "Reading model options…",
+    "pending": "Waiting for background update…",
+    "useDefault": "Use default agent",
+    "unavailable": "The selected agent, model or configuration is no longer available. Select it again.",
+    "bypassWarning": "This mode will bypass permission prompts when a session is launched. Use only in trusted workspaces."
+  },
   "actions": {
     "open": "Create task",
     "creating": "Creating…"

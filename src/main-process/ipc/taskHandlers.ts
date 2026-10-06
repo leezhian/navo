@@ -5,12 +5,13 @@ import { getCurrentSettings } from "../services/settingsService";
 import type { CreateTaskInput } from "../../shared/taskTypes";
 import type { Task, TaskStatus } from "../../domain/tasks";
 import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
+import { resolveTaskAgentSelection } from "./agentHandlers";
 
 let tasks: TaskService | null = null;
 export async function flushTasks() { await tasks?.flush(); }
 
 export function registerTaskHandlers() {
-  const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings);
+  const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection);
   tasks = service;
   const owners = new Set<number>();
   ipcMain.handle(ipcChannels.tasksLoad, () => service.load());

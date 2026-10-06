@@ -21,11 +21,13 @@ export class TaskRepository {
     const rows = database.prepare("SELECT * FROM tasks WHERE namespace = ? ORDER BY position, id").all(this.namespace);
     return rows.map((row) => {
       const taskId = String(row.id);
+      const agent = database.prepare("SELECT data FROM task_agents WHERE namespace = ? AND task_id = ?").get(this.namespace, taskId);
       const resources = database.prepare("SELECT data FROM task_resources WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
       const links = database.prepare("SELECT data FROM task_links WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
       const webLinks = database.prepare("SELECT id,url,title FROM task_web_links WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
       const attachments = database.prepare("SELECT id,name,size FROM task_attachments WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
       return {
+        ...(agent ? { agent: JSON.parse(String(agent.data)) } : {}),
         id: taskId, title: String(row.title), description: String(row.description), date: String(row.date),
         projectName: String(row.project_name), status: row.status as Task["status"],
         archivedFrom: row.archived_from === "TODO" || row.archived_from === "DONE" ? row.archived_from : undefined,
@@ -60,6 +62,7 @@ export class TaskRepository {
     return this.access((database) => transaction(database, () => {
       database.prepare("UPDATE tasks SET position = position + 1 WHERE namespace = ?").run(this.namespace);
       this.insert(database, task, 0);
+      if (task.agent) database.prepare("INSERT INTO task_agents VALUES (?,?,?)").run(this.namespace, task.id, JSON.stringify(task.agent));
       task.resources?.forEach((resource, position) => {
         database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(this.namespace, task.id, position, JSON.stringify(resource));
         if (resource.mode === "worktree") database.prepare("INSERT INTO managed_workspaces VALUES (?,?,?,?,?)")

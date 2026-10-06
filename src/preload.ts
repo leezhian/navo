@@ -28,6 +28,13 @@ import type {
 
 const api: NavoApi = {
   agents: {
+    capabilitySnapshot: () => ipcRenderer.invoke(ipcChannels.agentsCapabilitySnapshot),
+    onCapabilitiesChanged: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(ipcChannels.agentsCapabilitiesChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.agentsCapabilitiesChanged, handler);
+    },
+    capabilities: (id) => ipcRenderer.invoke(ipcChannels.agentsCapabilities, id),
     load: () => ipcRenderer.invoke(ipcChannels.agentsLoad),
     scan: () => ipcRenderer.invoke(ipcChannels.agentsScan),
     save: (input) => ipcRenderer.invoke(ipcChannels.agentsSave, input),

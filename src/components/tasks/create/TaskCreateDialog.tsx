@@ -15,6 +15,8 @@ import { TaskResourcePicker } from "./TaskResourcePicker";
 import { TaskIssuePicker } from "./TaskIssuePicker";
 import { TaskComposer } from "./TaskComposer";
 import { TaskWebLinkDialog } from "./TaskWebLinkDialog";
+import { useTaskAgentOptions } from "@/hooks/useTaskAgentOptions";
+import { TaskAgentMenu } from "./TaskAgentMenu";
 
 interface TaskCreateDialogProps {
   /** 弹窗关闭后保留本次窗口内草稿，创建成功后清空。 */
@@ -30,6 +32,8 @@ interface TaskCreateDialogProps {
 export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: TaskCreateDialogProps) {
   const { t } = useTranslation(["common", "taskCreate"]);
   const draft = useTaskDraft(settings);
+  const agents = useTaskAgentOptions(open, draft.agent, draft.setAgent);
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const { loaded, pending } = useTaskStore();
   const [issueGroup, setIssueGroup] = useState<IssueGroup | null>(null);
   const [resourcePicker, setResourcePicker] = useState(false);
@@ -39,20 +43,20 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
   const resourceTriggerRef = useRef<HTMLButtonElement>(null);
   const disabled = draft.working || pending;
   const invalidResources = draft.resources.some((resource) => resource.info.git && resource.mode !== "current-branch" && !resource.sourceBranch);
-  const canCreate = !disabled && loaded && Boolean(draft.description.trim()) && !invalidResources;
+  const canCreate = !disabled && !agents.busy && !agents.pending && agents.error === null && loaded && Boolean(draft.description.trim()) && !invalidResources;
   async function create() {
     if (!canCreate) return;
     const task = await draft.submit();
     if (task) { onOpenChange(false); onCreated(task); }
   }
   return <>
-    <Dialog open={open} onOpenChange={(next) => { if (!disabled && !issueGroup && !resourcePicker && !webLinkDialog) onOpenChange(next); }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!disabled && !issueGroup && !resourcePicker && !webLinkDialog && !agentMenuOpen) onOpenChange(next); }}>
       <DialogContent className="sm:max-w-[760px]" showCloseButton={!disabled} aria-describedby={undefined}
         onEscapeKeyDown={(event) => {
           const editingBranch = event.target instanceof HTMLElement && event.target.closest("[data-task-branch-editor]");
-          if (disabled || issueGroup || resourcePicker || webLinkDialog || editingBranch) event.preventDefault();
+          if (disabled || issueGroup || resourcePicker || webLinkDialog || agentMenuOpen || editingBranch) event.preventDefault();
         }}
-        onInteractOutside={(event) => { if (disabled || issueGroup || resourcePicker || webLinkDialog) event.preventDefault(); }}>
+        onInteractOutside={(event) => { if (disabled || issueGroup || resourcePicker || webLinkDialog || agentMenuOpen) event.preventDefault(); }}>
         <DialogTitle className="sr-only">{t("taskCreate:actions.open")}</DialogTitle>
         <div className="max-h-[65vh] space-y-2 overflow-y-auto p-0.5">
           <div className="space-y-2">
@@ -61,6 +65,7 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
               <Button variant="secondary" className="h-8 text-xs" disabled={disabled} onClick={(event) => { pickerTriggerRef.current = event.currentTarget; setIssueGroup("PR"); }}><GitPullRequest className="size-3.5" />{t("taskCreate:links.addPullRequest")}</Button>
             </div>
             <TaskComposer description={draft.description} links={draft.links} attachments={draft.attachments} disabled={disabled}
+              agentControl={<TaskAgentMenu value={draft.agent} options={agents} disabled={disabled} open={agentMenuOpen} onOpenChange={setAgentMenuOpen} onChange={draft.setAgent} />}
               webLinks={draft.webLinks} attachmentTriggerRef={attachmentTriggerRef} onAddWebLink={() => setWebLinkDialog(true)}
               onRemoveWebLink={(id) => draft.setWebLinks((current) => current.filter((link) => link.id !== id))}
               canCreate={canCreate} creating={draft.working} onCreate={() => void create()}

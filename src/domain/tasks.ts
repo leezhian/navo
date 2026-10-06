@@ -1,9 +1,12 @@
 import type { IssueItem } from "./issues";
+import type { TaskAgentSelection } from "../shared/agentCapabilities";
 import type { TaskAttachment, TaskResource, TaskWebLink } from "../shared/taskTypes";
 
 export type TaskStatus = "TODO" | "DONE" | "ARCHIVED";
 
 export interface Task {
+  /** 创建时选择的 Agent、模型、模式和思考等级；旧任务可缺省。 */
+  agent?: TaskAgentSelection;
   /** 任务的唯一标识，不在卡片中展示。 */
   id: string;
   /** 卡片标题，最多显示两行。 */

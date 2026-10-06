@@ -23,6 +23,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - 顶部提供模块历史后退与前进及真实任务标签，支持去重、切换、关闭、关闭其他和横向拖拽排序，标题与内容随任务数据同步；标签仅保留在当前窗口。左侧底部为设置，不再提供旧会话列表。
 - 任务标签支持非嵌套的双页组合、选页、左右/上下排列、拖动调整比例、反转和取消拆分；独立标签可与激活组合的任意一侧互换，被换出的页面回到其原独立位置。组合整体排序，关闭一侧后另一侧恢复独立显示。
 - 设置提供常规、外观、Agents、仓库与文件夹、集成和关于，保留主题与 diff 预览；关于的版本与更新合为一行。
+- 创建任务底栏的 Agent 入口位于创建按钮左侧，两者独立；图标和配置回显整体可点击，通过锚定浮层选择模型、模式及分档思考滑条，选项保留 CLI 原始文案。已启用的 CLI 仅在明确未安装或未登录时排除，未知和检测失败状态仍可尝试查询。Claude 使用只读初始化握手和本机帮助，Codex 使用本地 app-server 的 `model/list`、`collaborationMode/list`；Grok 使用 `agent --no-leader stdio` 初始化结果和本机帮助，Antigravity 使用 `models` 与 `--help`，不填充预设模型。配置浮层不展示查询失败、旧接口或要求重启等错误文案，内部校验仍阻止无效配置提交。配置随任务保存，创建后不启动会话。开发时新增 IPC 后需完整重启主进程。
 - Agent 设置管理本机 Claude Code、Codex、Grok Build、Antigravity CLI：安装/版本检测、可验证的登录状态、默认选择、启用及自定义可执行文件路径。首次检测保持卡片显示，重复扫描保留已有内容；高级设置仅编辑路径。安装/登录命令经用户确认后在现有 PTY 终端执行，更新按队列进行；不支持富聊天、多账号或全局 hooks/MCP 注入。
 - 全局英文/简体中文切换立即生效，首次默认英文；设置由主进程 SQLite 持久化，Zustand 仅作为渲染缓存。
 - 统一通过“添加仓库”入口新增：输入 HTTPS / SSH 地址时自动提取名称并使用常规设置中的仓库目录，支持克隆进度与取消；也可在弹窗中选择或拖入本地目录并自动登记，系统目录选择器默认打开当前用户主目录。支持编辑/移除，移除记录不会删除文件，编辑不会修改 Git remote。
@@ -140,9 +141,13 @@ npm run test:i18n
 
 ## 本地数据兼容
 
-新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置保存在 Electron `userData/app.db`，资源仍写入 `userData/resources.json` 并串行原子替换。设置数据库使用内置 `node:sqlite`，按字段存入 `settings(key, value)`，值为 JSON 编码，开启 WAL、FULL 同步与 3 秒忙等待；整组更新以事务提交，主进程读写共用队列，提交成功才更新缓存，退出时等待已排队的保存。连接按操作打开并关闭，数据库文件新建权限为 `0600`，`user_version = 6` 记录当前结构版本，拒绝写入更高版本的数据库。v5 在升级事务中清理身份匹配的历史演示任务和 Issue/PR 关联，保留设置、真实上下文与初始化标记，不操作工作目录或分支。v6 新增 `agent_configurations` 与 `agent_preferences`，与通用设置分开读写；环境变量值通过 Electron `safeStorage` 加密，禁用明文后端，渲染进程只读取变量名称。
+新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置保存在 Electron `userData/app.db`，资源仍写入 `userData/resources.json` 并串行原子替换。设置数据库使用内置 `node:sqlite`，按字段存入 `settings(key, value)`，值为 JSON 编码，开启 WAL、FULL 同步与 3 秒忙等待；整组更新以事务提交，主进程读写共用队列，提交成功才更新缓存，退出时等待已排队的保存。连接按操作打开并关闭，数据库文件新建权限为 `0600`，`user_version = 8` 记录当前结构版本，拒绝写入更高版本的数据库。v5 在升级事务中清理身份匹配的历史演示任务和 Issue/PR 关联，保留设置、真实上下文与初始化标记，不操作工作目录或分支。v6 新增 `agent_configurations` 与 `agent_preferences`，与通用设置分开读写；环境变量值通过 Electron `safeStorage` 加密，禁用明文后端，渲染进程只读取变量名称。v7 新增 `task_agents`，保存任务级 Agent 配置快照，删除任务时级联清理，旧任务保持无配置。v8 新增 `agent_capability_cache` 与 `agent_capability_state`，分别保存按 Agent/可执行路径区分的最后成功能力及当前检测状态，刷新失败不覆盖成功结果。
 
-Agent 主进程模块位于 `src/main-process/services/agents`，IPC 契约位于 `src/shared/agentTypes.ts`；设置面板、状态 hook 和 API 分层复用现有模式。仅主动打开 Agent 页或重新扫描时探测本机命令，不安装或更新真实 CLI 作为测试。`node --test scripts/agent-settings-regression.test.mjs scripts/agent-settings-ui-regression.test.mjs` 覆盖存储、保密、路径/版本/认证检测、命令确认、窗口绑定与串行取消；测试使用临时数据和模拟终端操作，不登录或退出真实账号。
+Agent 主进程模块位于 `src/main-process/services/agents`，IPC 契约位于 `src/shared/agentTypes.ts` 和 `src/shared/agentCapabilities.ts`；设置面板、状态 hook 和 API 分层复用现有模式。创建任务界面挂载时预载本地快照并订阅后台事件，打开弹窗、切换 Agent、提交任务只使用缓存，不触发 CLI 检测或过期校验。启动 30 秒后、此后每 4 小时由主进程检查已启用 Agent 的缓存；设置扫描和配置/登录操作变更也会驱动检测与失效。相同 Agent 的请求合并，变更前的旧请求不会写回；失败保留缓存，变更环境的旧配置只展示不提交，退出时停止调度并等待存储队列。`node --test scripts/agent-capability-cache-regression.test.mjs scripts/agent-settings-regression.test.mjs scripts/agent-settings-ui-regression.test.mjs scripts/task-agent-regression.test.mjs scripts/task-creation-regression.test.mjs scripts/task-creation-ui-regression.test.mjs` 覆盖存储、过期调度、并发失效、保密、真实协议解析、认证筛选、任务配置持久化与子弹窗交互；测试使用临时数据和模拟终端操作，不登录或退出真实账号。Codex 协议参考[官方 app-server 文档](https://developers.openai.com/codex/app-server/)；能力接口失败时不回退到静态模型表。
+
+失效指纹包含配置、可执行路径、CLI 版本、可识别的认证状态/身份、相关认证环境变量摘要，以及 Claude/Codex/Grok 支持的凭证文件元数据；不读取凭证文件内容，不存储账号或 token 明文。未知认证状态不等同于未登录。无法提供稳定身份或凭证变更信号的 CLI（当前 Antigravity）通过 Navo 内登录管理操作和定期过期查询更新；外部账号切换不保证立即发现。
+
+Grok 能力探测仅发送 ACP `initialize`，读取 `_meta.modelState` 中的模型与模型级思考等级，不创建会话、不复用用户 leader。Antigravity 模型来自 `agy models` 的真实列表，模式及会话级思考等级来自 `agy --help`；帮助兼容 stdout/stderr，未返回模型级限制时不推断。协议探测及 Antigravity 模型查询均设 20 秒上限，普通帮助命令为 5 秒，不新增 SDK 或下载辅助服务。
 
 配置读取优先级为：SQLite 设置 → 旧 `settings.json` → localStorage 的 `navo-settings` / `vibe-reviewer-settings` → 默认值。仅在数据库尚无设置时尝试旧 JSON，规范化后整组导入，成功保留原文件作为备份，之后不再回读或写入；没有旧 JSON 时才由渲染进程迁移旧浏览器设置，写入成功后移除旧键。损坏的数据库、非法 JSON、迁移或保存失败会明确提示，不静默回退默认值或覆盖旧记录。Tasks 及其关联保存在同一 SQLite 数据库中，以 development/production 命名空间隔离。首次加载且任务库尚未初始化时，迁移原 localStorage 任务键，保留标识与顺序，成功后清理旧键；损坏数据不静默覆盖，空列表有独立初始化标记。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因更名而假定远端已改名。
 

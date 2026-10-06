@@ -3,6 +3,7 @@ import type { TranslationKey } from "@/i18n/types";
 import { getSettingsError } from "./settingsErrors";
 
 const messages: Record<string, TranslationKey<"tasks" | "taskCreate">> = {
+  TASK_AGENT_UNAVAILABLE: "taskCreate:agent.unavailable",
   TASK_DELETE_CHANGED: "tasks:deletion.errors.changed",
   TASK_DELETE_CONFIRMATION: "tasks:deletion.errors.confirmation",
   TASK_DELETE_INSPECTION: "tasks:deletion.errors.inspection",

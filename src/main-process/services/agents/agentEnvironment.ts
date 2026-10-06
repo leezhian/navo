@@ -4,9 +4,9 @@ import { constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export function runAgentProbe(command: string, args: string[], env: NodeJS.ProcessEnv) {
+export function runAgentProbe(command: string, args: string[], env: NodeJS.ProcessEnv, timeoutMs = 5000) {
   return new Promise<{ stdout: string; stderr: string; code: number | string | null }>((resolve) => {
-    execFile(command, args, { env, cwd: os.homedir(), timeout: 5000, maxBuffer: 256 * 1024, windowsHide: true }, (error, stdout, stderr) => {
+    execFile(command, args, { env, cwd: os.homedir(), timeout: timeoutMs, maxBuffer: 256 * 1024, windowsHide: true }, (error, stdout, stderr) => {
       resolve({ stdout, stderr, code: error ? error.code ?? null : 0 });
     });
   });

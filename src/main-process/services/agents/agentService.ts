@@ -8,29 +8,43 @@ import { agentShellEnvironment, isAgentExecutable } from "./agentEnvironment";
 import { agentCatalog } from "./agentCatalog";
 import { agentInstallCommand, agentUpdateCommand, detectAgent } from "./agentDetection";
 import { createTerminal } from "../terminal/terminalService";
+import { AgentCapabilityCache } from "./agentCapabilityCache";
+import { agentConfigurationKey } from "./agentCapabilityFingerprint";
 
 const PLAN_LIFETIME_MS = 10 * 60 * 1000;
 type PreparedCommand = AgentOperationPlan & { ownerId: number; expiresAt: number; commandPath: string; args: string[]; env: NodeJS.ProcessEnv };
 
 export class AgentService {
   readonly repository: AgentRepository;
+  readonly capabilityCache: AgentCapabilityCache;
   private readonly plans = new Map<string, PreparedCommand>();
   private running = false;
 
-  constructor(filename: string) { this.repository = new AgentRepository(filename); }
+  constructor(filename: string, private readonly changed: () => void = () => undefined) {
+    this.repository = new AgentRepository(filename);
+    this.capabilityCache = new AgentCapabilityCache(filename, this.repository, changed);
+  }
+
+  async capabilities(id: AgentId) {
+    requireAgentId(id);
+    const entry = (await this.capabilityCache.snapshot()).entries[id];
+    if (entry?.error) throw new Error(entry.error);
+    if (!entry?.capabilities || entry.pending) throw new Error("AGENT_CAPABILITIES_PENDING");
+    return entry.capabilities;
+  }
 
   async scan(): Promise<AgentInstallation[]> {
-    const [{ configurations }, env] = await Promise.all([this.repository.read(), agentShellEnvironment()]);
-    return Promise.all(configurations.map(async (config) => {
-      try { return await detectAgent(config, { ...env, ...this.repository.environment(config) }); }
-      catch { return { id: config.id, status: "error", binaryPath: null, version: null, source: null, auth: "unknown", actions: [] }; }
-    }));
+    await this.capabilityCache.refreshAll();
+    return this.capabilityCache.installations();
   }
 
   async save(input: SaveAgentConfiguration) {
     if (this.running) throw new Error("AGENT_BUSY");
     if (typeof input?.customPath === "string" && input.customPath.trim() && !await isAgentExecutable(input.customPath.trim())) throw new Error("AGENT_INVALID_PATH");
+    const previous = (await this.repository.read()).configurations.find((config) => config.id === input.id);
     const result = await this.repository.save(input);
+    const next = (await this.repository.read()).configurations.find((config) => config.id === input.id);
+    if (next && (!previous || agentConfigurationKey(previous) !== agentConfigurationKey(next))) await this.capabilityCache.invalidate(input.id);
     for (const [token, plan] of this.plans) if (plan.id === input.id) this.plans.delete(token);
     return result;
   }
@@ -42,7 +56,9 @@ export class AgentService {
       const installation = (await this.scan()).find((item) => item.id === id);
       if (!configuration?.enabled || installation?.status !== "installed") throw new Error("AGENT_UNAVAILABLE");
     }
-    return this.repository.setDefault(id);
+    const result = await this.repository.setDefault(id);
+    this.changed();
+    return result;
   }
 
   discardPlans(ownerId: number) {
@@ -84,7 +100,7 @@ export class AgentService {
     try {
       createTerminal({ ...params, cwd: os.homedir() }, owner, {
         command: plan.commandPath, args: plan.args, env: plan.env,
-        onFinish: () => { this.running = false; },
+        onFinish: () => { this.running = false; void this.capabilityCache.invalidate(plan.id).catch(() => undefined); },
       });
     } catch { this.running = false; throw new Error("AGENT_START_FAILED"); }
   }

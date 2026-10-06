@@ -4,6 +4,7 @@ import type { IssueItem } from "@/domain/issues";
 import type { TaskAttachment, TaskResourceInfo, TaskResourceInput, TaskWebLink } from "@/shared/taskTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { useTaskStore } from "@/stores/taskStore";
+import type { TaskAgentSelection } from "@/shared/agentCapabilities";
 
 export interface TaskResourceDraft extends TaskResourceInput {
   /** 选择时探测到的目录与 Git 信息；提交时主进程再次校验。 */
@@ -11,6 +12,7 @@ export interface TaskResourceDraft extends TaskResourceInput {
 }
 
 export function useTaskDraft(settings: AppSettings) {
+  const [agent, setAgent] = useState<TaskAgentSelection | null>(null);
   const [description, setDescription] = useState("");
   const [links, setLinks] = useState<IssueItem[]>([]);
   const [webLinks, setWebLinks] = useState<TaskWebLink[]>([]);
@@ -58,6 +60,7 @@ export function useTaskDraft(settings: AppSettings) {
   }
 
   function reset() {
+    setAgent(null);
     setDescription(""); setLinks([]); setWebLinks([]); setResources([]); setAttachments([]); setError(null);
     requestId.current = crypto.randomUUID();
   }
@@ -68,6 +71,7 @@ export function useTaskDraft(settings: AppSettings) {
     try {
       const task = await useTaskStore.getState().create({
         requestId: requestId.current, description,
+        ...(agent ? { agent } : {}),
         resources: resources.map(({ resourceId, mode, sourceBranch, targetBranch }) => ({ resourceId, mode, sourceBranch, targetBranch })),
         links, webLinks, attachmentIds: attachments.map((file) => file.id),
       });
@@ -80,5 +84,5 @@ export function useTaskDraft(settings: AppSettings) {
     } finally { setWorking(false); }
   }
 
-  return { description, setDescription, links, setLinks, webLinks, setWebLinks, resources, setResources, attachments, working, error, addResources, chooseFiles, removeAttachment, submit };
+  return { agent, setAgent, description, setDescription, links, setLinks, webLinks, setWebLinks, resources, setResources, attachments, working, error, addResources, chooseFiles, removeAttachment, submit };
 }

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link2, X } from "lucide-react";
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import type { IssueItem } from "@/domain/issues";
 import type { TaskAttachment, TaskWebLink } from "@/shared/taskTypes";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui
 import { TaskAttachmentMenu } from "./TaskAttachmentMenu";
 
 interface TaskComposerProps {
+  /** 创建按钮左侧的独立 Agent 入口，图标及配置回显整体可点击。 */
+  agentControl: ReactNode;
   /** 纯文本任务描述，关联条目和附件不混入文本。 */
   description: string;
   /** 已关联的 Issue 和 PR，在编辑区域内部回显。 */
@@ -40,7 +42,7 @@ interface TaskComposerProps {
   onRemoveAttachment: (id: string) => void;
 }
 
-export function TaskComposer({ description, links, attachments, webLinks, attachmentTriggerRef, onAddWebLink, onRemoveWebLink, disabled, canCreate, creating, onCreate, onDescriptionChange, onChooseFiles, onRemoveLink, onRemoveAttachment }: TaskComposerProps) {
+export function TaskComposer({ agentControl, description, links, attachments, webLinks, attachmentTriggerRef, onAddWebLink, onRemoveWebLink, disabled, canCreate, creating, onCreate, onDescriptionChange, onChooseFiles, onRemoveLink, onRemoveAttachment }: TaskComposerProps) {
   const { t } = useTranslation(["common", "taskCreate"]);
   const hasContext = links.length > 0 || attachments.length > 0 || webLinks.length > 0;
 
@@ -67,7 +69,7 @@ export function TaskComposer({ description, links, attachments, webLinks, attach
       className="field-sizing-content min-h-[calc(1lh+1.5rem)] max-h-[calc(8lh+1.5rem)] resize-none overflow-y-auto rounded-xl p-3 text-sm leading-5" />
     <InputGroupAddon align="block-end" className="justify-between px-2 pb-2">
       <TaskAttachmentMenu disabled={disabled} triggerRef={attachmentTriggerRef} onChooseFiles={onChooseFiles} onAddLink={onAddWebLink} />
-      <Button type="button" size="sm" disabled={!canCreate} onClick={onCreate}>{t(creating ? "taskCreate:actions.creating" : "common:actions.create")}</Button>
+      <div className="flex min-w-0 items-center gap-2">{agentControl}<Button type="button" size="sm" disabled={!canCreate} onClick={onCreate}>{t(creating ? "taskCreate:actions.creating" : "common:actions.create")}</Button></div>
     </InputGroupAddon>
   </InputGroup>;
 }

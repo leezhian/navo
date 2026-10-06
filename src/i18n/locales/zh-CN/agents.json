@@ -49,6 +49,9 @@
     "cancelled": "已取消"
   },
   "errors": {
+    "restartRequired": "应用仍在使用旧的 Agent 接口，请完整重启 Navo 后再试（仅刷新窗口无效）。",
+    "capabilities": "模型配置暂不可用，后台将自动重试，也可前往 Agents 设置重新扫描。",
+    "capabilitiesPending": "等待后台更新模型配置。",
     "invalid": "请检查 Agent 配置和可执行文件路径。",
     "path": "请选择具有执行权限的文件绝对路径。",
     "unavailable": "Agent 或操作不可用，请重新扫描后重试。",

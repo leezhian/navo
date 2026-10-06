@@ -1,4 +1,5 @@
 import type { IssueItem } from "../domain/issues";
+import type { TaskAgentSelection } from "./agentCapabilities";
 import type { Task, TaskStatus } from "../domain/tasks";
 import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview } from "./taskDeletionTypes";
 
@@ -51,6 +52,8 @@ export interface TaskWebLink {
 }
 
 export interface CreateTaskInput {
+  /** 可选的任务级 Agent 配置；创建任务不会启动 CLI。 */
+  agent?: TaskAgentSelection;
   /** 同一草稿重试复用标识，防止提交成功但响应丢失后重复创建。 */
   requestId: string;
   description: string;

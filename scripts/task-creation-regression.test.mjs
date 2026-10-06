@@ -86,8 +86,32 @@ test("数据库从设置 v1 升级，任务迁移一次且开发与正式数据�
   assert.deepEqual((await dev.load()).tasks, []);
   const upgraded = await openAppDatabase(path.join(directory, "app.db"));
   assert.equal(upgraded.prepare("SELECT value FROM settings WHERE key='theme'").get().value, '"dark"');
-  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 6);
+  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 8);
   upgraded.close();
+});
+
+test("任务 Agent 配置独立持久化、提交前验证、旧任务兼容与幂等重试", async (context) => {
+  const { directory, settings, inputFor, service } = await setup(context);
+  const legacy = await service.create(await inputFor([]), 1);
+  const database = new DatabaseSync(path.join(directory, "app.db"));
+  database.exec("DROP TABLE task_agents; PRAGMA user_version = 6"); database.close();
+  let validations = 0;
+  const agent = { agentId: "claude", modelId: "runtime-model", modelName: "Runtime model", modeId: "plan", modeName: "Plan", effort: "high" };
+  const validating = new TaskService(directory, "production", () => settings, async (selection) => { validations += 1; return { ...selection, modelName: "Verified model" }; });
+  const input = { ...await inputFor([]), agent };
+  const created = await validating.create(input, 1);
+  assert.equal(created.agent.modelName, "Verified model");
+  assert.deepEqual((await new TaskService(directory, "production", () => settings).load()).tasks.find((task) => task.id === created.id).agent, created.agent);
+  assert.equal((await validating.load()).tasks.find((task) => task.id === legacy.id).agent, undefined);
+  await validating.create(input, 1); assert.equal(validations, 1);
+  await assert.rejects(validating.create({ ...input, requestId: randomUUID(), agent: { ...agent, effort: {} } }, 1), /TASK_INVALID/);
+  const refusing = new TaskService(directory, "production", () => settings, async () => { throw new Error("TASK_AGENT_UNAVAILABLE"); });
+  await assert.rejects(refusing.create({ ...input, requestId: randomUUID() }, 1), /TASK_AGENT_UNAVAILABLE/);
+  assert.equal((await refusing.repository.operations()).length, 0);
+  assert.equal((await refusing.load()).tasks.length, 2);
+  await validating.repository.update((tasks) => tasks.filter((task) => task.id !== created.id));
+  const reopened = new DatabaseSync(path.join(directory, "app.db"));
+  assert.equal(reopened.prepare("SELECT COUNT(*) AS count FROM task_agents").get().count, 0); reopened.close();
 });
 
 test("普通链接独立保存、重启恢复，旧 v2 数据升级不受影响", async (context) => {

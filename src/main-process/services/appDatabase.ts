@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { removeLegacyDemoRecords } from "./migrations/removeLegacyDemoRecords";
 
-export const APP_SCHEMA_VERSION = 6;
+export const APP_SCHEMA_VERSION = 8;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -25,6 +25,11 @@ export async function openAppDatabase(filePath: string) {
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS agent_configurations (id TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS agent_preferences (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS agent_capability_cache (
+              agent_id TEXT NOT NULL, binary_path TEXT NOT NULL, data TEXT NOT NULL,
+              PRIMARY KEY(agent_id, binary_path)
+            );
+            CREATE TABLE IF NOT EXISTS agent_capability_state (agent_id TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS task_state (namespace TEXT PRIMARY KEY, initialized INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS tasks (
               namespace TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL,
@@ -34,6 +39,11 @@ export async function openAppDatabase(filePath: string) {
             CREATE TABLE IF NOT EXISTS task_resources (
               namespace TEXT NOT NULL, task_id TEXT NOT NULL, position INTEGER NOT NULL, data TEXT NOT NULL,
               PRIMARY KEY(namespace, task_id, position),
+              FOREIGN KEY(namespace, task_id) REFERENCES tasks(namespace, id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS task_agents (
+              namespace TEXT NOT NULL, task_id TEXT NOT NULL, data TEXT NOT NULL,
+              PRIMARY KEY(namespace, task_id),
               FOREIGN KEY(namespace, task_id) REFERENCES tasks(namespace, id) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS task_links (

@@ -8,7 +8,8 @@ import { createLoader } from "./helpers/load-typescript.mjs";
 
 async function fixture(context) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-agents-test-"));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  const cleanups = [];
+  context.after(async () => { for (const cleanup of cleanups) await cleanup(); await rm(directory, { recursive: true, force: true }); });
   let encryption = true;
   const safeStorage = {
     isEncryptionAvailable: () => encryption,
@@ -19,7 +20,7 @@ async function fixture(context) {
   const load = createLoader({ electron: { safeStorage } });
   const { AgentRepository } = load("src/main-process/services/agents/agentRepository.ts");
   const filename = path.join(directory, "app.db");
-  return { directory, filename, safeStorage, load, repository: new AgentRepository(filename), disableEncryption: () => { encryption = false; } };
+  return { directory, filename, safeStorage, load, cleanups, repository: new AgentRepository(filename), disableEncryption: () => { encryption = false; } };
 }
 
 const config = { id: "claude", enabled: true, customPath: "", args: ["--model", "a model with spaces"], environment: [] };
@@ -34,7 +35,7 @@ test("Agent SQLite 升级保留原设置，只包含四种 CLI 并独立持久�
   assert.equal((await repository.snapshot()).defaultAgent, "claude");
   assert.deepEqual((await repository.read()).configurations[0].args, config.args);
   const database = new DatabaseSync(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 6);
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 8);
   assert.equal(database.prepare("SELECT value FROM settings WHERE key='theme'").get().value, '"dark"');
   database.close();
   await assert.rejects(repository.setDefault("copilot"), /AGENT_INVALID/);
@@ -110,10 +111,11 @@ test("更新 npm 安装时固定原安装前缀，应用捆绑及自定义路径
 });
 
 test("准备命令不执行，凭据绑定窗口且一次性，完成后释放互斥，不泄露环境值", async (context) => {
-  const { directory, filename, safeStorage } = await fixture(context);
+  const { directory, filename, safeStorage, cleanups } = await fixture(context);
   const launches = [];
   const load = createLoader({ electron: { safeStorage },
-    "./agentEnvironment": { agentShellEnvironment: async () => ({ PATH: "/test" }), isAgentExecutable: async () => true },
+    "./agentEnvironment": { agentShellEnvironment: async () => ({ PATH: "/test", HOME: directory }), isAgentExecutable: async () => true },
+    "./agentCapabilities": { readAgentCapabilities: async () => ({}) },
     "./agentDetection": {
       detectAgent: async (value) => ({ id: value.id, status: "installed", binaryPath: "/test/" + value.id, auth: "unknown", actions: ["login", "logout", "update", "manageLogin"] }),
       agentUpdateCommand: async (_config, binary) => ({ command: binary, args: ["update"] }),
@@ -121,6 +123,7 @@ test("准备命令不执行，凭据绑定窗口且一次性，完成后释放�
     "../terminal/terminalService": { createTerminal: (params, owner, launch) => launches.push({ params, owner, launch }) },
   });
   const service = new (load("src/main-process/services/agents/agentService.ts").AgentService)(filename);
+  cleanups.push(() => service.capabilityCache.stop());
   await service.save({ ...config, environment: [{ name: "API_TOKEN", value: "PRIVATE" }] });
   await service.setDefault("claude");
   await service.save({ ...config, id: "codex", enabled: false });
