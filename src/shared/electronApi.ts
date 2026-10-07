@@ -3,7 +3,7 @@ import type { TasksApi } from "./taskTypes";
 import type { AgentsApi } from "./agentTypes";
 import type { TaskSessionsApi } from "./taskSessionTypes";
 import type { RendererDiagnosticReport } from "./diagnosticTypes";
-import type { CloneProgress, CloneResourceParams, ResourceRecord, SaveResourceParams, SettingsBootstrap } from "./settingsTypes";
+import type { CloneProgress, CloneResourceParams, ResourceGitInfo, ResourceRecord, SaveResourceParams, SettingsBootstrap } from "./settingsTypes";
 import type { AppSettings, CompareMode, ReviewBatchFileAction, ReviewFileAction, ReviewSession } from "../domain/types";
 import type {
   CreateTerminalParams,
@@ -146,6 +146,8 @@ export interface NavoApi {
   };
   resources: {
     list(): Promise<ResourceRecord[]>;
+    /** 只读查询 Git remote；配置未变化时复用内存缓存，手动刷新可强制重新读取。 */
+    inspectGit(localPath: string, forceRefresh?: boolean): Promise<ResourceGitInfo>;
     save(params: SaveResourceParams): Promise<ResourceRecord>;
     remove(id: string): Promise<void>;
     clone(params: CloneResourceParams): Promise<ResourceRecord>;

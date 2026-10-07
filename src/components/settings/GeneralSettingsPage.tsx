@@ -14,6 +14,7 @@ import { SettingsList, SettingsPageHeader, SettingsRow, SettingsSectionHeader } 
 import { SettingsTextField } from "./SettingsTextField";
 import { SettingsChoiceControl } from "./SettingsChoiceControl";
 import { DiagnosticLogSettings } from "./DiagnosticLogSettings";
+import { SettingsShortcuts } from "./SettingsShortcuts";
 
 interface GeneralSettingsPageProps {
   /** 当前偏好；任务和唤醒设置仅作为后续功能默认值。 */
@@ -76,14 +77,6 @@ export function GeneralSettingsPage({ settings, updateSettings }: GeneralSetting
         <SettingsChoiceControl label={t("settings:general.interfaceLanguage")} value={settings.locale} options={supportedLocales} onValueChange={(value) => update("locale", value)} />
       </SettingsRow></SettingsList>
     </section>
-    <section>
-      <SettingsSectionHeader title={t("settings:general.shortcuts")} description={t("settings:general.shortcutsDescription")} />
-      <SettingsList>
-        <SettingsRow title={t("settings:general.shortcutsSettings")}><kbd className="text-xs text-muted-foreground">{navigator.platform.includes("Mac") ? "⌘ ," : "Ctrl ,"}</kbd></SettingsRow>
-        <SettingsRow title={t("settings:general.shortcutsResize")}><span className="text-xs text-muted-foreground">{t("settings:general.shortcutsResizeDescription")}</span></SettingsRow>
-        <SettingsRow title={t("settings:general.shortcutsSelect")}><span className="text-xs text-muted-foreground">{t("settings:general.shortcutsSelectDescription")}</span></SettingsRow>
-        {import.meta.env.DEV && <SettingsRow title={t("settings:general.shortcutsDevTools")}><kbd className="text-xs text-muted-foreground">{navigator.platform.includes("Mac") ? "⌘ ⌥ I / F12" : "Ctrl Shift I / F12"}</kbd></SettingsRow>}
-      </SettingsList>
-    </section>
+    <SettingsShortcuts />
   </>;
 }

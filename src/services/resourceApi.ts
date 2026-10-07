@@ -9,6 +9,7 @@ function api() {
 
 export const resourceApi = {
   list: () => api().list(),
+  inspectGit: (localPath: string, forceRefresh = false) => api().inspectGit(localPath, forceRefresh),
   save: (params: SaveResourceParams) => api().save(params),
   addFolder: (localPath: string) => api().save({ kind: "folder", name: getFolderName(localPath), localPath }),
   async chooseAndAddFolder(): Promise<ResourceRecord | null> {

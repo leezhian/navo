@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Archive, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { Archive, ChevronDown, Pencil, Power, RotateCcw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskSession } from "@/shared/taskSessionTypes";
 import { useTaskSessionStore } from "@/stores/taskSessionStore";
@@ -20,6 +20,7 @@ export function SessionActionMenu({ session }: SessionActionMenuProps) {
   const [title, setTitle] = useState(session.title);
   const nativeSupported = Boolean(session.nativeSessionId && ["claude", "grok"].includes(session.agent?.agentId ?? ""));
   const sessionName = session.title || t("tasks:runtime.untitledSession");
+  const running = session.status === "running" || session.status === "starting";
   async function confirm() {
     const store = useTaskSessionStore.getState();
     if (action === "rename") await store.rename(session.id, title);
@@ -34,6 +35,9 @@ export function SessionActionMenu({ session }: SessionActionMenuProps) {
     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" aria-label={t("tasks:runtime.sessionActions")} disabled={pending}><ChevronDown className="size-3.5" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem className="text-xs" disabled={!nativeSupported || pending} onSelect={() => openAction("rename")}><Pencil className="size-3.5" />{t("tasks:runtime.renameSession")}</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-xs" disabled={pending} onSelect={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restartAgent")}</DropdownMenuItem>
+        <DropdownMenuItem className="text-xs" disabled={pending || !running} onSelect={() => void useTaskSessionStore.getState().stop(session.id)}><Power className="size-3.5" />{t("tasks:runtime.shutdownAgent")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" disabled={pending} onSelect={() => void useTaskSessionStore.getState().archive(session.id)}><Archive className="size-3.5" />{t("tasks:runtime.archiveSession")}</DropdownMenuItem>
         <DropdownMenuItem className="text-xs" variant="destructive" disabled={!nativeSupported || pending} onSelect={() => openAction("delete")}><Trash2 className="size-3.5" />{t("tasks:runtime.deleteSession")}</DropdownMenuItem>

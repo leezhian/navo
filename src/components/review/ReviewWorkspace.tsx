@@ -1,6 +1,6 @@
 import { t as translate } from "@/i18n";
 import { useTranslation } from "react-i18next";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { buildFileTree } from "@/domain/fileTree";
 import type {
@@ -38,6 +38,8 @@ import { StateBlock } from "./StateBlock";
 const UNTRACKED_NOTICE_THRESHOLD = 50;
 
 interface ReviewWorkspaceProps {
+  /** 分支栏选中的完整文件路径，仅首次加载时展开并定位。 */
+  initialFilePath?: string;
   /** 已折叠的文件 id 集合，由 App 维护以支持跨模式保持折叠状态。 */
   collapsedFileIds: Set<string>;
   /** 当前对比方式，决定 diff 数据来源和空状态文案。 */
@@ -81,6 +83,7 @@ interface ReviewWorkspaceProps {
 }
 
 export function ReviewWorkspace({
+  initialFilePath,
   collapsedFileIds,
   compareMode,
   compareModeFileCounts,
@@ -121,6 +124,23 @@ export function ReviewWorkspace({
     onScrollToFile: scrollToFile,
     onSelectedFileChange,
   });
+  const initialFileApplied = useRef(false);
+  useEffect(() => {
+    if (!initialFilePath || initialFileApplied.current || !summary) return;
+    const file = summary.files.find((item) => [item.newPath, item.oldPath, item.displayPath].includes(initialFilePath));
+    if (!file) return;
+    const fileId = file.id;
+    onSelectedFileChange(file.id);
+    if (collapsedFileIds.has(file.id)) { onToggleFile(file.id); return; }
+    let frame = 0, attempts = 0;
+    function locate() {
+      if (!codeViewRef.current && attempts++ < 120) { frame = requestAnimationFrame(locate); return; }
+      initialFileApplied.current = true;
+      if (effectiveReadingMode === "continuous") scrollToFile(fileId);
+    }
+    frame = requestAnimationFrame(locate);
+    return () => cancelAnimationFrame(frame);
+  }, [initialFilePath, summary, collapsedFileIds, onSelectedFileChange, onToggleFile, effectiveReadingMode, scrollToFile]);
 
   return (
     <ReviewCommentsProvider>

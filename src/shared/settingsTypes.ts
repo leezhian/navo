@@ -14,6 +14,10 @@ export interface ResourceRecord {
   name: string;
   localPath: string;
   remoteUrl?: string;
+  /** 资源用途说明；旧记录缺省为空。 */
+  description?: string;
+  /** 命令按数组顺序保存；本阶段只配置，不执行。 */
+  commands?: ResourceCommand[];
   /** 重新加载时检查路径是否仍可访问。 */
   available: boolean;
 }
@@ -24,6 +28,32 @@ export interface SaveResourceParams {
   name: string;
   localPath: string;
   kind: "repo" | "folder";
+  /** 未传入时保留已有描述；空字符串用于清空。 */
+  description?: string;
+  /** 未传入时保留已有命令；空数组用于清空。 */
+  commands?: ResourceCommand[];
+}
+
+export const RESOURCE_DESCRIPTION_MAX_LENGTH = 4000;
+export const RESOURCE_COMMAND_NAME_MAX_LENGTH = 100;
+export const RESOURCE_COMMAND_SCRIPT_MAX_LENGTH = 20000;
+export const RESOURCE_COMMAND_LIMIT = 50;
+
+export interface ResourceCommand {
+  /** 稳定标识；编辑已有命令时不更换。 */
+  id: string;
+  name: string;
+  /** 原样保存多行脚本，不在编辑或保存时执行。 */
+  script: string;
+  /** 预留自动执行标记，目前尚未接入 Worktree 创建流程。 */
+  runOnWorktreeCreation: boolean;
+}
+
+export interface ResourceGitInfo {
+  /** 检查真实 Git 工作区，不依赖资源登记时的 kind。 */
+  isRepository: boolean;
+  /** 优先 origin，否则使用第一个 remote；无远端时为 null，认证信息已移除。 */
+  remoteUrl: string | null;
 }
 
 export interface CloneResourceParams {

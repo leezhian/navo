@@ -52,6 +52,7 @@ test("资源读取不显示加载文案，刷新保留列表和空状态，失�
   const record = { id: "repo", kind: "repo", name: "Navo test repo", localPath: "/test/repo", available: true };
   resolveList([record]);
   await initial;
+  assert.match(render(), /暂无命令/, "旧记录未配置 commands 时显示无命令状态");
   const refresh = store.getState().refresh();
   assert.deepEqual(store.getState().records, [record]);
   assert.match(render(), /Navo test repo/);
@@ -61,6 +62,17 @@ test("资源读取不显示加载文案，刷新保留列表和空状态，失�
   await refresh;
   assert.match(render(), /Refresh failed/);
   assert.match(render(), /Navo test repo/);
+  const command = { id: "install", name: "Install", script: "npm install", runOnWorktreeCreation: false };
+  store.getState().upsert({ ...record, commands: [command] });
+  assert.match(render(), /1 条命令/);
+  store.getState().upsert({ ...record, commands: [command, { ...command, id: "test" }] });
+  assert.match(render(), /2 条命令/);
+  store.getState().upsert({ ...record, commands: [] });
+  assert.match(render(), /暂无命令/, "删除全部命令后应恢复空状态");
+  const translateEnglish = testI18n.getFixedT("en", "settings");
+  assert.equal(translateEnglish("resources.commands.none"), "No commands");
+  assert.equal(translateEnglish("resources.commands.count", { count: 1 }), "1 command");
+  assert.equal(translateEnglish("resources.commands.count", { count: 2 }), "2 commands");
   const retry = store.getState().refresh();
   resolveList([]);
   await retry;
@@ -378,7 +390,7 @@ test("旧 JSON 迁入 SQLite 并保留备份，重新加载只读取数据库", 
   const database = new DatabaseSync(path.join(directory, "app.db"));
   try {
     assert.equal(database.prepare("PRAGMA journal_mode").get().journal_mode, "wal");
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 9);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 10);
     assert.equal(JSON.parse(database.prepare("SELECT value FROM settings WHERE key = ?").get("theme").value), "dark");
   } finally { database.close(); }
   await writeFile(jsonPath, "invalid legacy JSON");
@@ -453,9 +465,9 @@ test("SQLite 文件或字段损坏不回退旧 JSON，也不覆盖原数据", as
     database.prepare("UPDATE settings SET value = ? WHERE key = ?").run("{invalid", "theme");
     await assert.rejects(service.loadSettings(), /INVALID_SETTINGS/);
     assert.equal(database.prepare("SELECT value FROM settings WHERE key = 'theme'").get().value, "{invalid");
-    database.exec("PRAGMA user_version = 10");
+    database.exec("PRAGMA user_version = 11");
     await assert.rejects(service.saveSettings(defaultSettings), /INVALID_SETTINGS/);
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 10);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 11);
   } finally { database.close(); }
 });
 

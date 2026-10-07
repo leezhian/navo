@@ -2,6 +2,8 @@ import { t } from "@/i18n";
 import type { TranslationKey } from "@/i18n/types";
 
 const messages: Record<string, TranslationKey<"settings">> = {
+  INVALID_RESOURCE_DESCRIPTION: "settings:errors.invalidResourceDescription",
+  INVALID_RESOURCE_COMMAND: "settings:errors.invalidResourceCommand",
   INVALID_LOG_FILE: "settings:errors.invalidLogFile",
   LOG_FILE_IN_USE: "settings:errors.logFileInUse",
   DESKTOP_REQUIRED: "settings:errors.desktopRequired",

@@ -4,6 +4,7 @@ import { ipcChannels } from "../../shared/ipcChannels";
 import type { CloneResourceParams, SaveResourceParams } from "../../shared/settingsTypes";
 import { loadSettings, saveSettings } from "../services/settingsService";
 import { ResourceService } from "../services/resourceService";
+import { inspectResourceGit } from "../services/resourceGitInfo";
 import { clearDiagnosticLog, getDiagnosticLogFilePath, getDiagnosticLogStatus, prepareDiagnosticLogFile } from "../services/diagnosticLogService";
 import { validateDiagnosticLogPath } from "../services/diagnosticLogPath";
 import { updateApplicationMenu } from "../applicationMenu";
@@ -48,6 +49,10 @@ export function registerSettingsHandlers() {
     shell.showItemInFolder(await prepareDiagnosticLogFile());
   });
   ipcMain.handle(ipcChannels.resourcesList, () => service.list());
+  ipcMain.handle(ipcChannels.resourcesInspectGit, (event, localPath: string, forceRefresh?: boolean) => {
+    if (event.senderFrame !== event.sender.mainFrame || !BrowserWindow.fromWebContents(event.sender)) throw new Error("WINDOW_UNAVAILABLE");
+    return inspectResourceGit(localPath, forceRefresh === true);
+  });
   ipcMain.handle(ipcChannels.resourcesSave, async (_event, params: SaveResourceParams) => {
     const record = await service.save(params);
     return record;

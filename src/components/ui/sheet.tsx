@@ -48,14 +48,20 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  container,
+  overlay,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /** 局部面板的挂载节点；省略时沿用全窗口 Portal。 */
+  container?: React.ComponentProps<typeof SheetPrimitive.Portal>["container"]
+  /** 非模态局部面板可提供自己的遮罩，避免锁定整个窗口。 */
+  overlay?: React.ReactNode
 }) {
   return (
-    <SheetPortal>
-      <SheetOverlay />
+    <SheetPortal container={container}>
+      {overlay === undefined ? <SheetOverlay /> : overlay}
       <SheetPrimitive.Content
         data-slot="sheet-content"
         data-side={side}

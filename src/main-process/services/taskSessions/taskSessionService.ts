@@ -8,6 +8,8 @@ import { agentNames } from "../../../domain/agents";
 import type { AppSettings } from "../../../domain/types";
 import type { StartTaskSessionInput, TaskSession } from "../../../shared/taskSessionTypes";
 import { defaultAgentSelection, isTaskAgentSelection } from "../../../utils/taskAgentSelection";
+import { resolveSessionWorkspace } from "../../../utils/taskSessionWorkspace";
+import { readLegacySessionWorkspace } from "./legacySessionWorkspace";
 import { requireAgentId } from "../agents/agentRepository";
 import type { AgentService } from "../agents/agentService";
 import { createTerminal, destroyTerminal, resolveShell } from "../terminal/terminalService";
@@ -45,6 +47,13 @@ export class TaskSessionService {
     if (this.loaded) return;
     this.sessions = await this.repository.load();
     for (const session of this.sessions) if (session.kind === "agent" && session.agent) {
+      if (!session.workspace && session.cwd) {
+        try {
+          const task = await this.loadTask(session.taskId);
+          const workspace = await readLegacySessionWorkspace(task, session.cwd, this.settings().tasksDirectory);
+          if (workspace) { session.workspace = workspace; await this.repository.save(session); }
+        } catch { /* 无法确认旧会话范围时，不以当前资源数量推断。 */ }
+      }
       const prefix = agentNames[session.agent.agentId] + " ";
       if (session.titleSource !== "cli" && session.title?.startsWith(prefix) && /^\d+$/.test(session.title.slice(prefix.length))) {
         session.title = "";
@@ -91,6 +100,7 @@ export class TaskSessionService {
       if (this.closing || owner.isDestroyed()) throw new Error("SESSION_UNAVAILABLE");
       if (!input || !["agent", "shell"].includes(input.kind) || typeof input.taskId !== "string") throw new Error("TASK_INVALID");
       const task = await this.loadTask(input.taskId);
+      const workspace = resolveSessionWorkspace(task.resources ?? [], input.resourceId);
       if (initial && this.sessions.some((session) => session.taskId === task.id && session.kind === "agent")) return this.sessions;
       if (this.sessions.filter((session) => session.status === "running" || session.status === "starting").length >= MAX_SESSIONS) throw new Error("SESSION_LIMIT");
       if (input.agentId !== undefined) requireAgentId(input.agentId);
@@ -101,7 +111,7 @@ export class TaskSessionService {
       if (input.kind === "shell") this.shellNumbers.set(task.id, number);
       const session: TaskSession = { id: randomUUID(), taskId: task.id, kind: input.kind,
         title: input.kind === "shell" ? `${path.basename(resolveShell())}${number}` : "",
-        cwd: "", agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
+        cwd: "", workspace, agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
         nativeSessionId: randomUUID(), resumable: false, createdAt: new Date().toISOString() };
       this.sessions = [...this.sessions, session];
       this.bindOwner(session.id, owner);
@@ -112,10 +122,11 @@ export class TaskSessionService {
     });
   }
 
-  private async launch(session: TaskSession, task: Task, owner: WebContents, resume: boolean, resourceId?: string) {
+  private async launch(session: TaskSession, task: Task, owner: WebContents, resume: boolean, resourceId?: string | null) {
     void writeDiagnosticEvent("session.start.started", { taskId: task.id, operationId: session.id });
     try {
-      const context = session.cwd ? { cwd: session.cwd, prompt: taskPrompt(task) } : await prepareTaskContext(task, this.settings().tasksDirectory, resourceId);
+      const directoryId = session.workspace?.kind === "resource" ? session.workspace.resourceId : session.workspace?.kind === "all" ? null : resourceId;
+      const context = session.cwd ? { cwd: session.cwd, prompt: taskPrompt(task) } : await prepareTaskContext(task, this.settings().tasksDirectory, directoryId);
       if (session.agent) context.prompt += "\nAttachments (reference files):\n" + (await this.attachmentPaths(task)).map((filename) => JSON.stringify(filename)).join("\n");
       session.cwd = context.cwd;
       if (!(await stat(session.cwd)).isDirectory()) throw new Error("SESSION_DIRECTORY_MISSING");
@@ -176,9 +187,15 @@ export class TaskSessionService {
     return this.serialize(async () => {
       await this.initialize();
       const session = this.owned(id, owner);
-      if (this.closing || session.archivedAt || session.kind !== "agent" || ["starting", "running"].includes(session.status)) throw new Error("SESSION_BUSY");
+      if (this.closing || session.archivedAt || session.kind !== "agent" || (resume && ["starting", "running"].includes(session.status))) throw new Error("SESSION_BUSY");
       if (resume && !session.resumable) throw new Error("SESSION_RESUME_UNSUPPORTED");
       const task = await this.loadTask(session.taskId);
+      // 重启在同一串行操作内先停止旧进程，旧 PTY 的延迟回调不能覆盖新实例。
+      if (!resume) {
+        session.status = "stopped";
+        destroyTerminal({ sessionId: session.terminalId }, owner.id);
+        await this.save(session);
+      }
       if (!resume) { session.nativeSessionId = randomUUID(); session.resumable = false; session.title = ""; delete session.titleSource; }
       session.terminalId = "task-" + randomUUID(); session.status = "starting";
       this.bindOwner(id, owner);

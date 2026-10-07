@@ -2,6 +2,7 @@ import type { TaskAgentSelection } from "./agentCapabilities";
 import type { AgentId } from "./agentTypes";
 
 export type TaskSessionStatus = "starting" | "running" | "stopped" | "failed";
+export type TaskSessionWorkspace = { kind: "all" } | { kind: "resource"; resourceId: string; name: string; branch: string };
 export interface TaskSession {
   id: string;
   taskId: string;
@@ -13,6 +14,8 @@ export interface TaskSession {
   /** Navo 内归档时间；归档保留会话记录，但不再运行或出现在活动列表。 */
   archivedAt?: string;
   cwd: string;
+  /** 创建时绑定的工作范围快照；旧记录缺省，不根据后续资源数量猜测范围。 */
+  workspace?: TaskSessionWorkspace;
   agent?: TaskAgentSelection;
   status: TaskSessionStatus;
   /** 每次启动生成新的 PTY 标识，重启不复用已结束的终端缓冲。 */
@@ -28,8 +31,8 @@ export interface TaskSession {
 export interface StartTaskSessionInput {
   taskId: string;
   kind: "agent" | "shell";
-  /** 只允许任务已关联的资源；省略时单目录任务使用该目录，否则使用任务目录。 */
-  resourceId?: string;
+  /** 只允许任务已关联的资源；省略时单目录自动选择，null 明确使用任务目录及全部资源。 */
+  resourceId?: string | null;
   agent?: TaskAgentSelection;
   /** 快捷新建仅提交 Agent 标识，默认配置由主进程从真实能力缓存解析。 */
   agentId?: AgentId;

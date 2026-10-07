@@ -4,6 +4,7 @@ import type { TaskAttachment, TaskResource } from "../../shared/taskTypes";
 import type { TaskDeletionProgress } from "../../shared/taskDeletionTypes";
 import { openAppDatabase } from "./appDatabase";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
+import { readTaskExtraResources } from "./taskResourceRepository";
 
 export interface StoredAttachment extends TaskAttachment {
   storageName: string;
@@ -27,6 +28,7 @@ export class TaskRepository {
       const webLinks = database.prepare("SELECT id,url,title FROM task_web_links WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
       const attachments = database.prepare("SELECT id,name,size FROM task_attachments WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
       return {
+        ...readTaskExtraResources(database, this.namespace, taskId),
         ...(agent ? { agent: JSON.parse(String(agent.data)) } : {}),
         id: taskId, title: String(row.title), description: String(row.description), date: String(row.date),
         projectName: String(row.project_name), status: row.status as Task["status"],

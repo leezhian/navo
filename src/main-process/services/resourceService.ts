@@ -8,6 +8,7 @@ import type { ChildProcess } from "node:child_process";
 import type { CloneProgress, CloneResourceParams, ResourceRecord, SaveResourceParams } from "../../shared/settingsTypes";
 import { readJsonFile, writeJsonFile } from "./jsonFileStorage";
 import { redactCloneOutput, resolveResourcePath, validateCloneUrl, validateRepositoryName } from "./resourcePaths";
+import { normalizeResourceCommands, normalizeResourceDescription } from "../../utils/resourceConfiguration";
 
 interface CloneOperation {
   process: ChildProcess | null;
@@ -42,8 +43,11 @@ export class ResourceService {
         const previous = params.id ? records.find((record) => record.id === params.id) : undefined;
         if (params.id && !previous) throw new Error("RESOURCE_NOT_FOUND");
         if (records.some((record) => record.localPath === localPath && record.id !== params.id)) throw new Error("DUPLICATE_RESOURCE");
-        const record: ResourceRecord = { id: previous?.id ?? randomUUID(), kind: params.kind, name: params.name.trim(), localPath, available: true };
-        if (params.kind === "repo" && (remoteUrl || previous?.remoteUrl)) record.remoteUrl = remoteUrl || previous?.remoteUrl;
+        const description = normalizeResourceDescription(params.description === undefined ? previous?.description ?? "" : params.description);
+        const commands = normalizeResourceCommands(params.commands === undefined ? previous?.commands ?? [] : params.commands);
+        const record: ResourceRecord = { id: previous?.id ?? randomUUID(), kind: params.kind, name: params.name.trim(), localPath, available: true, description, commands };
+        const savedRemote = remoteUrl || (previous?.localPath === localPath ? previous.remoteUrl : undefined);
+        if (params.kind === "repo" && savedRemote) record.remoteUrl = savedRemote;
         await writeJsonFile(this.storagePath, previous ? records.map((item) => item.id === record.id ? record : item) : [...records, record]);
         return record;
       });
@@ -164,7 +168,9 @@ export class ResourceService {
     if (value === null) return [];
     if (!Array.isArray(value) || value.some((record) => !record || typeof record.id !== "string" || !record.id || typeof record.name !== "string" || typeof record.localPath !== "string" || !path.isAbsolute(record.localPath) || (record.remoteUrl !== undefined && typeof record.remoteUrl !== "string") || (record.kind !== "repo" && record.kind !== "folder"))) throw new Error("INVALID_RESOURCE_STORAGE");
     if (new Set(value.map((record) => record.id)).size !== value.length) throw new Error("INVALID_RESOURCE_STORAGE");
-    return value;
+    try {
+      return value.map((record) => ({ ...record, description: normalizeResourceDescription(record.description === undefined ? "" : record.description), commands: normalizeResourceCommands(record.commands === undefined ? [] : record.commands) }));
+    } catch { throw new Error("INVALID_RESOURCE_STORAGE"); }
   }
 
   private async isAvailable(localPath: string) {

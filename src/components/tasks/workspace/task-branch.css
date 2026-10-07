@@ -1,0 +1,29 @@
+.task-workbench-upper { display: flex; flex: 1; min-height: 80px; min-width: 0; }
+.task-branch-container { flex-shrink: 0; min-height: 0; min-width: 0; }
+.task-branch-overlay { position: absolute; z-index: 6; top: 0; bottom: 0; right: 0; width: min(360px, calc(100% - 40px)); border-radius: 14px; box-shadow: -6px 0 20px #00000012; }
+.task-branch-controls { padding: 12px 12px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
+.task-branch-segments { display: flex; align-items: center; padding: 2px; background: var(--muted); border-radius: 7px; }
+.task-branch-segments button { padding: 5px 9px; border-radius: 5px; font-size: 11px; color: var(--muted-foreground); white-space: nowrap; }
+.task-branch-segments button[aria-pressed="true"] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 3px #00000006; }
+.task-branch-segments button span { font-size: 10px; opacity: .65; margin-left: 5px; }
+.task-branch-filter { display: flex; align-items: center; gap: 7px; margin: 12px 16px 6px; min-height: 28px; color: var(--muted-foreground); }
+.task-branch-filter svg { width: 13px; height: 13px; flex-shrink: 0; }
+.task-branch-filter input { width: 100%; min-width: 0; font-size: 11px; background: transparent; outline: none; }
+.task-branch-filter:focus-within { outline: 1px solid var(--ring); outline-offset: 3px; border-radius: 4px; }
+.task-branch-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 12px; }
+.task-branch-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 8px; font-size: 10px; color: var(--muted-foreground); }
+.task-branch-delta { display: inline-flex; gap: 4px; font-size: 10px; font-variant-numeric: tabular-nums; }
+.task-branch-scope { padding: 6px 8px; font-size: 10px; color: var(--muted-foreground); }
+.task-branch-directory { display: flex; align-items: center; gap: 4px; width: 100%; padding: 6px; color: var(--muted-foreground); font-size: 10px; text-align: left; }
+.task-branch-directory svg { width: 11px; height: 11px; flex-shrink: 0; }
+.task-branch-file { display: flex; align-items: center; gap: 6px; padding: 8px; width: 100%; border-radius: 6px; font-size: 11px; text-align: left; }
+.task-branch-file-group .task-branch-file { padding-left: 21px; }
+.task-branch-file:hover { background: var(--accent); }
+.task-branch-file > svg { width: 13px; height: 13px; flex-shrink: 0; color: var(--muted-foreground); }
+.task-branch-notice, .task-branch-empty { padding: 12px 8px; font-size: 11px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.task-branch-notice button { margin-left: 4px; }
+.task-branch-commits { padding: 8px; border-bottom: 1px solid var(--border); }
+.task-branch-commits > p { margin: 0 0 8px; font-size: 10px; color: var(--muted-foreground); }
+.task-branch-commit { display: flex; gap: 8px; padding: 7px 0; font-size: 11px; }
+.task-branch-commit > svg { width: 13px; height: 13px; flex-shrink: 0; color: var(--muted-foreground); }
+.task-branch-commit small { display: block; color: var(--muted-foreground); font-size: 9px; margin-top: 4px; overflow-wrap: anywhere; }

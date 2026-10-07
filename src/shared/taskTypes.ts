@@ -1,6 +1,9 @@
 import type { IssueItem } from "../domain/issues";
+import type { TaskBranchSnapshot } from "./taskBranchTypes";
 import type { TaskAgentSelection } from "./agentCapabilities";
 import type { Task, TaskStatus } from "../domain/tasks";
+import type { AddTaskResourcesInput, TaskFileReference } from "./taskResourceTypes";
+import type { WorkspaceOpenOptions, WorkspaceOpenTarget } from "./workspaceOpenTypes";
 import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview } from "./taskDeletionTypes";
 
 export type TaskExecutionMode = "worktree" | "new-branch" | "current-branch" | "folder";
@@ -72,6 +75,14 @@ export interface TaskBootstrap {
 }
 
 export interface TasksApi {
+  /** 只读获取任务关联仓库的分支、文件统计与提交列表。 */
+  loadBranch(taskId: string, resourceId: string): Promise<TaskBranchSnapshot>;
+  workspaceOpenOptions(taskId: string, resourceId: string): Promise<WorkspaceOpenOptions>;
+  openWorkspace(taskId: string, resourceId: string, target: WorkspaceOpenTarget): Promise<void>;
+  addResources(taskId: string, input: AddTaskResourcesInput): Promise<Task>;
+  chooseResourceFile(): Promise<TaskFileReference | null>;
+  releaseResourceFiles(ids: string[]): Promise<void>;
+  revealResourceFile(taskId: string, fileId: string): Promise<void>;
   load(): Promise<TaskBootstrap>;
   importLegacy(tasks: Task[]): Promise<Task[]>;
   create(input: CreateTaskInput): Promise<Task>;

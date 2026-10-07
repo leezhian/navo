@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { removeLegacyDemoRecords } from "./migrations/removeLegacyDemoRecords";
 
-export const APP_SCHEMA_VERSION = 9;
+export const APP_SCHEMA_VERSION = 10;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -71,6 +71,21 @@ export async function openAppDatabase(filePath: string) {
             CREATE TABLE IF NOT EXISTS task_operations (
               namespace TEXT NOT NULL, id TEXT NOT NULL, state TEXT NOT NULL, manifest TEXT NOT NULL,
               PRIMARY KEY(namespace, id)
+            );
+            CREATE TABLE IF NOT EXISTS task_notes (
+              namespace TEXT NOT NULL, task_id TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL,
+              PRIMARY KEY(namespace,task_id,id),
+              FOREIGN KEY(namespace,task_id) REFERENCES tasks(namespace,id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS task_file_references (
+              namespace TEXT NOT NULL, task_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, path TEXT NOT NULL, size INTEGER NOT NULL,
+              PRIMARY KEY(namespace,task_id,id), UNIQUE(namespace,task_id,path),
+              FOREIGN KEY(namespace,task_id) REFERENCES tasks(namespace,id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS task_resource_batches (
+              namespace TEXT NOT NULL, task_id TEXT NOT NULL, request_id TEXT NOT NULL,
+              PRIMARY KEY(namespace,task_id,request_id),
+              FOREIGN KEY(namespace,task_id) REFERENCES tasks(namespace,id) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS managed_workspaces (
               namespace TEXT NOT NULL, task_id TEXT NOT NULL, path TEXT NOT NULL, branch TEXT NOT NULL,

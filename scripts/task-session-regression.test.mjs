@@ -74,7 +74,7 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
     assert.equal(processes.has(session.terminalId),false); nativeCalls.push(["remove",session.id]);
     if(options.failNative)throw new Error("SESSION_NATIVE_DELETE_FAILED");
   } };
-  const service = new TaskSessionService(repository, options.agents ?? {}, async () => task, () => ({ tasksDirectory: os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions);
+  const service = new TaskSessionService(repository, options.agents ?? {}, async () => options.task ?? task, () => ({ tasksDirectory: os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions);
   const owner = new EventEmitter(); owner.id = 1; owner.isDestroyed = () => false;
   const other = new EventEmitter(); other.id = 2; other.isDestroyed = () => false;
   return { service, saved, processes, owner, other, events, nativeCalls, launches: () => launches, fail: () => { failLaunch = true; } };
@@ -98,6 +98,35 @@ test("任务创建重试去重，挂载和 list 不重启，停止与恢复保�
   assert.equal(session.nativeSessionId, nativeId);
   assert.notEqual(session.terminalId, terminalId);
   assert.equal(runtime.launches(), 2);
+});
+
+test("运行中的 Agent 可原子重启，旧退出事件不覆盖新进程，关闭保留记录", async () => {
+  const runtime = fixture();
+  try {
+    await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+    await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+    const [session, other] = await runtime.service.list();
+    const oldTerminalId = session.terminalId;
+    const nativeId = session.nativeSessionId;
+    const oldLaunch = runtime.processes.get(oldTerminalId).launch;
+    await assert.rejects(runtime.service.restart(session.id, false, runtime.other), /UNAVAILABLE/);
+    assert.equal(runtime.processes.size, 2);
+    await runtime.service.restart(session.id, false, runtime.owner);
+    assert.equal(runtime.processes.has(oldTerminalId), false);
+    assert.equal(runtime.processes.has(other.terminalId), true);
+    assert.equal(runtime.processes.size, 2);
+    assert.notEqual(session.terminalId, oldTerminalId);
+    assert.notEqual(session.nativeSessionId, nativeId);
+    oldLaunch.onExit(1);oldLaunch.onFinish();
+    await runtime.service.list();assert.equal(session.status, "running");
+    await runtime.service.stop(session.id, runtime.owner);
+    assert.equal((await runtime.service.list()).length, 2);
+    assert.equal(session.status, "stopped");assert.equal(runtime.processes.size, 1);
+    runtime.fail();
+    await runtime.service.restart(other.id, false, runtime.owner);
+    assert.equal(other.status, "failed");assert.equal(runtime.processes.size, 0);
+    assert.equal((await runtime.service.list()).length, 2);
+  } finally { await runtime.service.shutdown(); }
 });
 
 test("启动失败保留任务会话、可重试；不同终端单调编号，全部关闭后为空", async () => {
@@ -236,6 +265,28 @@ test("快捷新建仅给 Agent ID，使用能力默认值，不沿用任务自�
   assert.deepEqual(session.agent,{agentId:"grok",modelId:"cli-default-model",modelName:"Default model",modeId:"default",modeName:"Default",effort:"low"});
   await assert.rejects(runtime.service.start({taskId:task.id,kind:"agent",agentId:"grok",agent:selection},runtime.owner),/TASK_INVALID/);
   await runtime.service.shutdown();
+});
+
+test("会话范围持久化，重启与重新加载不把全局会话改为单目录", async () => {
+  const resource = { resourceId: "repo", name: "navo", mode: "worktree", workingPath: os.tmpdir(), sourceBranch: "main", targetBranch: "feature" };
+  const scopedTask = { ...task, resources: [resource] };
+  const runtime = fixture([], undefined, { task: scopedTask });
+  try {
+    await assert.rejects(runtime.service.start({ taskId: task.id, kind: "agent", resourceId: "unknown" }, runtime.owner), /DIRECTORY_MISSING/);
+    assert.equal((await runtime.service.list()).length, 0);
+    await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+    await runtime.service.start({ taskId: task.id, kind: "agent", resourceId: null }, runtime.owner);
+    const [single, all] = await runtime.service.list();
+    assert.equal(single.workspace.branch, "feature");assert.deepEqual(all.workspace, { kind: "all" });
+    await runtime.service.restart(all.id, false, runtime.owner);
+    assert.deepEqual(runtime.saved.get(all.id).workspace, { kind: "all" });
+    const reloaded = fixture([...runtime.saved.values()], undefined, { task: scopedTask });
+    try {
+      const restored = await reloaded.service.list();
+      assert.equal(restored.find((item) => item.id === single.id).workspace.resourceId, "repo");
+      assert.deepEqual(restored.find((item) => item.id === all.id).workspace, { kind: "all" });
+    } finally { await reloaded.service.shutdown(); }
+  } finally { await runtime.service.shutdown(); }
 });
 
 test("Rename/Delete 校验窗口、停止进程并同步原生记录，原生失败不会删除 Navo 记录",async()=>{

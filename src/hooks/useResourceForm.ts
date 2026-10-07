@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
-import type { ResourceRecord } from "@/shared/settingsTypes";
+import type { ResourceCommand, ResourceRecord } from "@/shared/settingsTypes";
 import { resourceApi } from "@/services/resourceApi";
 import { settingsApi } from "@/services/settingsApi";
 import { useResourceStore } from "@/stores/resourceStore";
@@ -19,6 +19,8 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
   const [name, setName] = useState(record?.name ?? "");
   const [localPath, setLocalPath] = useState(record?.localPath ?? "");
   const [url, setUrl] = useState("");
+  const [description, setDescription] = useState(record?.description ?? "");
+  const [commands, setCommands] = useState<ResourceCommand[]>(record?.commands ?? []);
   const [busy, setBusy] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [choosing, setChoosing] = useState(false);
@@ -77,7 +79,7 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
     try {
       const saved = isClone
         ? await resourceApi.clone({ operationId: operationId.current = crypto.randomUUID(), url: url.trim(), name: getRepositoryName(url.trim()), directory: repositoriesDirectory })
-        : await resourceApi.save({ id: record.id, name: name.trim(), kind: record.kind, localPath: localPath.trim() });
+        : await resourceApi.save({ id: record.id, name: name.trim(), kind: record.kind, localPath: localPath.trim(), description, commands });
       operationId.current = null;
       upsert(saved);
       onSaved();
@@ -94,6 +96,7 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
 
   return {
     name, setName, localPath, setLocalPath, url, setUrl,
+    description, setDescription, commands, setCommands,
     busy, choosing, cancelling, progress, error, isClone, chooseFolder, handleDrop, submit, cancelClone,
   };
 }

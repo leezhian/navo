@@ -1,4 +1,27 @@
 {
+  "branch": {
+    "title": "分支与变更",
+    "show": "显示分支栏",
+    "close": "关闭分支栏",
+    "resize": "调整分支栏宽度",
+    "openDiff": "打开完整 Diff",
+    "working": "工作区",
+    "commits": "提交",
+    "showList": "切换文件列表",
+    "showTree": "切换文件树",
+    "filter": "筛选文件…",
+    "failed": "无法读取仓库变更，请检查工作目录后重试。",
+    "untracked_other": "另有 {{count}} 个未跟踪文件；与完整 Diff 一致，仅展示已跟踪改动。",
+    "baseUnavailable": "源分支不存在或尚无可比较提交，工作区变更仍可查看。",
+    "relativeTo": "相对 {{branch}} 的提交",
+    "noCommits": "没有新增提交",
+    "moreCommits": "仅展示最近 100 条提交",
+    "fileCount_other": "{{count}} 个文件",
+    "staged": "已暂存",
+    "unstaged": "未暂存",
+    "noMatches": "没有匹配的文件",
+    "noChanges": "没有文件变更"
+  },
   "deletion": {
     "description": "将停止「{{title}}」的会话和终端，删除任务、会话记录、关联记录及附件副本。",
     "keepByDefault": "默认保留 Worktree 和分支。",
@@ -103,7 +126,35 @@
   "toolbar": {
     "label": "任务面板工具栏"
   },
+  "workspaceOpen": {
+    "actions": "打开 {{name}} 的方式",
+    "fileManager": "在文件管理器中打开",
+    "terminal": "打开外部终端",
+    "provider": "在 {{provider}} 上打开",
+    "failed": "无法打开工作目录",
+    "failedDetail": "请检查工作目录、远端地址或所选应用是否仍然可用。"
+  },
+  "resources": {
+    "title": "添加资源",
+    "categories": "资源类别",
+    "category": { "repositories": "仓库与文件夹", "issues": "Issues", "pullRequests": "Pull requests", "notes": "笔记", "links": "链接", "files": "文件" },
+    "repositoriesPending": "仓库与文件夹添加暂未开放。",
+    "noteTitle": "标题（选填）",
+    "noteContent": "Markdown 内容…",
+    "untitledNote": "未命名笔记",
+    "fileDescription": "选择磁盘上的单个文件，按原路径绑定到当前任务，不复制或修改原文件。",
+    "chooseFile": "选择文件…",
+    "changeFile": "更换文件…",
+    "alreadyLinked": "该资源已绑定到当前任务。",
+    "addToTask": "添加到任务",
+    "keepAdding": "添加并继续",
+    "added": "已添加到当前任务"
+  },
   "runtime": {
+    "allWorktrees": "所有工作树和文件夹",
+    "allWorktreesDescription": "在任务目录运行，携带全部关联目录的上下文",
+    "unknownWorkspace": "工作目录未确定",
+    "addCategory": "添加 {{category}}",
     "untitledSession": "未命名会话",
     "archiveSession": "归档会话",
     "context": "任务上下文",
@@ -119,6 +170,8 @@
     "stop": "停止会话",
     "resume": "恢复对话",
     "restart": "重新启动新对话",
+    "restartAgent": "重启 Agent",
+    "shutdownAgent": "关闭 Agent",
     "showTerminal": "显示终端",
     "hideTerminal": "收起终端",
     "closeTerminal": "关闭 {{name}}",

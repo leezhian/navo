@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Task, TaskStatus } from "@/domain/tasks";
 import type { CreateTaskInput } from "@/shared/taskTypes";
+import type { AddTaskResourcesInput } from "@/shared/taskResourceTypes";
 import type { TaskDeletionConfirmation } from "@/shared/taskDeletionTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { clearLegacyTasks, readLegacyTasks } from "@/services/adeData";
@@ -17,6 +18,7 @@ interface TaskState {
   bootstrap: () => Promise<void>;
   requestOpen: (id: string | null) => void;
   create: (input: CreateTaskInput) => Promise<Task>;
+  addResources: (id: string, input: AddTaskResourcesInput) => Promise<Task>;
   rename: (id: string, title: string) => Promise<boolean>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
   restore: (id: string) => Promise<boolean>;
@@ -47,6 +49,15 @@ export const useTaskStore = create<TaskState>((set, get) => {
       finally { set({ loading: false }); }
     },
     requestOpen: (requestedTaskId) => set({ requestedTaskId }),
+    async addResources(id, input) {
+      if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
+      set({ pending: true, error: null });
+      try {
+        const updated = await getTasksApi().addResources(id, input);
+        set({ tasks: get().tasks.map((task) => task.id === updated.id ? updated : task) });
+        return updated;
+      } finally { set({ pending: false }); }
+    },
     async create(input) {
       if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
       set({ pending: true });

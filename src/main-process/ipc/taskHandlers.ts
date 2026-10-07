@@ -7,6 +7,9 @@ import type { Task, TaskStatus } from "../../domain/tasks";
 import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
 import { resolveTaskAgentSelection } from "./agentHandlers";
 import { registerTaskSessionHandlers, startInitialTaskSession, deleteTaskWithSessions } from "./taskSessionHandlers";
+import { registerTaskResourceHandlers } from "./taskResourceHandlers";
+import { registerTaskWorkspaceOpenHandlers } from "./taskWorkspaceOpenHandlers";
+import { registerTaskBranchHandlers } from "./taskBranchHandlers";
 
 let tasks: TaskService | null = null;
 export async function flushTasks() { await tasks?.flush(); }
@@ -14,6 +17,9 @@ export async function flushTasks() { await tasks?.flush(); }
 export function registerTaskHandlers() {
   const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection);
   tasks = service;
+  registerTaskResourceHandlers(service);
+  registerTaskWorkspaceOpenHandlers(service);
+  registerTaskBranchHandlers(service);
   registerTaskSessionHandlers(service);
   const owners = new Set<number>();
   ipcMain.handle(ipcChannels.tasksLoad, () => service.load());

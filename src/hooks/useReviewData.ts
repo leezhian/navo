@@ -41,11 +41,13 @@ interface UseReviewDataParams {
   selectedSession: ReviewSession | null;
   /** 分支对比模式使用的目标分支名称。 */
   targetBranch: string;
+  /** 从分支栏进入时指定首次对比范围，后续仍使用原有切换逻辑。 */
+  initialCompareMode?: CompareMode;
 }
 
-export function useReviewData({ selectedSession, targetBranch }: UseReviewDataParams) {
+export function useReviewData({ selectedSession, targetBranch, initialCompareMode }: UseReviewDataParams) {
   // 恢复实时 Git 对比偏好，避免 HMR 重挂载后丢失当前选择。
-  const [compareMode, setCompareModeState] = useState<CompareMode>(readStoredCompareMode);
+  const [compareMode, setCompareModeState] = useState<CompareMode>(() => initialCompareMode ?? readStoredCompareMode());
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [collapsedFileIds, setCollapsedFileIds] = useState<Set<string>>(new Set());
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);

@@ -17,28 +17,28 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
     response.end(await server.transformIndexHtml("/__workbench", `<div id="root"></div><script type="module">
       import React from 'react';import {createRoot} from 'react-dom/client';import '/src/App.css';
       import i18n from '/src/i18n/index.ts';import {TaskWorkspace} from '/src/components/tasks/workspace/TaskWorkspace.tsx';
-      import {TaskSessionStatusIcon} from '/src/components/tasks/workspace/SessionStatusIcon.tsx';
+      import {TaskSessionStatusIcon} from '/src/components/tasks/workspace/SessionStatusIcon.tsx';import {resolveSessionWorkspace} from '/src/utils/taskSessionWorkspace.ts';
       import {TooltipProvider} from '/src/components/ui/tooltip.tsx';import {useSettingsStore} from '/src/stores/settingsStore.ts';
       import {useTaskSessionStore,subscribeTaskSessions} from '/src/stores/taskSessionStore.ts';
       await i18n.changeLanguage('zh-CN');useSettingsStore.setState({loaded:true});
-      const data=new Set(),exits=new Set(),changed=new Set();window.creates=[];window.stops=[];window.archives=[];window.renames=[];window.removes=[];window.attached=[];window.destroyed=[];
+      const data=new Set(),exits=new Set(),changed=new Set();window.creates=[];window.stops=[];window.restarts=[];window.archives=[];window.renames=[];window.removes=[];window.attached=[];window.destroyed=[];window.workspaceOpens=[];window.remoteProvider="GitLab";
       const task={id:'test-task',title:'任务工作台验证',description:'真实任务描述',date:'2026-10-07',projectName:'test',status:'TODO',resources:[],links:[],webLinks:[],attachments:[]};
-      let records=[],number=0;const publish=()=>{for(const callback of changed)callback(structuredClone(records));return structuredClone(records);};
-      window.navo={agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
+      let records=[],number=0;window.scopeResources=[];const publish=()=>{for(const callback of changed)callback(structuredClone(records));return structuredClone(records);};
+      window.navo={settings:{},tasks:{workspaceOpenOptions:async()=>{window.optionsReadCount=(window.optionsReadCount||0)+1;if(window.failWorkspaceOptions)throw new Error('fixture read failure');return {editors:window.noEditors?[]:[{id:'vscode',name:'VS Code'},{id:'xcode',name:'Xcode'}],remote:{provider:window.remoteProvider,url:'https://gitlab.com/fixture/repo'},externalTerminal:true};},openWorkspace:async(taskId,resourceId,target)=>window.workspaceOpens.push({taskId,resourceId,target})},agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
         list:async()=>structuredClone(records),onChanged:callback=>{changed.add(callback);return()=>changed.delete(callback);},
-        start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,title:input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',status:'running',terminalId:'terminal-'+number,createdAt:'now',resumable:false});return publish();},
-        stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id);return publish();},
+        start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,title:input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',resumable:false});return publish();},
+        stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id||record.kind==='agent').map(record=>record.id===id?{...record,status:'stopped'}:record);return publish();},
         archive:async id=>{window.archives.push(id);records=records.map(record=>record.id===id?{...record,status:'stopped',archivedAt:new Date().toISOString()}:record);return publish();},
         rename:async(id,title)=>{window.renames.push({id,title});records=records.map(record=>record.id===id?{...record,title,status:'stopped'}:record);return publish();},
         remove:async id=>{window.removes.push(id);records=records.filter(record=>record.id!==id);return publish();},
-        restart:async()=>publish(),openLink:async()=>{},revealAttachment:async()=>{}
+        restart:async(id,resume)=>{window.restarts.push({id,resume});records=records.map(record=>record.id===id?{...record,status:'running'}:record);return publish();},openLink:async()=>{},revealAttachment:async()=>{}
       },terminal:{
         create:async params=>{window.attached.push(params);for(const callback of data){callback({sessionId:params.sessionId,data:''});callback({sessionId:params.sessionId,data:'SAFE TEST OUTPUT\\r\\n'});}},
         write:async()=>{},resize:async()=>{},destroy:async params=>window.destroyed.push(params.sessionId),
         onData:callback=>{data.add(callback);return()=>data.delete(callback);},onExit:callback=>{exits.add(callback);return()=>exits.delete(callback);}
       }};
       subscribeTaskSessions();
-      function Fixture(){const [width,setWidth]=React.useState(360),[visible,setVisible]=React.useState(true),[sidebar,setSidebar]=React.useState(true),[currentTask,setTask]=React.useState(task);window.resizeFixture=setWidth;window.showFixture=setVisible;window.setSidebar=setSidebar;window.setTaskResources=resources=>setTask({...task,...resources});
+      function Fixture(){const [width,setWidth]=React.useState(360),[visible,setVisible]=React.useState(true),[sidebar,setSidebar]=React.useState(true),[currentTask,setTask]=React.useState(task);window.resizeFixture=setWidth;window.showFixture=setVisible;window.setSidebar=setSidebar;window.setTaskResources=resources=>{window.scopeResources=resources.resources||[];setTask({...task,...resources});};
         return React.createElement(TooltipProvider,null,React.createElement('div',{id:'status'},React.createElement(TaskSessionStatusIcon,{taskId:task.id})),visible&&React.createElement('div',{id:'fixture',style:{width,height:610}},React.createElement(TaskWorkspace,{task:currentTask,headingId:'test-title',onClose:()=>setVisible(false),onOpenPage:sidebar?()=>{}:undefined})));}
       window.setRecords=value=>{records=value;publish();};window.renameSession=(id,title)=>{records=records.map(record=>record.id===id?{...record,title}:record);publish();};window.setLocale=locale=>i18n.changeLanguage(locale);
       createRoot(document.getElementById('root')).render(React.createElement(Fixture));
@@ -56,13 +56,28 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const pause=()=>new Promise(resolve=>setTimeout(resolve,40));
         const wait=async(check,message)=>{for(let i=0;i<200;i++){if(check())return;await pause();}throw new Error(message);};
         const button=label=>document.querySelector('button[aria-label="'+label+'"]');
+        const assertItemIcons=()=>{
+          for(const item of document.querySelectorAll('.task-context-row, .task-context-session-select')){
+            const icon=item.querySelector(':scope > .task-context-item-icon');
+            if(!icon||!icon.querySelector('svg'))throw new Error('Every context item needs a leading icon container');
+            const bounds=icon.getBoundingClientRect(),style=getComputedStyle(icon);
+            if(bounds.width!==24||bounds.height!==24||style.backgroundColor==='rgba(0, 0, 0, 0)')throw new Error('Context icons need a 24px square background');
+          }
+        };
+        const assertMetadataActions=(item,metadataSelector,actionsSelector)=>{
+          const metadata=item.querySelector(metadataSelector).getBoundingClientRect();
+          const actions=item.querySelector(actionsSelector).getBoundingClientRect();
+          const title=item.querySelector('.block.truncate').getBoundingClientRect();
+          if(Math.abs(metadata.top+metadata.height/2-actions.top-actions.height/2)>1||actions.top<title.bottom)throw new Error('Item actions must align with metadata, not the title');
+          if(Math.abs(title.right-actions.right)>1)throw new Error('Title must retain full width above actions');
+        };
         await wait(()=>button('显示终端'),'workspace not mounted');
         await wait(()=>document.querySelector('.task-workbench').dataset.narrow==='true','narrow container not detected');
-        if(document.querySelector('.task-context-container'))throw new Error('Narrow side rail must collapse');
+        await wait(()=>!document.querySelector('.task-context-container'),'Narrow side rail must collapse');
         button('任务上下文').click();await wait(()=>document.querySelector('.task-context-container'),'Context toggle failed');
         if(document.querySelector('.task-context-title'))throw new Error('Context title must be removed');
         const resourceButton=document.querySelector('.task-context-toolbar button');
-        if(!resourceButton?.disabled||resourceButton.textContent.trim()!=='添加资源')throw new Error('Add resource must remain a translated disabled placeholder');
+        if(!resourceButton||resourceButton.disabled||resourceButton.textContent.trim()!=='添加资源')throw new Error('Add resource must open the unified resource dialog');
         const resourceBounds=resourceButton.getBoundingClientRect();
         const toolbarBounds=resourceButton.parentElement.getBoundingClientRect();
         if(resourceButton.dataset.variant!=='outline'||resourceBounds.height!==28||Math.abs(resourceBounds.width-toolbarBounds.width)>1||Math.abs(resourceBounds.left-toolbarBounds.left)>1)throw new Error('Add resource must be a full-width 28px outline button');
@@ -74,8 +89,33 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(![...document.querySelectorAll('.task-session-empty button')].some(item=>item.textContent.includes('新建会话')))throw new Error('Empty task must still offer new session');
         window.setTaskResources({resources:[{resourceId:'repo',name:'repo',mode:'worktree',workingPath:'/test',targetBranch:'feature'}],links:[{id:'pr',group:'PR',title:'PR'},{id:'issue',group:'ISSUE',title:'Issue'}],attachments:[{id:'file',name:'file.txt'}]});
         await wait(()=>document.querySelectorAll('.task-context-group').length===4,'Populated groups must appear');
+        for(const group of document.querySelectorAll('.task-context-group'))if(!group.querySelector('.task-context-group-heading button:not(:disabled) .lucide-plus'))throw new Error('Resource groups must expose add buttons');
         if(getComputedStyle(document.querySelector('.task-context-group-heading')).height!=='32px'||getComputedStyle(document.querySelector('.task-context-group + .task-context-group')).marginTop!=='6px')throw new Error('Context groups must use 32px headings and 6px spacing');
         for(const name of ['CHANGES','PULL REQUESTS','ISSUES','LINKS'])if(!document.querySelector('.task-context-rail').textContent.includes(name))throw new Error('Missing '+name);
+        const workspaceButtons=()=>[...document.querySelectorAll('.task-context-change [data-slot="button-group"] > button')];
+        if(workspaceButtons().length!==2||!workspaceButtons()[0].querySelector('.lucide-folder-open'))throw new Error('Changes row needs a file manager / dropdown split button');
+        assertItemIcons();
+        assertMetadataActions(document.querySelector('.task-context-change'),'.task-context-change-metadata','.task-context-change-actions');
+        workspaceButtons()[0].click();await wait(()=>window.workspaceOpens.length===1&&!workspaceButtons()[0].disabled,'File manager shortcut failed');
+        if(document.querySelector('[data-slot="dialog-content"]'))throw new Error('Open-in shortcut must not trigger the Diff row action');
+        const workspaceItem=label=>[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.closest('[role="menu"]')?.dataset.state==='open'&&item.textContent===label);
+        const workspaceMenu=async()=>{await new Promise(resolve=>setTimeout(resolve,200));workspaceButtons()[1].dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));await wait(()=>workspaceItem('在文件管理器中打开'),'Workspace menu missing');};
+        await workspaceMenu();await wait(()=>workspaceItem('VS Code')&&workspaceItem('Xcode')&&workspaceItem('在 GitLab 上打开'),'Installed IDEs and provider menu missing');
+        const openInMenu=workspaceItem('VS Code').closest('[role="menu"]');
+        if(openInMenu.querySelector('[role="menuitem"]')!==workspaceItem('VS Code')||workspaceItem('Xcode').nextElementSibling?.getAttribute('role')!=='separator'||workspaceItem('Xcode').nextElementSibling?.nextElementSibling!==workspaceItem('在文件管理器中打开'))throw new Error('IDEs must appear first, separated from workspace actions');
+        if(getComputedStyle(openInMenu).width!=='192px')throw new Error('Open-in menu must use the narrower 192px width');
+        workspaceItem('打开外部终端').click();await wait(()=>window.workspaceOpens.length===2&&!workspaceButtons()[1].disabled,'External terminal action failed');
+        if(window.creates.length)throw new Error('External terminal must not create a task terminal');
+        await workspaceMenu();workspaceItem('VS Code').click();await wait(()=>window.workspaceOpens.length===3&&!workspaceButtons()[1].disabled,'IDE action failed');
+        window.remoteProvider='GitHub';await workspaceMenu();await wait(()=>workspaceItem('在 GitHub 上打开'),'Provider label must refresh from remote');workspaceItem('在 GitHub 上打开').click();await wait(()=>window.workspaceOpens.length===4,'Remote action failed');
+        if(window.workspaceOpens.some(call=>call.taskId!=='test-task'||call.resourceId!=='repo'))throw new Error('Open-in actions must bind the exact task resource');
+        if(JSON.stringify(window.workspaceOpens.map(call=>call.target))!==JSON.stringify([{kind:'fileManager'},{kind:'terminal'},{kind:'editor',editorId:'vscode'},{kind:'remote'}]))throw new Error('Wrong open-in target');
+        const dismissWorkspaceMenu=async()=>{workspaceItem('在文件管理器中打开').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait(()=>!workspaceItem('在文件管理器中打开'),'Workspace menu did not close');};
+        window.failWorkspaceOptions=true;const previousReads=window.optionsReadCount;await workspaceMenu();await wait(()=>window.optionsReadCount>previousReads,'Options should retry when opened');await pause();
+        if(!workspaceItem('VS Code')||workspaceItem('无法读取打开选项，请重新展开重试'))throw new Error('Read failures must silently preserve previous options');
+        await dismissWorkspaceMenu();window.failWorkspaceOptions=false;window.noEditors=true;await workspaceMenu();await wait(()=>!workspaceItem('VS Code'),'Empty IDE list must update');
+        if(workspaceItem('未检测到支持的 IDE')||document.querySelector('[role="menu"][data-state="open"] [role="separator"]'))throw new Error('Empty IDE lists must not add placeholder rows or separators');
+        await dismissWorkspaceMenu();window.noEditors=false;
         if(document.querySelector('.task-context-rail').textContent.includes('NOTES'))throw new Error('Empty notes must hide');
         window.setTaskResources({});await wait(()=>!document.querySelector('.task-context-group'),'Cleared groups must hide');
         const sidebarActions=document.querySelector('.task-workbench-actions').querySelectorAll('button').length;
@@ -92,6 +132,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(window.attached.some(params=>!params.attachOnly))throw new Error('Must attach existing PTY');
         button('任务上下文').click();await wait(()=>document.querySelector('.task-context-container'),'Context missing');
         if(!document.querySelector('.task-context-rail').textContent.includes('zsh2'))throw new Error('Context terminal not synchronized');
+        assertItemIcons();
         button('收起任务上下文').click();
         window.showFixture(false);await pause();window.showFixture(true);await wait(()=>button('显示终端'),'Remount failed');
         if(window.creates.length!==2||window.attached.length!==2)throw new Error('View remount restarted terminals');
@@ -129,7 +170,13 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const rows=()=>[...document.querySelectorAll('.task-context-session')];
         if(!rows()[0].querySelector('svg[aria-label="Grok Build"]')||!rows()[1].querySelector('svg[aria-label="Claude Code"]'))throw new Error('Agent brand icons missing');
         if(rows()[0].querySelector('.task-session-status')||rows()[0].querySelector('.task-context-session-status').textContent!=='Failed')throw new Error('Session status must be text, not an icon');
+        const metadata=rows()[0].querySelector('.task-context-session-metadata');
+        const sessionStatusBounds=metadata.querySelector('.task-context-session-status').getBoundingClientRect();
+        const workspaceBounds=metadata.querySelector('.task-context-session-workspace').getBoundingClientRect();
+        if(!metadata.textContent.includes('·')||Math.abs(sessionStatusBounds.top-workspaceBounds.top)>1||workspaceBounds.left<=sessionStatusBounds.right)throw new Error('Status and workspace must share one row with a dot separator');
         if(rows().some(row=>!row.querySelector('button[aria-label="Archive session"]')))throw new Error('Archive action missing');
+        assertItemIcons();
+        assertMetadataActions(rows()[0],'.task-context-session-metadata','.task-context-session-archive');
         window.renameSession('agent','CLI renamed name');await wait(()=>rows()[0].textContent.includes('CLI renamed name'),'Native title update missing');
         rows()[0].querySelector('button[aria-label="Archive session"]').click();
         await wait(()=>rows().length===1,'Archived session must leave context');
@@ -140,9 +187,9 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await wait(()=>document.querySelector('#status [aria-label="No session"]'),'Archived records must not affect tab status');
         if(document.querySelector('.task-context-group'))throw new Error('Empty session group must hide');
         if(!document.querySelector('.task-session-empty button'))throw new Error('Task must still allow creating a new session');
-        const menuItem=label=>[...document.querySelectorAll('[role="menuitem"]')].find(element=>(element.querySelector(':scope > span')?.textContent||element.textContent).trim()===label);
-        const openDropdown=element=>element.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));
-        openDropdown(document.querySelector('.task-agent-pane button[aria-label="New session"]'));
+        const menuItem=label=>[...document.querySelectorAll('[role="menuitem"]')].find(element=>element.closest('[role="menu"]')?.dataset.state==='open'&&(element.querySelector(':scope > span')?.textContent||element.textContent).trim()===label);
+        const openDropdown=async element=>{await new Promise(resolve=>setTimeout(resolve,200));element.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));};
+        await openDropdown(document.querySelector('.task-agent-pane button[aria-label="New session"]'));
         await wait(()=>menuItem('Grok Build'),'Agent picker missing');
         if(document.querySelector('[role="dialog"]')||document.querySelector('[role="combobox"]'))throw new Error('New session must only show the Agent menu');
         menuItem('Grok Build').click();await wait(()=>rows().length===1,'Agent selection did not create session');
@@ -159,7 +206,17 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         rows()[0].querySelector('.task-context-session-select').click();await wait(()=>document.querySelector('.task-agent-pane'),'Repeated selection must show the session pane again');
         if(window.stops.length!==stoppedCount||window.destroyed.length!==destroyedCount)throw new Error('Context toggles must not stop a session');
         if(window.creates.length!==createdCount)throw new Error('Reopen must not create another session');
-        openDropdown(button('Session actions'));await wait(()=>menuItem('Rename session'),'Session menu missing');
+        if(!document.querySelector('.task-agent-pane header svg[aria-label="Grok Build"]'))throw new Error('Session title must show Agent icon');
+        await openDropdown(button('Session actions'));await wait(()=>menuItem('Shut down agent'),'Shutdown action missing');menuItem('Shut down agent').click();
+        await wait(()=>rows()[0].querySelector('.task-context-session-status').textContent==='Stopped'&&!button('Session actions').disabled,'Shutdown did not update status');
+        if(rows().length!==1||!document.querySelector('.task-agent-pane'))throw new Error('Shutdown must preserve record and pane');
+        await openDropdown(button('Session actions'));await wait(()=>menuItem('Restart Agent'),'Restart action missing');
+        if(menuItem('Shut down agent').getAttribute('aria-disabled')!=='true')throw new Error('Shutdown must be disabled for stopped Agent');
+        menuItem('Restart Agent').click();await wait(()=>window.restarts.length===1&&!button('Session actions').disabled,'Restart not submitted');
+        if(window.restarts[0].resume!==false)throw new Error('Restart must start a new conversation');
+        await openDropdown(button('Session actions'));await wait(()=>menuItem('Restart Agent'),'Running restart missing');menuItem('Restart Agent').click();
+        await wait(()=>window.restarts.length===2&&!button('Session actions').disabled,'Running Agent must allow restart');
+        await openDropdown(button('Session actions'));await wait(()=>menuItem('Rename session'),'Session menu missing');
         for(const label of ['Archive session','Delete session'])if(!menuItem(label))throw new Error('Missing '+label);
         if(menuItem('Rename session').nextElementSibling?.getAttribute('role')!=='separator'||menuItem('Archive session').nextElementSibling!==menuItem('Delete session'))throw new Error('Archive and delete must share a group separated from rename');
         menuItem('Rename session').click();await wait(()=>document.querySelector('input[aria-label="Session name"]'),'Rename dialog missing');
@@ -167,15 +224,16 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const dialogButton=label=>[...document.querySelectorAll('[role="dialog"] button')].find(element=>element.textContent.trim()===label);
         dialogButton('Confirm').click();await wait(()=>window.renames.length===1&&!document.querySelector('[role="dialog"]'),'Rename not submitted');
         if(!document.querySelector('.task-agent-pane').textContent.includes('Renamed native session'))throw new Error('Native name not synchronized');
-        openDropdown(document.querySelector('.task-context-group-heading button[aria-label="New session"]'));await wait(()=>menuItem('Claude Code'),'Context Agent picker missing');
+        await openDropdown(document.querySelector('.task-context-group-heading button[aria-label="New session"]'));await wait(()=>menuItem('Claude Code'),'Context Agent picker missing');
         menuItem('Claude Code').click();await wait(()=>rows().length===2,'Context must use same new session behavior');
         await wait(()=>!button('Session actions')?.disabled,'Context creation did not settle');
         rows()[0].querySelector('.task-context-session-select').click();await wait(()=>document.querySelector('.task-agent-pane').textContent.includes('Renamed native session'),'Different session must switch and show');
         rows()[1].querySelector('.task-context-session-select').click();await wait(()=>!document.querySelector('.task-agent-pane').textContent.includes('Renamed native session'),'Switching back must show the selected session');
-        openDropdown(button('Session actions'));await wait(()=>menuItem('Delete session'),'Delete menu missing');menuItem('Delete session').click();
+        if(!document.querySelector('.task-agent-pane header svg[aria-label="Claude Code"]'))throw new Error('Title icon must follow current Agent');
+        await openDropdown(button('Session actions'));await wait(()=>menuItem('Delete session'),'Delete menu missing');menuItem('Delete session').click();
         await wait(()=>dialogButton('Cancel'),'Delete confirmation missing');dialogButton('Cancel').click();await wait(()=>!document.querySelector('[role="dialog"]'),'Cancel failed');
         if(window.removes.length)throw new Error('Cancel must not delete native history');
-        openDropdown(button('Session actions'));await wait(()=>menuItem('Delete session'),'Delete menu missing');menuItem('Delete session').click();await wait(()=>dialogButton('Delete'),'Delete confirmation missing');dialogButton('Delete').click();
+        await openDropdown(button('Session actions'));await wait(()=>menuItem('Delete session'),'Delete menu missing');menuItem('Delete session').click();await wait(()=>dialogButton('Delete'),'Delete confirmation missing');dialogButton('Delete').click();
         await wait(()=>window.removes.length===1&&rows().length===1,'Delete must remove only the selected session');
         button('Show terminals').click();await wait(()=>document.querySelector('.task-shell-tab'),'First terminal missing');
         await wait(()=>!button('New terminal').disabled,'First terminal creation pending');
@@ -197,6 +255,28 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         rows()[0].querySelector('.task-context-session-select').click();await wait(()=>document.querySelector('.task-agent-pane'),'Session selection must show a pane hidden by maximized terminals');
         if(JSON.stringify(toggleCounts)!==JSON.stringify([window.creates.length,window.stops.length,window.destroyed.length]))throw new Error('Pane toggles must not change processes');
         if(document.querySelector('.demo-preview-trigger')||document.querySelector('.demo-changes-container'))throw new Error('Demo-only controls shipped');
+        const repoResource={resourceId:'repo-choice',name:'navo',mode:'worktree',workingPath:'/repo',sourceBranch:'main',targetBranch:'feature/one'};
+        const folderResource={resourceId:'folder-choice',name:'design-assets',mode:'folder',workingPath:'/assets',sourceBranch:'',targetBranch:''};
+        window.setTaskResources({resources:[repoResource]});await pause();
+        const addButtons=[...document.querySelectorAll('.task-context-group-heading button')].filter(element=>element.querySelector('.lucide-plus'));
+        const addStyles=addButtons.map(element=>{const style=getComputedStyle(element),icon=getComputedStyle(element.querySelector('svg'));return [style.width,style.height,style.color,style.borderRadius,icon.width,icon.height].join('|');});
+        if(addStyles.length<3||new Set(addStyles).size!==1)throw new Error('Every category add button must use the same size, color and icon style');
+        await openDropdown(document.querySelector('.task-agent-pane button[aria-label="New session"]'));await wait(()=>menuItem('Grok Build'),'Single directory must go directly to Agent choices');
+        if(document.querySelector('[data-slot="dropdown-menu-sub-trigger"]'))throw new Error('Single directory must not require an extra menu');
+        menuItem('Grok Build').click();await wait(()=>!button('Session actions').disabled&&window.creates[window.creates.length-1].resourceId==='repo-choice','Single resource binding missing');
+        await wait(()=>document.querySelector('.task-context-session[data-active="true"] .task-context-session-workspace')?.textContent==='feature/one','Session branch label missing');
+        window.setTaskResources({resources:[repoResource,folderResource]});await pause();
+        const submenu=label=>[...document.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]')].find(element=>element.closest('[role="menu"]')?.dataset.state==='open'&&element.textContent.includes(label));
+        const openSubmenu=async label=>{await pause();await pause();const element=submenu(label);element.focus();element.click();};
+        await openDropdown(document.querySelector('.task-agent-pane button[aria-label="New session"]'));await wait(()=>submenu('All worktrees and folders'),'Multi-resource scope menu missing');
+        if(menuItem('Grok Build'))throw new Error('Agent options must be nested under scope');
+        await openSubmenu('All worktrees and folders');await wait(()=>menuItem('Grok Build'),'Global Agent submenu missing');menuItem('Grok Build').click();
+        await wait(()=>!button('Session actions').disabled&&window.creates[window.creates.length-1].resourceId===null,'Global choice must submit explicit all scope');
+        await wait(()=>document.querySelector('.task-context-session[data-active="true"] .task-context-session-workspace')?.textContent==='All worktrees and folders','Global scope label missing');
+        await openDropdown(document.querySelector('.task-context-group-heading button[aria-label="New session"]'));await wait(()=>submenu('design-assets'),'Folder choice missing');
+        await openSubmenu('design-assets');await wait(()=>menuItem('Claude Code'),'Folder Agent submenu missing');menuItem('Claude Code').click();
+        await wait(()=>!button('Session actions').disabled&&window.creates[window.creates.length-1].resourceId==='folder-choice','Context creation must pass selected folder');
+        await wait(()=>document.querySelector('.task-context-session[data-active="true"] .task-context-session-workspace')?.textContent==='design-assets','Folder label missing');
         window.resizeFixture(240);await pause();
         const root=document.querySelector('.task-workbench');if(root.scrollWidth>root.clientWidth+2)throw new Error('Narrow workspace overflows');
       })()\`);

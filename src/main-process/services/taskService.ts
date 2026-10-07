@@ -18,6 +18,8 @@ import { TaskDeletionService } from "./taskDeletionService";
 import { isLegacyDemoTask } from "../../shared/legacyDemoRecords";
 import type { TaskAgentSelection } from "../../shared/agentCapabilities";
 import { isTaskAgentSelection } from "../../utils/taskAgentSelection";
+import type { AddTaskResourcesInput } from "../../shared/taskResourceTypes";
+import { TaskResourceBindings } from "./taskResourceBindings";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
@@ -29,12 +31,14 @@ export class TaskService {
   private queue: Promise<unknown> = Promise.resolve();
   private recovered = false;
   readonly deletion: TaskDeletionService;
+  readonly resourceBindings: TaskResourceBindings;
 
   constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings,
     private readonly resolveAgent?: (selection: TaskAgentSelection) => Promise<TaskAgentSelection>) {
     this.repository = new TaskRepository(path.join(userData, "app.db"), namespace);
     this.resources = new ResourceService(path.join(userData, "resources.json"));
     this.deletion = new TaskDeletionService(this.repository);
+    this.resourceBindings = new TaskResourceBindings(this.repository, path.join(userData, "app.db"), namespace);
   }
 
   private serialize<Result>(operation: () => Promise<Result>): Promise<Result> {
@@ -44,6 +48,9 @@ export class TaskService {
   }
 
   async flush() { await this.queue; }
+  addResources(id: string, input: AddTaskResourcesInput, ownerId: number) {
+    return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => this.resourceBindings.add(id, input, ownerId)));
+  }
 
   private attachmentDirectory(id: string) {
     if (!REQUEST_ID.test(id)) throw new Error("TASK_INVALID");

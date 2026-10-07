@@ -1,6 +1,7 @@
 import type { IssueItem } from "./issues";
 import type { TaskAgentSelection } from "../shared/agentCapabilities";
 import type { TaskAttachment, TaskResource, TaskWebLink } from "../shared/taskTypes";
+import type { TaskFileReference, TaskNote } from "../shared/taskResourceTypes";
 
 export type TaskStatus = "TODO" | "DONE" | "ARCHIVED";
 
@@ -24,6 +25,9 @@ export interface Task {
   /** 用户添加的文档、规范等普通网页链接。 */
   webLinks?: TaskWebLink[];
   attachments?: TaskAttachment[];
+  /** 直接绑定的原文件路径，与创建任务时复制的附件分开存储。 */
+  files?: TaskFileReference[];
+  notes?: TaskNote[];
   /** 归档前的状态，用于恢复；旧记录缺省恢复 TODO。 */
   archivedFrom?: "TODO" | "DONE";
 }

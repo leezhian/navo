@@ -10,6 +10,24 @@
     "unavailable": "路径不可用",
     "editTitle": "编辑资源",
     "localPath": "本地路径",
+    "remoteRepository": "远程仓库",
+    "noRemote": "未配置远程仓库",
+    "localFolder": "本地文件夹（非 Git 仓库）",
+    "remoteUnavailable": "无法读取远程仓库信息",
+    "description": "描述",
+    "descriptionPlaceholder": "说明这个仓库或文件夹的用途…",
+    "commands": {
+      "title": "命令",
+      "none": "暂无命令",
+      "count_other": "{{count}} 条命令",
+      "add": "添加命令",
+      "name": "名称",
+      "namePlaceholder": "例如：安装依赖",
+      "script": "命令脚本",
+      "scriptPlaceholder": "例如：pnpm install",
+      "runOnWorktreeCreation": "创建 Worktree 时运行",
+      "automatic": "创建时运行"
+    },
     "url": "仓库地址",
     "cloneHint": "粘贴仓库地址以克隆，或选择已有仓库的文件夹。",
     "dropHint": "拖入目录，或选择已有本地文件夹。",
@@ -20,8 +38,7 @@
     "cancelClone": "取消克隆",
     "cancelling": "取消中…",
     "removeTitle": "移除资源？",
-    "removeDescription": "仅移除 Navo 中的记录，不删除本地目录及文件。",
-    "editDescription": "修改名称或本地路径不会更改 Git remote。"
+    "removeDescription": "仅移除 Navo 中的记录，不删除本地目录及文件。"
   },
   "general": {
     "taskModeDescription": "作为创建任务时工作目录的默认执行方式。",
@@ -52,9 +69,9 @@
     "shortcutsSettings": "打开设置",
     "shortcutsClose": "关闭详情或对话框",
     "shortcutsResize": "调整面板宽度",
-    "shortcutsResizeDescription": "分隔条聚焦后使用 ← / →",
+    "shortcutsResizeDescription": "分隔条聚焦时使用",
     "shortcutsSelect": "选择控件选项",
-    "shortcutsSelectDescription": "控件聚焦后使用方向键",
+    "shortcutsSelectDescription": "控件聚焦时使用",
     "shortcutsDevTools": "开发者工具（仅开发模式）"
   },
   "logs": {
@@ -131,6 +148,8 @@
     "invalidRepositoryUrl": "请输入有效的 HTTPS 或 SSH 仓库地址，不要包含密码或 token。",
     "invalidRepositoryName": "仓库名称只能包含字母、数字、点、下划线或横线。",
     "invalidResource": "资源记录无效或已移除。",
+    "invalidResourceDescription": "描述不能超过 4000 个字符，且不能包含空字符。",
+    "invalidResourceCommand": "请检查命令名称、脚本及自动运行选项，最多保存 50 条命令。",
     "cloneFailed": "克隆失败，请检查仓库地址、网络和系统 Git 认证。",
     "gitUnavailable": "未找到可用的 Git。",
     "cloneCancelled": "克隆已取消。",
