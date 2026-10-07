@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs } from "radix-ui";
-import { ListTodo, PanelsTopLeft, X } from "lucide-react";
+import { PanelsTopLeft, X } from "lucide-react";
+import { TaskSessionStatusIcon } from "@/components/tasks/workspace/SessionStatusIcon";
 import { MotionConfig, Reorder, useDragControls, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { useTaskTabs } from "@/hooks/useTaskTabs";
@@ -48,7 +49,7 @@ function HeaderGroup({ group, taskMap, activeTaskId, listRef, onClose, onCancelS
         <div className="navo-workspace-tab" data-state={active ? "active" : "inactive"}>
           <Tabs.Trigger className="navo-workspace-tab-trigger" value={id} title={task.title} aria-controls={`task-page-${id}`} draggable={false}
             onPointerDown={(event) => { if (event.button === 0 && event.isPrimary) controls.start(event); }}>
-            <ListTodo aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{task.title}</span>
+            <TaskSessionStatusIcon taskId={task.id} /><span className="truncate">{task.title}</span>
           </Tabs.Trigger>
           <Button aria-label={t("workspace:tabs.closeLabel", { title: task.title })} className="navo-workspace-tab-close text-muted-foreground hover:text-foreground" size="icon-xs" variant="ghost" onClick={() => onClose(id)}><X aria-hidden="true" className="size-3" /></Button>
         </div>

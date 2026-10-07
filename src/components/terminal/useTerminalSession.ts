@@ -19,13 +19,15 @@ const MIN_ROWS = 1;
 interface UseTerminalSessionParams {
   /** 设置页操作凭据；同一会话只在首次创建 PTY 时消费。 */
   operationToken?: string;
+  /** 任务服务负责进程生命周期，组件只附着。 */
+  attachOnly?: boolean;
   /** 终端 Tab 的稳定 id，同时作为主进程 PTY 和 Ghostty 状态的关联键。 */
   sessionId: string;
   /** 新建 PTY 的工作目录，通常是当前审查项目根目录。 */
   cwd?: string;
 }
 
-export function useTerminalSession({ sessionId, cwd, operationToken }: UseTerminalSessionParams) {
+export function useTerminalSession({ sessionId, cwd, operationToken, attachOnly }: UseTerminalSessionParams) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState("");
   const [status, setStatus] = useState(() => getManagedTerminalStatus(sessionId));
@@ -62,7 +64,7 @@ export function useTerminalSession({ sessionId, cwd, operationToken }: UseTermin
       }
 
       lastSize = { cols, rows };
-      ensureManagedTerminalSession(sessionId, cwd, cols, rows, operationToken);
+      ensureManagedTerminalSession(sessionId, cwd, cols, rows, operationToken, attachOnly);
     };
 
     const observer = new ResizeObserver(() => {
@@ -80,7 +82,7 @@ export function useTerminalSession({ sessionId, cwd, operationToken }: UseTermin
         window.clearTimeout(resizeTimer);
       }
     };
-  }, [cwd, sessionId, operationToken]);
+  }, [cwd, sessionId, operationToken, attachOnly]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const data = encodeTerminalKey(event);

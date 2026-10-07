@@ -8,6 +8,7 @@ import type {
 } from "../../shared/terminalTypes";
 import {
   createTerminal,
+  attachTerminal,
   destroyAllTerminals,
   destroyTerminal,
   resizeTerminal,
@@ -16,6 +17,7 @@ import {
 
 export function registerTerminalHandlers(): void {
   ipcMain.handle(ipcChannels.terminalCreate, (event, params: CreateTerminalParams) => {
+    if (params.attachOnly) return attachTerminal(params, event.sender.id);
     createTerminal(params, event.sender);
   });
   ipcMain.handle(ipcChannels.terminalWrite, (event, params: WriteTerminalParams) => {

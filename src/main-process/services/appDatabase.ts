@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { removeLegacyDemoRecords } from "./migrations/removeLegacyDemoRecords";
 
-export const APP_SCHEMA_VERSION = 8;
+export const APP_SCHEMA_VERSION = 9;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -39,6 +39,11 @@ export async function openAppDatabase(filePath: string) {
             CREATE TABLE IF NOT EXISTS task_resources (
               namespace TEXT NOT NULL, task_id TEXT NOT NULL, position INTEGER NOT NULL, data TEXT NOT NULL,
               PRIMARY KEY(namespace, task_id, position),
+              FOREIGN KEY(namespace, task_id) REFERENCES tasks(namespace, id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS task_sessions (
+              namespace TEXT NOT NULL, task_id TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL,
+              PRIMARY KEY(namespace, id),
               FOREIGN KEY(namespace, task_id) REFERENCES tasks(namespace, id) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS task_agents (

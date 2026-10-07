@@ -75,7 +75,7 @@ test("SQLite v4 清理只移除确认的 demo 和假关联，不触碰设置、�
   database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run("development", real.id, "real-issue", JSON.stringify({ ...demoIssue, id: "real-issue" }));
   database.exec("PRAGMA user_version = 4"); database.close();
   database = await openAppDatabase(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 8);
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 9);
   assert.equal(database.prepare("SELECT 1 FROM tasks WHERE namespace='development' AND id=?").get(demoTask.id), undefined);
   assert.equal(database.prepare("SELECT description FROM tasks WHERE id=?").get(real.id).description, real.description);
   assert.ok(database.prepare("SELECT 1 FROM tasks WHERE namespace='protected'").get());

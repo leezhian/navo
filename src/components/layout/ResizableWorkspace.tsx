@@ -29,7 +29,7 @@ export function ResizableWorkspace({ children, details, detailsHeadingId, listLa
             aria-label={t("workspace:details.resize", { label: listLabel })} aria-orientation="vertical"
             aria-valuemin={0} aria-valuemax={100} aria-valuenow={boardPercentage}
             aria-valuetext={t("workspace:details.ratio", { label: listLabel, percent: boardPercentage, details: 100 - boardPercentage })}
-            className="task-panel-separator" initial={{ width: 0 }} animate={{ width: TASK_PANEL_GAP }} exit={{ width: 0 }}
+            className="task-panel-separator panel-resize-handle" data-resizing={isResizing} initial={{ width: 0 }} animate={{ width: TASK_PANEL_GAP }} exit={{ width: 0 }}
             data-centered={isCentered} transition={transition} {...separatorHandlers} />
         )}
         {details && (

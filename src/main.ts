@@ -11,6 +11,7 @@ import { destroyAllTerminals, registerTerminalHandlers } from "./main-process/ip
 import { bindWindowStateEvents, registerWindowHandlers } from "./main-process/ipc/windowHandlers";
 import { stopAllProjectWatchers } from "./main-process/services/projectChangeWatcher";
 import { flushTasks, registerTaskHandlers } from "./main-process/ipc/taskHandlers";
+import { shutdownTaskSessions } from "./main-process/ipc/taskSessionHandlers";
 import { registerSettingsHandlers, stopResourceOperations } from "./main-process/ipc/settingsHandlers";
 import { flushDiagnosticLog, initializeDiagnosticLog, writeDiagnosticEvent } from "./main-process/services/diagnosticLogService";
 import { bindProcessDiagnostics, bindWindowDiagnostics, registerDiagnosticHandlers } from "./main-process/diagnostics/diagnosticRuntime";
@@ -106,9 +107,11 @@ function startApplication() {
     const stoppedResources = stopResourceOperations();
     stopReviewSessionWatcher();
     stopAllProjectWatchers();
-    destroyAllTerminals();
     // 等待设置与日志队列完成再退出；磁盘异常不阻塞无限等待。
     const finishShutdown = async () => {
+      await shutdownTaskSessions();
+      destroyAllTerminals();
+      await shutdownTaskSessions();
       await Promise.allSettled([stoppedResources, flushSettings(), flushTasks(), flushAgentSettings()]);
       await writeDiagnosticEvent("app.stopped");
       await flushDiagnosticLog();

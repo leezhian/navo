@@ -1,6 +1,6 @@
 # Navo 未实现功能清单
 
-依据当前代码和页面 PRD 核对，日期：2026-10-05。这里区分明确占位、尚未接入的基础能力和待定义范围，不代表所有项目都已承诺排期。页面行为以 [PRD](../PRD.md) 为准。
+依据当前代码和页面 PRD 核对，日期：2026-10-07。这里区分明确占位、尚未接入的基础能力和待定义范围，不代表所有项目都已承诺排期。页面行为以 [PRD](../PRD.md) 为准。
 
 ## 1. 明确 TODO 与功能缺口
 
@@ -8,13 +8,13 @@
 
 | 功能 | 已有基础 | 尚未实现 | 核对入口 |
 | --- | --- | --- | --- |
-| 任务内 Agent 运行 | 本地任务、描述、附件、关联条目和工作目录；四种本机 CLI 的设置与检测，未知状态不隐藏；创建时按真实能力选择 Claude/Codex/Grok/Antigravity、模型、模式、思考等级并保存到任务 | 启动与停止、会话交互、权限请求、运行状态及失败恢复；Grok/Antigravity 的登录状态检测、多账号和富聊天未接入 | [任务页](../src/components/tasks/TaskPage.tsx)、[Agent 设置](prd/settings/agents.md) |
-| 多项目共享上下文 | 单个任务可关联多个仓库，准备分支或 Worktree | 将任务上下文交给实际 Agent，以及跨仓库执行与协作规则 | [创建任务需求](prd/task-create.md)、[产品范围](../PRD.md) |
+| 任务内 Agent 运行 | 本地任务、描述、附件、关联条目和工作目录；四种本机 CLI 的设置与检测，未知状态不隐藏；创建时按真实能力选择 Claude/Codex/Grok/Antigravity、模型、模式、思考等级并保存到任务 | 已接入原生 CLI 启动/停止/重启和 Claude/Grok 精确恢复；待补 Codex/Antigravity 原生恢复、Codex 非 default 模式、可靠等待输入状态、多账号及富聊天 | [任务页](../src/components/tasks/TaskPage.tsx)、[Agent 设置](prd/settings/agents.md) |
+| 多项目共享上下文 | 单个任务可关联多个仓库，准备分支或 Worktree | 已通过首条指令交付资源；待补动态 Notes、跨会话共享上下文和协作规则 | [创建任务需求](prd/task-create.md)、[产品范围](../PRD.md) |
 | 服务商授权 | GitHub、GitHub Enterprise、GitLab、GitLab Self-Hosted、Linear 列表 | 真实连接、凭证安全存储、失效处理与断开；具体采用 OAuth、Device Flow 或 Token 仍需按平台确定 | [集成服务](../src/services/integrationApi.ts)、[集成需求](prd/settings/integrations.md) |
 | Issue / PR 远程数据 | 本地列表/看板、筛选、详情及创建任务时关联 | 远程拉取与刷新、描述/评论等详情、与服务商状态同步；当前刷新仅重读本地数据 | [Issue 数据](../src/stores/issueStore.ts)、[Issue 需求](prd/issues.md) |
 | 已有任务增补上下文 | 创建时可添加资源、Issue/PR、附件和普通链接；创建后可改名及调整状态 | “添加资源”菜单仍禁用；任务描述、关联、附件和工作目录暂无创建后的编辑流程 | [任务菜单](../src/components/tasks/TaskContextMenu.tsx)、[上下文展示](../src/components/tasks/TaskContextDetails.tsx) |
-| 任务内代码审查 | 已有 diff 弹窗、文件树、评论及 Git 操作 | 主界面/任务中的审查入口和上下文关联；不是需要从零实现 diff | [审查需求](prd/review.md)、[审查弹窗](../src/components/review/ReviewDialog.tsx) |
-| 任务内终端 | 已有终端渲染、独立 Shell 与主进程 PTY 服务 | 任务中的入口、创建/关闭/恢复规则及工作目录绑定 | [终端需求](prd/terminal.md)、[终端组件](../src/components/terminal/TerminalWorkspace.tsx) |
+| 任务内代码审查 | 已有 diff 弹窗、文件树、评论及 Git 操作 | 已通过 CHANGES 仓库条目打开现有 Diff；独立分支/变更面板暂缓 | [审查需求](prd/review.md)、[审查弹窗](../src/components/review/ReviewDialog.tsx) |
+| 任务内终端 | 已有终端渲染、独立 Shell 与主进程 PTY 服务 | 已接入任务内普通 Shell、工作目录绑定及关闭终止；跨重启输出和终端恢复未接入 | [终端需求](prd/terminal.md)、[终端组件](../src/components/terminal/TerminalWorkspace.tsx) |
 | 保持唤醒 | 设置开关可保存 | 实际系统防休眠及 Agent/远程访问生命周期联动 | [常规设置需求](prd/settings/general.md)、[设置页](../src/components/settings/GeneralSettingsPage.tsx) |
 | 仓库目录扫描 | 目录设置、手动登记本地仓库、Git 克隆 | 修改仓库目录后扫描，以及显式扫描入口；启动时不扫描仍是目标规则 | [常规设置需求](prd/settings/general.md)、[资源需求](prd/settings/resources.md) |
 | 应用更新 | 关于页面与检查更新入口 | 真实版本检查、下载及安装；当前固定返回更新服务未接入 | [应用 IPC](../src/main-process/ipc/appHandlers.ts)、[关于需求](prd/settings/about.md) |
@@ -22,7 +22,7 @@
 ## 2. 仍需定义或可后续增强
 
 - 远程开发环境与 Remote Access：当前未接入；本机使用 SSH 地址克隆仓库不等于远程执行 Agent。
-- 任务详情中的普通链接和附件目前以信息展示为主，暂无点击打开链接或文件的交互。
+- 普通链接可在系统浏览器打开，附件可定位应用管理的副本；正文编辑和自动网页抓取未接入。
 - 历史审查记录如何进入新任务流程、AI 审查建议、审查笔记同步、自定义 diff 忽略规则、项目固定、全局变更查看及默认对比分支策略，在产品索引中仍有待确认项，需要逐项细化而非直接视为已承诺功能。
 - 未跟踪文件的完整 diff 展示仍是审查文档中的后续范围，当前应区分文件状态提示与内容 diff。
 
@@ -36,7 +36,7 @@
 
 ## 4. 建议推进顺序
 
-1. 定义并接入单个 Agent 的本地运行闭环，同时接入任务终端、审查入口和保持唤醒。
+1. 补齐各 CLI 原生恢复、Codex 非 default 模式、可靠等待输入状态和保持唤醒联动。
 2. 实现服务商授权与 Issue/PR 真实读取，让关联任务形成可用的数据闭环。
 3. 补齐任务创建后的上下文维护、仓库扫描和更新服务。
 4. 再定义多项目上下文协调、远程执行与需要持久化的工作台状态。

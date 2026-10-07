@@ -11,6 +11,8 @@ import { ghosttyVtClient } from "./ghostty-vt/ghosttyVtClient";
 export type TerminalSessionStatus = "starting" | "ready" | "exited" | "error";
 
 interface ManagedTerminalSession {
+  /** 附着视图不拥有任务进程，渲染失败不能终止 Agent。 */
+  attachOnly: boolean;
   cols: number;
   rows: number;
   status: TerminalSessionStatus;
@@ -21,6 +23,7 @@ interface ManagedTerminalSession {
 type TerminalStatusListener = (status: TerminalSessionStatus) => void;
 
 const managedSessions = new Map<string, ManagedTerminalSession>();
+export function hasManagedTerminalSession(sessionId: string) { return managedSessions.has(sessionId); }
 const statusListeners = new Map<string, Set<TerminalStatusListener>>();
 let unsubscribeTerminalEvents: (() => void) | null = null;
 
@@ -51,6 +54,7 @@ export function ensureManagedTerminalSession(
   cols: number,
   rows: number,
   operationToken?: string,
+  attachOnly?: boolean,
 ): void {
   const existing = managedSessions.get(sessionId);
   if (existing) {
@@ -60,6 +64,7 @@ export function ensureManagedTerminalSession(
 
   ensureTerminalEventRouter();
   const session: ManagedTerminalSession = {
+    attachOnly: attachOnly ?? false,
     cols,
     rows,
     status: "starting",
@@ -76,7 +81,7 @@ export function ensureManagedTerminalSession(
   const initialCols = cols;
   const initialRows = rows;
   const ghosttyReady = ghosttyVtClient.create(sessionId, cols, rows);
-  const ptyReady = createTerminal({ sessionId, cwd, cols, rows, operationToken });
+  const ptyReady = createTerminal({ sessionId, cwd, cols, rows, operationToken, attachOnly });
 
   void Promise.all([ghosttyReady, ptyReady])
     .then(() => {
@@ -186,7 +191,7 @@ function failManagedTerminalSession(sessionId: string, session: ManagedTerminalS
   session.unsubscribeGhosttyError();
   ghosttyVtClient.destroy(sessionId);
   notifyStatus(sessionId, session.status);
-  void destroyTerminal({ sessionId }).catch(() => undefined);
+  if (!session.attachOnly) void destroyTerminal({ sessionId }).catch(() => undefined);
 }
 
 function notifyStatus(sessionId: string, status: TerminalSessionStatus): void {

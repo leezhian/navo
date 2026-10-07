@@ -27,6 +27,22 @@ import type {
 } from "./shared/terminalTypes";
 
 const api: NavoApi = {
+  taskSessions: {
+    list: () => ipcRenderer.invoke(ipcChannels.taskSessionsList),
+    start: (input) => ipcRenderer.invoke(ipcChannels.taskSessionsStart, input),
+    stop: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsStop, id),
+    archive: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsArchive, id),
+    rename: (id, title) => ipcRenderer.invoke(ipcChannels.taskSessionsRename, id, title),
+    remove: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsRemove, id),
+    restart: (id, resume) => ipcRenderer.invoke(ipcChannels.taskSessionsRestart, id, resume),
+    revealAttachment: (taskId, id) => ipcRenderer.invoke(ipcChannels.taskSessionsRevealAttachment, taskId, id),
+    openLink: (taskId, id) => ipcRenderer.invoke(ipcChannels.taskSessionsOpenLink, taskId, id),
+    onChanged: (listener) => {
+      const handler = (_event: IpcRendererEvent, sessions: Parameters<typeof listener>[0]) => listener(sessions);
+      ipcRenderer.on(ipcChannels.taskSessionsChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.taskSessionsChanged, handler);
+    },
+  },
   agents: {
     capabilitySnapshot: () => ipcRenderer.invoke(ipcChannels.agentsCapabilitySnapshot),
     onCapabilitiesChanged: (listener) => {

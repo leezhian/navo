@@ -52,7 +52,7 @@ export interface TaskWebLink {
 }
 
 export interface CreateTaskInput {
-  /** 可选的任务级 Agent 配置；创建任务不会启动 CLI。 */
+  /** 可选的任务级 Agent 配置；保存成功后独立启动首个 CLI，失败不回滚任务。 */
   agent?: TaskAgentSelection;
   /** 同一草稿重试复用标识，防止提交成功但响应丢失后重复创建。 */
   requestId: string;

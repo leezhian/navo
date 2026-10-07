@@ -6,6 +6,7 @@ import type { CreateTaskInput } from "../../shared/taskTypes";
 import type { Task, TaskStatus } from "../../domain/tasks";
 import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
 import { resolveTaskAgentSelection } from "./agentHandlers";
+import { registerTaskSessionHandlers, startInitialTaskSession, deleteTaskWithSessions } from "./taskSessionHandlers";
 
 let tasks: TaskService | null = null;
 export async function flushTasks() { await tasks?.flush(); }
@@ -13,10 +14,15 @@ export async function flushTasks() { await tasks?.flush(); }
 export function registerTaskHandlers() {
   const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection);
   tasks = service;
+  registerTaskSessionHandlers(service);
   const owners = new Set<number>();
   ipcMain.handle(ipcChannels.tasksLoad, () => service.load());
   ipcMain.handle(ipcChannels.tasksImportLegacy, (_event, value: Task[]) => service.importLegacy(value));
-  ipcMain.handle(ipcChannels.tasksCreate, (event, value: CreateTaskInput) => service.create(value, event.sender.id));
+  ipcMain.handle(ipcChannels.tasksCreate, async (event, value: CreateTaskInput) => {
+    const task = await service.create(value, event.sender.id);
+    startInitialTaskSession(task, event.sender);
+    return task;
+  });
   ipcMain.handle(ipcChannels.tasksInspectResource, (_event, id: string) => service.inspectResource(id));
   ipcMain.handle(ipcChannels.tasksChooseFiles, async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -45,5 +51,6 @@ export function registerTaskHandlers() {
     }
     return service.inspectDeletion(id, options, event.sender.id);
   });
-  ipcMain.handle(ipcChannels.tasksRemove, (event, id: string, confirmation?: TaskDeletionConfirmation) => service.remove(id, confirmation, event.sender.id));
+  ipcMain.handle(ipcChannels.tasksRemove, (event, id: string, confirmation?: TaskDeletionConfirmation) =>
+    deleteTaskWithSessions(id, () => service.remove(id, confirmation, event.sender.id)));
 }

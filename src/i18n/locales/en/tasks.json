@@ -1,6 +1,6 @@
 {
   "deletion": {
-    "description": "Removes “{{title}}” along with its associations and managed attachment copies.",
+    "description": "Stops sessions and terminals for “{{title}}”, then removes the task, session records, associations and managed attachment copies.",
     "keepByDefault": "Worktrees and branches are kept unless selected below.",
     "keepExisting": "Existing working directories and branches will be kept.",
     "irreversible": "This can't be undone.",
@@ -106,5 +106,51 @@
   },
   "toolbar": {
     "label": "Task toolbar"
+  },
+  "runtime": {
+    "untitledSession": "Untitled session",
+    "archiveSession": "Archive session",
+    "context": "Task context",
+    "hideContext": "Hide task context",
+    "sessions": "Sessions",
+    "terminals": "Terminals",
+    "newSession": "New session",
+    "newTerminal": "New terminal",
+    "noNotes": "No notes",
+    "directory": "Working directory",
+    "defaultDirectory": "Automatic — task workspace",
+    "start": "Start",
+    "stop": "Stop session",
+    "resume": "Resume conversation",
+    "restart": "Restart with a new conversation",
+    "showTerminal": "Show terminals",
+    "hideTerminal": "Hide terminals",
+    "closeTerminal": "Close {{name}}",
+    "expandTerminal": "Maximize terminal",
+    "restoreTerminal": "Restore terminal",
+    "resizeContext": "Resize task context",
+    "resizeTerminal": "Resize terminal",
+    "operationFailed": "The operation failed. Please retry.",
+    "startFailed": "Unable to start or continue the session. Check the CLI, login, working directory and terminal output, then retry.",
+    "modeUnsupported": "This CLI cannot apply the selected mode at startup. Create a session with a supported mode instead.",
+    "optionUnsupported": "This installed CLI does not support a selected launch option. Update the CLI or choose another configuration.",
+    "resourceError": "Unable to open resource",
+    "resourceErrorDetail": "The resource may be missing or unavailable. Check its location and try again.",
+    "status": {
+      "idle": "No session",
+      "starting": "Starting",
+      "running": "Running",
+      "stopped": "Stopped",
+      "failed": "Failed"
+    },
+    "closePane": "Close pane",
+    "sessionActions": "Session actions",
+    "renameSession": "Rename session",
+    "deleteSession": "Delete session",
+    "sessionName": "Session name",
+    "renameNativeDescription": "The session will stop before its native CLI name is updated. No task prompt is resent; you can resume it afterwards.",
+    "deleteNativeDescription": "Stop and permanently delete the native CLI history and Navo record for “{{name}}”. The task, repositories and working directories are kept. This cannot be undone.",
+    "nativeActionsUnavailable": "Reliable native session management is not available for this agent yet.",
+    "nativeActionFailed": "The native CLI operation failed. The Navo record is kept. Check the CLI, file permissions, or retry later."
   }
 }

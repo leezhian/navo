@@ -188,6 +188,7 @@ export function ReviewWorkspace({
                   projectPath={session.projectPath}
                   selectedFileId={selectedFileId}
                   onResizeStart={startResize}
+                  isResizing={isResizing}
                   onSelectFile={selectFile}
                 />
               </motion.div>

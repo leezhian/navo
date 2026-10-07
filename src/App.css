@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 @import "./components/layout/ade-workspace.css";
+@import "./components/ui/panel-resize-handle.css";
 
 @custom-variant dark (&:is(.dark *));
 

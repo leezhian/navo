@@ -1,0 +1,6 @@
+.panel-resize-handle { touch-action: none; user-select: none; outline: none; cursor: col-resize; }
+.panel-resize-handle::after { content: ""; position: absolute; width: 2px; top: 40%; bottom: 40%; left: calc(50% - 1px); border-radius: 2px; background: var(--muted-foreground); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.panel-resize-handle:hover::after, .panel-resize-handle:focus-visible::after, .panel-resize-handle[data-resizing="true"]::after { opacity: .3; }
+.panel-resize-handle[data-resize-axis="y"] { cursor: row-resize; }
+.panel-resize-handle[data-resize-axis="y"]::after { width: auto; height: 2px; top: calc(50% - 1px); bottom: auto; left: 40%; right: 40%; }
+@media (prefers-reduced-motion: reduce) { .panel-resize-handle::after { transition: none; } }

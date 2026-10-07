@@ -1,6 +1,6 @@
 {
   "deletion": {
-    "description": "将删除「{{title}}」及其关联记录和附件副本。",
+    "description": "将停止「{{title}}」的会话和终端，删除任务、会话记录、关联记录及附件副本。",
     "keepByDefault": "默认保留 Worktree 和分支。",
     "keepExisting": "现有工作目录和分支将保留。",
     "irreversible": "此操作无法撤销。",
@@ -102,5 +102,51 @@
   },
   "toolbar": {
     "label": "任务面板工具栏"
+  },
+  "runtime": {
+    "untitledSession": "未命名会话",
+    "archiveSession": "归档会话",
+    "context": "任务上下文",
+    "hideContext": "收起任务上下文",
+    "sessions": "会话",
+    "terminals": "终端",
+    "newSession": "新建会话",
+    "newTerminal": "新建终端",
+    "noNotes": "暂无笔记",
+    "directory": "工作目录",
+    "defaultDirectory": "自动 — 任务工作目录",
+    "start": "启动",
+    "stop": "停止会话",
+    "resume": "恢复对话",
+    "restart": "重新启动新对话",
+    "showTerminal": "显示终端",
+    "hideTerminal": "收起终端",
+    "closeTerminal": "关闭 {{name}}",
+    "expandTerminal": "最大化终端",
+    "restoreTerminal": "还原终端",
+    "resizeContext": "调整任务上下文宽度",
+    "resizeTerminal": "调整终端高度",
+    "operationFailed": "操作失败，请重试。",
+    "startFailed": "无法启动或继续会话，请检查 CLI、登录状态、工作目录及终端输出后重试。",
+    "modeUnsupported": "此 CLI 暂无法在启动时应用所选模式，请选择支持的模式新建会话。",
+    "optionUnsupported": "当前安装的 CLI 不支持所选启动参数，请更新 CLI 或选择其他配置。",
+    "resourceError": "无法打开资源",
+    "resourceErrorDetail": "资源可能已丢失或无法访问，请检查位置后重试。",
+    "status": {
+      "idle": "无会话",
+      "starting": "正在启动",
+      "running": "运行中",
+      "stopped": "已停止",
+      "failed": "失败"
+    },
+    "closePane": "关闭面板",
+    "sessionActions": "会话操作",
+    "renameSession": "重命名会话",
+    "deleteSession": "删除会话",
+    "sessionName": "会话名称",
+    "renameNativeDescription": "将先停止会话，再修改 CLI 保存的真实名称。不会重新发送任务指令；修改后可恢复会话。",
+    "deleteNativeDescription": "将停止并永久删除「{{name}}」的 CLI 原生会话历史及 Navo 会话记录。不会删除任务、仓库或工作目录，操作无法撤销。",
+    "nativeActionsUnavailable": "此 Agent 暂无可靠的原生会话管理能力。",
+    "nativeActionFailed": "CLI 会话记录操作失败，Navo 记录已保留。请检查 CLI、文件权限或稍后重试。"
   }
 }

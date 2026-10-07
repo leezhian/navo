@@ -20,7 +20,7 @@ export function TaskIssuePanels({ children, preview, busy }: TaskIssuePanelsProp
       <div className="min-w-0 flex-1 overflow-auto rounded-xl bg-muted/30 p-2" aria-busy={busy}>{children}</div>
       <div role="separator" tabIndex={0} aria-label={t("taskCreate:links.resizePreview")} aria-orientation="vertical"
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={boardPercentage}
-        className="task-panel-separator" style={{ width: TASK_PANEL_GAP, background: "transparent" }} {...separatorHandlers} />
+        className="task-panel-separator panel-resize-handle" data-resizing={isResizing} style={{ width: TASK_PANEL_GAP, background: "transparent" }} {...separatorHandlers} />
       <aside className="min-w-0 shrink-0 overflow-auto rounded-xl bg-muted/30 p-4" style={{ width: detailsWidth }}>{preview}</aside>
     </div>
   );

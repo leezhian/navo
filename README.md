@@ -23,14 +23,14 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - 顶部提供模块历史后退与前进及真实任务标签，支持去重、切换、关闭、关闭其他和横向拖拽排序，标题与内容随任务数据同步；标签仅保留在当前窗口。左侧底部为设置，不再提供旧会话列表。
 - 任务标签支持非嵌套的双页组合、选页、左右/上下排列、拖动调整比例、反转和取消拆分；独立标签可与激活组合的任意一侧互换，被换出的页面回到其原独立位置。组合整体排序，关闭一侧后另一侧恢复独立显示。
 - 设置提供常规、外观、Agents、仓库与文件夹、集成和关于，保留主题与 diff 预览；关于的版本与更新合为一行。
-- 创建任务底栏的 Agent 入口位于创建按钮左侧，两者独立；图标和配置回显整体可点击，通过锚定浮层选择模型、模式及分档思考滑条，选项保留 CLI 原始文案。已启用的 CLI 仅在明确未安装或未登录时排除，未知和检测失败状态仍可尝试查询。Claude 使用只读初始化握手和本机帮助，Codex 使用本地 app-server 的 `model/list`、`collaborationMode/list`；Grok 使用 `agent --no-leader stdio` 初始化结果和本机帮助，Antigravity 使用 `models` 与 `--help`，不填充预设模型。配置浮层不展示查询失败、旧接口或要求重启等错误文案，内部校验仍阻止无效配置提交。配置随任务保存，创建后不启动会话。开发时新增 IPC 后需完整重启主进程。
+- 创建任务底栏的 Agent 入口位于创建按钮左侧，两者独立；图标和配置回显整体可点击，通过锚定浮层选择模型、模式及分档思考滑条，选项保留 CLI 原始文案。已启用的 CLI 仅在明确未安装或未登录时排除，未知和检测失败状态仍可尝试查询。Claude 使用只读初始化握手和本机帮助，Codex 使用本地 app-server 的 `model/list`、`collaborationMode/list`；Grok 使用 `agent --no-leader stdio` 初始化结果和本机帮助，Antigravity 使用 `models` 与 `--help`，不填充预设模型。配置浮层不展示查询失败、旧接口或要求重启等错误文案，内部校验仍阻止无效配置提交。配置随任务保存，保存成功后独立启动首个原生 CLI 会话。开发时新增 IPC 后需完整重启主进程。
 - Agent 设置管理本机 Claude Code、Codex、Grok Build、Antigravity CLI：安装/版本检测、可验证的登录状态、默认选择、启用及自定义可执行文件路径。首次检测保持卡片显示，重复扫描保留已有内容；高级设置仅编辑路径。安装/登录命令经用户确认后在现有 PTY 终端执行，更新按队列进行；不支持富聊天、多账号或全局 hooks/MCP 注入。
 - 全局英文/简体中文切换立即生效，首次默认英文；设置由主进程 SQLite 持久化，Zustand 仅作为渲染缓存。
 - 统一通过“添加仓库”入口新增：输入 HTTPS / SSH 地址时自动提取名称并使用常规设置中的仓库目录，支持克隆进度与取消；也可在弹窗中选择或拖入本地目录并自动登记，系统目录选择器默认打开当前用户主目录。支持编辑/移除，移除记录不会删除文件，编辑不会修改 Git remote。
 - 诊断日志使用单文件，最高约 20 MB，支持修改文件路径、在文件管理器中定位、复制路径和清理日志，使用 INFO/WARN/ERROR 分级 JSONL 记录关键运行事件与脱敏异常，不记录业务正文、完整路径或认证凭证；任务模式已用于创建时的工作目录配置，保持唤醒暂仅保存偏好，仓库目录扫描和远程访问尚未接入，集成状态明确为占位。
 - 保留可复用 ReviewDialog、Git diff / 文件树 / 评论 / Git 操作和终端基础组件，当前新版不提供审查或终端入口。
 
-数据边界：任务创建与工作区准备已接入；尚未接入 Agent 运行或远程 PR/Issue 平台。开发态与正式构建均不自动填充演示数据，首次启动显示空看板和空列表，两者使用独立的本地存储命名空间，不将旧会话当作任务。历史演示记录按明确身份清理，保留真实记录和已修改或具有真实上下文的任务。测试数据仅由测试显式注入，外观设置中的 diff 示例保留。旧审查记录保持在磁盘中，但上轮对话审查模式已移除。
+数据边界：任务创建与工作区准备已接入；已接入任务内原生 CLI 运行，尚未接入远程 PR/Issue 平台。开发态与正式构建均不自动填充演示数据，首次启动显示空看板和空列表，两者使用独立的本地存储命名空间，不将旧会话当作任务。历史演示记录按明确身份清理，保留真实记录和已修改或具有真实上下文的任务。测试数据仅由测试显式注入，外观设置中的 diff 示例保留。旧审查记录保持在磁盘中，但上轮对话审查模式已移除。
 
 ## 技术栈
 
@@ -143,7 +143,7 @@ npm run test:i18n
 
 ## 本地数据兼容
 
-新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置保存在 Electron `userData/app.db`，资源仍写入 `userData/resources.json` 并串行原子替换。设置数据库使用内置 `node:sqlite`，按字段存入 `settings(key, value)`，值为 JSON 编码，开启 WAL、FULL 同步与 3 秒忙等待；整组更新以事务提交，主进程读写共用队列，提交成功才更新缓存，退出时等待已排队的保存。连接按操作打开并关闭，数据库文件新建权限为 `0600`，`user_version = 8` 记录当前结构版本，拒绝写入更高版本的数据库。v5 在升级事务中清理身份匹配的历史演示任务和 Issue/PR 关联，保留设置、真实上下文与初始化标记，不操作工作目录或分支。v6 新增 `agent_configurations` 与 `agent_preferences`，与通用设置分开读写；环境变量值通过 Electron `safeStorage` 加密，禁用明文后端，渲染进程只读取变量名称。v7 新增 `task_agents`，保存任务级 Agent 配置快照，删除任务时级联清理，旧任务保持无配置。v8 新增 `agent_capability_cache` 与 `agent_capability_state`，分别保存按 Agent/可执行路径区分的最后成功能力及当前检测状态，刷新失败不覆盖成功结果。
+新安装使用 Navo 数据目录；如果仅存在旧版 Vibe Reviewer 数据目录，则继续使用旧目录，不移动历史 patch。设置保存在 Electron `userData/app.db`，资源仍写入 `userData/resources.json` 并串行原子替换。设置数据库使用内置 `node:sqlite`，按字段存入 `settings(key, value)`，值为 JSON 编码，开启 WAL、FULL 同步与 3 秒忙等待；整组更新以事务提交，主进程读写共用队列，提交成功才更新缓存，退出时等待已排队的保存。连接按操作打开并关闭，数据库文件新建权限为 `0600`，`user_version = 9` 记录当前结构版本，拒绝写入更高版本的数据库。v5 在升级事务中清理身份匹配的历史演示任务和 Issue/PR 关联，保留设置、真实上下文与初始化标记，不操作工作目录或分支。v6 新增 `agent_configurations` 与 `agent_preferences`，与通用设置分开读写；环境变量值通过 Electron `safeStorage` 加密，禁用明文后端，渲染进程只读取变量名称。v7 新增 `task_agents`，保存任务级 Agent 配置快照，删除任务时级联清理，旧任务保持无配置。v8 新增 `agent_capability_cache` 与 `agent_capability_state`，分别保存按 Agent/可执行路径区分的最后成功能力及当前检测状态，刷新失败不覆盖成功结果。
 
 Agent 主进程模块位于 `src/main-process/services/agents`，IPC 契约位于 `src/shared/agentTypes.ts` 和 `src/shared/agentCapabilities.ts`；设置面板、状态 hook 和 API 分层复用现有模式。创建任务界面挂载时预载本地快照并订阅后台事件，打开弹窗、切换 Agent、提交任务只使用缓存，不触发 CLI 检测或过期校验。启动 30 秒后、此后每 4 小时由主进程检查已启用 Agent 的缓存；设置扫描和配置/登录操作变更也会驱动检测与失效。相同 Agent 的请求合并，变更前的旧请求不会写回；失败保留缓存，变更环境的旧配置只展示不提交，退出时停止调度并等待存储队列。`node --test scripts/agent-capability-cache-regression.test.mjs scripts/agent-settings-regression.test.mjs scripts/agent-settings-ui-regression.test.mjs scripts/task-agent-regression.test.mjs scripts/task-creation-regression.test.mjs scripts/task-creation-ui-regression.test.mjs` 覆盖存储、过期调度、并发失效、保密、真实协议解析、认证筛选、任务配置持久化与子弹窗交互；测试使用临时数据和模拟终端操作，不登录或退出真实账号。Codex 协议参考[官方 app-server 文档](https://developers.openai.com/codex/app-server/)；能力接口失败时不回退到静态模型表。
 
@@ -151,7 +151,9 @@ Agent 主进程模块位于 `src/main-process/services/agents`，IPC 契约位�
 
 Grok 能力探测仅发送 ACP `initialize`，读取 `_meta.modelState` 中的模型与模型级思考等级，不创建会话、不复用用户 leader。Antigravity 模型来自 `agy models` 的真实列表，模式及会话级思考等级来自 `agy --help`；帮助兼容 stdout/stderr，未返回模型级限制时不推断。协议探测及 Antigravity 模型查询均设 20 秒上限，普通帮助命令为 5 秒，不新增 SDK 或下载辅助服务。
 
-常规设置提供独立的任务目录 `tasksDirectory`，默认 `~/Navo/tasks`，支持输入路径或系统目录选择，并沿用 SQLite 设置存储。旧配置缺少该字段或留空时使用默认值；当前只保存目录偏好，不创建任务专属目录、不生成 Agent 规则文件，也不搬迁已有任务。
+v9 新增 `task_sessions`，持久化 Agent 配置、工作目录、进程状态与可用的原生恢复标识；应用重启仅恢复记录，不自动启动。普通终端、认证内容和输出不入库。
+
+常规设置提供独立的任务目录 `tasksDirectory`，默认 `~/Navo/tasks`，支持输入路径或系统目录选择，并沿用 SQLite 设置存储。旧配置缺少该字段或留空时使用默认值；无目录或多目录任务启动会话时使用此目录下的任务专属目录，写入独占的 `navo-task.md`；单目录默认使用实际工作区，不修改仓库规则文件、不搬迁已有任务。
 
 配置读取优先级为：SQLite 设置 → 旧 `settings.json` → localStorage 的 `navo-settings` / `vibe-reviewer-settings` → 默认值。仅在数据库尚无设置时尝试旧 JSON，规范化后整组导入，成功保留原文件作为备份，之后不再回读或写入；没有旧 JSON 时才由渲染进程迁移旧浏览器设置，写入成功后移除旧键。损坏的数据库、非法 JSON、迁移或保存失败会明确提示，不静默回退默认值或覆盖旧记录。Tasks 及其关联保存在同一 SQLite 数据库中，以 development/production 命名空间隔离。首次加载且任务库尚未初始化时，迁移原 localStorage 任务键，保留标识与顺序，成功后清理旧键；损坏数据不静默覆盖，空列表有独立初始化标记。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因更名而假定远端已改名。
 
@@ -202,7 +204,13 @@ ReviewWorkspace
 
 ## 内嵌终端
 
-终端组件、VT 渲染、node-pty 主进程服务与独立 Shell 生命周期保留。新导航壳层不展示旧审查/终端 tab 或新增终端按钮，后续任务流程接入时再定义入口，不依赖旧会话列表。
+任务工作台使用 Ghostty VT 与 node-pty 展示原生 CLI 和普通 Shell。任务服务负责进程创建、停止及 SQLite 会话记录，视图仅附着已有 PTY；关闭页面不结束进程，关闭普通终端会结束进程树。渲染重挂载保留缓冲，输出只在内存中保存有界重放内容，不记录到诊断日志。
+
+任务侧栏和标签复用工作台，以实际容器宽度控制上下文折叠。资源分组为 CHANGES、PULL REQUESTS、ISSUES、LINKS、NOTES，无子项时隐藏；仓库条目复用 Diff 弹窗，右侧分支面板本期不接入。Notes 尚无数据，不展示空分组。任务标签页只保留标签关闭，侧栏保留关闭入口；会话面板和上下文分组的加号均只选择 Agent，模型、模式和思考等级由主进程采用真实能力默认值，目录自动选择。关闭会话面板只隐藏模块，点击上下文恢复原实例；面板不重复展示配置/运行状态文案。Claude/Grok 使用精确 UUID 恢复；Codex/Antigravity 暂不提供原生恢复，Codex 暂只支持 default 模式，不支持时明确报错。
+
+任务上下文的会话展示 Agent 品牌图标、真实 CLI 名称和文字状态；Claude/Grok 按精确原生标识读取本地元数据，约每 5 秒更新名称，缺失时显示未命名，不推断其他会话。归档会话会终止其进程树并保存归档标识，保留历史记录，但从活动列表和标签状态统计排除；这与只改状态的任务归档不同。会话菜单支持重命名、归档、删除；Claude/Grok 的重命名与删除同步原生记录，确认后先停止进程，原生删除成功才移除 Navo 记录。不支持可靠原生管理的 CLI 禁用相应选项，不能仅改本地记录冒充同步成功。
+
+`node --test scripts/native-session-title-regression.test.mjs scripts/task-session-regression.test.mjs scripts/task-workspace-ui-regression.test.mjs` 验证生命周期、参数、SQLite、资源上下文、窄屏与终端同步；测试不调用真实模型。
 
 ## UI 组件
 
@@ -247,6 +255,6 @@ src/components/ui/icon-tooltip.tsx
 
 重点检查 Tasks 与 Issue 的点击/拖拽区分、跨列数量、分组收起、右侧详情、8px 分隔条、模块前进后退以及主题切换。开发样例与正式空状态分别验收。
 
-新增设置检查：语言立即切换及重启恢复、旧设置迁移、无权限目录、重复真实路径、克隆取消/失败/目标已存在、移除保留磁盘文件、诊断日志隐私/20 MB 上限/清理/失败重试、集成占位和更新未接入提示。`⌘ ,`（Windows/Linux 为 `Ctrl ,`）打开设置；真实 Agent 运行和远端 Issue 同步仍不在本阶段范围内。
+新增设置检查：语言立即切换及重启恢复、旧设置迁移、无权限目录、重复真实路径、克隆取消/失败/目标已存在、移除保留磁盘文件、诊断日志隐私/20 MB 上限/清理/失败重试、集成占位和更新未接入提示。`⌘ ,`（Windows/Linux 为 `Ctrl ,`）打开设置；真实 CLI 会话已接入；远端 Issue 同步仍不在本阶段范围内。
 - `settings.load/save/chooseDirectory/chooseLogFile/revealLogFile/clearLogs/getLogsStatus`：配置、目录选择、日志定位与清理、日志状态。日志路径输入框可直接编辑完整路径；`chooseLogFile` 使用目录选择器并沿用当前日志文件名，返回新文件路径，不调用保存文件对话框。
 - `resources.list/save/remove/clone/cancelClone/onCloneProgress/getDroppedPath`：本地资源、所属窗口的克隆操作与拖入目录路径解析。

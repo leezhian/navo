@@ -6,6 +6,8 @@ export interface CreateTerminalParams {
   sessionId: string;
   /** 设置页签发的 CLI 操作凭据；不接受渲染进程提供任意启动命令。 */
   operationToken?: string;
+  /** 只附着任务服务已启动的 PTY，不回退创建普通 Shell。 */
+  attachOnly?: boolean;
   cwd?: string;
   cols: number;
   rows: number;

@@ -15,8 +15,10 @@ import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "./stores/settingsStore";
 import { Button } from "./components/ui/button";
 import { getSettingsError } from "./services/settingsErrors";
+import { subscribeTaskSessions } from "./stores/taskSessionStore";
 
 function App() {
+  useEffect(subscribeTaskSessions, []);
   const { resolvedTheme, settings, updateSettings } = useLocalSettings();
   const navigation = useAppNavigation();
   const taskTabs = useTaskTabs();

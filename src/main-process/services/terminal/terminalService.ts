@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { WebContents } from "electron";
 import { spawn, type IPty } from "node-pty";
+import { terminateDescendants } from "./terminateProcessTree";
 import { ipcChannels } from "../../../shared/ipcChannels";
 import type {
   CreateTerminalParams,
@@ -17,6 +18,7 @@ const MIN_TERMINAL_DIMENSION = 1;
 const MAX_TERMINAL_DIMENSION = 500;
 
 interface TerminalRecord {
+  replay: string;
   onFinish?: () => void;
   /** 创建该会话的渲染进程，避免不同窗口互相读写 PTY。 */
   owner: WebContents;
@@ -30,11 +32,15 @@ const terminalRecords = new Map<string, TerminalRecord>();
 const terminalOwnerCleanupBound = new Set<number>();
 
 export interface TerminalLaunch {
+  /** 任务绑定目录缺失时禁止回退到用户主目录。 */
+  strictCwd?: boolean;
   command: string;
   args: string[];
   env: NodeJS.ProcessEnv;
   /** 完成或关闭时释放设置操作的互斥状态，不持久化终端输出。 */
   onFinish: () => void;
+  /** 任务会话状态来自实际进程退出，不从终端文本猜测。 */
+  onExit?: (exitCode: number) => void;
 }
 
 export function createTerminal(params: CreateTerminalParams, owner: WebContents, launch?: TerminalLaunch): void {
@@ -50,7 +56,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
     name: "xterm-256color",
     cols: normalizeDimension(params.cols),
     rows: normalizeDimension(params.rows),
-    cwd: resolveWorkingDirectory(params.cwd),
+    cwd: resolveWorkingDirectory(params.cwd, launch?.strictCwd),
     env: {
       ...(launch?.env ?? process.env),
       TERM: "xterm-256color",
@@ -60,6 +66,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
   });
 
   const record: TerminalRecord = {
+    replay: "",
     onFinish: launch?.onFinish,
     owner,
     pty,
@@ -75,6 +82,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
       return;
     }
 
+    record.replay = (record.replay + data).slice(-256 * 1024);
     record.pendingOutput += data;
     if (record.pendingOutput.length >= MAX_PENDING_OUTPUT_LENGTH) {
       flushTerminalOutput(params.sessionId, record);
@@ -90,6 +98,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
     terminalRecords.delete(params.sessionId);
     record.isDisposed = true;
     record.onFinish?.();
+    launch?.onExit?.(exitCode);
     if (!owner.isDestroyed()) {
       owner.send(ipcChannels.terminalExit, { sessionId: params.sessionId, exitCode, signal });
     }
@@ -122,10 +131,12 @@ export function destroyTerminal(params: TerminalSessionParams, ownerId?: number)
   }
 
   try {
-    record.pty.kill();
+    try { terminateDescendants(record.pty.pid); } catch { /* 进程查询失败仍必须终止 PTY 本身。 */ }
+    record.pty.kill("SIGKILL");
   } catch {
     // Shell 已经退出时 kill 可能抛错，资源记录已清理，不再向上层传播。
   }
+  if (!record.owner.isDestroyed()) record.owner.send(ipcChannels.terminalExit, { sessionId: params.sessionId, exitCode: 0, signal: 9 });
 }
 
 export function destroyAllTerminals(): void {
@@ -188,7 +199,7 @@ function getOwnedRecord(sessionId: string, ownerId: number): TerminalRecord {
   return record;
 }
 
-function resolveShell(): string {
+export function resolveShell(): string {
   if (process.platform === "win32") {
     return process.env.SHELL || process.env.ComSpec || "powershell.exe";
   }
@@ -201,6 +212,16 @@ function resolveShell(): string {
   return process.platform === "darwin" ? "/bin/zsh" : "/bin/sh";
 }
 
+/** 渲染器重新挂载/刷新只附着已启动的会话，不重新启动 Agent。 */
+export function attachTerminal(params: CreateTerminalParams, ownerId: number) {
+  const record = getOwnedRecord(params.sessionId, ownerId);
+  if (record.flushTimer) clearTimeout(record.flushTimer);
+  record.flushTimer = null;
+  record.pendingOutput = "";
+  if (record.replay) record.owner.send(ipcChannels.terminalData, { sessionId: params.sessionId, data: record.replay });
+  resizeTerminal(params, ownerId);
+}
+
 function resolveShellArgs(shell: string): string[] {
   if (process.platform === "win32") {
     return [];
@@ -210,7 +231,7 @@ function resolveShellArgs(shell: string): string[] {
   return ["bash", "fish", "ksh", "sh", "zsh"].includes(shellName) ? ["-l"] : [];
 }
 
-function resolveWorkingDirectory(candidate?: string): string {
+function resolveWorkingDirectory(candidate?: string, strict = false): string {
   if (candidate && existsSync(candidate)) {
     try {
       if (statSync(candidate).isDirectory()) {
@@ -221,6 +242,7 @@ function resolveWorkingDirectory(candidate?: string): string {
     }
   }
 
+  if (strict) throw new Error("SESSION_DIRECTORY_MISSING");
   return os.homedir();
 }
 

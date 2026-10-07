@@ -11,6 +11,10 @@ import type { TaskAgentSelection } from "../../shared/agentCapabilities";
 import { matchesAgentCapabilities } from "../../utils/taskAgentSelection";
 
 let service: AgentService | null = null;
+export function getAgentService() {
+  if (!service) throw new Error("AGENT_UNAVAILABLE");
+  return service;
+}
 export async function flushAgentSettings() {
   await service?.capabilityCache.stop();
   await service?.repository.flush();

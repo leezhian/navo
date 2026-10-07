@@ -27,6 +27,8 @@ export class GhosttyVtSession {
   }
 
   write(data: string): string {
+    // WASM 的零长度分配返回哨兵指针，不能传入 Uint8Array.set。
+    if (!data) return this.formatHtml();
     const encoded = new TextEncoder().encode(data);
     const dataPointer = this.exports.ghostty_wasm_alloc_u8_array(encoded.length);
     viewBytes(this.exports).set(encoded, dataPointer);

@@ -20,11 +20,13 @@ interface FileTreeProps {
   selectedFileId: string | null;
   /** 按下左侧拖拽热区时触发文件树宽度调整。 */
   onResizeStart: (event: ReactPointerEvent) => void;
+  /** 拖拽期间保持分隔条反馈，与其他面板使用同一视觉规范。 */
+  isResizing: boolean;
   /** 点击文件节点时通知上层切换或定位 diff 文件。 */
   onSelectFile: (file: DiffFile) => void;
 }
 
-export function FileTree({ nodes, projectPath, selectedFileId, onResizeStart, onSelectFile }: FileTreeProps) {
+export function FileTree({ nodes, projectPath, selectedFileId, onResizeStart, isResizing, onSelectFile }: FileTreeProps) {
   const { t: translate } = useTranslation(["common", "review"]);
   const [searchText, setSearchText] = useState("");
   const { collapsedDirectoryIds, toggleDirectory } = useDirectoryCollapse();
@@ -35,7 +37,8 @@ export function FileTree({ nodes, projectPath, selectedFileId, onResizeStart, on
     <aside className="relative grid h-full min-h-0 min-w-0 grid-rows-[48px_1fr] overflow-hidden bg-background">
       <button
         aria-label={translate("review:files.resizeTree")}
-        className="absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize bg-transparent"
+        className="panel-resize-handle absolute inset-y-0 left-0 z-10 w-2 bg-transparent"
+        data-resizing={isResizing}
         type="button"
         onPointerDown={onResizeStart}
       />

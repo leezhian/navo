@@ -4,6 +4,7 @@ export const DIAGNOSTIC_OPERATIONS = [
   "task.load", "task.migrate", "task.create", "task.rename", "task.move", "task.restore", "task.delete",
   "worktree.create", "worktree.rollback", "worktree.delete", "branch.create", "branch.delete",
   "attachment.select", "attachment.copy", "attachment.clear",
+  "session.start", "session.stop",
 ] as const;
 export type DiagnosticOperation = typeof DIAGNOSTIC_OPERATIONS[number];
 export const DIAGNOSTIC_RESULTS = ["started", "succeeded", "failed", "cancelled"] as const;

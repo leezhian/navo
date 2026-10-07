@@ -6,7 +6,7 @@
 
 - 首版支持 Claude Code、Codex、Grok Build、Antigravity，仅使用本机 CLI，复用 CLI 默认账号。
 - 不提供多账号、富聊天模式、ACP 自绘会话、外部会话检测、全局 hooks/MCP 安装或用量查询。
-- 本页负责探测和管理 CLI；创建任务时的 Agent、模型、模式和思考等级选择见[创建任务](../task-create.md)。任务中的会话运行及上下文传递尚未接入，创建任务不自动启动 Agent。
+- 本页负责探测和管理 CLI；创建任务时的 Agent、模型、模式和思考等级选择见[创建任务](../task-create.md)。带配置任务保存后独立启动 CLI；任务会话、上下文交付和原生恢复边界见[任务工作台](../task-workspace.md)。
 
 ## 2. 页面与默认值
 

@@ -37,7 +37,7 @@ export function TaskPages({ visible }: TaskPagesProps) {
     {split && <>
       <div role="separator" tabIndex={0} aria-label={t("workspace:split.resize")} aria-orientation={vertical ? "horizontal" : "vertical"}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}
-        className="task-split-separator" data-orientation={split.orientation} data-centered={isCentered} style={separatorStyle} {...separatorHandlers} />
+        className="task-split-separator panel-resize-handle" data-orientation={split.orientation} data-resize-axis={vertical ? "y" : "x"} data-resizing={resizing} data-centered={isCentered} style={separatorStyle} {...separatorHandlers} />
       {!split.secondTaskId && <div id={`split-picker-${split.id}`} className="task-page-position" style={secondStyle}>
         <SplitPagePicker tasks={workspace.tabs.filter((task) => !findTaskSplit(workspace.splits, task.id))}
           onSelect={(id) => workspace.completeSplit(split.id, id)} onCancel={() => workspace.cancelSplit(split.id)} />

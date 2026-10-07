@@ -5,6 +5,8 @@ import { useTerminalSession } from "./useTerminalSession";
 import type { TerminalSessionStatus } from "./terminalSessionManager";
 
 interface TerminalWorkspaceProps {
+  /** 任务服务已启动会话，不因视图挂载重新创建进程。 */
+  attachOnly?: boolean;
   /** 主进程签发的设置操作凭据，不传时创建普通 Shell。 */
   operationToken?: string;
   /** CLI 操作面板不预留原审查页面的顶部空间。 */
@@ -19,12 +21,13 @@ interface TerminalWorkspaceProps {
   cwd?: string;
 }
 
-export function TerminalWorkspace({ title, sessionId, cwd, operationToken, compact, onStatusChange }: TerminalWorkspaceProps) {
+export function TerminalWorkspace({ title, sessionId, cwd, operationToken, compact, onStatusChange, attachOnly }: TerminalWorkspaceProps) {
   const { t: translate } = useTranslation(["common", "terminal"]);
   const { html, handleKeyDown, handlePaste, paletteStyle, status, terminalRef } = useTerminalSession({
     cwd,
     sessionId,
     operationToken,
+    attachOnly,
   });
   const shouldShowStartingMessage = !html && (status === "starting" || status === "ready");
   useEffect(() => { onStatusChange?.(status); }, [status, onStatusChange]);
