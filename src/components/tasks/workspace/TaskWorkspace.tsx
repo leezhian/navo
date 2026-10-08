@@ -18,6 +18,7 @@ import { ReviewDialog } from "@/components/review/ReviewDialog";
 import { useLocalSettings } from "@/hooks/useLocalSettings";
 import { TaskResourceRail } from "./TaskResourceRail";
 import { TaskContextPanel } from "./TaskContextPanel";
+import { TaskPanelSheet } from "./TaskPanelSheet";
 import { AgentSessionPane } from "./AgentSessionPane";
 import { TaskTerminalDrawer } from "./TaskTerminalDrawer";
 import { NewSessionMenu } from "./NewSessionMenu";
@@ -71,6 +72,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const rootRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const contextTriggerRef = useRef<HTMLButtonElement>(null);
+  const branchTriggerRef = useRef<HTMLButtonElement>(null);
   const [layoutContainer, setLayoutContainer] = useState<HTMLDivElement | null>(null);
   const visibleTerminal = terminalOpen && terminals.length > 0;
   const showAgentPane = agentPaneOpen && (!expanded || !visibleTerminal);
@@ -158,7 +160,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   function runResource(operation: () => Promise<void>) {
     void operation().catch(() => setPreview({ title: t("tasks:runtime.resourceError"), body: t("tasks:runtime.resourceErrorDetail") }));
   }
-  const branchPane = branchResource && visibleBranch ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={() => setBranchOpen(false)} onOpenDiff={showReview} /> : null;
+  const branchPane = branchResource ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={() => setBranchOpen(false)} onOpenDiff={showReview} /> : null;
   return <div ref={rootRef} className="task-workbench" data-narrow={narrow} data-context-open={contextOpen}>
     <header className="task-workbench-heading">
       <IconTooltip ref={contextTriggerRef} label={t("tasks:runtime.context")} aria-expanded={contextOpen} size="icon-sm" onClick={() => { setContextOpen(!contextOpen); if (narrow) setBranchOpen(false); }}>{contextOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</IconTooltip>
@@ -171,7 +173,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
           {multipleTerminalDirectories && !terminals.length ? <NewTerminalMenu {...terminalMenuProps} trigger={terminalButton} /> : terminalButton}
           {multipleTerminalDirectories && <NewTerminalMenu {...terminalMenuProps} trigger={<IconTooltip label={t("tasks:runtime.chooseTerminalDirectory")} size="icon-sm" className="w-4" disabled={pending}><ChevronDown /></IconTooltip>} />}
         </ButtonGroup>
-        {branchResource && <IconTooltip label={t(visibleBranch ? "tasks:branch.hide" : "tasks:branch.show")} aria-expanded={visibleBranch} size="icon-sm" onClick={() => { setBranchOpen(!visibleBranch); setExpanded(false); if (narrow) setContextOpen(false); }}>{visibleBranch ? <PanelRightClose /> : <PanelRightOpen />}</IconTooltip>}
+        {branchResource && <IconTooltip ref={branchTriggerRef} label={t(visibleBranch ? "tasks:branch.hide" : "tasks:branch.show")} aria-expanded={visibleBranch} size="icon-sm" onClick={() => { setBranchOpen(!visibleBranch); setExpanded(false); if (narrow) setContextOpen(false); }}>{visibleBranch ? <PanelRightClose /> : <PanelRightOpen />}</IconTooltip>}
         {onOpenPage && <IconTooltip label={t("tasks:actions.openPage")} size="icon-sm" onClick={onOpenPage}><SquareArrowOutUpRight /></IconTooltip>}
         {onOpenPage && <Button variant="ghost" size="icon-sm" aria-label={t("tasks:details.close")} onClick={onClose}><X /></Button>}
       </div>
@@ -208,7 +210,10 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
           </div>
         </>}
       </div>
-      {visibleBranch && branchOverlay && <><button className="task-context-backdrop" aria-label={t("tasks:branch.close")} onClick={() => setBranchOpen(false)} /><div className="task-branch-overlay">{branchPane}</div></>}
+      {branchResource && branchOverlay && <TaskPanelSheet side="right" open={visibleBranch} onOpenChange={setBranchOpen} width={360} container={layoutContainer} triggerRef={branchTriggerRef}
+        className="task-branch-overlay" title={t("tasks:branch.title")} closeLabel={t("tasks:branch.close")}>
+        {branchPane}
+      </TaskPanelSheet>}
     </div>
     <Dialog open={preview !== null} onOpenChange={(open) => { if (!open) setPreview(null); }}><DialogContent aria-describedby={undefined} className="sm:max-w-lg">
       <DialogTitle>{preview?.title}</DialogTitle><p className="whitespace-pre-wrap break-words text-sm leading-6">{preview?.body}</p>

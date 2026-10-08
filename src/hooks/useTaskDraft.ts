@@ -63,7 +63,7 @@ export function useTaskDraft(settings: AppSettings) {
       const task = await useTaskStore.getState().create({
         requestId: requestId.current, description,
         ...(agent ? { agent } : {}),
-        resources: resources.map(({ resourceId, mode, sourceBranch, targetBranch }) => ({ resourceId, mode, sourceBranch, targetBranch })),
+        resources: resources.map(({ resourceId, mode, sourceBranch, targetBranch, useExistingBranch }) => ({ resourceId, mode, sourceBranch, targetBranch, ...(useExistingBranch ? { useExistingBranch } : {}) })),
         links, webLinks, attachmentIds: attachments.map((file) => file.id),
       });
       reset();

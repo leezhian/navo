@@ -78,12 +78,12 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
             {draft.resources.length === 0
               ? <Button ref={resourceTriggerRef} variant="ghost" className="h-8 text-xs" aria-label={t("taskCreate:resources.add")} disabled={disabled} onClick={() => setResourcePicker(true)}><Plus className="size-3.5" />{t("taskCreate:resources.add")}</Button>
               : <div className="max-h-64 space-y-1 overflow-auto overscroll-contain p-0.5">
-                {draft.resources.map((resource, index) => <div key={resource.resourceId} className="flex w-max items-center gap-2">
+                {draft.resources.map((resource, index) => <div key={resource.draftId} className="flex w-max items-center gap-2">
                   <TaskResourceRow value={resource} disabled={disabled}
-                    excludedIds={draft.resources.filter((item) => item.resourceId !== resource.resourceId).map((item) => item.resourceId)}
-                    onChange={(next) => draft.setResources((current) => current.map((item) => item.resourceId === resource.resourceId ? next : item))}
-                    onReplace={(id) => draft.addResources([id], resource.resourceId)}
-                    onRemove={() => draft.setResources((current) => current.filter((item) => item.resourceId !== resource.resourceId))} />
+                    excludedIds={draft.resources.filter((item) => item.mode === "folder" && item.draftId !== resource.draftId).map((item) => item.resourceId)}
+                    onChange={(next) => draft.setResources((current) => current.map((item) => item.draftId === resource.draftId ? next : item))}
+                    onReplace={(id) => draft.addResources([id], resource.draftId)}
+                    onRemove={() => draft.setResources((current) => current.filter((item) => item.draftId !== resource.draftId))} />
                   {index === draft.resources.length - 1 && <IconTooltip ref={resourceTriggerRef} label={t("taskCreate:resources.add")} disabled={disabled} variant="secondary" size="icon" onClick={() => setResourcePicker(true)}><Plus className="size-3.5" /></IconTooltip>}
                 </div>)}
               </div>}
@@ -97,7 +97,7 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
         {resourcePicker && <TaskResourcePicker repositoriesDirectory={settings.repositoriesDirectory}
           defaultTaskMode={settings.defaultTaskMode}
           onReturnFocus={() => resourceTriggerRef.current?.focus()}
-          excludedIds={draft.resources.map((resource) => resource.resourceId)}
+          excludedIds={draft.resources.filter((resource) => resource.mode === "folder").map((resource) => resource.resourceId)} addedResources={draft.resources}
           onClose={() => setResourcePicker(false)} onConfirm={draft.addSelectedResources} />}
         {webLinkDialog && <TaskWebLinkDialog onReturnFocus={() => attachmentTriggerRef.current?.focus()}
           onClose={() => setWebLinkDialog(false)} onConfirm={(link) => {

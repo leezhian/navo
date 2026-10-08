@@ -44,6 +44,8 @@
     "description": "可以添加文档、规范、工单等任意网页链接。填写标题作为条目名称，留空则显示链接。"
   },
   "resources": {
+    "repoAdded": "仓库已添加",
+    "branchAdded": "仓库和分支已添加",
     "title": "工作目录",
     "add": "添加仓库或文件夹",
     "replace": "切换工作目录",
@@ -73,6 +75,10 @@
     }
   },
   "branches": {
+    "useExisting": "使用此分支",
+    "newFrom": "从此分支新建",
+    "actions": "分支选项：{{branch}}",
+    "existingLabel": "使用 {{branch}}",
     "selectSource": "选择源分支",
     "source": "源分支",
     "searchPlaceholder": "搜索分支…",

@@ -8,10 +8,14 @@ import { useResourceStore } from "@/stores/resourceStore";
 import type { useTaskResourceSelection } from "@/hooks/useTaskResourceSelection";
 import { getTaskError } from "@/services/taskErrors";
 import { TaskResourcePickerRow } from "./TaskResourcePickerRow";
+import { taskResourceNotice } from "@/utils/taskResourceNotice";
+import type { AddedTaskResource } from "@/utils/taskResourceNotice";
 
 interface TaskResourcePickerContentProps {
   /** 创建草稿及已有任务均排除已关联资源。 */
   excludedIds: string[];
+  /** 提示已关联仓库/分支，不阻止创建同仓库的其他工作区。 */
+  addedResources?: AddedTaskResource[];
   repositoriesDirectory: string;
   /** 由宿主持有选中及分支配置，切换分类时保留。 */
   selection: ReturnType<typeof useTaskResourceSelection>;
@@ -21,7 +25,7 @@ interface TaskResourcePickerContentProps {
   onAddingChange: (adding: boolean) => void;
 }
 
-export function TaskResourcePickerContent({ excludedIds, repositoriesDirectory, selection, disabled, adding, onAddingChange }: TaskResourcePickerContentProps) {
+export function TaskResourcePickerContent({ excludedIds, addedResources = [], repositoriesDirectory, selection, disabled, adding, onAddingChange }: TaskResourcePickerContentProps) {
   const { t } = useTranslation(["taskCreate", "settings", "common"]);
   const resources = useResourceStore();
   const [keyword, setKeyword] = useState("");
@@ -35,6 +39,7 @@ export function TaskResourcePickerContent({ excludedIds, repositoriesDirectory, 
       {visible.map((record) => {
         const selected = selection.selections.find((item) => item.resourceId === record.id);
         return <TaskResourcePickerRow key={record.id} record={record} selected={Boolean(selected)} draft={selected?.draft}
+          notice={record.kind === "repo" || selected?.draft?.info.git ? taskResourceNotice(record.id, selected?.draft, addedResources) : undefined}
           disabled={disabled || !record.available || excludedIds.includes(record.id)} onSelect={(checked) => selection.select(record.id, checked)} onChange={selection.update} />;
       })}
       {resources.loaded && resources.error === null && !visible.length && <p className="p-4 text-xs text-muted-foreground">{t("settings:resources.empty")}</p>}

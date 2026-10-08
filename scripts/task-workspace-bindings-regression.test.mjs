@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, mkdir, writeFile, readFile, access, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, realpath, access, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -80,14 +80,14 @@ test("追加当前分支、原仓库新分支和普通文件夹，保留原关�
   assert.equal(updated.resources[2].mode, "folder");assert.equal(updated.resources[2].workingPath, folder.localPath);
 });
 
-test("重复目录、别名、非法输入、脏仓库及归档任务在产生副作用前拒绝", async (context) => {
+test("重复原目录和别名去重，非法输入、脏仓库及归档任务在产生副作用前拒绝", async (context) => {
   const { service, task, registry, resource, input } = await fixture(context);
   const repo = await resource("repo");const added = await input(repo, "current-branch");
   await service.addResources(task.id, payload([added]), 1);
-  await assert.rejects(service.addResources(task.id, payload([added]), 1), /TASK_DUPLICATE_RESOURCE/);
+  assert.equal((await service.addResources(task.id, payload([added]), 1)).resources.length, 1);
   const subdirectory = path.join(repo.localPath, "sub");await mkdir(subdirectory);
   const alias = await registry.save({ kind: "folder", name: "alias", localPath: subdirectory });
-  await assert.rejects(service.addResources(task.id, payload([await input(alias)]), 1), /TASK_DUPLICATE_RESOURCE/);
+  assert.equal((await service.addResources(task.id, payload([await input(alias, "current-branch")]), 1)).resources.length, 1);
   await assert.rejects(service.addResources(task.id, payload([]), 1), /TASK_INVALID/);
   await assert.rejects(service.addResources(task.id, { ...payload([added]), notes: [{ id: randomUUID(), title: "mixed", content: "not allowed" }] }, 1), /TASK_INVALID/);
   await assert.rejects(service.addResources(task.id, payload([{ ...added, resourceId: "unknown" }]), 1), /RESOURCE_NOT_FOUND/);
@@ -133,4 +133,93 @@ test("重启回滚未完成的追加操作，不碰任务原有 Worktree", async
   const result = await restarted.load();
   assert.equal(result.recoveryWarnings.length, 0);assert.deepEqual(result.tasks[0].resources, existing.resources);
   await access(existing.resources[0].workingPath);await assert.rejects(access(manifest.steps[0].resource.workingPath));
+});
+
+test("同一 Repo 可追加多个独立 Worktree，复用同一个工作区时去重且会话绑定稳定", async (context) => {
+  const { service, settings, task, resource, input } = await fixture(context);
+  const repo = await resource("repo");
+  const first = await service.addResources(task.id, payload([await input(repo)]), 1);
+  const second = await service.addResources(task.id, payload([await input(repo)]), 1);
+  assert.equal(second.resources.length, 2);
+  assert.equal(new Set(second.resources.map(item => item.resourceId)).size, 2);
+  assert.equal(new Set(second.resources.map(item => item.workingPath)).size, 2);
+  assert.equal(new Set(second.resources.map(item => item.targetBranch)).size, 2);
+  assert.ok(second.resources.every(item => item.repositoryId === repo.id));
+  assert.deepEqual(second.resources[0], first.resources[0]);
+  const reuse = { ...await input(repo), sourceBranch: "refs/heads/" + first.resources[0].targetBranch, useExistingBranch: true };
+  const repeated = await service.addResources(task.id, payload([reuse]), 1);
+  assert.deepEqual(repeated.resources, second.resources);
+  const { prepareTaskContext } = load("src/main-process/services/taskSessions/taskContext.ts");
+  const { TaskBranchService } = load("src/main-process/services/taskBranchService.ts");
+  const branches = new TaskBranchService(() => service.repository.load());
+  for (const workspace of repeated.resources) {
+    assert.equal((await prepareTaskContext(repeated, settings.tasksDirectory, workspace.resourceId)).cwd, await realpath(workspace.workingPath));
+    assert.equal((await branches.load(task.id, workspace.resourceId)).branchName, workspace.targetBranch);
+  }
+  const preview = await service.inspectDeletion(task.id, { deleteWorktrees: true, deleteBranches: true }, 1);
+  assert.equal(new Set(preview.items.map(item => item.resourceId)).size, 2);
+  assert.ok(preview.items.every(item => item.worktreeAction === "delete" && item.branchAction === "delete"));
+  await service.remove(task.id, { token: preview.token }, 1);
+  for (const workspace of repeated.resources) await assert.rejects(access(workspace.workingPath));
+});
+
+test("创建阶段同仓库多份隔离目录也拥有独立标识，不按 Repo 去重", async (context) => {
+  const { service, resource, input } = await fixture(context);
+  const repo = await resource("repo");const configuration = await input(repo);
+  const created = await service.create({ requestId: randomUUID(), description: "Parallel work", resources: [configuration, configuration], links: [], attachmentIds: [] }, 1);
+  assert.equal(created.resources.length, 2);
+  assert.notEqual(created.resources[0].resourceId, created.resources[1].resourceId);
+  assert.notEqual(created.resources[0].targetBranch, created.resources[1].targetBranch);
+});
+
+test("已有分支创建 Worktree 不认领分支；复用外部 Worktree 不认领目录", async (context) => {
+  const { directory, service, task, resource, input } = await fixture(context);
+  const repo = await resource("repo");await git(repo.localPath, "branch", "review-existing");
+  const request = payload([{ ...await input(repo), useExistingBranch: true, sourceBranch: "refs/heads/review-existing" }]);
+  const created = await service.addResources(task.id, request, 1);
+  assert.equal(created.resources[0].targetBranch, "review-existing");
+  assert.equal(created.resources[0].ownership.branchCreated, false);
+  const externalPath = path.join(directory, "external");
+  await git(repo.localPath, "worktree", "add", "-b", "external-branch", externalPath);
+  await writeFile(path.join(externalPath, "user.txt"), "must survive");
+  const externalInput = { ...await input(repo), useExistingBranch: true, sourceBranch: "refs/heads/external-branch" };
+  const updated = await service.addResources(task.id, payload([externalInput]), 1);
+  assert.equal(updated.resources.length, 2);assert.equal(updated.resources[1].workingPath, await realpath(externalPath));
+  assert.equal(updated.resources[1].ownership, undefined);
+  assert.equal((await service.addResources(task.id, payload([externalInput]), 1)).resources.length, 2);
+  const preview = await service.inspectDeletion(task.id, { deleteWorktrees: true, deleteBranches: true }, 1);
+  assert.equal(preview.items[0].worktreeAction, "delete");assert.equal(preview.items[0].branchAction, "keep");
+  assert.equal(preview.items[0].branchReason, "existing");assert.equal(preview.items[1].worktreeAction, "keep");
+  await service.remove(task.id, { token: preview.token }, 1);
+  assert.equal(await readFile(path.join(externalPath, "user.txt"), "utf8"), "must survive");
+  await git(repo.localPath, "rev-parse", "--verify", "refs/heads/review-existing");
+});
+
+test("复用分支失败回滚时保留原有分支和外部目录", async (context) => {
+  const { service, task, resource, input } = await fixture(context);
+  const repo = await resource("repo");await git(repo.localPath, "branch", "existing");
+  const append = TaskResourceRepository.prototype.appendWorkspaces;
+  let workingPath;
+  try {
+    TaskResourceRepository.prototype.appendWorkspaces = async (_taskId, _requestId, resources) => { workingPath = resources[0].workingPath;throw Error("DB_FAILED"); };
+    await assert.rejects(service.addResources(task.id, payload([{ ...await input(repo), useExistingBranch: true, sourceBranch: "refs/heads/existing" }]), 1), /DB_FAILED/);
+    await assert.rejects(access(workingPath));await git(repo.localPath, "rev-parse", "--verify", "refs/heads/existing");
+    await assert.rejects(service.addResources(task.id, payload([{ ...await input(repo, "new-branch"), useExistingBranch: true, sourceBranch: "refs/heads/existing" }]), 1), /DB_FAILED/);
+    assert.equal(await git(repo.localPath, "branch", "--show-current"), "main");
+    await git(repo.localPath, "rev-parse", "--verify", "refs/heads/existing");
+    assert.deepEqual(await service.repository.operations(), []);
+  } finally { TaskResourceRepository.prototype.appendWorkspaces = append; }
+});
+
+test("远程跟踪分支可使用本地引用准备工作区，再次选择时复用而不联网", async (context) => {
+  const { service, task, resource, input } = await fixture(context);
+  const repo = await resource("repo");
+  await git(repo.localPath, "remote", "add", "origin", "https://example.invalid/not-used.git");
+  await git(repo.localPath, "update-ref", "refs/remotes/origin/review", "HEAD");
+  const configuration = { ...await input(repo), useExistingBranch: true, sourceBranch: "refs/remotes/origin/review" };
+  const created = await service.addResources(task.id, payload([configuration, configuration]), 1);
+  assert.equal(created.resources.length, 1);
+  assert.equal(created.resources[0].targetBranch, "review");
+  const repeated = await service.addResources(task.id, payload([configuration]), 1);
+  assert.deepEqual(repeated.resources, created.resources);
 });

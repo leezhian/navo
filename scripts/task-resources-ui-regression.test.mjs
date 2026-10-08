@@ -78,7 +78,7 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           document.querySelector('button[aria-label="添加 CHANGES"]').click();await wait(()=>category()==='repositories','CHANGES plus must open repository picker');
           await wait(()=>dialog().querySelector('[data-resource-id="backend"]'),'Shared repository list missing');
           const directoryRow=id=>dialog()?.querySelector('[data-resource-id="'+id+'"]');
-          if(!directoryRow('repo').querySelector('[role="checkbox"]').disabled)throw Error('Already linked directory must be excluded');
+          if(directoryRow('repo').querySelector('[role="checkbox"]').disabled||!directoryRow('repo').textContent.includes('仓库已添加'))throw Error('Already linked repository should show a notice, not be disabled');
           directoryRow('backend').querySelector('[role="checkbox"]').click();await wait(()=>directoryRow('backend').querySelector('[aria-label="源分支"]'),'Selected directory controls missing');
           if(dialog().querySelector('[aria-label="目标分支"]'))throw Error('Task resource picker must not include target branch input');
           button('链接').click();await wait(()=>category()==='links','Switch category failed');button('仓库与文件夹').click();await wait(()=>category()==='repositories','Switch back failed');
@@ -86,7 +86,8 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           window.failSave=true;button('添加到任务').click();await wait(()=>dialog().querySelector('[role="alert"]'),'Directory save failure must be visible');
           if(directoryRow('backend').querySelector('[role="checkbox"]').getAttribute('aria-checked')!=='true')throw Error('Failed add lost selected directory');
           window.failSave=false;await wait(()=>!button('添加并继续').disabled,'Directory retry must be enabled');button('添加并继续').click();
-          await wait(()=>directoryRow('backend').querySelector('[role="checkbox"]').disabled,'Added directory must be disabled after success');
+          await wait(()=>directoryRow('backend').textContent.includes('仓库已添加'),'Added repository should show an existing-binding notice');
+          if(directoryRow('backend').querySelector('[role="checkbox"]').disabled)throw Error('Added repository must remain selectable for another worktree');
           await wait(()=>[...document.querySelectorAll('.task-context-change')].some(row=>row.textContent.includes('backend')),'CHANGES did not refresh');
           const directoryCalls=window.submissions.filter(item=>item.input.resources);
           if(directoryCalls.length!==2||directoryCalls[0].input.requestId!==directoryCalls[1].input.requestId||directoryCalls[1].input.resources[0].mode!=='worktree'||directoryCalls[1].input.resources[0].targetBranch!=='')throw Error('Directory retry/configuration payload incorrect');

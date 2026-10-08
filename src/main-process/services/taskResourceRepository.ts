@@ -31,9 +31,13 @@ export class TaskResourceRepository {
       if (database.prepare("SELECT 1 FROM task_resource_batches WHERE namespace=? AND task_id=? AND request_id=?").get(namespace, taskId, requestId)) throw new Error("TASK_RESOURCE_CHANGED");
       let position = Number(database.prepare("SELECT COALESCE(MAX(position),-1)+1 AS next FROM task_resources WHERE namespace=? AND task_id=?").get(namespace, taskId)?.next);
       const firstResource = position === 0;
+      const stored = database.prepare("SELECT position,data FROM task_resources WHERE namespace=? AND task_id=?").all(namespace, taskId)
+        .map((row) => ({ position: Number(row.position), resource: JSON.parse(String(row.data)) as TaskResource }));
       for (const resource of resources) {
-        database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(namespace, taskId, position++, JSON.stringify(resource));
-        if (resource.mode === "worktree") database.prepare("INSERT INTO managed_workspaces VALUES (?,?,?,?,?)")
+        const current = stored.find((row) => row.resource.resourceId === resource.resourceId);
+        if (current) database.prepare("UPDATE task_resources SET data=? WHERE namespace=? AND task_id=? AND position=?").run(JSON.stringify(resource), namespace, taskId, current.position);
+        else database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(namespace, taskId, position++, JSON.stringify(resource));
+        if (resource.mode === "worktree" && resource.ownership) database.prepare("INSERT OR IGNORE INTO managed_workspaces VALUES (?,?,?,?,?)")
           .run(namespace, taskId, resource.workingPath, resource.targetBranch, resource.originalPath);
       }
       if (firstResource) database.prepare("UPDATE tasks SET project_name=? WHERE namespace=? AND id=?").run(resources[0].name, namespace, taskId);

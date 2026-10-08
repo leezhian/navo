@@ -31,7 +31,7 @@ export interface TaskSession {
 export interface StartTaskSessionInput {
   taskId: string;
   kind: "agent" | "shell";
-  /** 只允许任务已关联的资源；省略时单目录自动选择，null 明确使用任务目录及全部资源。 */
+  /** 任务内工作区 ID，不是全局仓库 ID；省略时单目录自动选择，null 使用全部资源。 */
   resourceId?: string | null;
   agent?: TaskAgentSelection;
   /** 快捷新建仅提交 Agent 标识，默认配置由主进程从真实能力缓存解析。 */

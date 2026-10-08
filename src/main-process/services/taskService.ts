@@ -22,6 +22,7 @@ import type { AddTaskResourcesInput } from "../../shared/taskResourceTypes";
 import { TaskResourceBindings } from "./taskResourceBindings";
 import { TaskWorkspaceBindings } from "./taskWorkspaceBindings";
 import { isTaskResourceInput } from "../../utils/taskResourceInput";
+import { assignWorkspaceIdentities } from "./taskWorkspaceIdentity";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
@@ -120,8 +121,6 @@ export class TaskService {
         const settings = this.getSettings();
         const selectedFiles = await this.files.prepare(ownerId, input.attachmentIds);
         const infos = await Promise.all(input.resources.map((resource) => this.inspectResource(resource.resourceId)));
-        const roots = infos.map((info) => info.git?.root ?? info.path);
-        if (new Set(roots).size !== roots.length) throw new Error("TASK_DUPLICATE_RESOURCE");
         const manifest: TaskCreationManifest = {
           workspaceDirectory: path.join(resolveResourcePath(settings.worktreesDirectory), input.requestId),
           workspaceDirectoryOwned: false, attachmentDirectory: this.attachmentDirectory(input.requestId),
@@ -130,6 +129,7 @@ export class TaskService {
         for (let index = 0; index < infos.length; index += 1) {
           manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, index + 1));
         }
+        manifest.steps = await assignWorkspaceIdentities(manifest.steps, []);
         const persist = () => this.repository.recordOperation(input.requestId, "pending", manifest);
         await persist();
         try {
@@ -240,7 +240,6 @@ function validateCreateInput(value: CreateTaskInput) {
     || (value.webLinks !== undefined && (!Array.isArray(value.webLinks) || !value.webLinks.every(isTaskWebLink)
       || new Set(value.webLinks.map((item) => item.id)).size !== value.webLinks.length))
     || !Array.isArray(value.attachmentIds) || !value.attachmentIds.every((id) => typeof id === "string" && REQUEST_ID.test(id))
-    || new Set(value.resources.map((item) => item.resourceId)).size !== value.resources.length
     || new Set(value.links.map((item) => item.id)).size !== value.links.length
     || new Set(value.attachmentIds).size !== value.attachmentIds.length) throw new Error("TASK_INVALID");
 }

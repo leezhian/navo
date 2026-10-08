@@ -49,7 +49,7 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
         await win.webContents.executeJavaScript(\`(async()=>{
           const wait=async(check,message)=>{for(let attempt=0;attempt<350;attempt++){if(check())return;await new Promise(resolve=>setTimeout(resolve,30));}throw Error(message);};
           const button=label=>document.querySelector('button[aria-label="'+label+'"]');
-          const pane=()=>document.querySelector('.task-branch-pane');const dialog=()=>document.querySelector('[role="dialog"]');
+          const pane=()=>document.querySelector('.task-branch-pane');const dialog=()=>document.querySelector('[data-slot="dialog-content"]');
           await wait(()=>pane()?.textContent.includes('live-repo-a'),'Real branch snapshot missing');
           const heading=document.querySelector('.task-workbench-heading');
           if(!button('收起分支栏')?.querySelector('.lucide-panel-right-close')||button('显示分支栏'))throw Error('Visible branch pane must show the hide action and closing-direction icon');
@@ -83,6 +83,26 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           window.resizeBranchFixture(360);await wait(()=>document.querySelector('.task-workbench').dataset.narrow==='true','Narrow layout not applied');
           button('显示分支栏').click();await wait(()=>document.querySelector('.task-branch-overlay'),'Narrow branch must use an overlay');
           const workspace=document.querySelector('.task-workbench');if(workspace.scrollWidth>workspace.clientWidth+2)throw Error('Branch pane overflows narrow task details');
+          const branchSheet=()=>document.querySelector('.task-branch-overlay[data-slot="sheet-content"][data-side="right"]');
+          const escape=()=>document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',bubbles:true,cancelable:true}));
+          await wait(()=>branchSheet()?.dataset.state==='open','Branch overlay must use the shared Sheet');
+          await new Promise(resolve=>setTimeout(resolve,250));
+          const layout=document.querySelector('.task-workbench-layout');
+          const panelBounds=branchSheet().getBoundingClientRect(),layoutBounds=layout.getBoundingClientRect(),backdropBounds=document.querySelector('.task-context-backdrop').getBoundingClientRect();
+          if(branchSheet().parentElement!==layout||Math.abs(panelBounds.right-layoutBounds.right)>1||Math.abs(panelBounds.top-layoutBounds.top)>1||getComputedStyle(branchSheet()).borderRadius!=='14px')throw Error('Branch Sheet must align to the right edge of its task');
+          if(Math.abs(backdropBounds.width-layoutBounds.width)>1||Math.abs(backdropBounds.left-layoutBounds.left)>1||getComputedStyle(document.body).pointerEvents==='none')throw Error('Branch backdrop must stay local and not lock other tasks');
+          branchSheet().querySelector('input').focus();escape();await wait(()=>!branchSheet(),'Escape must close branch Sheet');
+          await wait(()=>document.activeElement===button('显示分支栏'),'Escape must return focus to branch trigger');
+          button('显示分支栏').click();await wait(()=>branchSheet()?.dataset.state==='open','Branch Sheet reopen failed');
+          document.querySelector('.task-context-backdrop').focus();document.querySelector('.task-context-backdrop').click();await wait(()=>!branchSheet(),'Backdrop must close branch Sheet');
+          await wait(()=>document.activeElement===button('显示分支栏'),'Backdrop close must return focus to branch trigger');
+          button('显示分支栏').click();await wait(()=>branchSheet()&&!button('打开完整 Diff').disabled,'Branch Diff action missing');
+          button('打开完整 Diff').click();await wait(()=>dialog(),'Nested full Diff missing');
+          dialog().querySelector('button[aria-label="关闭"]').focus();escape();await wait(()=>!dialog(),'Escape must close nested Diff');
+          if(branchSheet()?.dataset.state!=='open')throw Error('Closing full Diff must not close its branch Sheet');
+          button('任务上下文').click();await wait(()=>!branchSheet()&&document.querySelector('.task-context-sheet[data-state="open"]'),'Context and branch Sheets must switch exclusively');
+          document.querySelector('.task-context-change button[title="/fixture/repo-b"]').click();await wait(()=>branchSheet()?.dataset.state==='open'&&!document.querySelector('.task-context-sheet'),'Repository click must switch back to the right Sheet');
+          await wait(()=>branchSheet().contains(document.activeElement),'Closing context must not steal branch Sheet focus');
           button('关闭分支栏').click();await wait(()=>!pane(),'Overlay close failed');
           await window.setBranchLocale('en');await wait(()=>button('Show branch pane'),'Hidden branch tooltip must support English');
           button('Show branch pane').click();await wait(()=>pane()&&button('Hide branch pane')?.querySelector('.lucide-panel-right-close'),'Visible branch tooltip must switch to English hide action');

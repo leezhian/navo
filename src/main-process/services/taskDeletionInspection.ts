@@ -68,7 +68,9 @@ export async function inspectDeletionItem(task: Task, resource: TaskResource, op
     const worktrees = await worktreeList(resource.originalPath);
     const exists = await pathExists(resource.workingPath);
     oid = await branchOid(resource.originalPath, resource.targetBranch);
-    evidence = { common, worktrees, oid };
+    // 同仓库的其他工作区可能刚由本批次清理，仅将当前目录及占用同一分支的工作区纳入确认指纹。
+    const relevantWorktrees = worktrees.filter((worktree) => worktree.path === ownership.path || worktree.path === resource.workingPath || worktree.branch === "refs/heads/" + resource.targetBranch);
+    evidence = { common, worktrees: relevantWorktrees, oid };
     if (exists) {
       if (progress?.worktree === "removed" || progress?.branch) { item.worktreeReason = "changed"; return result(); }
       const directory = await directoryIdentity(resource.workingPath);
@@ -98,6 +100,7 @@ export async function inspectDeletionItem(task: Task, resource: TaskResource, op
       if (oid !== progress.branchOid) { item.branchReason = "changed"; return result(); }
     } else { item.worktreeReason = "missing"; return result(); }
     if (!options.deleteBranches) return result();
+    if (ownership.branchCreated === false) { item.branchReason = "existing"; return result(); }
     if (!oid) { item.branchReason = "missing"; return result(); }
     remoteRefs = await deletionGit(resource.originalPath, ["for-each-ref", "--format=%(refname) %(objectname) %(symref)", "refs/remotes"]);
     const defaultBranches = remoteRefs.split("\n").filter((line) => /refs\/remotes\/[^ ]+\/HEAD /.test(line)).map((line) => line.trim().split(" ").slice(-1)[0]?.replace(/^refs\/remotes\/[^/]+\//, ""));

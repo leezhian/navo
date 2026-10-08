@@ -67,7 +67,7 @@ export class TaskRepository {
       if (task.agent) database.prepare("INSERT INTO task_agents VALUES (?,?,?)").run(this.namespace, task.id, JSON.stringify(task.agent));
       task.resources?.forEach((resource, position) => {
         database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(this.namespace, task.id, position, JSON.stringify(resource));
-        if (resource.mode === "worktree") database.prepare("INSERT INTO managed_workspaces VALUES (?,?,?,?,?)")
+        if (resource.mode === "worktree" && resource.ownership) database.prepare("INSERT INTO managed_workspaces VALUES (?,?,?,?,?)")
           .run(this.namespace, task.id, resource.workingPath, resource.targetBranch, resource.originalPath);
       });
       for (const link of task.links ?? []) database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run(this.namespace, task.id, link.id, JSON.stringify(link));

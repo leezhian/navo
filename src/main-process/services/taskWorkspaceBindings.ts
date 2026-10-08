@@ -6,7 +6,7 @@ import { isTaskResourceInput } from "../../utils/taskResourceInput";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { TaskRepository } from "./taskRepository";
 import { TaskResourceRepository } from "./taskResourceRepository";
-import { inspectTaskResource } from "./taskGit";
+import { assignWorkspaceIdentities, mergeTaskWorkspaces } from "./taskWorkspaceIdentity";
 import { resolveResourcePath } from "./resourcePaths";
 import { createWorkspace, createWorkspaceDirectory, prepareWorkspace, rollbackWorkspaces } from "./taskWorkspaces";
 import type { TaskCreationManifest } from "./taskWorkspaces";
@@ -24,7 +24,6 @@ export class TaskWorkspaceBindings {
     if (typeof taskId !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(taskId)
       || !input || typeof input.requestId !== "string" || !UUID.test(input.requestId)
       || !Array.isArray(input.resources) || !input.resources.length || input.resources.length > 100 || !input.resources.every(isTaskResourceInput)
-      || new Set(input.resources.map((resource) => resource.resourceId)).size !== input.resources.length
       || [input.links, input.webLinks, input.notes, input.fileIds].some((items) => !Array.isArray(items) || items.length)) throw new Error("TASK_INVALID");
     const tasks = await this.tasks.load() ?? [];
     const task = tasks.find((item) => item.id === taskId);
@@ -34,13 +33,7 @@ export class TaskWorkspaceBindings {
     if (tasks.some((item) => item.id === input.requestId)) throw new Error("TASK_INVALID");
     if ((await this.tasks.operations()).some((operation) => operation.id === input.requestId)) throw new Error("TASK_CREATE_RETAINED");
     const existing = task.resources ?? [];
-    if (input.resources.some((resource) => existing.some((item) => item.resourceId === resource.resourceId))) throw new Error("TASK_DUPLICATE_RESOURCE");
     const infos = await Promise.all(input.resources.map((resource) => this.inspect(resource.resourceId)));
-    const existingInfos = await Promise.all(existing.map((resource) => inspectTaskResource({
-      id: resource.resourceId, name: resource.name, kind: resource.mode === "folder" ? "folder" : "repo", localPath: resource.originalPath, available: true,
-    })));
-    const roots = [...existingInfos, ...infos].map((info) => info.git?.root ?? info.path);
-    if (new Set(roots).size !== roots.length) throw new Error("TASK_DUPLICATE_RESOURCE");
     const settings = this.getSettings();
     const manifest: TaskCreationManifest = {
       workspaceDirectory: path.join(resolveResourcePath(settings.worktreesDirectory), taskId, input.requestId),
@@ -49,6 +42,7 @@ export class TaskWorkspaceBindings {
     for (let index = 0; index < infos.length; index += 1) {
       manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, existing.length + index + 1));
     }
+    manifest.steps = await assignWorkspaceIdentities(manifest.steps, existing);
     const persist = () => this.tasks.recordOperation(input.requestId, "pending", manifest);
     await persist();
     try {
@@ -69,6 +63,6 @@ export class TaskWorkspaceBindings {
       await this.tasks.clearOperation(input.requestId);
       throw error;
     }
-    return { ...task, projectName: existing.length ? task.projectName : infos[0].name, resources: [...existing, ...manifest.steps.map((step) => step.resource)] };
+    return { ...task, projectName: existing.length ? task.projectName : manifest.steps[0].resource.name, resources: mergeTaskWorkspaces(existing, manifest.steps.map((step) => step.resource)) };
   }
 }

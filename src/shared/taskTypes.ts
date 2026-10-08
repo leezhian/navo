@@ -19,23 +19,30 @@ export interface TaskResourceInfo {
   name: string;
   path: string;
   /** 普通目录为 null；不根据资源记录的 kind 猜测 Git 能力。 */
-  git: { root: string; branches: BranchOption[]; currentBranch: string; defaultSource: string } | null;
+  git: { root: string; branches: BranchOption[]; currentBranch: string; defaultSource: string; worktrees?: { path: string; branch: string; isMain: boolean }[] } | null;
 }
 
 export interface TaskResourceInput {
+  /** 全局仓库或文件夹 ID，不是任务内工作区 ID。 */
   resourceId: string;
   mode: TaskExecutionMode;
   sourceBranch: string;
   /** 空字符串表示使用设置前缀生成 8 位随机短名。 */
   targetBranch: string;
+  /** 使用所选已有分支，而不是从源分支创建新分支。 */
+  useExistingBranch?: boolean;
 }
 
-export interface TaskResource extends TaskResourceInput {
+export interface TaskResource extends Omit<TaskResourceInput, "resourceId"> {
+  /** 任务内工作区的稳定 ID；首个绑定可沿用全局 ID，其他工作区使用独立 ID。 */
+  resourceId: string;
+  /** 全局仓库或文件夹 ID。旧数据未提供时与 resourceId 相同。 */
+  repositoryId?: string;
   name: string;
   originalPath: string;
   workingPath: string;
   /** 创建成功时记录的文件系统身份；旧记录缺失时不推断可删除归属。 */
-  ownership?: { path: string; directoryId: string; gitDirectory: string; commonDirectory: string; commonDirectoryId: string };
+  ownership?: { path: string; directoryId: string; gitDirectory: string; commonDirectory: string; commonDirectoryId: string; branchCreated?: boolean };
 }
 
 export interface TaskAttachment {

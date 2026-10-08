@@ -44,6 +44,8 @@
     "description": "Any url - docs, a spec, a ticket. Add a title to label the row, or leave it and the url shows."
   },
   "resources": {
+    "repoAdded": "Repo already added",
+    "branchAdded": "Repo and Branch already added",
     "title": "Working directories",
     "add": "Add repo or folder",
     "replace": "Switch working directory",
@@ -73,6 +75,10 @@
     }
   },
   "branches": {
+    "useExisting": "Use this branch",
+    "newFrom": "New branch from here",
+    "actions": "Branch options: {{branch}}",
+    "existingLabel": "Use {{branch}}",
     "selectSource": "Choose base branch",
     "source": "Base branch",
     "searchPlaceholder": "Search branches…",

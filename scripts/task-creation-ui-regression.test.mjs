@@ -76,7 +76,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
         const record = records.find(record => record.id === id);
         const branch = id === 'repo-b' ? 'develop' : 'main';
         return { resourceId: id, name: record.name, path: record.localPath, git: id.startsWith('repo-') ? {
-          root: record.localPath, currentBranch: branch, defaultSource: 'refs/remotes/origin/' + branch,
+          root: record.localPath, currentBranch: branch, defaultSource: 'refs/remotes/origin/' + branch, worktrees: [{path:record.localPath,branch,isMain:true}],
           branches: [{ ref: 'refs/remotes/origin/' + branch, name: 'origin/' + branch, kind: 'remote' }, { ref: 'refs/heads/' + branch, name: branch, kind: 'local' }],
         } : null };
       };
@@ -572,6 +572,13 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await pickerSource('使用当前分支');
             if (!pickerWorktree().disabled || pickerWorktree().getAttribute('aria-checked') !== 'false') throw new Error('Current branch must disable isolation');
             await pickerSource('main');
+            pickerRepo.querySelector('[aria-label="源分支"]').click();await waitFor(() => document.querySelector('[aria-label="搜索分支"]'), 'Existing branch picker missing');
+            await mouseClick(document.querySelector('[aria-label="分支选项：main"]'));
+            await waitFor(() => [...document.querySelectorAll('[role="menuitem"]')].some(item => item.textContent === '使用此分支'), 'Existing branch action missing');
+            [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === '使用此分支').click();
+            await waitFor(() => !document.querySelector('[aria-label="搜索分支"]'), 'Existing branch selection did not dismiss its popover');
+            if (dialog() !== resourcePickerDialog || !pickerWorktree().disabled || pickerWorktree().getAttribute('aria-checked') !== 'false') throw new Error('Existing main worktree must be reused without isolation');
+            await pickerSource('main');
             pickerWorktree().click();await waitFor(() => pickerWorktree().getAttribute('aria-checked') === 'true', 'Picker Worktree toggle failed');
             if (pickerRepo.querySelector(':scope > label [role="checkbox"]').getAttribute('aria-checked') !== 'true') throw new Error('Configuration must not toggle resource selection');
             pickerWorktree().click();await waitFor(() => pickerWorktree().getAttribute('aria-checked') === 'false', 'Picker Worktree toggle did not clear');
@@ -583,6 +590,15 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             if (addResource().textContent.trim() || addResource().previousElementSibling?.getAttribute('aria-label') !== 'extra') throw new Error('Add resource must be an icon immediately after the last directory');
             addResource().click();
             await waitFor(() => button('添加仓库'), 'Plus button did not open the resource picker');
+            const repeatedRepo = dialog().querySelector('[data-resource-id="repo-a"]');
+            if (repeatedRepo.querySelector(':scope > label [role="checkbox"]').disabled || !repeatedRepo.textContent.includes('仓库已添加')) throw new Error('Same repository must remain selectable with a notice');
+            repeatedRepo.querySelector(':scope > label [role="checkbox"]').click();await click('确认');
+            await waitFor(() => dialog()?.querySelectorAll('[data-slot="button-group"][aria-label="repo-a"]').length === 2, 'Same repo must allow two independent draft rows');
+            const repeatedRows = [...dialog().querySelectorAll('[data-slot="button-group"][aria-label="repo-a"]')];
+            repeatedRows[1].querySelector('[aria-label="移除：repo-a"]').click();
+            await waitFor(() => dialog().querySelectorAll('[data-slot="button-group"][aria-label="repo-a"]').length === 1, 'Removing one row must not remove the other same-repo row');
+            if (repeatedRows[0].querySelector('[aria-label="源分支"]').textContent.trim() !== 'main') throw new Error('Repeated repo edit must not reset existing configuration');
+            addResource().click();await waitFor(() => button('添加仓库'), 'Reopen resource picker failed');
             await click('取消');
             await waitFor(() => dialog()?.querySelector('textarea'), 'Cancel must return to the draft');
             dialog().querySelector('button[aria-label="移除：extra"]').click();

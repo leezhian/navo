@@ -58,7 +58,7 @@ export function useTaskResourceDraft(task: Task, category: TaskResourceCategory)
     const requestId = requests.current[category] ?? crypto.randomUUID();
     requests.current[category] = requestId;
     const input: AddTaskResourcesInput = { requestId, links: [], webLinks: [], notes: [], fileIds: [] };
-    if (category === "repositories") input.resources = repositories.map(({ resourceId, mode, sourceBranch }) => ({ resourceId, mode, sourceBranch, targetBranch: "" }));
+    if (category === "repositories") input.resources = repositories.map(({ resourceId, mode, sourceBranch, useExistingBranch }) => ({ resourceId, mode, sourceBranch, targetBranch: "", ...(useExistingBranch ? { useExistingBranch } : {}) }));
     if (category === "issues") input.links = issues;
     if (category === "pullRequests") input.links = prs;
     if (category === "links") input.webLinks = [{ id: requestId, url: url.trim(), title: linkTitle.trim() }];

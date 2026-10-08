@@ -6,7 +6,7 @@
 .task-workbench-actions { display: flex; flex-shrink: 0; align-items: center; gap: 2px; }
 .task-workbench-actions svg { width: 16px; height: 16px; }
 .task-workbench-panel-heading svg { width: 14px; height: 14px; }
-.task-workbench-layout { display: flex; flex: 1; min-height: 0; min-width: 0; position: relative; }
+.task-workbench-layout { display: flex; flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden; }
 .task-context-container { flex-shrink: 0; min-height: 0; background: var(--background); border-radius: 14px; overflow: hidden; }
 .task-context-rail { height: 100%; overflow-y: auto; padding: 4px 8px 12px; }
 .task-context-toolbar { display: flex; align-items: center; justify-content: center; height: 36px; }
@@ -56,8 +56,9 @@
 .task-session-status[data-status="failed"] { color: var(--destructive); }
 .task-session-status[data-status="starting"] svg { animation: task-session-spin 1s linear infinite; }
 @keyframes task-session-spin { to { transform: rotate(360deg); } }
-.task-workbench[data-narrow="true"] .task-context-container { position: absolute; top: 0; bottom: 0; left: 0; z-index: 5; max-width: calc(100% - 40px); box-shadow: 6px 0 20px #00000012; }
-.task-context-sheet[data-side="left"] { gap: 0; padding: 0; border: 0; border-radius: 14px; outline: none; }
+.task-panel-sheet[data-side] { position: absolute; top: 0; bottom: 0; z-index: 5; height: 100%; min-height: 0; max-width: calc(100% - 40px); gap: 0; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--background); outline: none; }
+.task-panel-sheet[data-side="left"] { left: 0; right: auto; box-shadow: 6px 0 20px #00000012; }
+.task-panel-sheet[data-side="right"] { right: 0; left: auto; box-shadow: -6px 0 20px #00000012; }
 .task-context-backdrop { position: absolute; inset: 0; background: #00000015; z-index: 4; border-radius: 14px; }
 .task-workbench[data-narrow="true"] .task-workbench-heading { flex-wrap: wrap; gap: 4px; padding: 4px; }
 .task-workbench-error { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px; font-size: 11px; color: var(--destructive); }

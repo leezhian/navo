@@ -40,8 +40,18 @@ export async function inspectTaskResource(resource: ResourceRecord): Promise<Tas
   const remoteHead = await gitValue(root, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]);
   const candidates = [remoteHead, "refs/remotes/origin/main", "refs/remotes/origin/master", "refs/heads/main", "refs/heads/master", currentRef];
   const defaultSource = candidates.find((candidate) => candidate && branches.some((branch) => branch.ref === candidate)) ?? branches[0]?.ref ?? "";
-  info.git = { root: await realpath(root), currentBranch, defaultSource, branches };
+  const worktrees = await listTaskWorktrees(root);
+  info.git = { root: await realpath(root), currentBranch, defaultSource, branches, worktrees };
   return info;
+}
+
+export async function listTaskWorktrees(directory: string) {
+  const output = await taskGit(directory, ["worktree", "list", "--porcelain", "-z"]);
+  return output.split("\0\0").filter(Boolean).map((block, index) => {
+    const fields = block.split("\0");
+    return { path: fields.find((field) => field.startsWith("worktree "))?.slice(9) ?? "",
+      branch: fields.find((field) => field.startsWith("branch "))?.slice(7).replace(/^refs\/heads\//, "") ?? "", isMain: index === 0 };
+  });
 }
 
 export async function validateNewBranch(directory: string, name: string) {

@@ -7,10 +7,13 @@ import type { AppSettings } from "@/domain/types";
 import type { TaskResourceDraft } from "@/domain/taskResourceDraft";
 import { useTaskResourceSelection } from "@/hooks/useTaskResourceSelection";
 import { TaskResourcePickerContent } from "./TaskResourcePickerContent";
+import type { AddedTaskResource } from "@/utils/taskResourceNotice";
 
 interface TaskResourcePickerProps {
   /** 已使用的资源不可重复选择。 */
   excludedIds: string[];
+  /** 已选工作区仅作重复提示，同一仓库仍可创建新的 Worktree。 */
+  addedResources?: AddedTaskResource[];
   /** 快捷添加复用设置中的默认克隆位置。 */
   repositoriesDirectory: string;
   /** 新勾选的仓库沿用设置页默认执行模式。 */
@@ -23,7 +26,7 @@ interface TaskResourcePickerProps {
   onReturnFocus: () => void;
 }
 
-export function TaskResourcePicker({ excludedIds, repositoriesDirectory, defaultTaskMode, onConfirm, onClose, onReturnFocus }: TaskResourcePickerProps) {
+export function TaskResourcePicker({ excludedIds, addedResources, repositoriesDirectory, defaultTaskMode, onConfirm, onClose, onReturnFocus }: TaskResourcePickerProps) {
   const { t } = useTranslation(["common", "taskCreate", "settings"]);
   const selection = useTaskResourceSelection(defaultTaskMode);
   const [adding, setAdding] = useState(false);
@@ -44,7 +47,7 @@ export function TaskResourcePicker({ excludedIds, repositoriesDirectory, default
     <DialogContent className="sm:max-w-[680px]" aria-describedby={undefined} showCloseButton={!busy} onEscapeKeyDown={(event) => { if (busy || adding) event.preventDefault(); }} onInteractOutside={(event) => { if (busy || adding) event.preventDefault(); }}
       onCloseAutoFocus={(event) => { event.preventDefault(); onReturnFocus(); }}>
       <DialogHeader><DialogTitle>{t("taskCreate:resources.pickerTitle")}</DialogTitle></DialogHeader>
-      <TaskResourcePickerContent excludedIds={excludedIds} repositoriesDirectory={repositoriesDirectory} selection={selection} disabled={busy} adding={adding} onAddingChange={setAdding} />
+      <TaskResourcePickerContent excludedIds={excludedIds} addedResources={addedResources} repositoriesDirectory={repositoriesDirectory} selection={selection} disabled={busy} adding={adding} onAddingChange={setAdding} />
       {error !== null && <p role="alert" className="text-xs text-destructive">{getTaskError(error)}</p>}
       <DialogFooter><Button variant="ghost" disabled={busy} onClick={onClose}>{t("common:actions.cancel")}</Button><Button disabled={!canConfirm} onClick={() => void confirm()}>{t(busy ? "common:status.checkingProgress" : "common:actions.confirm")}</Button></DialogFooter>
     </DialogContent>

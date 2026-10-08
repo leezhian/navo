@@ -50,7 +50,7 @@ export function TaskAddResourcesDialog({ task, initialCategory, onClose }: TaskA
           </Button>)}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto p-4 sm:min-h-[440px]" data-resource-category={category}>
-          {category === "repositories" && <TaskResourcePickerContent excludedIds={(updatedTask.resources ?? []).map((resource) => resource.resourceId)}
+          {category === "repositories" && <TaskResourcePickerContent excludedIds={(updatedTask.resources ?? []).filter((resource) => resource.mode === "folder").map((resource) => resource.repositoryId ?? resource.resourceId)} addedResources={updatedTask.resources}
             repositoriesDirectory={repositoriesDirectory} selection={draft.repositorySelection} disabled={draft.busy || pending} adding={addingRepository} onAddingChange={setAddingRepository} />}
           {isIssue && <TaskIssuePickerContent key={category} group={issueGroup} selected={category === "issues" ? draft.issues : draft.prs} onChange={category === "issues" ? draft.setIssues : draft.setPrs} lockedIds={(updatedTask.links ?? []).filter((item) => item.group === issueGroup).map((item) => item.id)} disabled={disabled} />}
           {category === "links" && <div className="space-y-3"><TaskWebLinkFields url={draft.url} title={draft.linkTitle} onUrlChange={draft.setUrl} onTitleChange={draft.setLinkTitle} disabled={disabled} invalid={Boolean(draft.url.trim()) && !isTaskLinkUrl(draft.url.trim())} />{draft.duplicateLink && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyLinked")}</p>}</div>}

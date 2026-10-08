@@ -3,6 +3,7 @@ import { lstat, mkdir, realpath, rmdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { TaskResource, TaskResourceInfo, TaskResourceInput } from "../../shared/taskTypes";
 import { generateTaskBranch, gitValue, taskGit, validateNewBranch } from "./taskGit";
+import { prepareExistingBranch } from "./taskExistingBranch";
 
 export interface WorkspaceStep {
   resource: TaskResource;
@@ -15,6 +16,10 @@ export interface WorkspaceStep {
   checkedOut: boolean;
   automaticTarget: boolean;
   branchPrefix: string;
+  /** 复用的目录不能由本次创建、回滚或删除操作认领。 */
+  reused?: boolean;
+  /** 分支此前已存在；允许复用，但不能当作本次创建的分支删除。 */
+  existingBranch?: boolean;
 }
 
 export interface TaskCreationManifest {
@@ -26,7 +31,7 @@ export interface TaskCreationManifest {
 }
 
 export async function prepareWorkspace(info: TaskResourceInfo, input: TaskResourceInput, prefix: string, workspaceDirectory: string, index: number): Promise<WorkspaceStep> {
-  const resource: TaskResource = { ...input, name: info.name, originalPath: info.path, workingPath: info.path };
+  const resource: TaskResource = { ...input, repositoryId: input.resourceId, name: info.name, originalPath: info.path, workingPath: info.git?.root ?? info.path };
   const step: WorkspaceStep = { resource, repository: info.git?.root ?? info.path, baseCommit: "", previousBranch: "", previousHead: "", branchCreated: false, worktreeCreated: false, checkedOut: false, automaticTarget: !input.targetBranch.trim(), branchPrefix: prefix };
   if (!info.git) {
     if (input.mode !== "folder") throw new Error("TASK_RESOURCE_CHANGED");
@@ -45,8 +50,14 @@ export async function prepareWorkspace(info: TaskResourceInfo, input: TaskResour
   }
   if (!info.git.branches.some((branch) => branch.ref === input.sourceBranch)) throw new Error("TASK_INVALID_SOURCE");
   step.baseCommit = await taskGit(step.repository, ["rev-parse", "--verify", input.sourceBranch + "^{commit}"]);
-  resource.targetBranch = input.targetBranch.trim() || await generateTaskBranch(step.repository, prefix);
-  await validateNewBranch(step.repository, resource.targetBranch);
+  if (input.useExistingBranch) {
+    await prepareExistingBranch(step);
+    if (step.reused) return step;
+    if (!step.existingBranch) await validateNewBranch(step.repository, resource.targetBranch);
+  } else {
+    resource.targetBranch = input.targetBranch.trim() || await generateTaskBranch(step.repository, prefix);
+    await validateNewBranch(step.repository, resource.targetBranch);
+  }
   if (input.mode === "new-branch" && await taskGit(step.repository, ["status", "--porcelain"])) throw new Error("TASK_DIRTY_REPOSITORY");
   if (input.mode === "worktree") {
     const directoryName = info.name.replace(/[^\p{L}\p{N}._-]/gu, "-").slice(0, 48).replace(/^\.+/, "") || "repo";
@@ -57,25 +68,26 @@ export async function prepareWorkspace(info: TaskResourceInfo, input: TaskResour
 
 export async function createWorkspace(step: WorkspaceStep, persist: () => Promise<void>) {
   const { resource } = step;
-  if (resource.mode === "folder" || resource.mode === "current-branch") return;
+  if (step.reused || resource.mode === "folder" || resource.mode === "current-branch") return;
   if (resource.mode === "new-branch") {
     if (await taskGit(step.repository, ["status", "--porcelain"])
       || await taskGit(step.repository, ["rev-parse", "HEAD"]) !== step.previousHead
       || (await gitValue(step.repository, ["symbolic-ref", "--quiet", "HEAD"]) ?? "") !== (step.previousBranch ? "refs/heads/" + step.previousBranch : "")) throw new Error("TASK_RESOURCE_CHANGED");
   }
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  if (step.existingBranch && await gitValue(step.repository, ["rev-parse", "--verify", "refs/heads/" + resource.targetBranch + "^{commit}"]) !== step.baseCommit) throw new Error("TASK_RESOURCE_CHANGED");
+  for (let attempt = 0; !step.existingBranch && attempt < 10; attempt += 1) {
     try {
       await validateNewBranch(step.repository, resource.targetBranch);
       await taskGit(step.repository, ["branch", resource.targetBranch, step.baseCommit]);
       break;
     } catch (error) {
       const collision = await gitValue(step.repository, ["show-ref", "--verify", "--quiet", "refs/heads/" + resource.targetBranch]) !== null;
-      if (!step.automaticTarget || !collision || attempt === 9) throw error;
+      if (resource.useExistingBranch || !step.automaticTarget || !collision || attempt === 9) throw error;
       resource.targetBranch = await generateTaskBranch(step.repository, step.branchPrefix);
       await persist();
     }
   }
-  step.branchCreated = true;
+  step.branchCreated = !step.existingBranch;
   await persist();
   if (resource.mode === "worktree") {
     await taskGit(step.repository, ["worktree", "add", resource.workingPath, resource.targetBranch]);
@@ -86,7 +98,7 @@ export async function createWorkspace(step: WorkspaceStep, persist: () => Promis
     resource.ownership = {
       path: await realpath(resource.workingPath), directoryId: directory.dev + ":" + directory.ino,
       gitDirectory: await realpath(await taskGit(resource.workingPath, ["rev-parse", "--absolute-git-dir"])),
-      commonDirectory, commonDirectoryId: common.dev + ":" + common.ino,
+      commonDirectory, commonDirectoryId: common.dev + ":" + common.ino, branchCreated: step.branchCreated,
     };
   } else {
     await taskGit(step.repository, ["switch", "--no-overwrite-ignore", resource.targetBranch]);
@@ -108,7 +120,7 @@ export async function rollbackWorkspaces(manifest: TaskCreationManifest): Promis
     let retained = false;
     for (const step of [...manifest.steps].reverse()) {
       const { resource } = step;
-      if (resource.mode === "folder" || resource.mode === "current-branch") continue;
+      if (step.reused || resource.mode === "folder" || resource.mode === "current-branch") continue;
       try {
         if (resource.mode === "worktree" && await exists(resource.workingPath)) {
           if (!step.worktreeCreated || (await lstat(resource.workingPath)).isSymbolicLink()
@@ -124,6 +136,7 @@ export async function rollbackWorkspaces(manifest: TaskCreationManifest): Promis
             await taskGit(step.repository, step.previousBranch ? ["switch", "--no-overwrite-ignore", step.previousBranch] : ["switch", "--no-overwrite-ignore", "--detach", step.previousHead]);
           }
         }
+        if (step.existingBranch && !step.branchCreated) continue;
         const ref = "refs/heads/" + resource.targetBranch;
         const head = await taskGit(step.repository, ["for-each-ref", "--format=%(objectname)", ref]);
         if (head) {
@@ -138,7 +151,7 @@ export async function rollbackWorkspaces(manifest: TaskCreationManifest): Promis
     }
     if (manifest.workspaceDirectoryOwned) {
       try { await rmdir(manifest.workspaceDirectory); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") retained = true; }
-    } else if (manifest.steps.some((step) => step.resource.mode === "worktree") && await exists(manifest.workspaceDirectory)) retained = true;
+    } else if (manifest.steps.some((step) => !step.reused && step.resource.mode === "worktree") && await exists(manifest.workspaceDirectory)) retained = true;
     if (retained) void writeDiagnosticEvent("task.cleanup_retained", { resourceCount: manifest.steps.length });
     else void writeDiagnosticEvent("worktree.rollback.succeeded", { resourceCount: manifest.steps.length });
     return retained;
@@ -146,7 +159,7 @@ export async function rollbackWorkspaces(manifest: TaskCreationManifest): Promis
 }
 
 export async function createWorkspaceDirectory(manifest: TaskCreationManifest, persist: () => Promise<void>) {
-  if (!manifest.steps.some((step) => step.resource.mode === "worktree")) return;
+  if (!manifest.steps.some((step) => !step.reused && step.resource.mode === "worktree")) return;
   await mkdir(path.dirname(manifest.workspaceDirectory), { recursive: true });
   await mkdir(manifest.workspaceDirectory);
   manifest.workspaceDirectoryOwned = true;
