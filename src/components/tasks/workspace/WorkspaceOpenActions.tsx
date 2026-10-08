@@ -30,9 +30,9 @@ export function WorkspaceOpenActions({ taskId, resource, onError }: WorkspaceOpe
     finally { busyRef.current = false;setBusy(false); }
   }
   return <ButtonGroup className="shrink-0" aria-label={t("tasks:workspaceOpen.actions", { name: resource.name })}>
-    <IconTooltip label={t("tasks:workspaceOpen.fileManager")} variant="outline" size="icon-xs" disabled={disabled} onClick={() => void open({ kind: "fileManager" })}><FolderOpen className="size-3" /></IconTooltip>
+    <IconTooltip label={t("tasks:workspaceOpen.fileManager")} variant="ghost" size="icon-xs" className="size-5 border-0" disabled={disabled} onClick={() => void open({ kind: "fileManager" })}><FolderOpen className="size-3" /></IconTooltip>
     <DropdownMenu onOpenChange={(opened) => { if (opened) void refresh(); }}><DropdownMenuTrigger asChild>
-      <IconTooltip label={t("tasks:workspaceOpen.actions", { name: resource.name })} variant="outline" size="icon-xs" className="w-5" disabled={disabled}><ChevronDown className="size-3" /></IconTooltip>
+      <IconTooltip label={t("tasks:workspaceOpen.actions", { name: resource.name })} variant="ghost" size="icon-xs" className="h-5 w-4 border-0" disabled={disabled}><ChevronDown className="size-3" /></IconTooltip>
     </DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48">
       {options?.editors.map((editor) => <DropdownMenuItem key={editor.id} className="text-xs" disabled={busy} onSelect={() => void open({ kind: "editor", editorId: editor.id })}><Code2 className="size-3.5" /><span className="truncate" title={editor.name}>{editor.name}</span></DropdownMenuItem>)}
       {Boolean(options?.editors.length) && <DropdownMenuSeparator />}

@@ -89,7 +89,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, o
             </span>
           </span>
         </button>
-        <IconTooltip label={t("tasks:runtime.archiveSession")} className="task-context-session-archive" size="icon-xs" disabled={archivePending} onClick={() => onArchive(session.id)}><Archive className="size-3.5" /></IconTooltip>
+        <IconTooltip label={t("tasks:runtime.archiveSession")} className="task-context-session-archive size-5" size="icon-xs" disabled={archivePending} onClick={() => onArchive(session.id)}><Archive className="size-3" /></IconTooltip>
       </div>; })}
     </ResourceGroup>
     <ResourceGroup title="CHANGES" count={repos.length} onAdd={onAddResource && (() => onAddResource("repositories"))}>

@@ -39,7 +39,7 @@ function HeaderGroup({ group, taskMap, activeTaskId, listRef, onClose, onCancelS
   const active = activeTaskId !== null && group.taskIds.includes(activeTaskId);
   const pendingSplit = group.split && !group.split.secondTaskId ? group.split : null;
 
-  return <Reorder.Item as="div" value={group.id} className="navo-tab-group" data-split={Boolean(group.split)} data-active={active} data-dragging={dragging}
+  return <Reorder.Item as="div" value={group.id} className="window-no-drag navo-tab-group" data-split={Boolean(group.split)} data-active={active} data-dragging={dragging}
     dragControls={controls} dragListener={false} dragConstraints={listRef} dragElastic={0} dragMomentum={false}
     onDragStart={() => setDragging(true)} onDragEnd={() => setDragging(false)} transition={{ duration: reducedMotion ? 0 : 0.18 }}>
     {group.taskIds.map((id) => {
@@ -80,7 +80,7 @@ export function WorkspaceHeaderTabs({ onActivateWorkspace }: WorkspaceHeaderTabs
   return <MotionConfig reducedMotion="user">
     <Tabs.Root className="min-w-0 flex-1" value={workspace.activeTaskId ?? ""} onValueChange={selectTab}>
       <Tabs.List aria-label={t("workspace:tabs.label")} asChild>
-        <Reorder.Group ref={listRef} as="div" axis="x" values={workspace.groups.map((group) => group.id)} onReorder={workspace.reorderTasks} layoutScroll className="window-no-drag navo-workspace-tabs">
+        <Reorder.Group ref={listRef} as="div" axis="x" values={workspace.groups.map((group) => group.id)} onReorder={workspace.reorderTasks} layoutScroll className="window-drag-region navo-workspace-tabs">
           {workspace.groups.map((group) => <HeaderGroup key={group.id} group={group} taskMap={workspace.taskMap} activeTaskId={workspace.activeTaskId} listRef={listRef}
             onActivateWorkspace={onActivateWorkspace} onClose={workspace.closeTask} onCancelSplit={workspace.cancelSplit} />)}
         </Reorder.Group>

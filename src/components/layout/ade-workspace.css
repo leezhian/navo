@@ -1,6 +1,6 @@
 .navo-window { display: flex; flex-direction: column; height: 100dvh; min-height: 600px; overflow: hidden; color: var(--foreground); background: var(--shell-background); }
 .navo-window-header { display: flex; align-items: center; height: 44px; flex-shrink: 0; }
-.navo-workspace-tabs { display: flex; align-items: center; gap: 4px; width: 100%; overflow-x: auto; scrollbar-width: none; }
+.navo-workspace-tabs { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; overflow-x: auto; scrollbar-width: none; }
 .navo-workspace-tabs::-webkit-scrollbar { display: none; }
 .navo-workspace-tab { position: relative; display: flex; align-items: center; gap: 8px; height: 28px; min-width: 0; max-width: 200px; flex-shrink: 0; padding: 0 4px 0 12px; border-radius: 8px; color: var(--muted-foreground); font-size: 12px; cursor: default; user-select: none; transition: background-color 120ms ease, color 120ms ease; }
 .navo-workspace-tab:hover { background: var(--muted); color: var(--foreground); }

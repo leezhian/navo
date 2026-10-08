@@ -29,7 +29,7 @@ export function AgentSessionPane({ task, session, newSessionControl, emptySessio
   const sessionName = session?.title || t("tasks:runtime.untitledSession");
   return <section className="task-workbench-panel task-agent-pane">
     <header className="task-workbench-panel-heading">
-      <div className="flex min-w-0 items-center gap-2"><SessionStatusIcon status={session?.status} />{session && <AgentProviderIcon agentId={session.agent?.agentId} />}<span className="truncate" title={session ? sessionName : undefined}>{session ? sessionName : t("tasks:runtime.sessions")}</span></div>
+      <div className="flex min-w-0 items-center gap-2"><SessionStatusIcon status={session?.status} />{session && <AgentProviderIcon agentId={session.agent?.agentId} />}<span className="truncate text-xs" title={session ? sessionName : undefined}>{session ? sessionName : t("tasks:runtime.sessions")}</span></div>
       <div className="flex shrink-0 items-center gap-1">
         {newSessionControl}
         {session && <><SessionActionMenu key={session.id} session={session} /><IconTooltip label={t("tasks:runtime.closePane")} size="icon-xs" onClick={onClosePane}><X className="size-3.5" /></IconTooltip></>}

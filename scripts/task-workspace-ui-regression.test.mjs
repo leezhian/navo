@@ -58,16 +58,23 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const button=label=>document.querySelector('button[aria-label="'+label+'"]');
         const assertItemIcons=()=>{
           for(const item of document.querySelectorAll('.task-context-row, .task-context-session-select')){
+            const title=item.querySelector('.block.truncate')??item.querySelector(':scope > span.truncate');
+            if(!title||getComputedStyle(title).fontSize!=='12px')throw new Error('All context item titles must use 12px text');
             const icon=item.querySelector(':scope > .task-context-item-icon');
             if(!icon||!icon.querySelector('svg'))throw new Error('Every context item needs a leading icon container');
             const bounds=icon.getBoundingClientRect(),style=getComputedStyle(icon);
-            if(bounds.width!==24||bounds.height!==24||style.backgroundColor==='rgba(0, 0, 0, 0)')throw new Error('Context icons need a 24px square background');
+            if(bounds.width!==28||bounds.height!==28||style.backgroundColor==='rgba(0, 0, 0, 0)')throw new Error('Context icons need a prominent 28px square background');
+            const glyph=icon.querySelector('svg').getBoundingClientRect();
+            if(glyph.width!==16||glyph.height!==16)throw new Error('Context glyphs must remain legible at 16px');
+            const itemBounds=item.getBoundingClientRect();
+            if(Math.abs(bounds.top+bounds.height/2-itemBounds.top-itemBounds.height/2)>1)throw new Error('Context icons must be vertically centered beside the complete item text');
           }
         };
         const assertMetadataActions=(item,metadataSelector,actionsSelector)=>{
           const metadata=item.querySelector(metadataSelector).getBoundingClientRect();
           const actions=item.querySelector(actionsSelector).getBoundingClientRect();
           const title=item.querySelector('.block.truncate').getBoundingClientRect();
+          if(actions.height!==20||metadata.height!==20||Math.abs(metadata.top-title.bottom-2)>1)throw new Error('Context actions and metadata must be 20px high with a 2px title gap');
           if(Math.abs(metadata.top+metadata.height/2-actions.top-actions.height/2)>1||actions.top<title.bottom)throw new Error('Item actions must align with metadata, not the title');
           if(Math.abs(title.right-actions.right)>1)throw new Error('Title must retain full width above actions');
         };
@@ -94,6 +101,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         for(const name of ['CHANGES','PULL REQUESTS','ISSUES','LINKS'])if(!document.querySelector('.task-context-rail').textContent.includes(name))throw new Error('Missing '+name);
         const workspaceButtons=()=>[...document.querySelectorAll('.task-context-change [data-slot="button-group"] > button')];
         if(workspaceButtons().length!==2||!workspaceButtons()[0].querySelector('.lucide-folder-open'))throw new Error('Changes row needs a file manager / dropdown split button');
+        if(workspaceButtons().some(item=>item.dataset.variant!=='ghost'||getComputedStyle(item).borderTopWidth!=='0px'||getComputedStyle(item).borderRightWidth!=='0px'))throw new Error('Changes actions must be borderless ghost buttons');
         assertItemIcons();
         assertMetadataActions(document.querySelector('.task-context-change'),'.task-context-change-metadata','.task-context-change-actions');
         workspaceButtons()[0].click();await wait(()=>window.workspaceOpens.length===1&&!workspaceButtons()[0].disabled,'File manager shortcut failed');

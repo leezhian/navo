@@ -33,7 +33,7 @@ export function TaskBranchPane({ taskId, resource, onClose, onOpenDiff }: TaskBr
   const openDiff = (mode: CompareMode, filename?: string) => onOpenDiff(mode, filename, branchName);
   const unavailableBase = scope === "commits" && snapshot && !snapshot.baseAvailable;
   return <section className="task-workbench-panel task-branch-pane" aria-label={t("tasks:branch.title")}>
-    <header className="task-workbench-panel-heading"><div className="flex min-w-0 items-center gap-2" title={resource.name + " · " + branchName}><GitBranch /><span className="truncate">{branchName}</span></div>
+    <header className="task-workbench-panel-heading"><div className="flex min-w-0 items-center gap-2" title={resource.name + " · " + branchName}><GitBranch /><span className="truncate text-xs">{branchName}</span></div>
       <div className="flex shrink-0 items-center gap-1"><IconTooltip label={t("tasks:branch.openDiff")} size="icon-xs" disabled={!snapshot || Boolean(unavailableBase)} onClick={() => openDiff(openMode)}><ArrowUpRight /></IconTooltip><IconTooltip label={t("tasks:branch.close")} size="icon-xs" onClick={onClose}><X /></IconTooltip></div>
     </header>
     <div className="task-branch-controls"><div className="task-branch-segments">
