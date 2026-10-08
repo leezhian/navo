@@ -1,4 +1,14 @@
 {
+  "time": {
+    "justNow": "刚刚",
+    "minutes": "{{count}} 分钟前",
+    "hours": "{{count}} 小时前",
+    "days": "{{count}} 天前"
+  },
+  "sessionSummary": {
+    "label_other": "{{count}} 个未归档会话",
+    "tally_other": "{{count}} 个{{status}}会话"
+  },
   "branch": {
     "title": "分支与变更",
     "show": "显示分支栏",

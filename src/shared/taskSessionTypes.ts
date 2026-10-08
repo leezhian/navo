@@ -25,6 +25,10 @@ export interface TaskSession {
   nativeHistoryRoot?: string;
   resumable: boolean;
   createdAt: string;
+  /** 会话元数据最近一次实际变更时间，不包含读取及终端缓冲回放。 */
+  lastUpdateAt: string;
+  /** 最近一次成功启动或实际 PTY 输入、输出的时间。 */
+  lastActiveAt: string;
   error?: string;
 }
 

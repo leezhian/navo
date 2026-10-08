@@ -3,8 +3,9 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { removeLegacyDemoRecords } from "./migrations/removeLegacyDemoRecords";
+import { addTaskActivityTimestamps } from "./migrations/addTaskActivityTimestamps";
 
-export const APP_SCHEMA_VERSION = 10;
+export const APP_SCHEMA_VERSION = 11;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -99,6 +100,7 @@ export async function openAppDatabase(filePath: string) {
             PRAGMA user_version = ${APP_SCHEMA_VERSION};
           `);
           removeLegacyDemoRecords(database);
+          addTaskActivityTimestamps(database);
           database.exec("COMMIT");
           void writeDiagnosticEvent("database.migrate.succeeded", { fromVersion: version, toVersion: APP_SCHEMA_VERSION });
         } catch (error) {

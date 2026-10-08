@@ -21,6 +21,7 @@ import { readNativeSessionTitle } from "./nativeSessionTitle";
 import { canManageNativeSession, nativeActionEnvironment, removeNativeSession, renameNativeSession, requireSessionName } from "./nativeSessionActions";
 
 const MAX_SESSIONS = 32;
+const ACTIVITY_FLUSH_DELAY_MS = 1000;
 export class TaskSessionService {
   private sessions: TaskSession[] = [];
   private owners = new Map<string, number>();
@@ -31,6 +32,8 @@ export class TaskSessionService {
   private closing = false;
   private titleTimer: NodeJS.Timeout | null = null;
   private titleEnvironments = new Map<string, NodeJS.ProcessEnv>();
+  private activityTimer: NodeJS.Timeout | null = null;
+  private activeSessions = new Set<TaskSession>();
   constructor(private readonly repository: SessionRepository, private readonly agents: AgentService,
     private readonly loadTask: (id: string) => Promise<Task>, private readonly settings: () => AppSettings,
     private readonly changed: (sessions: TaskSession[]) => void,
@@ -51,18 +54,18 @@ export class TaskSessionService {
         try {
           const task = await this.loadTask(session.taskId);
           const workspace = await readLegacySessionWorkspace(task, session.cwd, this.settings().tasksDirectory);
-          if (workspace) { session.workspace = workspace; await this.repository.save(session); }
+          if (workspace) { session.workspace = workspace; await this.repository.save(session, { preserveUpdateTime: true }); }
         } catch { /* 无法确认旧会话范围时，不以当前资源数量推断。 */ }
       }
       const prefix = agentNames[session.agent.agentId] + " ";
       if (session.titleSource !== "cli" && session.title?.startsWith(prefix) && /^\d+$/.test(session.title.slice(prefix.length))) {
         session.title = "";
-        await this.repository.save(session);
+        await this.repository.save(session, { preserveUpdateTime: true });
       }
     }
     for (const session of this.sessions) if (session.status === "starting" || session.status === "running") {
       session.status = "stopped";
-      await this.repository.save(session);
+      await this.repository.save(session, { preserveUpdateTime: true });
     }
     this.loaded = true;
     await this.refreshTitles();
@@ -78,6 +81,7 @@ export class TaskSessionService {
       await this.repository.save(updated);
       session.title = title;
       session.titleSource = "cli";
+      session.lastUpdateAt = updated.lastUpdateAt;
       changed = true;
     }
     if (changed) this.publish();
@@ -94,6 +98,35 @@ export class TaskSessionService {
   private publish() { this.changed(this.sessions); return this.sessions; }
   private async save(session: TaskSession) { await this.repository.save(session); this.publish(); }
 
+  private recordActivity(session: TaskSession, terminalId: string) {
+    if (this.closing || session.kind !== "agent" || session.archivedAt || !this.sessions.includes(session)
+      || session.terminalId !== terminalId || !["starting", "running"].includes(session.status)) return;
+    session.lastActiveAt = new Date().toISOString();
+    this.activeSessions.add(session);
+    this.scheduleActivityFlush();
+  }
+  private scheduleActivityFlush() {
+    if (this.closing || this.activityTimer || !this.activeSessions.size) return;
+    this.activityTimer = setTimeout(() => {
+      this.activityTimer = null;
+      void this.serialize(() => this.flushActivity()).catch((error) => {
+        void writeDiagnosticEvent("session.activity.failed", { error });
+      }).finally(() => this.scheduleActivityFlush());
+    }, ACTIVITY_FLUSH_DELAY_MS);
+    this.activityTimer.unref();
+  }
+  private async flushActivity() {
+    // 输入输出只更新内存，合并落库；写入失败保留待保存记录，下一轮重试。
+    const pending = [...this.activeSessions];
+    for (const session of pending) {
+      this.activeSessions.delete(session);
+      if (!this.sessions.includes(session)) continue;
+      try { await this.repository.save(session); }
+      catch (error) { this.activeSessions.add(session); throw error; }
+    }
+    if (pending.length) this.publish();
+  }
+
   start(input: StartTaskSessionInput, owner: WebContents, initial = false) {
     return this.serialize(async () => {
       await this.initialize();
@@ -109,10 +142,11 @@ export class TaskSessionService {
       if (input.kind === "agent" && !isTaskAgentSelection(agent)) throw new Error("AGENT_UNAVAILABLE");
       const number = (this.shellNumbers.get(task.id) ?? 0) + 1;
       if (input.kind === "shell") this.shellNumbers.set(task.id, number);
+      const createdAt = new Date().toISOString();
       const session: TaskSession = { id: randomUUID(), taskId: task.id, kind: input.kind,
         title: input.kind === "shell" ? `${path.basename(resolveShell())}${number}` : "",
         cwd: "", workspace, agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
-        nativeSessionId: randomUUID(), resumable: false, createdAt: new Date().toISOString() };
+        nativeSessionId: randomUUID(), resumable: false, createdAt, lastUpdateAt: createdAt, lastActiveAt: createdAt };
       this.sessions = [...this.sessions, session];
       this.bindOwner(session.id, owner);
       try { await this.save(session); }
@@ -140,6 +174,7 @@ export class TaskSessionService {
       createTerminal({ sessionId: terminalId, cwd: session.cwd, cols: 80, rows: 24 }, owner, {
         strictCwd: true,
         command: launch?.command ?? resolveShell(), args: launch?.args ?? (process.platform === "win32" ? [] : ["-l"]), env: launch?.env ?? process.env,
+        onActivity: () => this.recordActivity(session, terminalId),
         onFinish: () => {
           void this.serialize(async () => {
             if (!this.sessions.includes(session) || session.terminalId !== terminalId || !["running", "starting"].includes(session.status)) return;
@@ -157,6 +192,7 @@ export class TaskSessionService {
         },
       });
       session.status = "running";
+      this.recordActivity(session, terminalId);
       session.resumable = session.agent?.agentId === "claude" || session.agent?.agentId === "grok";
       delete session.error;
       await this.save(session);
@@ -222,6 +258,7 @@ export class TaskSessionService {
       try {
         await this.repository.save(archived);
         session.archivedAt = archived.archivedAt;
+        session.lastUpdateAt = archived.lastUpdateAt;
         this.titleEnvironments.delete(id);
       } finally { this.publish(); }
       return this.sessions;
@@ -297,6 +334,9 @@ export class TaskSessionService {
     this.closing = true;
     if (this.titleTimer) clearTimeout(this.titleTimer);
     this.titleTimer = null;
+    if (this.activityTimer) clearTimeout(this.activityTimer);
+    this.activityTimer = null;
+    await this.serialize(() => this.flushActivity()).catch((error) => writeDiagnosticEvent("session.activity.failed", { error }));
     await this.queue;
   }
 }

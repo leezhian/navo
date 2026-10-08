@@ -1,4 +1,16 @@
 {
+  "time": {
+    "justNow": "just now",
+    "minutes": "{{count}}m ago",
+    "hours": "{{count}}h ago",
+    "days": "{{count}}d ago"
+  },
+  "sessionSummary": {
+    "label_one": "{{count}} unarchived session",
+    "label_other": "{{count}} unarchived sessions",
+    "tally_one": "{{count}} {{status}} session",
+    "tally_other": "{{count}} {{status}} sessions"
+  },
   "branch": {
     "title": "Branch and changes",
     "show": "Show branch pane",

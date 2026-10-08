@@ -1,4 +1,5 @@
 import type { TaskSession } from "../../../shared/taskSessionTypes";
+import { isDeepStrictEqual } from "node:util";
 import { openAppDatabase } from "../appDatabase";
 
 export class SessionRepository {
@@ -10,12 +11,20 @@ export class SessionRepository {
         .map((row) => JSON.parse(String(row.data)) as TaskSession);
     } finally { database.close(); }
   }
-  async save(session: TaskSession) {
+  async save(session: TaskSession, options: { preserveUpdateTime?: boolean } = {}) {
     if (session.kind !== "agent") return;
     const database = await openAppDatabase(this.filename);
     try {
+      const row = database.prepare("SELECT data FROM task_sessions WHERE namespace = ? AND id = ?").get(this.namespace, session.id);
+      const previous = row ? JSON.parse(String(row.data)) as TaskSession : undefined;
+      const metadataChanged = previous && !isDeepStrictEqual(sessionMetadata(previous), sessionMetadata(session));
+      const lastUpdateAt = !options.preserveUpdateTime && metadataChanged
+        ? new Date().toISOString() : session.lastUpdateAt || session.archivedAt || session.createdAt;
+      const stored = { ...session, lastUpdateAt, lastActiveAt: session.lastActiveAt || session.createdAt };
       database.prepare("INSERT INTO task_sessions(namespace,task_id,id,data) VALUES(?,?,?,?) ON CONFLICT(namespace,id) DO UPDATE SET data=excluded.data")
-        .run(this.namespace, session.taskId, session.id, JSON.stringify(session));
+        .run(this.namespace, session.taskId, session.id, JSON.stringify(stored));
+      session.lastUpdateAt = stored.lastUpdateAt;
+      session.lastActiveAt = stored.lastActiveAt;
     } finally { database.close(); }
   }
   async remove(id: string) {
@@ -23,4 +32,8 @@ export class SessionRepository {
     try { database.prepare("DELETE FROM task_sessions WHERE namespace = ? AND id = ?").run(this.namespace, id); }
     finally { database.close(); }
   }
+}
+
+function sessionMetadata(session: TaskSession) {
+  return JSON.parse(JSON.stringify({ ...session, lastUpdateAt: undefined, lastActiveAt: undefined }));
 }

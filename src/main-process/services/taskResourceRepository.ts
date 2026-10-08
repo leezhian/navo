@@ -31,16 +31,19 @@ export class TaskResourceRepository {
       if (database.prepare("SELECT 1 FROM task_resource_batches WHERE namespace=? AND task_id=? AND request_id=?").get(namespace, taskId, requestId)) throw new Error("TASK_RESOURCE_CHANGED");
       let position = Number(database.prepare("SELECT COALESCE(MAX(position),-1)+1 AS next FROM task_resources WHERE namespace=? AND task_id=?").get(namespace, taskId)?.next);
       const firstResource = position === 0;
+      let changed = false;
       const stored = database.prepare("SELECT position,data FROM task_resources WHERE namespace=? AND task_id=?").all(namespace, taskId)
         .map((row) => ({ position: Number(row.position), resource: JSON.parse(String(row.data)) as TaskResource }));
       for (const resource of resources) {
         const current = stored.find((row) => row.resource.resourceId === resource.resourceId);
+        if (!current || JSON.stringify(current.resource) !== JSON.stringify(resource)) changed = true;
         if (current) database.prepare("UPDATE task_resources SET data=? WHERE namespace=? AND task_id=? AND position=?").run(JSON.stringify(resource), namespace, taskId, current.position);
         else database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(namespace, taskId, position++, JSON.stringify(resource));
         if (resource.mode === "worktree" && resource.ownership) database.prepare("INSERT OR IGNORE INTO managed_workspaces VALUES (?,?,?,?,?)")
           .run(namespace, taskId, resource.workingPath, resource.targetBranch, resource.originalPath);
       }
-      if (firstResource) database.prepare("UPDATE tasks SET project_name=? WHERE namespace=? AND id=?").run(resources[0].name, namespace, taskId);
+      if (firstResource && resources.length) database.prepare("UPDATE tasks SET project_name=? WHERE namespace=? AND id=?").run(resources[0].name, namespace, taskId);
+      if (changed) this.touchTask(database, taskId);
       database.prepare("INSERT INTO task_resource_batches VALUES (?,?,?)").run(namespace, taskId, requestId);
       database.prepare("DELETE FROM task_operations WHERE namespace=? AND id=?").run(namespace, requestId);
       database.exec("COMMIT");
@@ -57,10 +60,14 @@ export class TaskResourceRepository {
       transactionOpen = true;
       if (!database.prepare("SELECT 1 FROM tasks WHERE namespace=? AND id=?").get(namespace, taskId)) throw new Error("TASK_NOT_FOUND");
       if (!database.prepare("SELECT 1 FROM task_resource_batches WHERE namespace=? AND task_id=? AND request_id=?").get(namespace, taskId, input.requestId)) {
+        let changed = false;
         for (const link of input.links) {
           const existing = database.prepare("SELECT data FROM task_links WHERE namespace=? AND task_id=? AND link_id=?").get(namespace, taskId, link.id);
           if (existing && JSON.parse(String(existing.data)).group !== link.group) throw new Error("TASK_INVALID");
-          if (!existing) database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run(namespace, taskId, link.id, JSON.stringify(link));
+          if (!existing) {
+            database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run(namespace, taskId, link.id, JSON.stringify(link));
+            changed = true;
+          }
         }
         const urls = new Set(database.prepare("SELECT url FROM task_web_links WHERE namespace=? AND task_id=?").all(namespace, taskId).map((row) => new URL(String(row.url)).href));
         let position = Number(database.prepare("SELECT COALESCE(MAX(position),-1)+1 AS next FROM task_web_links WHERE namespace=? AND task_id=?").get(namespace, taskId)?.next);
@@ -69,14 +76,25 @@ export class TaskResourceRepository {
           if (urls.has(url)) continue;
           database.prepare("INSERT INTO task_web_links VALUES (?,?,?,?,?,?)").run(namespace, taskId, link.id, position++, url, link.title.trim());
           urls.add(url);
+          changed = true;
         }
-        for (const note of input.notes) database.prepare("INSERT INTO task_notes VALUES (?,?,?,?,?)").run(namespace, taskId, note.id, note.title.trim(), note.content);
-        for (const file of files) database.prepare("INSERT INTO task_file_references VALUES (?,?,?,?,?,?) ON CONFLICT(namespace,task_id,path) DO NOTHING").run(namespace, taskId, file.id, file.name, file.path, file.size);
+        for (const note of input.notes) {
+          database.prepare("INSERT INTO task_notes VALUES (?,?,?,?,?)").run(namespace, taskId, note.id, note.title.trim(), note.content);
+          changed = true;
+        }
+        for (const file of files) {
+          const result = database.prepare("INSERT INTO task_file_references VALUES (?,?,?,?,?,?) ON CONFLICT(namespace,task_id,path) DO NOTHING").run(namespace, taskId, file.id, file.name, file.path, file.size);
+          if (result.changes) changed = true;
+        }
+        if (changed) this.touchTask(database, taskId);
         database.prepare("INSERT INTO task_resource_batches VALUES (?,?,?)").run(namespace, taskId, input.requestId);
       }
       database.exec("COMMIT");
       transactionOpen = false;
     } catch (error) { if (transactionOpen) database.exec("ROLLBACK"); throw error; }
     finally { database.close(); }
+  }
+  private touchTask(database: DatabaseSync, taskId: string) {
+    database.prepare("UPDATE tasks SET updated_at=? WHERE namespace=? AND id=?").run(new Date().toISOString(), this.namespace, taskId);
   }
 }

@@ -35,7 +35,7 @@ test("Agent SQLite 升级保留原设置，只包含四种 CLI 并独立持久�
   assert.equal((await repository.snapshot()).defaultAgent, "claude");
   assert.deepEqual((await repository.read()).configurations[0].args, config.args);
   const database = new DatabaseSync(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 10);
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 11);
   assert.equal(database.prepare("SELECT value FROM settings WHERE key='theme'").get().value, '"dark"');
   database.close();
   await assert.rejects(repository.setDefault("copilot"), /AGENT_INVALID/);

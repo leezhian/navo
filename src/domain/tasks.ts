@@ -14,6 +14,8 @@ export interface Task {
   title: string;
   /** ISO 日期，用于展示与日期排序。 */
   date: string;
+  /** 任务内容或状态最近一次实际修改时间；会话活动单独记录。 */
+  updatedAt: string;
   /** 任务所属项目的名称。 */
   projectName: string;
   /** 任务所属的看板列。 */

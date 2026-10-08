@@ -11,6 +11,7 @@ export const DIAGNOSTIC_RESULTS = ["started", "succeeded", "failed", "cancelled"
 export const DIAGNOSTIC_STANDALONE_EVENTS = [
   "app.started", "app.stopped", "app.uncaught", "app.unhandled_rejection", "app.watcher_failed",
   "database.open_failed", "database.transaction_failed", "worktree.kept", "branch.kept", "task.cleanup_retained",
+  "session.activity.failed",
   "renderer.error", "renderer.unhandled_rejection", "renderer.react_error", "renderer.gone",
   "renderer.unresponsive", "renderer.responsive", "log.repeated", "log.dropped",
 ] as const;

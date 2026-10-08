@@ -61,7 +61,7 @@ test("SQLite v4 清理只移除确认的 demo 和假关联，不触碰设置、�
   context.after(() => rm(directory, { recursive: true, force: true }));
   const filename = path.join(directory, "app.db");
   let database = await openAppDatabase(filename);
-  const insertTask = (namespace, task) => database.prepare("INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?,?)")
+  const insertTask = (namespace, task) => database.prepare("INSERT INTO tasks(namespace,id,title,description,date,project_name,status,archived_from,position) VALUES (?,?,?,?,?,?,?,?,?)")
     .run(namespace, task.id, task.title, task.description ?? "", task.date, task.projectName, task.status, null, 0);
   database.prepare("INSERT INTO settings VALUES (?,?)").run("theme", '"dark"');
   database.prepare("INSERT INTO task_state VALUES (?,1)").run("development");
@@ -75,7 +75,7 @@ test("SQLite v4 清理只移除确认的 demo 和假关联，不触碰设置、�
   database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run("development", real.id, "real-issue", JSON.stringify({ ...demoIssue, id: "real-issue" }));
   database.exec("PRAGMA user_version = 4"); database.close();
   database = await openAppDatabase(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 10);
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 11);
   assert.equal(database.prepare("SELECT 1 FROM tasks WHERE namespace='development' AND id=?").get(demoTask.id), undefined);
   assert.equal(database.prepare("SELECT description FROM tasks WHERE id=?").get(real.id).description, real.description);
   assert.ok(database.prepare("SELECT 1 FROM tasks WHERE namespace='protected'").get());

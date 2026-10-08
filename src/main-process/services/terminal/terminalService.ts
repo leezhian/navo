@@ -20,6 +20,7 @@ const MAX_TERMINAL_DIMENSION = 500;
 interface TerminalRecord {
   replay: string;
   onFinish?: () => void;
+  onActivity?: () => void;
   /** 创建该会话的渲染进程，避免不同窗口互相读写 PTY。 */
   owner: WebContents;
   pty: IPty;
@@ -41,6 +42,8 @@ export interface TerminalLaunch {
   onFinish: () => void;
   /** 任务会话状态来自实际进程退出，不从终端文本猜测。 */
   onExit?: (exitCode: number) => void;
+  /** 只通知真实输入输出，不传递内容；附着、回放和尺寸调整不算活动。 */
+  onActivity?: () => void;
 }
 
 export function createTerminal(params: CreateTerminalParams, owner: WebContents, launch?: TerminalLaunch): void {
@@ -68,6 +71,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
   const record: TerminalRecord = {
     replay: "",
     onFinish: launch?.onFinish,
+    onActivity: launch?.onActivity,
     owner,
     pty,
     pendingOutput: "",
@@ -82,6 +86,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
       return;
     }
 
+    if (data.length) record.onActivity?.();
     record.replay = (record.replay + data).slice(-256 * 1024);
     record.pendingOutput += data;
     if (record.pendingOutput.length >= MAX_PENDING_OUTPUT_LENGTH) {
@@ -109,6 +114,7 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
 export function writeTerminal(params: WriteTerminalParams, ownerId: number): void {
   const record = getOwnedRecord(params.sessionId, ownerId);
   record.pty.write(params.data);
+  if (params.data.length) record.onActivity?.();
 }
 
 export function resizeTerminal(params: ResizeTerminalParams, ownerId: number): void {

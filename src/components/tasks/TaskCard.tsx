@@ -1,11 +1,12 @@
 import type { Task } from "@/domain/tasks";
-import { formatDate } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { TaskContextMenu } from "./TaskContextMenu";
 import { taskProjectLabel, taskProjectNames } from "@/utils/taskProjects";
+import { TaskSessionSummary } from "./TaskSessionSummary";
+import { TaskTime } from "./TaskTime";
 
 interface TaskCardProps {
-  /** 卡片仅展示任务标题、日期与项目名称。 */
+  /** 展示两行标题、会话状态、标题下的项目名和右下角日期。 */
   task: Task;
   /** 当前卡片是否对应已打开的任务详情。 */
   selected?: boolean;
@@ -20,7 +21,6 @@ interface TaskCardProps {
 
 export function TaskCard({ task, selected = false, onSelect, selectOnClick = false, showDate = true, showProject = true }: TaskCardProps) {
   const { t } = useTranslation(["common", "tasks"]);
-  const formattedDate = formatDate(task.date);
 
   const content = (
     <article
@@ -38,10 +38,12 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
         onSelect();
       }}
     >
-      <h3 className="task-title" title={task.title}>{task.title}</h3>
-      {(showDate || showProject) && <div className="task-metadata">
-        {showDate && <time dateTime={task.date}>{formattedDate}</time>}
-        {showProject && <span className="task-project ml-auto" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="task-title-with-sessions"><h3 className="task-title" title={task.title}>{task.title}</h3><TaskSessionSummary taskId={task.id} /></div>
+        {showProject && <span className="task-project text-xs text-muted-foreground" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
+      </div>
+      {showDate && <div className="task-metadata">
+        <TaskTime value={task.date} />
       </div>}
     </article>
   );

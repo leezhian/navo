@@ -2,6 +2,7 @@ import { Circle, CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskSessionStatus } from "@/shared/taskSessionTypes";
 import { useTaskSessionStore } from "@/stores/taskSessionStore";
+import { taskSessionSummary } from "@/utils/taskSessionSummary";
 
 interface SessionStatusIconProps {
   /** 未创建会话时使用空心圆；不能以任务 TODO/DONE 代替会话状态。 */
@@ -14,9 +15,6 @@ export function SessionStatusIcon({ status }: SessionStatusIconProps) {
 }
 
 export function TaskSessionStatusIcon({ taskId }: { /** 聚合此任务所有会话的真实状态。 */ taskId: string }) {
-  const status = useTaskSessionStore((state) => {
-    const sessions = state.sessions.filter((session) => session.taskId === taskId && session.kind === "agent" && !session.archivedAt);
-    return (["starting", "running", "failed", "stopped"] as const).find((value) => sessions.some((session) => session.status === value));
-  });
+  const status = useTaskSessionStore((state) => taskSessionSummary(state.sessions, taskId).status);
   return <SessionStatusIcon status={status} />;
 }

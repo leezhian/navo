@@ -31,6 +31,7 @@ export class TaskRepository {
         ...readTaskExtraResources(database, this.namespace, taskId),
         ...(agent ? { agent: JSON.parse(String(agent.data)) } : {}),
         id: taskId, title: String(row.title), description: String(row.description), date: String(row.date),
+        updatedAt: String(row.updated_at),
         projectName: String(row.project_name), status: row.status as Task["status"],
         archivedFrom: row.archived_from === "TODO" || row.archived_from === "DONE" ? row.archived_from : undefined,
         resources: resources.map((item) => JSON.parse(String(item.data))),
@@ -46,8 +47,8 @@ export class TaskRepository {
   }
 
   private insert(database: DatabaseSync, task: Task, position: number) {
-    database.prepare("INSERT INTO tasks (namespace,id,title,description,date,project_name,status,archived_from,position) VALUES (?,?,?,?,?,?,?,?,?)")
-      .run(this.namespace, task.id, task.title, task.description ?? "", task.date, task.projectName, task.status, task.archivedFrom ?? null, position);
+    database.prepare("INSERT INTO tasks (namespace,id,title,description,date,project_name,status,archived_from,position,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+      .run(this.namespace, task.id, task.title, task.description ?? "", task.date, task.projectName, task.status, task.archivedFrom ?? null, position, task.updatedAt || task.date);
   }
 
   importLegacy(tasks: Task[]): Promise<Task[]> {
@@ -87,8 +88,12 @@ export class TaskRepository {
       const next = operation(current);
       const identifiers = new Set(next.map((task) => task.id));
       for (const task of current) if (!identifiers.has(task.id)) database.prepare("DELETE FROM tasks WHERE namespace = ? AND id = ?").run(this.namespace, task.id);
-      next.forEach((task, position) => database.prepare("UPDATE tasks SET title = ?,status = ?,archived_from = ?,position = ? WHERE namespace = ? AND id = ?")
-        .run(task.title, task.status, task.archivedFrom ?? null, position, this.namespace, task.id));
+      const updatedAt = new Date().toISOString();
+      next.forEach((task, position) => database.prepare(`UPDATE tasks SET
+        updated_at = CASE WHEN title IS NOT ? OR status IS NOT ? OR archived_from IS NOT ? THEN ? ELSE updated_at END,
+        title = ?,status = ?,archived_from = ?,position = ? WHERE namespace = ? AND id = ?`)
+        .run(task.title, task.status, task.archivedFrom ?? null, updatedAt,
+          task.title, task.status, task.archivedFrom ?? null, position, this.namespace, task.id));
       return this.readTasks(database);
     }));
   }

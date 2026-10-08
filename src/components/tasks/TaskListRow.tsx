@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { formatDate } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import type { Task } from "@/domain/tasks";
 import type { TaskDisplayOptions } from "@/domain/taskView";
 import { taskProjectLabel, taskProjectNames } from "@/utils/taskProjects";
 import { TaskContextMenu } from "./TaskContextMenu";
+import { TaskSessionSummary } from "./TaskSessionSummary";
+import { TaskTime } from "./TaskTime";
 
 interface TaskListRowProps {
   /** 任务数据及当前字段显隐配置。 */
@@ -24,10 +25,10 @@ export function TaskListRow({ task, display, selected = false, onSelect, selectO
     <Button aria-label={t("tasks:actions.viewLabel", { title: task.title })} aria-pressed={selected} className="task-list-row"
       draggable={false} tabIndex={onSelect ? 0 : -1} data-selected={selected} variant="ghost"
       onClick={(event) => { if (selectOnClick || event.detail === 0) onSelect?.(); }}>
-      <span className="min-w-0 truncate" title={task.title}>{task.title}</span>
+      <span className="task-title-with-sessions"><span className="min-w-0 truncate" title={task.title}>{task.title}</span><TaskSessionSummary taskId={task.id} /></span>
       <span className="task-list-metadata">
         {display.showProject && <span className="task-project" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
-        {display.showDate && <time dateTime={task.date}>{formatDate(task.date)}</time>}
+        {display.showDate && <TaskTime value={task.date} />}
       </span>
     </Button>
   );
