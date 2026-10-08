@@ -13,7 +13,7 @@ import type { AgentOperationPlan } from "@/shared/agentTypes";
 interface AgentOperationDialogProps {
   /** 已确认有效且按序执行的命令计划，不包含明文环境变量。 */
   plans: AgentOperationPlan[];
-  /** 操作面板关闭后重新检测安装和登录状态。 */
+  /** 关闭面板并丢弃剩余计划；实际执行后的刷新由主进程负责。 */
   onClose: () => void;
 }
 

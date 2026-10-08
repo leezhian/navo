@@ -31,7 +31,7 @@ export async function agentUpdateCommand(config: StoredAgentConfiguration, binar
   return definition.update ? { command: binaryPath, args: definition.update } : null;
 }
 
-async function detectAuth(id: StoredAgentConfiguration["id"], binary: string, env: NodeJS.ProcessEnv): Promise<Pick<AgentInstallation, "auth" | "identity">> {
+export async function detectAgentAuth(id: StoredAgentConfiguration["id"], binary: string, env: NodeJS.ProcessEnv): Promise<Pick<AgentInstallation, "auth" | "identity">> {
   if (id === "claude") {
     const result = await runAgentProbe(binary, ["auth", "status", "--json"], env);
     try {
@@ -48,7 +48,7 @@ async function detectAuth(id: StoredAgentConfiguration["id"], binary: string, en
   return { auth: "unknown" };
 }
 
-export async function detectAgent(config: StoredAgentConfiguration, env: NodeJS.ProcessEnv): Promise<AgentInstallation> {
+export async function detectAgentInstallation(config: StoredAgentConfiguration, env: NodeJS.ProcessEnv): Promise<AgentInstallation> {
   const empty: AgentInstallation = { id: config.id, status: "missing", binaryPath: null, source: null, version: null, auth: "unknown", actions: [] };
   const found = config.customPath ? { filename: config.customPath, source: "custom" as const } : await findAgentBinary(agentCatalog[config.id].binary, env);
   if (!found) return { ...empty, actions: await agentInstallCommand(config.id, env) ? ["install"] : [] };
@@ -58,5 +58,11 @@ export async function detectAgent(config: StoredAgentConfiguration, env: NodeJS.
   if (result.code !== 0 || !version) return { ...empty, status: "error", source: found.source, binaryPath: found.filename };
   const actions: AgentAction[] = agentCatalog[config.id].login ? ["login", "logout"] : ["manageLogin"];
   if (await agentUpdateCommand(config, found.filename, env)) actions.push("update");
-  return { id: config.id, status: "installed", binaryPath: found.filename, version, source: found.source, ...await detectAuth(config.id, found.filename, env), actions };
+  return { id: config.id, status: "installed", binaryPath: found.filename, version, source: found.source, auth: "unknown", actions };
+}
+
+export async function detectAgent(config: StoredAgentConfiguration, env: NodeJS.ProcessEnv): Promise<AgentInstallation> {
+  const installation = await detectAgentInstallation(config, env);
+  if (installation.status !== "installed" || !installation.binaryPath) return installation;
+  return { ...installation, ...await detectAgentAuth(config.id, installation.binaryPath, env) };
 }

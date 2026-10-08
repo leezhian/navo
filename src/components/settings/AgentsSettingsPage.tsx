@@ -55,6 +55,6 @@ export function AgentsSettingsPage() {
     {(error !== null || settings.error !== null) && <p role="alert" className="mb-3 text-xs text-destructive">{getAgentError(error ?? settings.error)}</p>}
     <div className="space-y-3">{AGENT_IDS.map((id) => <AgentSettingsCard key={id} id={id} config={snapshot?.configurations.find((config) => config.id === id)} installation={settings.installations.find((item) => item.id === id)} disabled={disabled}
       onSave={settings.save} onAction={(action) => void prepare([id], action)} onDocumentation={() => void documentation(id)} />)}</div>
-    {plans && <Suspense fallback={<p role="status" className="mt-3 text-xs text-muted-foreground">{t("agents:operation.waiting")}</p>}><AgentOperationDialog plans={plans} onClose={() => { setPlans(null); void getAgentsApi().discardPlans().catch(() => undefined); void settings.refresh(); }} /></Suspense>}
+    {plans && <Suspense fallback={<p role="status" className="mt-3 text-xs text-muted-foreground">{t("agents:operation.waiting")}</p>}><AgentOperationDialog plans={plans} onClose={() => { setPlans(null); void getAgentsApi().discardPlans().catch(() => undefined); }} /></Suspense>}
   </>;
 }

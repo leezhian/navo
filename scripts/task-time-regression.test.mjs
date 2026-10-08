@@ -44,6 +44,9 @@ test("日期组件中英文随语言设置切换，保留真实 datetime 和完�
     assert.ok(render(elapsed).endsWith(`>${text}</time>`));
   }
   assert.match(render(0), /dateTime="[^"]+" title="[^"]+12:00:00"/i);
+  const cardTime = renderToStaticMarkup(React.createElement(TaskTime, { value: new Date(now).toISOString(), showTooltip: false }));
+  assert.doesNotMatch(cardTime, /title=/);
+  assert.match(cardTime, /dateTime="[^"]+"/i);
   await i18n.changeLanguage("zh-CN");
   assert.ok(render(0).endsWith(">刚刚</time>"));
   assert.ok(render(5 * minute).endsWith(">5 分钟前</time>"));

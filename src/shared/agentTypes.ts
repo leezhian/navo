@@ -53,7 +53,7 @@ export interface AgentOperationPlan {
 
 export interface AgentsApi {
   load(): Promise<AgentSettingsSnapshot>;
-  scan(): Promise<AgentInstallation[]>;
+  scan(id?: AgentId): Promise<AgentInstallation[]>;
   capabilities(id: AgentId): Promise<AgentCapabilities>;
   /** 只读取本地快照，不检测 CLI 或检查缓存过期。 */
   capabilitySnapshot(): Promise<AgentCapabilitySnapshot>;

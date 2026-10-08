@@ -68,6 +68,7 @@ test("Tasks 卡片和列表按状态分组，单个不显示数字，空会话�
           if(!project||project.getBoundingClientRect().top<titleRect.bottom||project.textContent!=='project +2'||project.title!=='project, Folder, other')throw Error('Project must sit below title with overflow count and full hover labels');
           if(card.querySelector('.task-card-branches'))throw Error('Card must not display branches');
           const footer=card.querySelector('.task-metadata'),time=footer.querySelector('time');
+          if(time.hasAttribute('title'))throw Error('Card time must not show a hover tooltip');
           if(Math.abs(time.getBoundingClientRect().right-footer.getBoundingClientRect().right)>1)throw Error('Time must align to bottom right');
           if(footer.getBoundingClientRect().top<project.getBoundingClientRect().bottom)throw Error('Footer must follow project');
           const listTitle=document.querySelector('#list .task-title-with-sessions').firstElementChild,listStyle=getComputedStyle(listTitle);

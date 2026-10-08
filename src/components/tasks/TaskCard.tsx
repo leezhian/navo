@@ -43,7 +43,7 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
         {showProject && <span className="task-project text-xs text-muted-foreground" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
       </div>
       {showDate && <div className="task-metadata">
-        <TaskTime value={task.date} />
+        <TaskTime value={task.date} showTooltip={false} />
       </div>}
     </article>
   );

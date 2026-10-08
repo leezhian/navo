@@ -47,7 +47,7 @@ export function registerAgentHandlers() {
     return event.sender;
   }
   ipcMain.handle(ipcChannels.agentsLoad, (event) => { owner(event); return agents.repository.snapshot(); });
-  ipcMain.handle(ipcChannels.agentsScan, (event) => { owner(event); return agents.scan(); });
+  ipcMain.handle(ipcChannels.agentsScan, (event, id?: AgentId) => { owner(event); return agents.scan(id); });
   ipcMain.handle(ipcChannels.agentsCapabilities, (event, id: AgentId) => { owner(event); return agents.capabilities(id); });
   ipcMain.handle(ipcChannels.agentsCapabilitySnapshot, (event) => { owner(event); return agents.capabilityCache.snapshot(); });
   ipcMain.handle(ipcChannels.agentsSave, (event, input: SaveAgentConfiguration) => { owner(event); return agents.save(input); });

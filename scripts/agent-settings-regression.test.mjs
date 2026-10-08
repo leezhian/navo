@@ -118,11 +118,16 @@ test("准备命令不执行，凭据绑定窗口且一次性，完成后释放�
     "./agentCapabilities": { readAgentCapabilities: async () => ({}) },
     "./agentDetection": {
       detectAgent: async (value) => ({ id: value.id, status: "installed", binaryPath: "/test/" + value.id, auth: "unknown", actions: ["login", "logout", "update", "manageLogin"] }),
+      detectAgentInstallation: async (value) => ({ id: value.id, status: "installed", binaryPath: "/test/" + value.id, auth: "unknown", actions: ["login", "logout", "update", "manageLogin"] }),
+      detectAgentAuth: async () => ({ auth: "unknown" }),
       agentUpdateCommand: async (_config, binary) => ({ command: binary, args: ["update"] }),
     },
     "../terminal/terminalService": { createTerminal: (params, owner, launch) => launches.push({ params, owner, launch }) },
   });
   const service = new (load("src/main-process/services/agents/agentService.ts").AgentService)(filename);
+  const invalidations = [];
+  const invalidate = service.capabilityCache.invalidate.bind(service.capabilityCache);
+  service.capabilityCache.invalidate = async (...args) => { invalidations.push(args); return invalidate(...args); };
   cleanups.push(() => service.capabilityCache.stop());
   await service.save({ ...config, environment: [{ name: "API_TOKEN", value: "PRIVATE" }] });
   await service.setDefault("claude");
@@ -139,8 +144,13 @@ test("准备命令不执行，凭据绑定窗口且一次性，完成后释放�
   await assert.rejects(service.prepare("codex", "update", 1), /AGENT_BUSY/);
   assert.throws(() => service.start(params, { id: 1 }), /AGENT_EXPIRED_PLAN/);
   launches[0].launch.onFinish();
+  assert.deepEqual(invalidations.at(-1), ["claude", "auth"]);
   const next = await service.prepare("codex", "update", 1);
   service.discardPlans(1);
   assert.throws(() => service.start({ ...params, operationToken: next.token, sessionId: "agent-" + next.token }, { id: 1 }), /AGENT_EXPIRED_PLAN/);
   await assert.rejects(service.prepare("zcode", "login", 1), /AGENT_INVALID/);
+  const update = await service.prepare("claude", "update", 1);
+  service.start({ ...params, operationToken: update.token, sessionId: "agent-" + update.token }, { id: 1 });
+  launches.at(-1).launch.onFinish();
+  assert.deepEqual(invalidations.at(-1), ["claude", "all"]);
 });

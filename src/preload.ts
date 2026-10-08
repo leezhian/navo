@@ -52,7 +52,7 @@ const api: NavoApi = {
     },
     capabilities: (id) => ipcRenderer.invoke(ipcChannels.agentsCapabilities, id),
     load: () => ipcRenderer.invoke(ipcChannels.agentsLoad),
-    scan: () => ipcRenderer.invoke(ipcChannels.agentsScan),
+    scan: (id) => ipcRenderer.invoke(ipcChannels.agentsScan, id),
     save: (input) => ipcRenderer.invoke(ipcChannels.agentsSave, input),
     setDefault: (id) => ipcRenderer.invoke(ipcChannels.agentsSetDefault, id),
     chooseBinary: () => ipcRenderer.invoke(ipcChannels.agentsChooseBinary),

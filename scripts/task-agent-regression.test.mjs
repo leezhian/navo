@@ -163,7 +163,10 @@ test("后端允许未知状态查询能力，拒绝明确不可用的 Agent，�
   let auth = "unknown"; let status = "installed"; let binaryPath = "/fixture/cli"; let probes = 0;
   const runtime = createLoader({ electron: { safeStorage: { isEncryptionAvailable: () => true } },
     "./agentEnvironment": { agentShellEnvironment: async () => ({}), isAgentExecutable: async () => true },
-    "./agentDetection": { detectAgent: async (config) => ({ id: config.id, status, auth, binaryPath }) },
+    "./agentDetection": {
+      detectAgentInstallation: async (config) => ({ id: config.id, status, auth: "unknown", binaryPath }),
+      detectAgentAuth: async () => ({ auth }),
+    },
     "./agentCapabilities": { readAgentCapabilities: async () => { probes += 1; return {}; } },
     "../terminal/terminalService": {},
   });

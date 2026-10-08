@@ -20,10 +20,18 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
       import {defaultSettings} from '/src/domain/settings.ts'; import {TooltipProvider} from '/src/components/ui/tooltip.tsx';
       await i18n.changeLanguage('zh-CN'); window.setLocale=locale=>i18n.changeLanguage(locale);
       let snapshot={defaultAgent:null,secureStorageAvailable:true,configurations:['claude','codex','grok','antigravity'].map(id=>({id,enabled:true,customPath:'',args:[],environmentNames:id==='claude'?['EXISTING_TOKEN']:[]}))};
-      window.starts=[]; window.plans=[]; window.saved=[]; window.scans=0; const exits=new Set(); const output=new Set();
+      window.starts=[]; window.plans=[]; window.saved=[]; window.scans=0; window.scanIds=[]; const exits=new Set(); const output=new Set(); const changes=new Set();
+      const detected=config=>({id:config.id,status:config.id==='codex'?'missing':'installed',binaryPath:config.id==='codex'?null:config.customPath||'/test/'+config.id,version:config.id==='codex'?null:'1.2.3',source:'path',auth:config.id==='claude'?'signedIn':'unknown',actions:config.id==='codex'?['install']:config.id==='antigravity'?['manageLogin']:['login','logout','update']});
+      let installations=snapshot.configurations.map(detected);
+      const ready=new Promise(resolve=>window.releaseLoad=resolve);
+      window.notify=()=>{for(const listener of changes)listener();};
+      window.pushVersion=version=>{installations=installations.map(item=>item.id==='claude'?{...item,version}:item);window.notify();};
       window.navo={settings:{getLogsStatus:async()=>({failed:false}),chooseDirectory:async()=>window.directoryChoice??null},agents:{
-        load:async()=>{if(!window.loaded){await new Promise(resolve=>window.releaseLoad=resolve);window.loaded=true;}return structuredClone(snapshot);}, scan:async()=>{window.scans++;if(window.scans===1)await new Promise(resolve=>window.releaseScan=resolve);if(window.holdScan){await new Promise(resolve=>window.resumeScan=resolve);window.holdScan=false;}return snapshot.configurations.map(config=>({id:config.id,status:config.id==='codex'?'missing':'installed',binaryPath:config.id==='codex'?null:config.customPath||'/test/'+config.id,version:config.id==='codex'?null:'1.2.3',source:'path',auth:config.id==='claude'?'signedIn':'unknown',actions:config.id==='codex'?['install']:config.id==='antigravity'?['manageLogin']:['login','logout','update']}));},
-        save:async input=>{window.saved.push(input);if(window.failSave)throw new Error('AGENT_STORAGE_FAILED');if(input.customPath==='/test/invalid')throw new Error('AGENT_INVALID_PATH');snapshot.configurations=snapshot.configurations.map(config=>config.id===input.id?{id:input.id,enabled:input.enabled,customPath:input.customPath,args:input.args,environmentNames:input.environment.map(entry=>entry.name)}:config);return structuredClone(snapshot);},
+        load:async()=>{throw new Error('Settings must read the shared snapshot');},
+        capabilitySnapshot:async()=>{await ready;const result=structuredClone({settings:snapshot,installations,entries:{}});if(window.holdSnapshot){window.holdSnapshot=false;await new Promise(resolve=>window.releaseSnapshot=resolve);}return result;},
+        onCapabilitiesChanged:listener=>{changes.add(listener);return()=>changes.delete(listener);},
+        scan:async id=>{window.scans++;window.scanIds.push(id??'all');if(window.holdScan){await new Promise(resolve=>window.resumeScan=resolve);window.holdScan=false;}installations=installations.map(item=>!id||item.id===id?detected(snapshot.configurations.find(config=>config.id===item.id)):item);window.notify();return structuredClone(installations);},
+        save:async input=>{window.saved.push(input);if(window.failSave)throw new Error('AGENT_STORAGE_FAILED');if(input.customPath==='/test/invalid')throw new Error('AGENT_INVALID_PATH');snapshot.configurations=snapshot.configurations.map(config=>config.id===input.id?{id:input.id,enabled:input.enabled,customPath:input.customPath,args:input.args,environmentNames:input.environment.map(entry=>entry.name)}:config);installations=installations.map(item=>item.id===input.id?detected(snapshot.configurations.find(config=>config.id===item.id)):item);window.notify();return structuredClone(snapshot);},
         setDefault:async id=>{snapshot.defaultAgent=id;return structuredClone(snapshot);},chooseBinary:async()=>window.chooseResult===undefined?'/test/chosen-cli':window.chooseResult,openDocumentation:async()=>{},
         prepare:async(id,action)=>{const plan={id,action,token:crypto.randomUUID(),command:id+' '+action};window.plans.push(plan);return plan;},discardPlans:async()=>{},
         startOperation:async params=>{window.starts.push(params);for(const listener of output)listener({sessionId:params.sessionId,data:'TEST CLI OUTPUT\\r\\n'});},
@@ -61,25 +69,34 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         await wait(()=>window.currentAppSettings.tasksDirectory==='/fixtures/edited-tasks','Blur must commit manually edited task directory');
         await window.setLocale('en');await wait(()=>document.querySelector('input[aria-label="Tasks directory"]'),'Task directory label must support English');
         await window.setLocale('zh-CN');await wait(()=>button('Agents'),'Settings navigation must remain available');button('Agents').click();
-        await wait(()=>window.releaseScan && window.releaseLoad,'Initial requests must start');
+        await wait(()=>document.querySelector('section[aria-label="Claude Code"]'),'Initial cards must render');
         if(document.querySelectorAll('.settings-list[aria-label]').length!==4)throw new Error('Initial detection must keep four cards visible instead of replacing the list with loading text');
         if(document.body.textContent.includes('正在检测') || document.body.textContent.includes('未安装'))throw new Error('Pending detection must not show loading text or a false missing state');
         const initialCard=document.querySelector('section[aria-label="Claude Code"]');
         const initialHeight=initialCard.getBoundingClientRect().height;
-        window.releaseLoad();window.releaseScan();
+        window.releaseLoad();
         await wait(()=>initialCard.textContent.includes('已登录'),'Initial detection did not finish');
         if(initialCard!==document.querySelector('section[aria-label="Claude Code"]') || initialCard.getBoundingClientRect().height!==initialHeight)throw new Error('Detection must update cards in place without changing installed card height');
         await wait(()=>document.querySelector('section[aria-label="Claude Code"]'),'Missing four CLI cards');
         if(document.querySelectorAll('.settings-list[aria-label]').length!==4)throw new Error('Must support only four agents');
         if(document.body.textContent.includes('Rich chat')||document.body.textContent.includes('添加账号'))throw new Error('Unsupported mode/account controls must be absent');
-        if(window.scans!==1)throw new Error('StrictMode must not duplicate scanning');
+        if(window.scans!==0)throw new Error('Opening settings must not scan, including StrictMode');
         const claude=()=>document.querySelector('section[aria-label="Claude Code"]');
         if(!claude().textContent.includes('已登录')||!document.querySelector('section[aria-label="Grok Build"]').textContent.includes('登录状态未知'))throw new Error('Real/unknown auth must differ');
-        window.holdScan=true;document.querySelector('.navo-settings-navigation nav button').click();
+        document.querySelector('.navo-settings-navigation nav button').click();
         await wait(()=>!claude(),'Agent page must unmount when navigating away');button('Agents').click();
-        await wait(()=>window.resumeScan,'Returning must refresh detection');
+        await wait(()=>claude(),'Returning must render cached detection');
         if(!claude()?.textContent.includes('已登录') || document.querySelectorAll('.settings-list[aria-label]').length!==4)throw new Error('Returning must retain cached cards and detection results');
-        window.resumeScan();await wait(()=>!button('全部更新').disabled,'Returning scan should settle');
+        await pause();if(window.scans!==0)throw new Error('Returning must not scan');
+        window.pushVersion('2.0.0');await wait(()=>claude().textContent.includes('2.0.0'),'Background event must update the page');
+        if(button('全部更新').disabled)throw new Error('Background snapshot reads must not lock the page');
+        window.holdSnapshot=true;window.notify();await wait(()=>window.releaseSnapshot,'Missing held snapshot');
+        window.pushVersion('3.0.0');await wait(()=>claude().textContent.includes('3.0.0'),'Newer snapshot must apply');
+        window.releaseSnapshot();await pause();if(!claude().textContent.includes('3.0.0'))throw new Error('Old snapshot must not overwrite newer results');
+        window.holdScan=true;button('重新扫描').click();await wait(()=>window.resumeScan,'Explicit scan must run');
+        if(!claude().textContent.includes('已登录'))throw new Error('Manual scan must preserve visible results');
+        window.resumeScan();await wait(()=>!button('全部更新').disabled,'Manual scan should settle');
+        if(window.scans!==1||window.scanIds[0]!=='all')throw new Error('Toolbar scan must be explicit and global');
         if([...claude().querySelectorAll('p')].some(item=>item.textContent==='安装'))throw new Error('Duplicate installation section must be absent');
         button('高级设置',claude()).click();await wait(()=>claude().querySelector('input'),'Missing binary path form');
         if(claude().querySelector('textarea')||claude().querySelector('input[type="password"]')||claude().textContent.includes('启动参数')||claude().textContent.includes('环境变量'))throw new Error('Advanced settings must only edit the binary');
@@ -93,6 +110,7 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         picker().click();await pause();
         await wait(()=>window.saved.length===1 && !picker().disabled,'Choosing a file must save immediately');
         if(window.saved[0].customPath!=='/test/chosen-cli'||window.saved[0].environment[0].value!==undefined||pathInput().value!=='/test/chosen-cli')throw new Error('Path not saved or unrelated stored settings changed');
+        if(window.scans!==1)throw new Error('Saving a path must not cause a global scan');
         picker().click();await pause();
         if(window.saved.length!==1)throw new Error('Choosing the same path must not save again');
         window.chooseResult=null;picker().click();await pause();
@@ -111,6 +129,11 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         if(window.saved[4].customPath!==''||window.scans!==scansBeforeReset+1||pathInput().value!=='/test/claude')throw new Error('Re-scan must clear custom path and display automatic detection');
         rescan().click();await pause();
         await wait(()=>window.scans===scansBeforeReset+2 && !rescan().disabled,'Automatic mode must still allow repeated scans');
+        if(window.scanIds.slice(1).some(id=>id!=='claude'))throw new Error('Path reset must scan only the affected Agent');
+        const scansBeforeDialog=window.scans;
+        button('全部更新').click();await wait(()=>dialog(),'Missing cancelled command confirmation');
+        button('关闭',dialog()).click();await wait(()=>!dialog(),'Unexecuted confirmation must close');await pause();
+        if(window.scans!==scansBeforeDialog)throw new Error('Closing an unexecuted confirmation must not scan');
         button('全部更新').click();await wait(()=>dialog(),'Missing command confirmation');
         if(window.starts.length)throw new Error('Preparing must not run commands');
         if(dialog().querySelectorAll('pre').length!==2)throw new Error('Batch must show each command');
@@ -125,6 +148,7 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         await wait(()=>dialog().textContent.includes('已取消'),'Cancellation must be visible');window.finish(0);await pause();
         if(window.starts.length!==3)throw new Error('Cancellation must not launch queued update');
         button('关闭',dialog()).click();await wait(()=>!dialog(),'Cancelled dialog should close');
+        if(window.scans!==scansBeforeDialog)throw new Error('Operation dialog close must not scan all Agents');
         await window.setLocale('en');await wait(()=>button('Re-scan'),'Agent settings must support English');
         if(!document.body.textContent.includes('Default agent'))throw new Error('Default setting missing');
         button('Advanced',claude()).click();

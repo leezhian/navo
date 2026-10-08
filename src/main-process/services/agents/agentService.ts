@@ -33,8 +33,9 @@ export class AgentService {
     return entry.capabilities;
   }
 
-  async scan(): Promise<AgentInstallation[]> {
-    await this.capabilityCache.refreshAll();
+  async scan(id?: AgentId): Promise<AgentInstallation[]> {
+    if (id !== undefined) { requireAgentId(id); await this.capabilityCache.refresh(id); }
+    else await this.capabilityCache.refreshAll();
     return this.capabilityCache.installations();
   }
 
@@ -53,8 +54,10 @@ export class AgentService {
     if (id !== null) {
       requireAgentId(id);
       const configuration = (await this.repository.read()).configurations.find((config) => config.id === id);
-      const installation = (await this.scan()).find((item) => item.id === id);
-      if (!configuration?.enabled || installation?.status !== "installed") throw new Error("AGENT_UNAVAILABLE");
+      if (!configuration?.enabled) throw new Error("AGENT_UNAVAILABLE");
+      let installation = (await this.capabilityCache.snapshot()).installations.find((item) => item.id === id);
+      if (!installation) installation = (await this.scan(id)).find((item) => item.id === id);
+      if (installation?.status !== "installed") throw new Error("AGENT_UNAVAILABLE");
     }
     const result = await this.repository.setDefault(id);
     this.changed();
@@ -100,7 +103,11 @@ export class AgentService {
     try {
       createTerminal({ ...params, cwd: os.homedir() }, owner, {
         command: plan.commandPath, args: plan.args, env: plan.env,
-        onFinish: () => { this.running = false; void this.capabilityCache.invalidate(plan.id).catch(() => undefined); },
+        onFinish: () => {
+          this.running = false;
+          const scope = plan.action === "install" || plan.action === "update" ? "all" : "auth";
+          void this.capabilityCache.invalidate(plan.id, scope).catch(() => undefined);
+        },
       });
     } catch { this.running = false; throw new Error("AGENT_START_FAILED"); }
   }

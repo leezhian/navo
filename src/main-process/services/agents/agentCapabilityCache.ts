@@ -7,7 +7,8 @@ import { AgentCapabilityRepository } from "./agentCapabilityRepository";
 import type { AgentCapabilityState, CachedAgentCapabilities } from "./agentCapabilityRepository";
 import { agentCapabilityFingerprint, agentConfigurationKey } from "./agentCapabilityFingerprint";
 import { agentShellEnvironment } from "./agentEnvironment";
-import { detectAgent } from "./agentDetection";
+import { AgentDetectionCache } from "./agentDetectionCache";
+import type { AgentDetectionScope } from "./agentDetectionCache";
 import { readAgentCapabilities } from "./agentCapabilities";
 
 export const AGENT_CACHE_MAX_AGE_MS = 4 * 60 * 60 * 1000;
@@ -21,6 +22,7 @@ export class AgentCapabilityCache {
   private loaded: Promise<void> | null = null;
   private jobs = new Map<AgentId, Promise<void>>();
   private revisions = new Map<AgentId, number>();
+  private readonly detection = new AgentDetectionCache();
   private startupTimer: ReturnType<typeof setTimeout> | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private stopped = false;
@@ -57,7 +59,10 @@ export class AgentCapabilityCache {
     }
     const installations = [...this.states.values()].filter((state) => {
       const config = stored.configurations.find((item) => item.id === state.installation.id);
-      return config && state.configurationKey === agentConfigurationKey(config);
+      if (!config) return false;
+      // 启用开关只影响任务可选范围，不清空相同路径和环境下的安装、登录展示。
+      return state.configurationKey === agentConfigurationKey(config)
+        || state.configurationKey === agentConfigurationKey({ ...config, enabled: !config.enabled });
     }).map((state) => state.installation);
     return { settings, entries, installations };
   }
@@ -76,8 +81,9 @@ export class AgentCapabilityCache {
   }
 
   /** 配置或登录操作发生变化时，旧结果可展示但不可作为新环境的有效配置。 */
-  async invalidate(id: AgentId) {
+  async invalidate(id: AgentId, scope: AgentDetectionScope = "all") {
     if (this.stopped) return;
+    this.detection.invalidate(id, scope);
     const revision = (this.revisions.get(id) ?? 0) + 1;
     this.revisions.set(id, revision);
     const current = () => !this.stopped && revision === this.revisions.get(id);
@@ -90,13 +96,14 @@ export class AgentCapabilityCache {
       await this.storage.save(invalidated, null, current);
     }
     this.changed();
-    void this.refresh(id).catch(() => undefined);
+    void this.refresh(id, false).catch(() => undefined);
   }
 
-  refresh(id: AgentId): Promise<void> {
+  refresh(id: AgentId, forceDetection = true): Promise<void> {
     if (this.stopped) return Promise.resolve();
     const existing = this.jobs.get(id);
     if (existing) return existing;
+    if (forceDetection) this.detection.invalidate(id);
     const job = (async () => {
       let revision: number;
       do {
@@ -119,7 +126,7 @@ export class AgentCapabilityCache {
     try {
       const env = { ...await agentShellEnvironment(), ...this.settings.environment(config) };
       if (!current()) return;
-      state.installation = await detectAgent(config, env);
+      state.installation = await this.detection.read(config, env);
       if (!current()) return;
       if (!canSelectTaskAgent(config, state.installation)) throw new Error("AGENT_UNAVAILABLE");
       if (!state.installation.binaryPath) throw new Error("AGENT_CAPABILITIES_FAILED");

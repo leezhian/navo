@@ -15,8 +15,8 @@ interface AgentSettingsCardProps {
   installation?: AgentInstallation;
   /** 扫描、保存或准备操作时禁用冲突按钮。 */
   disabled: boolean;
-  /** 保存配置，不修改 CLI 自身全局配置。 */
-  onSave: (input: SaveAgentConfiguration) => Promise<boolean>;
+  /** 保存配置；rescan 仅重扫当前 Agent，不修改 CLI 自身全局配置。 */
+  onSave: (input: SaveAgentConfiguration, rescan?: boolean) => Promise<boolean>;
   /** 准备命令并打开确认面板，不立即执行。 */
   onAction: (action: AgentAction) => void;
   /** 打开固定的厂商官方说明地址。 */

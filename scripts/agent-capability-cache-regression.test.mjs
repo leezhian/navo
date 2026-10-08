@@ -12,10 +12,13 @@ const configuration = { id: "claude", enabled: true, customPath: "", args: [], e
 async function fixture(context) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-capability-cache-"));
   const filename = path.join(directory, "app.db");
-  const runtime = { version: "1.0.0", auth: "signedIn", identity: "first@example.invalid", binaryPath: "/fixture/cli", fail: false, probes: 0, detections: 0, hold: null, model: "live-model" };
+  const runtime = { version: "1.0.0", auth: "signedIn", identity: "first@example.invalid", binaryPath: "/fixture/cli", fail: false, probes: 0, detections: 0, authChecks: 0, detectedIds: [], hold: null, model: "live-model" };
   const load = createLoader({ electron: { safeStorage: { isEncryptionAvailable: () => true } },
     "./agentEnvironment": { agentShellEnvironment: async () => ({ HOME: directory }), isAgentExecutable: async () => true },
-    "./agentDetection": { detectAgent: async (config) => { runtime.detections += 1; return { id: config.id, status: "installed", auth: runtime.auth, identity: runtime.identity, version: runtime.version, binaryPath: config.customPath || runtime.binaryPath, source: "path", actions: [] }; } },
+    "./agentDetection": {
+      detectAgentInstallation: async (config) => { runtime.detections += 1; runtime.detectedIds.push(config.id); return { id: config.id, status: "installed", auth: "unknown", version: runtime.version, binaryPath: config.customPath || runtime.binaryPath, source: "path", actions: [] }; },
+      detectAgentAuth: async () => { runtime.authChecks += 1; return { auth: runtime.auth, identity: runtime.identity }; },
+    },
     "./agentCapabilities": { readAgentCapabilities: async (id) => { runtime.probes += 1; const model = runtime.model; if (runtime.hold) await runtime.hold; if (runtime.fail) throw new Error("PRIVATE CLI OUTPUT"); return capabilities(id, model); } },
     "../terminal/terminalService": {},
   });
@@ -74,6 +77,7 @@ test("明确退出登录不可使用旧缓存，禁用后不再后台探测", as
   assert.equal((await service.capabilityCache.snapshot()).entries.claude.capabilities.defaultModelId, "live-model");
   await service.save({ ...configuration, enabled: false });
   await service.capabilityCache.refresh("claude");
+  assert.equal((await service.capabilityCache.snapshot()).installations.find(item => item.id === "claude").status, "installed");
   const detections = runtime.detections;
   await service.capabilityCache.refresh("claude");
   assert.equal(runtime.detections, detections); assert.equal(runtime.probes, 1);
@@ -173,4 +177,34 @@ test("启动 30 秒后检查，此后每 4 小时检查，停止后不再调度"
   context.mock.timers.tick(AGENT_CACHE_MAX_AGE_MS - AGENT_CACHE_START_DELAY_MS); assert.equal(checks, 2);
   await service.capabilityCache.stop();
   context.mock.timers.tick(AGENT_CACHE_MAX_AGE_MS * 2); assert.equal(checks, 2);
+});
+
+test("保存只刷新当前 Agent，默认项与无变化保存复用快照，显式重扫支持单项", async (context) => {
+  const { service, runtime } = await fixture(context);
+  await service.scan("claude");
+  assert.deepEqual(runtime.detectedIds, ["claude"]);
+  await service.setDefault("claude"); await service.save(configuration);
+  assert.equal(runtime.detections, 1);
+  await service.setDefault("codex");
+  assert.deepEqual(runtime.detectedIds, ["claude", "codex"]);
+  await service.save({ ...configuration, customPath: "/fixture/changed" });
+  await service.capabilityCache.refresh("claude", false);
+  assert.deepEqual(runtime.detectedIds, ["claude", "codex", "claude"]);
+  await service.scan("claude"); await service.scan("claude");
+  assert.deepEqual(runtime.detectedIds.slice(3), ["claude", "claude"]);
+  await assert.rejects(service.scan("invalid"), /AGENT_INVALID/);
+});
+
+test("账号变化只刷新登录和能力，不重新检测安装；定时全量检查仍发现外部变更", async (context) => {
+  const { service, runtime } = await fixture(context);
+  await service.scan("claude");
+  runtime.identity = "other@example.invalid";
+  await service.capabilityCache.invalidate("claude", "auth");
+  await service.capabilityCache.refresh("claude", false);
+  assert.equal(runtime.detections, 1); assert.equal(runtime.authChecks, 2); assert.equal(runtime.probes, 2);
+  runtime.version = "2.0.0";
+  await service.capabilityCache.refreshAll();
+  const snapshot = await service.capabilityCache.snapshot();
+  assert.equal(snapshot.installations.find(item => item.id === "claude").version, "2.0.0");
+  assert.equal(runtime.detections, 5);
 });
