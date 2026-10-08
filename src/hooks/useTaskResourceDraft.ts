@@ -5,8 +5,14 @@ import type { AddTaskResourcesInput, TaskFileReference, TaskResourceCategory } f
 import { getTasksApi } from "@/services/taskApi";
 import { useTaskStore } from "@/stores/taskStore";
 import { isTaskLinkUrl } from "@/utils/taskWebLinks";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useTaskResourceSelection } from "./useTaskResourceSelection";
 
 export function useTaskResourceDraft(task: Task, category: TaskResourceCategory) {
+  const defaultMode = useSettingsStore((state) => state.settings.defaultTaskMode);
+  const repositorySelection = useTaskResourceSelection(defaultMode);
+  const repositories = repositorySelection.selections.flatMap((item) => item.draft ? [item.draft] : []);
+  const repositoriesReady = !repositorySelection.pending && repositories.every((resource) => !resource.info.git || resource.mode === "current-branch" || resource.sourceBranch);
   const [issues, setIssues] = useState<IssueItem[]>([]);
   const [prs, setPrs] = useState<IssueItem[]>([]);
   const [url, setUrl] = useState("");
@@ -42,7 +48,7 @@ export function useTaskResourceDraft(task: Task, category: TaskResourceCategory)
   }
   const duplicateLink = isTaskLinkUrl(url.trim()) && (task.webLinks ?? []).some((link) => new URL(link.url).href === new URL(url.trim()).href);
   const duplicateFile = file !== null && (task.files ?? []).some((item) => item.path === file.path);
-  const count = category === "issues" ? issues.length : category === "pullRequests" ? prs.length
+  const count = category === "repositories" ? repositoriesReady ? repositories.length : 0 : category === "issues" ? issues.length : category === "pullRequests" ? prs.length
     : category === "links" ? Number(isTaskLinkUrl(url.trim()) && !duplicateLink)
     : category === "notes" ? Number(Boolean(content.trim())) : category === "files" ? Number(file !== null && !duplicateFile) : 0;
 
@@ -52,6 +58,7 @@ export function useTaskResourceDraft(task: Task, category: TaskResourceCategory)
     const requestId = requests.current[category] ?? crypto.randomUUID();
     requests.current[category] = requestId;
     const input: AddTaskResourcesInput = { requestId, links: [], webLinks: [], notes: [], fileIds: [] };
+    if (category === "repositories") input.resources = repositories.map(({ resourceId, mode, sourceBranch }) => ({ resourceId, mode, sourceBranch, targetBranch: "" }));
     if (category === "issues") input.links = issues;
     if (category === "pullRequests") input.links = prs;
     if (category === "links") input.webLinks = [{ id: requestId, url: url.trim(), title: linkTitle.trim() }];
@@ -60,14 +67,18 @@ export function useTaskResourceDraft(task: Task, category: TaskResourceCategory)
     try {
       await useTaskStore.getState().addResources(task.id, input);
       delete requests.current[category];
+      if (category === "repositories") repositorySelection.reset();
       if (category === "issues") setIssues([]);
       if (category === "pullRequests") setPrs([]);
       if (category === "links") { setUrl(""); setLinkTitle(""); }
       if (category === "notes") { setNoteTitle(""); setContent(""); }
       if (category === "files") { fileRef.current = null; setFile(null); }
       setAdded(true);return true;
-    } catch (failure) { setError(failure);return false; }
+    } catch (failure) {
+      if (String(failure).includes("TASK_CREATE_RETAINED")) delete requests.current[category];
+      setError(failure);return false;
+    }
     finally { busyRef.current = false; setBusy(false); }
   }
-  return { issues, setIssues, prs, setPrs, url, setUrl, linkTitle, setLinkTitle, noteTitle, setNoteTitle, content, setContent, file, chooseFile, busy, error, added, count, duplicateLink, duplicateFile, submit };
+  return { repositorySelection, issues, setIssues, prs, setPrs, url, setUrl, linkTitle, setLinkTitle, noteTitle, setNoteTitle, content, setContent, file, chooseFile, busy, error, added, count, duplicateLink, duplicateFile, submit };
 }

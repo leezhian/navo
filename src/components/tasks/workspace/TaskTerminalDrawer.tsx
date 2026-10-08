@@ -1,4 +1,5 @@
-import { PanelBottomClose, Maximize2, Minimize2, Plus, Terminal, X } from "lucide-react";
+import type { ReactNode } from "react";
+import { PanelBottomClose, Maximize2, Minimize2, Terminal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskSession } from "@/shared/taskSessionTypes";
 import { TerminalWorkspace } from "@/components/terminal/TerminalWorkspace";
@@ -12,12 +13,13 @@ interface TaskTerminalDrawerProps {
   activeId?: string;
   expanded: boolean;
   onSelect: (id: string) => void;
-  onAdd: () => void;
+  /** 与上下文分组共用的工作目录选择及新建入口。 */
+  newTerminalControl: ReactNode;
   onExpand: () => void;
   /** 收起不终止进程；每个标签的关闭操作则终止进程树。 */
   onCollapse: () => void;
 }
-export function TaskTerminalDrawer({ sessions, activeId, expanded, onSelect, onAdd, onExpand, onCollapse }: TaskTerminalDrawerProps) {
+export function TaskTerminalDrawer({ sessions, activeId, expanded, onSelect, newTerminalControl, onExpand, onCollapse }: TaskTerminalDrawerProps) {
   const { t } = useTranslation(["common", "tasks"]);
   const active = sessions.find((session) => session.id === activeId) ?? sessions[0];
   const pending = useTaskSessionStore((state) => state.pending);
@@ -28,7 +30,7 @@ export function TaskTerminalDrawer({ sessions, activeId, expanded, onSelect, onA
         <button aria-label={t("tasks:runtime.closeTerminal", { name: session.title })} disabled={pending} onClick={() => void useTaskSessionStore.getState().stop(session.id)}><X className="size-3" /></button>
       </div>)}</div>
       <div className="flex shrink-0 items-center gap-1">
-        <IconTooltip label={t("tasks:runtime.newTerminal")} size="icon-xs" disabled={pending} onClick={onAdd}><Plus /></IconTooltip>
+        {newTerminalControl}
         <IconTooltip label={t(expanded ? "tasks:runtime.restoreTerminal" : "tasks:runtime.expandTerminal")} size="icon-xs" onClick={onExpand}>{expanded ? <Minimize2 /> : <Maximize2 />}</IconTooltip>
         <IconTooltip label={t("tasks:runtime.hideTerminal")} size="icon-xs" onClick={onCollapse}><PanelBottomClose /></IconTooltip>
       </div>

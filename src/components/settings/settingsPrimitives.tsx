@@ -21,7 +21,7 @@ export function SettingsSectionHeader({ title, description }: SettingsSectionHea
   return (
     <header className="mb-3">
       <h2 className="text-sm font-medium">{title}</h2>
-      {description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>}
+      {description && <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>}
     </header>
   );
 }

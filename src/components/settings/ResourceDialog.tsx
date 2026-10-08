@@ -18,11 +18,13 @@ interface ResourceDialogProps {
   onClose: () => void;
   /** 作为子弹窗打开时恢复父层入口焦点；独立使用时沿用默认行为。 */
   onReturnFocus?: () => void;
+  /** 仅保存成功时回传实际记录；取消和失败不触发。 */
+  onSaved?: (record: ResourceRecord) => void;
 }
 
-export function ResourceDialog({ record, repositoriesDirectory, onClose, onReturnFocus }: ResourceDialogProps) {
+export function ResourceDialog({ record, repositoriesDirectory, onClose, onReturnFocus, onSaved }: ResourceDialogProps) {
   const { t } = useTranslation(["common", "settings"]);
-  const form = useResourceForm({ record, repositoriesDirectory, onSaved: onClose });
+  const form = useResourceForm({ record, repositoriesDirectory, onSaved: (saved) => { onSaved?.(saved); onClose(); } });
   const title = record ? "settings:resources.editTitle" : "settings:resources.addRepository";
   const disabled = form.busy || form.choosing;
   const [commandEditing, setCommandEditing] = useState(false);

@@ -27,6 +27,14 @@ const { defaultSettings, normalizeAppSettings } = load("src/domain/settings.ts")
 const { resolveResourcePath, validateCloneUrl, validateRepositoryName, redactCloneOutput } = load("src/main-process/services/resourcePaths.ts");
 const { getRepositoryName, getFolderName } = load("src/utils/resourceNames.ts");
 
+test("设置分区说明使用 14px，条目描述保持原有 12px", () => {
+  const { SettingsSectionHeader, SettingsRow } = load("src/components/settings/settingsPrimitives.tsx");
+  const section = renderToStaticMarkup(createElement(SettingsSectionHeader, { title: "Section", description: "Section description" }));
+  const row = renderToStaticMarkup(createElement(SettingsRow, { title: "Item", description: "Item description" }, "Control"));
+  assert.match(section, /<p class="[^"]*text-sm[^"]*">Section description/);
+  assert.match(row, /<p class="[^"]*text-xs[^"]*">Item description/);
+});
+
 test("资源读取不显示加载文案，刷新保留列表和空状态，失败保留已有记录", async () => {
   let resolveList;
   let rejectList;

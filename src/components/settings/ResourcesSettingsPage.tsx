@@ -48,7 +48,7 @@ export function ResourcesSettingsPage({ settings }: ResourcesSettingsPageProps) 
 
   return <>
     <SettingsPageHeader title={t("settings:pages.resources")} />
-    <p className="mb-4 text-xs leading-5 text-muted-foreground">{t("settings:resources.removeHint")}</p>
+    <p className="mb-4 text-sm leading-5 text-muted-foreground">{t("settings:resources.removeHint")}</p>
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <Button className="h-8 text-xs" variant="secondary" onClick={(event) => { formTrigger.current = event.currentTarget; setForm({}); }}><GitBranch className="size-3.5" />{t("settings:resources.addRepository")}</Button>
       <IconTooltip label={t("common:actions.refresh")} className="ml-auto" size="icon-sm" variant="ghost" disabled={refreshing} onClick={() => void refreshResources()}><RefreshCw className={refreshing ? "size-4 animate-spin" : "size-4"} /></IconTooltip>
@@ -60,12 +60,10 @@ export function ResourcesSettingsPage({ settings }: ResourcesSettingsPageProps) 
         <button type="button" data-slot="resource-edit-trigger" aria-label={t("common:actions.edit") + ": " + record.name} className="absolute inset-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={(event) => { formTrigger.current = event.currentTarget; setForm({ record }); }} />
         {record.kind === "repo" ? <GitBranch className="pointer-events-none mt-1 size-4 shrink-0 text-muted-foreground" /> : <Folder className="pointer-events-none mt-1 size-4 shrink-0 text-muted-foreground" />}
         <div className="pointer-events-none min-w-0 flex-1"><h2 className="truncate text-[13px]">{record.name}</h2><p className="mt-1 break-all text-xs text-muted-foreground">{record.localPath}</p>
-          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-            {record.kind === "repo" && <><span>{t("settings:resources.repository")}</span><span aria-hidden="true">·</span></>}
-            <span data-slot="resource-command-count">{record.commands?.length ? t("settings:resources.commands.count", { count: record.commands.length }) : t("settings:resources.commands.none")}</span>
-          </div>
+          {record.kind === "repo" && <p className="mt-1 text-xs text-muted-foreground">{t("settings:resources.repository")}</p>}
           {!record.available && <p className="mt-1 text-xs text-destructive">{t("settings:resources.unavailable")}</p>}
         </div>
+        <span data-slot="resource-command-count" className="pointer-events-none shrink-0 self-center text-right text-xs text-muted-foreground">{record.commands?.length ? t("settings:resources.commands.count", { count: record.commands.length }) : t("settings:resources.commands.none")}</span>
         <IconTooltip label={t("common:actions.remove") + ": " + record.name} className="relative hover:bg-destructive/10 hover:text-destructive" variant="ghost" size="icon-sm" onClick={() => { setRemoveError(null); setRemoving(record); }}><Trash2 className="size-3.5" /></IconTooltip>
       </div>)}
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PanelLeft, PanelRightOpen, SquareArrowOutUpRight, Terminal, X } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SquareArrowOutUpRight, Terminal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import type { TaskResource } from "@/shared/taskTypes";
@@ -12,6 +12,7 @@ import type { TaskResourceCategory } from "@/shared/taskResourceTypes";
 import { TaskAddResourcesDialog } from "../resources/TaskAddResourcesDialog";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ReviewDialog } from "@/components/review/ReviewDialog";
 import { useLocalSettings } from "@/hooks/useLocalSettings";
@@ -20,6 +21,7 @@ import { TaskContextPanel } from "./TaskContextPanel";
 import { AgentSessionPane } from "./AgentSessionPane";
 import { TaskTerminalDrawer } from "./TaskTerminalDrawer";
 import { NewSessionMenu } from "./NewSessionMenu";
+import { NewTerminalMenu } from "./NewTerminalMenu";
 import { useSessionAgentChoices } from "@/hooks/useSessionAgentChoices";
 import type { AgentId } from "@/shared/agentTypes";
 import { WorkspaceSeparator } from "./WorkspaceSeparator";
@@ -97,12 +99,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   }, []);
   useEffect(() => { if (!terminals.length) setExpanded(false); }, [terminals.length]);
 
-  async function addTerminal() {
+  async function addTerminal(resourceId?: string) {
     const store = useTaskSessionStore.getState();
     if (store.pending) return;
     const revision = ++terminalViewRevision.current;
     const previousIds = new Set(store.sessions.map((session) => session.id));
-    await store.start({ taskId: task.id, kind: "shell" });
+    await store.start({ taskId: task.id, kind: "shell", resourceId });
     const created = useTaskSessionStore.getState().sessions.find((session) => session.taskId === task.id && session.kind === "shell" && !previousIds.has(session.id));
     if (created && revision === terminalViewRevision.current) { setSelectedTerminal(created.id); setTerminalOpen(true); }
   }
@@ -134,6 +136,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
     if (created && revision === agentViewRevision.current) { setSelectedAgent(created.id); setAgentPaneOpen(true); setExpanded(false); if (narrow) setContextOpen(false); }
   }
   const newSessionControl = <NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} />;
+  const terminalMenuProps = { resources: task.resources, disabled: pending, onCreate: (resourceId?: string) => void addTerminal(resourceId) };
+  const newTerminalControl = <NewTerminalMenu {...terminalMenuProps} />;
+  const multipleTerminalDirectories = (task.resources?.length ?? 0) > 1;
+  const terminalButton = <IconTooltip className="relative" label={t("tasks:runtime.showTerminal")} size="icon-sm" disabled={pending} onClick={() => { if (!terminals.length && !multipleTerminalDirectories) void addTerminal(task.resources?.[0]?.resourceId); else if (terminals.length) toggleTerminal(); }}>
+    <Terminal />{terminals.length > 0 && <span className="task-terminal-badge" aria-hidden="true">{terminals.length}</span>}
+  </IconTooltip>;
   function showBranch(resource: TaskResource) {
     setSelectedResource(resource.resourceId); setBranchOpen(true); setExpanded(false);
     if (narrow) setContextOpen(false);
@@ -153,16 +161,17 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const branchPane = branchResource && visibleBranch ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={() => setBranchOpen(false)} onOpenDiff={showReview} /> : null;
   return <div ref={rootRef} className="task-workbench" data-narrow={narrow} data-context-open={contextOpen}>
     <header className="task-workbench-heading">
-      <IconTooltip ref={contextTriggerRef} label={t("tasks:runtime.context")} aria-expanded={contextOpen} size="icon-sm" onClick={() => { setContextOpen(!contextOpen); if (narrow) setBranchOpen(false); }}><PanelLeft /></IconTooltip>
+      <IconTooltip ref={contextTriggerRef} label={t("tasks:runtime.context")} aria-expanded={contextOpen} size="icon-sm" onClick={() => { setContextOpen(!contextOpen); if (narrow) setBranchOpen(false); }}>{contextOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</IconTooltip>
       <div className="task-workbench-title">
         <h2 id={headingId} title={task.title}>{task.title}</h2>
         <span className="task-workbench-task-status">{task.status}</span>
       </div>
       <div className="task-workbench-actions">
-        {branchResource && <IconTooltip label={t("tasks:branch.show")} aria-expanded={visibleBranch} size="icon-sm" onClick={() => { setBranchOpen(!visibleBranch); setExpanded(false); if (narrow) setContextOpen(false); }}><PanelRightOpen /></IconTooltip>}
-        <IconTooltip className="relative" label={t("tasks:runtime.showTerminal")} size="icon-sm" disabled={pending} onClick={() => { if (!terminals.length) void addTerminal(); else toggleTerminal(); }}>
-          <Terminal />{terminals.length > 0 && <span className="task-terminal-badge" aria-hidden="true">{terminals.length}</span>}
-        </IconTooltip>
+        <ButtonGroup>
+          {multipleTerminalDirectories && !terminals.length ? <NewTerminalMenu {...terminalMenuProps} trigger={terminalButton} /> : terminalButton}
+          {multipleTerminalDirectories && <NewTerminalMenu {...terminalMenuProps} trigger={<IconTooltip label={t("tasks:runtime.chooseTerminalDirectory")} size="icon-sm" className="w-4" disabled={pending}><ChevronDown /></IconTooltip>} />}
+        </ButtonGroup>
+        {branchResource && <IconTooltip label={t(visibleBranch ? "tasks:branch.hide" : "tasks:branch.show")} aria-expanded={visibleBranch} size="icon-sm" onClick={() => { setBranchOpen(!visibleBranch); setExpanded(false); if (narrow) setContextOpen(false); }}>{visibleBranch ? <PanelRightClose /> : <PanelRightOpen />}</IconTooltip>}
         {onOpenPage && <IconTooltip label={t("tasks:actions.openPage")} size="icon-sm" onClick={onOpenPage}><SquareArrowOutUpRight /></IconTooltip>}
         {onOpenPage && <Button variant="ghost" size="icon-sm" aria-label={t("tasks:details.close")} onClick={onClose}><X /></Button>}
       </div>
@@ -173,7 +182,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
           <TaskResourceRail task={task} sessions={sessions} activeId={showAgentPane ? active?.id : undefined} activeTerminalId={visibleTerminal ? activeTerminal?.id : undefined}
             archivePending={pending} onArchive={(id) => void useTaskSessionStore.getState().archive(id)}
             onSelect={selectContextSession}
-            newSessionControl={newSessionControl} onAddTerminal={() => void addTerminal()} onReview={showBranch}
+            newSessionControl={newSessionControl} newTerminalControl={newTerminalControl} onReview={showBranch}
             onAddResource={setAddCategory} onFile={(id) => runResource(() => getTasksApi().revealResourceFile(task.id, id))}
             onWorkspaceOpenError={() => setPreview({ title: t("tasks:workspaceOpen.failed"), body: t("tasks:workspaceOpen.failedDetail") })}
             onPreview={(title, body) => setPreview({ title, body })}
@@ -195,7 +204,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
           {showUpper && <WorkspaceSeparator label={t("tasks:runtime.resizeTerminal")} value={terminalHeight} min={100} max={400} vertical onDelta={(delta) => setTerminalHeight((height) => Math.max(100, Math.min(400, (contentRef.current?.clientHeight ?? 600) - 160, height - delta)))} />}
           <div className="task-shell-container" data-expanded={terminalFillsSpace} style={terminalFillsSpace ? undefined : { height: terminalHeight }}>
             <TaskTerminalDrawer sessions={terminals} activeId={activeTerminal?.id} expanded={expanded} onSelect={(id) => { terminalViewRevision.current += 1; setSelectedTerminal(id); }}
-              onAdd={() => void addTerminal()} onExpand={() => setExpanded(!expanded)} onCollapse={toggleTerminal} />
+              newTerminalControl={newTerminalControl} onExpand={() => setExpanded(!expanded)} onCollapse={toggleTerminal} />
           </div>
         </>}
       </div>

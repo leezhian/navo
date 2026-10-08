@@ -26,7 +26,8 @@ interface TaskResourceRailProps {
   /** 归档为独立操作，不触发选择；归档会终止进程并保留历史记录。 */
   onArchive: (id: string) => void;
   archivePending: boolean;
-  onAddTerminal: () => void;
+  /** 与终端面板共用的新建入口，多目录时先选择工作目录。 */
+  newTerminalControl: ReactNode;
   onReview: (resource: TaskResource) => void;
   onPreview: (title: string, body: string) => void;
   onAttachment: (id: string) => void;
@@ -65,7 +66,7 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
-export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, onSelect, newSessionControl, onArchive, archivePending, onAddTerminal, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
+export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
   const terminals = sessions.filter((session) => session.kind === "shell");
@@ -99,7 +100,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, o
         </button><div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} /></div>
       </div>)}
     </ResourceGroup>
-    {terminals.length > 0 && <ResourceGroup title={t("tasks:runtime.terminals")} count={terminals.length} action={<IconTooltip label={t("tasks:runtime.newTerminal")} size="icon-xs" onClick={onAddTerminal}><Plus /></IconTooltip>}>
+    {terminals.length > 0 && <ResourceGroup title={t("tasks:runtime.terminals")} count={terminals.length} action={newTerminalControl}>
       {terminals.map((session) => <button key={session.id} className="task-context-row" data-active={session.id === activeTerminalId} aria-pressed={session.id === activeTerminalId} onClick={() => onSelect(session)} title={session.cwd}><ContextItemIcon><Terminal /></ContextItemIcon><span className="truncate">{session.title}</span></button>)}
     </ResourceGroup>}
     <ResourceGroup title="PULL REQUESTS" count={prs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}>{prs.map((link) => <button key={link.id} className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button>)}</ResourceGroup>

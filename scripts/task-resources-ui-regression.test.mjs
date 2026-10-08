@@ -22,7 +22,12 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
       let task={id:'existing',title:'任务资源测试',date:'2026-10-07',projectName:'navo',status:'TODO',resources:[{resourceId:'repo',name:'navo',mode:'current-branch',workingPath:'/test',targetBranch:'main',sourceBranch:'main'}],links:[],webLinks:[],files:[],notes:[]};
       const items=['ISSUE','PR'].map(group=>({id:group,title:group+' title',group,tag:'feature',status:group==='PR'?'review':'todo',projectName:'navo',provider:'GitHub',date:'2026-10-07'}));
       useTaskStore.setState({tasks:[task],loaded:true});useIssueStore.setState({items});window.submissions=[];window.releases=[];window.reveals=[];
-      window.navo={settings:{},tasks:{addResources:async(id,input)=>{window.submissions.push({id,input});if(window.failSave)throw Error('TASK_BUSY');task={...task,links:[...task.links,...input.links],webLinks:[...task.webLinks,...input.webLinks],notes:[...task.notes,...input.notes],files:input.fileIds.length?[{id:input.fileIds[0],name:'spec.md',path:'/fixture/spec.md',size:4}]:task.files};return structuredClone(task);},
+      const records=[{id:'repo',name:'navo',kind:'repo',localPath:'/test',available:true},{id:'backend',name:'backend',kind:'repo',localPath:'/fixture/backend',available:true},{id:'assets',name:'assets',kind:'folder',localPath:'/fixture/assets',available:true}];
+      window.navo={settings:{chooseDirectory:async()=>'/fixture/quick'},resources:{list:async()=>records,onCloneProgress:()=>()=>{},save:async value=>{const saved={...value,id:'quick',available:true};records.push(saved);return saved;}},
+        review:{watchProject:async()=>{},unwatchProject:async()=>{},onProjectChanged:()=>()=>{}},
+        tasks:{inspectResource:async id=>{const record=records.find(item=>item.id===id);return {resourceId:id,name:record.name,path:record.localPath,git:record.kind==='repo'?{root:record.localPath,currentBranch:'main',defaultSource:'refs/heads/main',branches:[{ref:'refs/heads/main',name:'main',kind:'local'}]}:null};},
+        loadBranch:async()=>({projectPath:'/test',branchName:'main',baseBranch:'main',baseAvailable:true,files:{unstaged:[],staged:[],branch:[]},untrackedCount:0,commits:[],hasMoreCommits:false}),
+        addResources:async(id,input)=>{window.submissions.push({id,input});if(window.failSave)throw Error('TASK_BUSY');task={...task,resources:[...task.resources,...(input.resources??[]).map(resource=>{const record=records.find(item=>item.id===resource.resourceId);return {...resource,name:record.name,originalPath:record.localPath,workingPath:resource.mode==='worktree'?'/fixture/worktrees/'+record.id:record.localPath,targetBranch:resource.mode==='folder'?'':'navo/12345678'};})],links:[...task.links,...input.links],webLinks:[...task.webLinks,...input.webLinks],notes:[...task.notes,...input.notes],files:input.fileIds.length?[{id:input.fileIds[0],name:'spec.md',path:'/fixture/spec.md',size:4}]:task.files};return structuredClone(task);},
         chooseResourceFile:async()=>({id:'11111111-1111-4111-8111-111111111111',name:'spec.md',path:'/fixture/spec.md',size:4}),releaseResourceFiles:async ids=>window.releases.push(...ids),revealResourceFile:async(...args)=>window.reveals.push(args)},
         agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:[]},installations:[],entries:{}})}};
       function Fixture(){const record=useTaskStore(state=>state.tasks[0]);return React.createElement(TooltipProvider,null,React.createElement('div',{style:{height:720,width:1100}},React.createElement(TaskWorkspace,{task:record,headingId:'task-title',onClose:()=>{}})));}
@@ -70,6 +75,30 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           button('Pull requests').click();await wait(()=>category()==='pullRequests','PR tab missing');dialog().querySelector('button[role="checkbox"]').click();await wait(()=>!button('添加到任务').disabled,'PR selection missing');button('添加到任务').click();await wait(()=>!dialog(),'PR add failed');
           document.querySelector('button[aria-label="添加 PULL REQUESTS"]').click();await wait(()=>category()==='pullRequests','PR plus must focus PR');button('取消').click();await wait(()=>!dialog(),'Close failed');
           if(window.submissions.some(item=>item.id!=='existing'))throw Error('Resources bound to wrong task');
+          document.querySelector('button[aria-label="添加 CHANGES"]').click();await wait(()=>category()==='repositories','CHANGES plus must open repository picker');
+          await wait(()=>dialog().querySelector('[data-resource-id="backend"]'),'Shared repository list missing');
+          const directoryRow=id=>dialog()?.querySelector('[data-resource-id="'+id+'"]');
+          if(!directoryRow('repo').querySelector('[role="checkbox"]').disabled)throw Error('Already linked directory must be excluded');
+          directoryRow('backend').querySelector('[role="checkbox"]').click();await wait(()=>directoryRow('backend').querySelector('[aria-label="源分支"]'),'Selected directory controls missing');
+          if(dialog().querySelector('[aria-label="目标分支"]'))throw Error('Task resource picker must not include target branch input');
+          button('链接').click();await wait(()=>category()==='links','Switch category failed');button('仓库与文件夹').click();await wait(()=>category()==='repositories','Switch back failed');
+          if(directoryRow('backend').querySelector('[role="checkbox"]').getAttribute('aria-checked')!=='true')throw Error('Category switching must preserve directory selection');
+          window.failSave=true;button('添加到任务').click();await wait(()=>dialog().querySelector('[role="alert"]'),'Directory save failure must be visible');
+          if(directoryRow('backend').querySelector('[role="checkbox"]').getAttribute('aria-checked')!=='true')throw Error('Failed add lost selected directory');
+          window.failSave=false;await wait(()=>!button('添加并继续').disabled,'Directory retry must be enabled');button('添加并继续').click();
+          await wait(()=>directoryRow('backend').querySelector('[role="checkbox"]').disabled,'Added directory must be disabled after success');
+          await wait(()=>[...document.querySelectorAll('.task-context-change')].some(row=>row.textContent.includes('backend')),'CHANGES did not refresh');
+          const directoryCalls=window.submissions.filter(item=>item.input.resources);
+          if(directoryCalls.length!==2||directoryCalls[0].input.requestId!==directoryCalls[1].input.requestId||directoryCalls[1].input.resources[0].mode!=='worktree'||directoryCalls[1].input.resources[0].targetBranch!=='')throw Error('Directory retry/configuration payload incorrect');
+          button('添加仓库').click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===2,'Nested quick-add missing');
+          const nested=()=>[...document.querySelectorAll('[data-slot="dialog-content"]')].at(-1);
+          button('取消',nested()).click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===1,'Quick-add cancel must preserve resource dialog');
+          button('添加仓库').click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===2,'Quick-add reopen failed');
+          button('选择本地文件夹',nested()).click();await wait(()=>directoryRow('quick')?.querySelector('[role="checkbox"]').getAttribute('aria-checked')==='true','Quick-added folder must be auto-selected');
+          await wait(()=>!button('添加到任务').disabled,'Quick folder inspection missing');button('添加到任务').click();await wait(()=>!dialog(),'Directory submit must close dialog');
+          if(![...document.querySelectorAll('.task-context-row')].some(row=>row.textContent==='quick'))throw Error('Plain folder must appear in LINKS');
+          document.querySelector('button[aria-label="添加 CHANGES"]').click();await wait(()=>directoryRow('assets'),'Repository picker reopen failed');directoryRow('assets').querySelector('[role="checkbox"]').click();button('取消').click();await wait(()=>!dialog(),'Cancel must close picker');
+          if([...document.querySelectorAll('.task-context-row')].some(row=>row.textContent==='assets'))throw Error('Cancelled directories must not bind to task');
           document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Final preview missing');button('笔记').click();await wait(()=>category()==='notes','Notes preview missing');
         })()\`);
         if(process.env.NAVO_RESOURCE_SCREENSHOT){await win.webContents.executeJavaScript("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(resolve,200))))");await require('node:fs/promises').writeFile(process.env.NAVO_RESOURCE_SCREENSHOT,(await win.webContents.capturePage()).toPNG());}

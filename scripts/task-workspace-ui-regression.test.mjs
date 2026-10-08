@@ -98,6 +98,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await wait(()=>document.querySelectorAll('.task-context-group').length===4,'Populated groups must appear');
         for(const group of document.querySelectorAll('.task-context-group'))if(!group.querySelector('.task-context-group-heading button:not(:disabled) .lucide-plus'))throw new Error('Resource groups must expose add buttons');
         if(getComputedStyle(document.querySelector('.task-context-group-heading')).height!=='32px'||getComputedStyle(document.querySelector('.task-context-group + .task-context-group')).marginTop!=='6px')throw new Error('Context groups must use 32px headings and 6px spacing');
+        for(const heading of document.querySelectorAll('.task-context-group-heading'))if(getComputedStyle(heading.querySelector('button:first-child')).fontSize!=='12px'||getComputedStyle(heading.querySelector('small')).fontSize!=='10px')throw new Error('Category titles must be 12px with subordinate 10px counts');
         for(const name of ['CHANGES','PULL REQUESTS','ISSUES','LINKS'])if(!document.querySelector('.task-context-rail').textContent.includes(name))throw new Error('Missing '+name);
         const workspaceButtons=()=>[...document.querySelectorAll('.task-context-change [data-slot="button-group"] > button')];
         if(workspaceButtons().length!==2||!workspaceButtons()[0].querySelector('.lucide-folder-open'))throw new Error('Changes row needs a file manager / dropdown split button');
@@ -176,6 +177,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await wait(()=>document.querySelector('#status [aria-label="Failed"]'),'Tab status is not driven by sessions');
         await wait(()=>document.querySelectorAll('.task-context-session').length===2,'Session rows missing');
         const rows=()=>[...document.querySelectorAll('.task-context-session')];
+        const sessionActions=[...document.querySelectorAll('.task-agent-pane > header > div:last-child > button')];
+        if(sessionActions.length!==3||new Set(sessionActions.map(element=>getComputedStyle(element).color)).size!==1)throw new Error('Session header add, menu and close buttons must share the same default color');
         if(!rows()[0].querySelector('svg[aria-label="Grok Build"]')||!rows()[1].querySelector('svg[aria-label="Claude Code"]'))throw new Error('Agent brand icons missing');
         if(rows()[0].querySelector('.task-session-status')||rows()[0].querySelector('.task-context-session-status').textContent!=='Failed')throw new Error('Session status must be text, not an icon');
         const metadata=rows()[0].querySelector('.task-context-session-metadata');
@@ -269,6 +272,9 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const addButtons=[...document.querySelectorAll('.task-context-group-heading button')].filter(element=>element.querySelector('.lucide-plus'));
         const addStyles=addButtons.map(element=>{const style=getComputedStyle(element),icon=getComputedStyle(element.querySelector('svg'));return [style.width,style.height,style.color,style.borderRadius,icon.width,icon.height].join('|');});
         if(addStyles.length<3||new Set(addStyles).size!==1)throw new Error('Every category add button must use the same size, color and icon style');
+        const sessionAdd=document.querySelector('.task-agent-pane button[aria-label="New session"]');
+        for(const element of [...addButtons,sessionAdd]){const bounds=element.getBoundingClientRect(),icon=element.querySelector('svg').getBoundingClientRect();if(bounds.width!==24||bounds.height!==24||icon.width!==14||icon.height!==14)throw new Error('Context and session actions must share 24px targets and 14px icons');}
+        for(const icon of document.querySelectorAll('.task-workbench-actions svg')){const bounds=icon.getBoundingClientRect();if(bounds.width!==16||bounds.height!==16)throw new Error('Task heading action icons must be 16px');}
         await openDropdown(document.querySelector('.task-agent-pane button[aria-label="New session"]'));await wait(()=>menuItem('Grok Build'),'Single directory must go directly to Agent choices');
         if(document.querySelector('[data-slot="dropdown-menu-sub-trigger"]'))throw new Error('Single directory must not require an extra menu');
         menuItem('Grok Build').click();await wait(()=>!button('Session actions').disabled&&window.creates[window.creates.length-1].resourceId==='repo-choice','Single resource binding missing');
@@ -285,6 +291,22 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await openSubmenu('design-assets');await wait(()=>menuItem('Claude Code'),'Folder Agent submenu missing');menuItem('Claude Code').click();
         await wait(()=>!button('Session actions').disabled&&window.creates[window.creates.length-1].resourceId==='folder-choice','Context creation must pass selected folder');
         await wait(()=>document.querySelector('.task-context-session[data-active="true"] .task-context-session-workspace')?.textContent==='design-assets','Folder label missing');
+        const secondRepo={...repoResource,resourceId:'second-repo',name:'backend',workingPath:'/backend-worktree',targetBranch:'feature/two'};
+        window.setTaskResources({resources:[repoResource,secondRepo,folderResource]});window.setRecords([]);await wait(()=>!document.querySelector('.task-shell-tab'),'Terminal reset failed');
+        const createdBeforeMenu=window.creates.length;
+        await openDropdown(button('Show terminals'));await wait(()=>menuItem('feature/two'),'First terminal with multiple repos must offer directory choices');
+        if(window.creates.length!==createdBeforeMenu||!menuItem('feature/two').textContent.includes('backend'))throw new Error('Directory picker must show branch and repo without starting a shell');
+        menuItem('feature/two').click();await wait(()=>document.querySelector('.task-shell-pane')&&!button('Show terminals').disabled,'Selected terminal was not revealed');
+        if(window.creates.at(-1).kind!=='shell'||window.creates.at(-1).resourceId!=='second-repo')throw new Error('Terminal must bind the selected second repository');
+        const createdAfterSelection=window.creates.length;button('Show terminals').click();await wait(()=>!document.querySelector('.task-shell-pane'),'Existing terminal must toggle closed');button('Show terminals').click();await wait(()=>document.querySelector('.task-shell-pane'),'Existing terminal must toggle open');
+        if(window.creates.length!==createdAfterSelection)throw new Error('Toggling terminals must not create another process');
+        await openDropdown(button('Choose terminal directory'));await wait(()=>menuItem('feature/one'),'Toolbar directory menu missing');menuItem('feature/one').click();await wait(()=>window.creates.at(-1).resourceId==='repo-choice'&&!button('Show terminals').disabled,'Toolbar must create in first repo');
+        await openDropdown(document.querySelector('.task-shell-pane button[aria-label="New terminal"]'));await wait(()=>menuItem('design-assets'),'Drawer must support folder selection');menuItem('design-assets').click();await wait(()=>window.creates.at(-1).resourceId==='folder-choice'&&!button('Show terminals').disabled,'Drawer must create in the selected folder');
+        await openDropdown(document.querySelector('.task-context-group-heading button[aria-label="New terminal"]'));await wait(()=>menuItem('feature/two'),'Context terminal menu missing');menuItem('feature/two').click();await wait(()=>window.creates.at(-1).resourceId==='second-repo'&&!button('Show terminals').disabled,'Context must create in second repo');
+        window.setTaskResources({resources:[repoResource]});await pause();if(button('Choose terminal directory'))throw new Error('Single directory must not show a redundant toolbar dropdown');
+        document.querySelector('.task-shell-pane button[aria-label="New terminal"]').click();await wait(()=>window.creates.at(-1).resourceId==='repo-choice'&&!button('Show terminals').disabled,'Single directory must create without a menu');
+        await window.setLocale('zh-CN');window.setTaskResources({resources:[repoResource,secondRepo]});await pause();await openDropdown(button('选择终端工作目录'));await wait(()=>document.querySelector('[role="menu"]')?.textContent.includes('在以下目录新建终端'),'Terminal directory menu must support Chinese');
+        const beforeCancel=window.creates.length;document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await pause();if(window.creates.length!==beforeCancel)throw new Error('Cancelling the menu must not create a terminal');
         window.resizeFixture(240);await pause();
         const root=document.querySelector('.task-workbench');if(root.scrollWidth>root.clientWidth+2)throw new Error('Narrow workspace overflows');
       })()\`);

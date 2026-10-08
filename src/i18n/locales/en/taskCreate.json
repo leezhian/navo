@@ -48,7 +48,6 @@
     "add": "Add repo or folder",
     "replace": "Switch working directory",
     "pickerTitle": "Add working directories",
-    "sharedDescription": "Uses the same repos and folders as Settings.",
     "search": "Search resources",
     "searchPlaceholder": "Search repos or folders…"
   },

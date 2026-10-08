@@ -95,9 +95,10 @@ export function TaskCreateDialog({ open, settings, onOpenChange, onCreated }: Ta
           draft.setLinks((current) => [...current.filter((item) => item.group !== issueGroup), ...items]); setIssueGroup(null);
         }} />}
         {resourcePicker && <TaskResourcePicker repositoriesDirectory={settings.repositoriesDirectory}
+          defaultTaskMode={settings.defaultTaskMode}
           onReturnFocus={() => resourceTriggerRef.current?.focus()}
           excludedIds={draft.resources.map((resource) => resource.resourceId)}
-          onClose={() => setResourcePicker(false)} onConfirm={(ids) => draft.addResources(ids)} />}
+          onClose={() => setResourcePicker(false)} onConfirm={draft.addSelectedResources} />}
         {webLinkDialog && <TaskWebLinkDialog onReturnFocus={() => attachmentTriggerRef.current?.focus()}
           onClose={() => setWebLinkDialog(false)} onConfirm={(link) => {
             draft.setWebLinks((current) => [...current, link]); setWebLinkDialog(false);

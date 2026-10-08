@@ -11,8 +11,8 @@ interface ResourceFormOptions {
   record?: ResourceRecord;
   /** 仓库克隆的父目录默认值。 */
   repositoriesDirectory: string;
-  /** 保存成功后关闭弹窗，不在失败时伪造成功。 */
-  onSaved: () => void;
+  /** 保存成功后回传实际资源，供调用方更新选择并关闭弹窗。 */
+  onSaved: (record: ResourceRecord) => void;
 }
 
 export function useResourceForm({ record, repositoriesDirectory, onSaved }: ResourceFormOptions) {
@@ -50,7 +50,7 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
         if (path) setLocalPath(path);
       } else {
         const saved = await resourceApi.chooseAndAddFolder();
-        if (saved) { upsert(saved); onSaved(); }
+        if (saved) { upsert(saved); onSaved(saved); }
       }
     } catch (failure) { setError(failure); }
     finally { setChoosing(false); }
@@ -66,7 +66,7 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
       if (!path) throw new Error("INVALID_DIRECTORY");
       const saved = await resourceApi.addFolder(path);
       upsert(saved);
-      onSaved();
+      onSaved(saved);
     } catch (failure) { setError(failure); }
     finally { setChoosing(false); }
   }
@@ -82,7 +82,7 @@ export function useResourceForm({ record, repositoriesDirectory, onSaved }: Reso
         : await resourceApi.save({ id: record.id, name: name.trim(), kind: record.kind, localPath: localPath.trim(), description, commands });
       operationId.current = null;
       upsert(saved);
-      onSaved();
+      onSaved(saved);
     } catch (failure) { setError(failure); }
     finally { operationId.current = null; setBusy(false); setCancelling(false); }
   }

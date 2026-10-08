@@ -18,7 +18,7 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
       import React from 'react';import {createRoot} from 'react-dom/client';import '/src/App.css';
       import i18n from '/src/i18n/index.ts';import {TaskWorkspace} from '/src/components/tasks/workspace/TaskWorkspace.tsx';
       import {TooltipProvider} from '/src/components/ui/tooltip.tsx';import {useSettingsStore} from '/src/stores/settingsStore.ts';
-      await i18n.changeLanguage('zh-CN');useSettingsStore.setState({loaded:true});
+      await i18n.changeLanguage('zh-CN');window.setBranchLocale=locale=>i18n.changeLanguage(locale);useSettingsStore.setState({loaded:true});
       window.diffRequests=[];window.branchReads=[];window.watchCount=0;window.failBranch=false;const listeners=new Set();
       window.notifyChanges=()=>listeners.forEach(callback=>callback('/fixture/repo-a'));
       window.navo={settings:{},agents:{capabilitySnapshot:async()=>({settings:{configurations:[]},installations:[],entries:{}}),onCapabilitiesChanged:()=>()=>{}},tasks:{
@@ -51,6 +51,14 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           const button=label=>document.querySelector('button[aria-label="'+label+'"]');
           const pane=()=>document.querySelector('.task-branch-pane');const dialog=()=>document.querySelector('[role="dialog"]');
           await wait(()=>pane()?.textContent.includes('live-repo-a'),'Real branch snapshot missing');
+          const heading=document.querySelector('.task-workbench-heading');
+          if(!button('收起分支栏')?.querySelector('.lucide-panel-right-close')||button('显示分支栏'))throw Error('Visible branch pane must show the hide action and closing-direction icon');
+          if(button('显示终端').getBoundingClientRect().left>=button('收起分支栏').getBoundingClientRect().left)throw Error('Terminal controls must precede the branch toggle');
+          const contextButton=heading.querySelector('button[aria-label="任务上下文"]');
+          if(!contextButton.querySelector('.lucide-panel-left-close'))throw Error('Visible context must use the panel closing icon');
+          contextButton.click();await wait(()=>contextButton.querySelector('.lucide-panel-left-open'),'Hidden context must use the panel opening icon');contextButton.click();await wait(()=>contextButton.querySelector('.lucide-panel-left-close'),'Reopened context icon did not reset');
+          button('收起分支栏').click();await wait(()=>!pane()&&button('显示分支栏')?.querySelector('.lucide-panel-right-open'),'Hiding must update both the tooltip label and icon');
+          button('显示分支栏').click();await wait(()=>pane()?.textContent.includes('live-repo-a')&&button('收起分支栏'),'Reopening must restore hide action');
           if(getComputedStyle(document.querySelector('.task-branch-controls')).paddingTop!=='12px')throw Error('Branch content must keep 12px top spacing');
           if(document.querySelectorAll('.task-branch-file').length!==2||!pane().textContent.includes('未跟踪'))throw Error('Staged/unstaged files or tracked-only notice missing');
           const filter=document.querySelector('.task-branch-filter input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(filter,'example');filter.dispatchEvent(new Event('input',{bubbles:true}));
@@ -76,6 +84,8 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           button('显示分支栏').click();await wait(()=>document.querySelector('.task-branch-overlay'),'Narrow branch must use an overlay');
           const workspace=document.querySelector('.task-workbench');if(workspace.scrollWidth>workspace.clientWidth+2)throw Error('Branch pane overflows narrow task details');
           button('关闭分支栏').click();await wait(()=>!pane(),'Overlay close failed');
+          await window.setBranchLocale('en');await wait(()=>button('Show branch pane'),'Hidden branch tooltip must support English');
+          button('Show branch pane').click();await wait(()=>pane()&&button('Hide branch pane')?.querySelector('.lucide-panel-right-close'),'Visible branch tooltip must switch to English hide action');
         })()\`);
         if(errors.length)throw Error(errors.join('\\n'));console.log('BRANCH_UI_OK');app.exit(0);
       }catch(error){console.error(error);app.exit(1);}

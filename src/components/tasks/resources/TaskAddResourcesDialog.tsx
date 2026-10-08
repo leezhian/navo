@@ -12,6 +12,8 @@ import { useTaskResourceDraft } from "@/hooks/useTaskResourceDraft";
 import { getTaskError } from "@/services/taskErrors";
 import { useTaskStore } from "@/stores/taskStore";
 import { isTaskLinkUrl } from "@/utils/taskWebLinks";
+import { TaskResourcePickerContent } from "../create/TaskResourcePickerContent";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 const categories = [
   { id: "repositories", icon: FolderGit2 }, { id: "issues", icon: CircleDot }, { id: "pullRequests", icon: GitPullRequest },
@@ -28,10 +30,12 @@ interface TaskAddResourcesDialogProps {
 export function TaskAddResourcesDialog({ task, initialCategory, onClose }: TaskAddResourcesDialogProps) {
   const { t } = useTranslation(["tasks", "common", "taskCreate"]);
   const [category, setCategory] = useState(initialCategory);
+  const [addingRepository, setAddingRepository] = useState(false);
+  const repositoriesDirectory = useSettingsStore((state) => state.settings.repositoriesDirectory);
   const updatedTask = useTaskStore((state) => state.tasks.find((item) => item.id === task.id)) ?? task;
   const draft = useTaskResourceDraft(updatedTask, category);
   const pending = useTaskStore((state) => state.pending);
-  const disabled = draft.busy || pending;
+  const disabled = draft.busy || pending || addingRepository;
   const issueGroup = category === "pullRequests" ? "PR" : "ISSUE";
   const isIssue = category === "issues" || category === "pullRequests";
   async function add(close: boolean) { if (await draft.submit() && close) onClose(); }
@@ -46,7 +50,8 @@ export function TaskAddResourcesDialog({ task, initialCategory, onClose }: TaskA
           </Button>)}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto p-4 sm:min-h-[440px]" data-resource-category={category}>
-          {category === "repositories" && <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-xs text-muted-foreground"><FolderGit2 className="size-7" /><p>{t("tasks:resources.repositoriesPending")}</p></div>}
+          {category === "repositories" && <TaskResourcePickerContent excludedIds={(updatedTask.resources ?? []).map((resource) => resource.resourceId)}
+            repositoriesDirectory={repositoriesDirectory} selection={draft.repositorySelection} disabled={draft.busy || pending} adding={addingRepository} onAddingChange={setAddingRepository} />}
           {isIssue && <TaskIssuePickerContent key={category} group={issueGroup} selected={category === "issues" ? draft.issues : draft.prs} onChange={category === "issues" ? draft.setIssues : draft.setPrs} lockedIds={(updatedTask.links ?? []).filter((item) => item.group === issueGroup).map((item) => item.id)} disabled={disabled} />}
           {category === "links" && <div className="space-y-3"><TaskWebLinkFields url={draft.url} title={draft.linkTitle} onUrlChange={draft.setUrl} onTitleChange={draft.setLinkTitle} disabled={disabled} invalid={Boolean(draft.url.trim()) && !isTaskLinkUrl(draft.url.trim())} />{draft.duplicateLink && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyLinked")}</p>}</div>}
           {category === "notes" && <><Input aria-label={t("tasks:resources.noteTitle")} placeholder={t("tasks:resources.noteTitle")} value={draft.noteTitle} maxLength={160} disabled={disabled} onChange={(event) => draft.setNoteTitle(event.target.value)} className="h-8 text-xs" />

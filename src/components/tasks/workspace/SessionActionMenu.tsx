@@ -32,7 +32,7 @@ export function SessionActionMenu({ session }: SessionActionMenuProps) {
     setTitle(session.title); setAction(next);
   }
   return <>
-    <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" aria-label={t("tasks:runtime.sessionActions")} disabled={pending}><ChevronDown className="size-3.5" /></Button></DropdownMenuTrigger>
+    <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-foreground" aria-label={t("tasks:runtime.sessionActions")} disabled={pending}><ChevronDown className="size-3.5" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem className="text-xs" disabled={!nativeSupported || pending} onSelect={() => openAction("rename")}><Pencil className="size-3.5" />{t("tasks:runtime.renameSession")}</DropdownMenuItem>
         <DropdownMenuSeparator />

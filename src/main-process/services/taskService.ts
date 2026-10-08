@@ -2,7 +2,7 @@ import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagno
 import path from "node:path";
 import type { AppSettings } from "../../domain/types";
 import type { Task, TaskStatus } from "../../domain/tasks";
-import type { CreateTaskInput, TaskBootstrap, TaskResourceInput } from "../../shared/taskTypes";
+import type { CreateTaskInput, TaskBootstrap } from "../../shared/taskTypes";
 import { isTaskWebLink } from "../../utils/taskWebLinks";
 import { isIssueItem, isTask } from "../../utils/adeDataValidation";
 import { moveTask } from "../../utils/taskState";
@@ -20,6 +20,8 @@ import type { TaskAgentSelection } from "../../shared/agentCapabilities";
 import { isTaskAgentSelection } from "../../utils/taskAgentSelection";
 import type { AddTaskResourcesInput } from "../../shared/taskResourceTypes";
 import { TaskResourceBindings } from "./taskResourceBindings";
+import { TaskWorkspaceBindings } from "./taskWorkspaceBindings";
+import { isTaskResourceInput } from "../../utils/taskResourceInput";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
@@ -32,6 +34,7 @@ export class TaskService {
   private recovered = false;
   readonly deletion: TaskDeletionService;
   readonly resourceBindings: TaskResourceBindings;
+  private readonly workspaceBindings: TaskWorkspaceBindings;
 
   constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings,
     private readonly resolveAgent?: (selection: TaskAgentSelection) => Promise<TaskAgentSelection>) {
@@ -39,6 +42,7 @@ export class TaskService {
     this.resources = new ResourceService(path.join(userData, "resources.json"));
     this.deletion = new TaskDeletionService(this.repository);
     this.resourceBindings = new TaskResourceBindings(this.repository, path.join(userData, "app.db"), namespace);
+    this.workspaceBindings = new TaskWorkspaceBindings(this.repository, path.join(userData, "app.db"), namespace, getSettings, (id) => this.inspectResource(id));
   }
 
   private serialize<Result>(operation: () => Promise<Result>): Promise<Result> {
@@ -49,7 +53,8 @@ export class TaskService {
 
   async flush() { await this.queue; }
   addResources(id: string, input: AddTaskResourcesInput, ownerId: number) {
-    return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => this.resourceBindings.add(id, input, ownerId)));
+    return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => input?.resources !== undefined
+      ? this.workspaceBindings.add(id, input) : this.resourceBindings.add(id, input, ownerId)));
   }
 
   private attachmentDirectory(id: string) {
@@ -230,7 +235,7 @@ function validateCreateInput(value: CreateTaskInput) {
   if (!value || typeof value !== "object" || !REQUEST_ID.test(value.requestId)
     || (value.agent !== undefined && !isTaskAgentSelection(value.agent))
     || typeof value.description !== "string" || !value.description.trim() || value.description.length > 100000
-    || !Array.isArray(value.resources) || !value.resources.every(isResourceInput)
+    || !Array.isArray(value.resources) || !value.resources.every(isTaskResourceInput)
     || !Array.isArray(value.links) || !value.links.every(isIssueItem)
     || (value.webLinks !== undefined && (!Array.isArray(value.webLinks) || !value.webLinks.every(isTaskWebLink)
       || new Set(value.webLinks.map((item) => item.id)).size !== value.webLinks.length))
@@ -238,9 +243,4 @@ function validateCreateInput(value: CreateTaskInput) {
     || new Set(value.resources.map((item) => item.resourceId)).size !== value.resources.length
     || new Set(value.links.map((item) => item.id)).size !== value.links.length
     || new Set(value.attachmentIds).size !== value.attachmentIds.length) throw new Error("TASK_INVALID");
-}
-
-function isResourceInput(value: TaskResourceInput) {
-  return value && typeof value.resourceId === "string" && typeof value.sourceBranch === "string" && typeof value.targetBranch === "string"
-    && ["worktree", "new-branch", "current-branch", "folder"].includes(value.mode);
 }

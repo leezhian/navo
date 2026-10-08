@@ -102,7 +102,11 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
         },
         tasks: {
           load: async () => ({ tasks: persisted, recoveryWarnings: [] }),
-          inspectResource: async (id) => info(id),
+          inspectResource: async (id) => {
+            if (window.failResourceInspect) throw new Error('TASK_RESOURCE_CHANGED');
+            if (window.delayResourceInspect) await new Promise(resolve => { window.resolveResourceInspect = resolve; });
+            return info(id);
+          },
           chooseFiles: async () => [{ id: 'file-1', name: 'notes.txt', size: 12 }, { id: 'file-2', name: 'reference.png', size: 24, preview: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>' }],
           releaseFiles: async () => {},
           previewAttachment: async () => null,
@@ -137,7 +141,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
     const preload = path.join(directory, "test-preload.cjs");
     await writeFile(preload, `
       const { contextBridge, ipcRenderer } = require('electron');
-      contextBridge.exposeInMainWorld('testInput', { click: (point) => ipcRenderer.invoke('test:click', point), drag: (from, to) => ipcRenderer.invoke('test:drag', from, to), escape: () => ipcRenderer.invoke('test:escape'), hover: point => ipcRenderer.invoke('test:hover', point) });
+      contextBridge.exposeInMainWorld('testInput', { click: (point) => ipcRenderer.invoke('test:click', point), drag: (from, to) => ipcRenderer.invoke('test:drag', from, to), escape: () => ipcRenderer.invoke('test:escape'), hover: point => ipcRenderer.invoke('test:hover', point), captureResourcePicker: () => ipcRenderer.invoke('test:capture-resource-picker') });
     `);
     const runner = path.join(directory, "task-create.cjs");
     await writeFile(runner, `
@@ -158,6 +162,9 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
         ipcMain.handle('test:escape', () => {
           window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
           window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+        });
+        ipcMain.handle('test:capture-resource-picker', async () => {
+          if (process.env.NAVO_RESOURCE_PICKER_SCREENSHOT) await require('node:fs/promises').writeFile(process.env.NAVO_RESOURCE_PICKER_SCREENSHOT, (await window.webContents.capturePage()).toPNG());
         });
         ipcMain.handle('test:hover', (_event, point) => window.webContents.sendInputEvent({ type: 'mouseMove', ...point }));
         ipcMain.handle('test:click', async (_event, { x, y }) => {
@@ -510,7 +517,20 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await click('添加仓库或文件夹');
             await waitFor(() => button('添加仓库'), 'Missing resources picker');
             const resourcePickerDialog = dialog();
+            if (resourcePickerDialog.textContent.includes('与设置中的仓库和文件夹共用资源列表')) throw new Error('Resource picker must not show shared-list description');
             assertDialogStack(2);
+            window.delayResourceInspect = true;
+            resourcePickerDialog.querySelector('[role="checkbox"]').click();
+            await waitFor(() => window.resolveResourceInspect, 'Selection must inspect the repository');
+            if (button('确认')) throw new Error('Pending resource inspection must disable confirmation');
+            resourcePickerDialog.querySelector('[role="checkbox"]').click();
+            window.delayResourceInspect = false;window.resolveResourceInspect();
+            await new Promise(resolve => setTimeout(resolve,50));
+            if (resourcePickerDialog.querySelector('[aria-label="源分支"]') || resourcePickerDialog.querySelector('[role="checkbox"]').getAttribute('aria-checked') !== 'false') throw new Error('Late inspection must not restore an unchecked repository');
+            window.failResourceInspect = true;resourcePickerDialog.querySelector('[role="checkbox"]').click();
+            await waitFor(() => resourcePickerDialog.querySelector('[role="alert"]'), 'Inspection failure must be visible');
+            if (resourcePickerDialog.querySelector('[role="checkbox"]').getAttribute('aria-checked') !== 'false') throw new Error('Failed inspection must allow selecting again');
+            window.failResourceInspect = false;
             fill(resourcePickerDialog.querySelector('input'), 'repo-a');
             for (const action of ['取消', '关闭']) {
               await click('添加仓库');
@@ -521,7 +541,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
               if (resourcePickerDialog.querySelector('input').value !== 'repo-a') throw new Error('Parent resource filter must survive a nested dialog');
               await waitFor(() => document.activeElement === button('添加仓库'), 'Quick-add must return focus to its parent');
             }
-            fill(resourcePickerDialog.querySelector('input'), '');
+            resourcePickerDialog.querySelector('[role="checkbox"]').click();
             await click('添加仓库');
             await click('选择本地文件夹');
             await waitFor(() => dialog()?.textContent.includes('extra'), 'Quick-added resource did not appear');
@@ -529,10 +549,36 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             for (const name of ['repo-a','extra']) {
               const row = [...dialog().querySelectorAll('label')].find(label => label.textContent.includes(name));
               if (!row) throw new Error('Missing resource: ' + name);
-              row.querySelector('[role="checkbox"]').click();
+              if (row.querySelector('[role="checkbox"]').getAttribute('aria-checked') !== 'true') throw new Error('Quick-add must select the saved resource and preserve existing choices');
             }
+            const pickerRepo = resourcePickerDialog.querySelector('[data-resource-id="repo-a"]');
+            await waitFor(() => pickerRepo.querySelector('[aria-label="源分支"]'), 'Selected repository must expose source branch');
+            if (resourcePickerDialog.querySelector('[aria-label="目标分支"]') || resourcePickerDialog.querySelector('[data-resource-id="extra"] [data-slot="button-group"]')) throw new Error('Picker must hide target branch and plain-folder Git options');
+            const pickerWorktree = () => pickerRepo.querySelector('[data-slot="button-group"] [role="checkbox"]');
+            if (pickerWorktree().getAttribute('aria-checked') !== 'true') throw new Error('Picker must use the default isolated mode');
+            const pickerBranch = pickerRepo.querySelector('[aria-label="源分支"]');
+            if (pickerWorktree().closest('label').getBoundingClientRect().right > pickerBranch.getBoundingClientRect().left) throw new Error('Isolated worktree must precede source branch');
+            if (pickerBranch.getBoundingClientRect().height !== 28 || pickerBranch.getBoundingClientRect().width !== 144 || getComputedStyle(pickerBranch).borderTopWidth !== '0px') throw new Error('Picker branch controls must be compact and borderless');
+            if (Math.abs(pickerRepo.querySelector(':scope > label').getBoundingClientRect().top + pickerRepo.querySelector(':scope > label').getBoundingClientRect().height / 2 - pickerBranch.getBoundingClientRect().top - 14) > 1) throw new Error('Resource identity and configuration must be vertically aligned');
+            await window.testInput.captureResourcePicker();
+            async function pickerSource(label) {
+              pickerRepo.querySelector('[aria-label="源分支"]').click();
+              await waitFor(() => document.querySelector('[aria-label="搜索分支"]'), 'Picker source menu missing');
+              const popup = document.querySelector('[aria-label="搜索分支"]').parentElement;
+              [...popup.querySelectorAll('button')].find(item => item.getAttribute('aria-label') === label || item.textContent.trim() === label).click();
+              await waitFor(() => !document.querySelector('[aria-label="搜索分支"]'), 'Source selection should dismiss only its popover');
+              if (dialog() !== resourcePickerDialog) throw new Error('Source selection must preserve the resource picker');
+            }
+            await pickerSource('使用当前分支');
+            if (!pickerWorktree().disabled || pickerWorktree().getAttribute('aria-checked') !== 'false') throw new Error('Current branch must disable isolation');
+            await pickerSource('main');
+            pickerWorktree().click();await waitFor(() => pickerWorktree().getAttribute('aria-checked') === 'true', 'Picker Worktree toggle failed');
+            if (pickerRepo.querySelector(':scope > label [role="checkbox"]').getAttribute('aria-checked') !== 'true') throw new Error('Configuration must not toggle resource selection');
+            pickerWorktree().click();await waitFor(() => pickerWorktree().getAttribute('aria-checked') === 'false', 'Picker Worktree toggle did not clear');
             await click('确认');
             await waitFor(() => dialog()?.querySelector('[aria-label="目标分支"]'), 'Missing branch configuration');
+            const confirmedRepo = dialog().querySelector('[data-slot="button-group"][aria-label="repo-a"]');
+            if (confirmedRepo.querySelector('[aria-label="源分支"]').textContent.trim() !== 'main' || confirmedRepo.querySelector('[role="checkbox"]').getAttribute('aria-checked') !== 'false') throw new Error('Picker configuration must survive confirmation');
             const addResource = () => dialog()?.querySelector('button[aria-label="添加仓库或文件夹"]');
             if (addResource().textContent.trim() || addResource().previousElementSibling?.getAttribute('aria-label') !== 'extra') throw new Error('Add resource must be an icon immediately after the last directory');
             addResource().click();

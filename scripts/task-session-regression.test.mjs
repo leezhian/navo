@@ -58,10 +58,10 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const nativeCalls = [];
   const runtime = createLoader({
     "./agentLaunch": { prepareAgentLaunch: async () => { if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); return { command: "/mock/cli", args: [], env: {} }; } },
-    "./taskContext": { prepareTaskContext: async () => ({ cwd: os.tmpdir(), prompt: "task context" }), taskPrompt: () => "task context" },
+    "./taskContext": { prepareTaskContext: options.prepareTaskContext ?? (async () => ({ cwd: os.tmpdir(), prompt: "task context" })), taskPrompt: () => "task context" },
     "../terminal/terminalService": {
       resolveShell: () => "/bin/zsh",
-      createTerminal: (params, owner, launch) => { launches++; processes.set(params.sessionId, { owner, launch }); },
+      createTerminal: (params, owner, launch) => { launches++; processes.set(params.sessionId, { params, owner, launch }); },
       destroyTerminal: ({ sessionId }) => { const process = processes.get(sessionId); processes.delete(sessionId); process?.launch.onFinish(); },
     },
   });
@@ -79,6 +79,33 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const other = new EventEmitter(); other.id = 2; other.isDestroyed = () => false;
   return { service, saved, processes, owner, other, events, nativeCalls, launches: () => launches, fail: () => { failLaunch = true; } };
 }
+
+test("多仓库普通终端使用选定资源的实际工作目录，不启动 Agent 或接受外来资源", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "navo-shell-directories-"));
+  const firstPath = path.join(directory, "first-worktree");
+  const secondPath = path.join(directory, "second-worktree");
+  await mkdir(firstPath);await mkdir(secondPath);
+  const resources = [firstPath, secondPath].map((workingPath, index) => ({ resourceId: `repo-${index}`, name: `Repo ${index}`, mode: "worktree", workingPath, originalPath: "/not-the-worktree", sourceBranch: "main", targetBranch: `feature/${index}` }));
+  const runtime = fixture([], async () => null, { task: { ...task, resources }, prepareTaskContext });
+  try {
+    await runtime.service.start({ taskId: task.id, kind: "shell", resourceId: "repo-1" }, runtime.owner);
+    await runtime.service.start({ taskId: task.id, kind: "shell", resourceId: "repo-0" }, runtime.owner);
+    const sessions = await runtime.service.list();
+    assert.equal(sessions.length, 2);
+    for (const [index, session] of sessions.entries()) {
+      const expectedPath = await (await import("node:fs/promises")).realpath(index === 0 ? secondPath : firstPath);
+      assert.equal(session.cwd, expectedPath);
+      assert.equal(session.workspace.resourceId, index === 0 ? "repo-1" : "repo-0");
+      assert.equal(session.agent, undefined);
+      const process = runtime.processes.get(session.terminalId);
+      assert.equal(process.params.cwd, expectedPath);
+      assert.equal(process.launch.command, "/bin/zsh");
+      assert.equal(process.launch.strictCwd, true);
+    }
+    await assert.rejects(runtime.service.start({ taskId: task.id, kind: "shell", resourceId: "outside-task" }, runtime.owner), /DIRECTORY_MISSING/);
+    assert.equal(runtime.launches(), 2);
+  } finally { await runtime.service.shutdown();await rm(directory, { recursive: true, force: true }); }
+});
 
 test("任务创建重试去重，挂载和 list 不重启，停止与恢复保留会话身份", async () => {
   const runtime = fixture();

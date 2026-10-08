@@ -48,7 +48,6 @@
     "add": "添加仓库或文件夹",
     "replace": "切换工作目录",
     "pickerTitle": "添加工作目录",
-    "sharedDescription": "与设置中的仓库和文件夹共用资源列表。",
     "search": "搜索资源",
     "searchPlaceholder": "搜索仓库或文件夹…"
   },

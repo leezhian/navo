@@ -1,5 +1,5 @@
 import type { IssueItem } from "../domain/issues";
-import type { TaskWebLink } from "./taskTypes";
+import type { TaskResourceInput, TaskWebLink } from "./taskTypes";
 
 export type TaskResourceCategory = "repositories" | "issues" | "pullRequests" | "notes" | "links" | "files";
 export interface TaskNote {
@@ -23,4 +23,6 @@ export interface AddTaskResourcesInput {
   notes: TaskNote[];
   /** 只能提交当前窗口原生文件选择器签发的标识，不接受任意路径。 */
   fileIds: string[];
+  /** 追加工作目录时单独提交；路径由主进程依据全局资源 ID 解析。 */
+  resources?: TaskResourceInput[];
 }

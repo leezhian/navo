@@ -1,15 +1,13 @@
 import { useRef, useState } from "react";
 import type { AppSettings } from "@/domain/types";
 import type { IssueItem } from "@/domain/issues";
-import type { TaskAttachment, TaskResourceInfo, TaskResourceInput, TaskWebLink } from "@/shared/taskTypes";
+import type { TaskAttachment, TaskWebLink } from "@/shared/taskTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { useTaskStore } from "@/stores/taskStore";
 import type { TaskAgentSelection } from "@/shared/agentCapabilities";
 
-export interface TaskResourceDraft extends TaskResourceInput {
-  /** 选择时探测到的目录与 Git 信息；提交时主进程再次校验。 */
-  info: TaskResourceInfo;
-}
+import { createTaskResourceDraft, mergeTaskResourceDrafts } from "@/domain/taskResourceDraft";
+import type { TaskResourceDraft } from "@/domain/taskResourceDraft";
 
 export function useTaskDraft(settings: AppSettings) {
   const [agent, setAgent] = useState<TaskAgentSelection | null>(null);
@@ -27,20 +25,13 @@ export function useTaskDraft(settings: AppSettings) {
     setError(null);
     try {
       const infos = await Promise.all(ids.map((id) => getTasksApi().inspectResource(id)));
-      const remaining = resources.filter((resource) => resource.resourceId !== replacingId);
-      const roots = [...remaining.map((resource) => resource.info), ...infos].map((info) => info.git?.root ?? info.path);
-      if (new Set(roots).size !== roots.length) throw new Error("TASK_DUPLICATE_RESOURCE");
-      const additions = infos.map((info): TaskResourceDraft => ({
-        info, resourceId: info.resourceId, mode: info.git ? settings.defaultTaskMode : "folder",
-        sourceBranch: info.git && settings.defaultTaskMode === "current-branch"
-          ? info.git.currentBranch ? `refs/heads/${info.git.currentBranch}` : "HEAD"
-          : info.git?.defaultSource ?? "",
-        targetBranch: "",
-      }));
-      if (replacingId) {
-        setResources(resources.flatMap((resource) => resource.resourceId === replacingId ? additions : [resource]));
-      } else setResources([...remaining, ...additions]);
+      const additions = infos.map((info) => createTaskResourceDraft(info, settings.defaultTaskMode));
+      setResources(mergeTaskResourceDrafts(resources, additions, replacingId));
     } finally { setWorking(false); }
+  }
+
+  function addSelectedResources(additions: TaskResourceDraft[]) {
+    setResources(mergeTaskResourceDrafts(resources, additions));
   }
 
   async function chooseFiles() {
@@ -84,5 +75,5 @@ export function useTaskDraft(settings: AppSettings) {
     } finally { setWorking(false); }
   }
 
-  return { agent, setAgent, description, setDescription, links, setLinks, webLinks, setWebLinks, resources, setResources, attachments, working, error, addResources, chooseFiles, removeAttachment, submit };
+  return { agent, setAgent, description, setDescription, links, setLinks, webLinks, setWebLinks, resources, setResources, attachments, working, error, addResources, addSelectedResources, chooseFiles, removeAttachment, submit };
 }
