@@ -6,7 +6,7 @@ import { isTaskResourceInput } from "../../utils/taskResourceInput";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { TaskRepository } from "./taskRepository";
 import { TaskResourceRepository } from "./taskResourceRepository";
-import { assignWorkspaceIdentities, mergeTaskWorkspaces } from "./taskWorkspaceIdentity";
+import { assignWorkspaceIdentities } from "./taskWorkspaceIdentity";
 import { resolveResourcePath } from "./resourcePaths";
 import { createWorkspace, createWorkspaceDirectory, prepareWorkspace, rollbackWorkspaces } from "./taskWorkspaces";
 import type { TaskCreationManifest } from "./taskWorkspaces";
@@ -63,6 +63,9 @@ export class TaskWorkspaceBindings {
       await this.tasks.clearOperation(input.requestId);
       throw error;
     }
-    return { ...task, projectName: existing.length ? task.projectName : manifest.steps[0].resource.name, resources: mergeTaskWorkspaces(existing, manifest.steps.map((step) => step.resource)) };
+    // 读取事务保存后的完整任务，包含更新时间，保证首次响应与幂等重试一致。
+    const updated = (await this.tasks.load())?.find((item) => item.id === taskId);
+    if (!updated) throw new Error("TASK_NOT_FOUND");
+    return updated;
   }
 }

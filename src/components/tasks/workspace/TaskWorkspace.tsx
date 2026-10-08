@@ -24,6 +24,7 @@ import { TaskTerminalDrawer } from "./TaskTerminalDrawer";
 import { NewSessionMenu } from "./NewSessionMenu";
 import { NewTerminalMenu } from "./NewTerminalMenu";
 import { useSessionAgentChoices } from "@/hooks/useSessionAgentChoices";
+import { useTaskSessionCreation } from "@/hooks/useTaskSessionCreation";
 import type { AgentId } from "@/shared/agentTypes";
 import { WorkspaceSeparator } from "./WorkspaceSeparator";
 import { TaskBranchPane } from "./TaskBranchPane";
@@ -48,10 +49,9 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const agents = sessions.filter((session) => session.kind === "agent");
   const [selectedAgent, setSelectedAgent] = useState<string>();
   const [agentPaneOpen, setAgentPaneOpen] = useState(true);
-  const agentViewRevision = useRef(0);
+  const { startSession, invalidateSelection } = useTaskSessionCreation(task.id);
   const agentChoices = useSessionAgentChoices();
   const [selectedTerminal, setSelectedTerminal] = useState<string>();
-  const terminalViewRevision = useRef(0);
   const active = agents.find((session) => session.id === selectedAgent) ?? agents[agents.length - 1];
   const activeTerminal = terminals.find((session) => session.id === selectedTerminal) ?? terminals[0];
   const [contextOpen, setContextOpen] = useState(true);
@@ -102,40 +102,29 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   useEffect(() => { if (!terminals.length) setExpanded(false); }, [terminals.length]);
 
   async function addTerminal(resourceId?: string) {
-    const store = useTaskSessionStore.getState();
-    if (store.pending) return;
-    const revision = ++terminalViewRevision.current;
-    const previousIds = new Set(store.sessions.map((session) => session.id));
-    await store.start({ taskId: task.id, kind: "shell", resourceId });
-    const created = useTaskSessionStore.getState().sessions.find((session) => session.taskId === task.id && session.kind === "shell" && !previousIds.has(session.id));
-    if (created && revision === terminalViewRevision.current) { setSelectedTerminal(created.id); setTerminalOpen(true); }
+    const created = await startSession({ kind: "shell", resourceId });
+    if (created) { setSelectedTerminal(created.id); setTerminalOpen(true); }
   }
   function selectContextSession(session: TaskSession) {
     if (session.kind === "agent") {
-      agentViewRevision.current += 1;
+      invalidateSelection("agent");
       setAgentPaneOpen(session.id !== active?.id || !showAgentPane);
       setSelectedAgent(session.id);
       setExpanded(false);
     } else {
-      terminalViewRevision.current += 1;
+      invalidateSelection("shell");
       setTerminalOpen(session.id !== activeTerminal?.id || !visibleTerminal);
       setSelectedTerminal(session.id);
     }
     if (narrow) setContextOpen(false);
   }
   function toggleTerminal() {
-    terminalViewRevision.current += 1;
+    invalidateSelection("shell");
     setTerminalOpen(!visibleTerminal);
   }
   async function addAgent(agentId: AgentId, resourceId?: string | null) {
-    const store = useTaskSessionStore.getState();
-    if (store.pending) return;
-    const revision = ++agentViewRevision.current;
-    const previousIds = new Set(store.sessions.map((session) => session.id));
-    await store.start({ taskId: task.id, kind: "agent", agentId, resourceId });
-    const created = useTaskSessionStore.getState().sessions.find((session) => session.taskId === task.id && session.kind === "agent" && !previousIds.has(session.id));
-    // 创建期间用户可能已经关闭面板或选择其他会话，不覆盖较新的视图操作。
-    if (created && revision === agentViewRevision.current) { setSelectedAgent(created.id); setAgentPaneOpen(true); setExpanded(false); if (narrow) setContextOpen(false); }
+    const created = await startSession({ kind: "agent", agentId, resourceId });
+    if (created) { setSelectedAgent(created.id); setAgentPaneOpen(true); setExpanded(false); if (narrow) setContextOpen(false); }
   }
   const newSessionControl = <NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} />;
   const terminalMenuProps = { resources: task.resources, disabled: pending, onCreate: (resourceId?: string) => void addTerminal(resourceId) };
@@ -196,7 +185,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
         {showUpper && <div className="task-workbench-upper">
         {showAgentPane && <div className="task-agent-container"><AgentSessionPane task={task} session={active} newSessionControl={newSessionControl}
           emptySessionControl={<NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} withLabel />}
-          onClosePane={() => { agentViewRevision.current += 1; setAgentPaneOpen(false); }} /></div>}
+          onClosePane={() => { invalidateSelection("agent"); setAgentPaneOpen(false); }} /></div>}
         {visibleBranch && !branchOverlay && <>
           {showAgentPane && <WorkspaceSeparator label={t("tasks:branch.resize")} value={branchWidth} min={268} max={540} onDelta={(delta) => setBranchWidth((width) => Math.max(268, Math.min(540, contentWidth - 288, width - delta)))} />}
           <div className="task-branch-container" style={showAgentPane ? { width: Math.min(branchWidth, contentWidth - 288) } : { flex: 1 }}>{branchPane}</div>
@@ -205,7 +194,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
         {visibleTerminal && <>
           {showUpper && <WorkspaceSeparator label={t("tasks:runtime.resizeTerminal")} value={terminalHeight} min={100} max={400} vertical onDelta={(delta) => setTerminalHeight((height) => Math.max(100, Math.min(400, (contentRef.current?.clientHeight ?? 600) - 160, height - delta)))} />}
           <div className="task-shell-container" data-expanded={terminalFillsSpace} style={terminalFillsSpace ? undefined : { height: terminalHeight }}>
-            <TaskTerminalDrawer sessions={terminals} activeId={activeTerminal?.id} expanded={expanded} onSelect={(id) => { terminalViewRevision.current += 1; setSelectedTerminal(id); }}
+            <TaskTerminalDrawer sessions={terminals} activeId={activeTerminal?.id} expanded={expanded} onSelect={(id) => { invalidateSelection("shell"); setSelectedTerminal(id); }}
               newTerminalControl={newTerminalControl} onExpand={() => setExpanded(!expanded)} onCollapse={toggleTerminal} />
           </div>
         </>}

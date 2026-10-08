@@ -50,6 +50,8 @@ test("已有任务追加真实 Worktree，原子保存、并发重试幂等及�
   const repo = await resource("repo");const request = payload([await input(repo)]);
   const [updated, repeated] = await Promise.all([service.addResources(task.id, request, 1), service.addResources(task.id, request, 1)]);
   assert.deepEqual(repeated, updated);
+  assert.ok(Date.parse(updated.updatedAt) > Date.parse(task.updatedAt));
+  assert.deepEqual((await service.repository.load()).find((item) => item.id === task.id), updated);
   assert.equal(updated.title, task.title);assert.equal(updated.description, task.description);assert.equal(updated.date, task.date);assert.equal(updated.status, task.status);
   assert.equal(updated.projectName, repo.name);assert.equal(updated.resources.length, 1);
   const workspace = updated.resources[0];

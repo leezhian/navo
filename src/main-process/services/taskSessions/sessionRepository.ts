@@ -1,14 +1,22 @@
 import type { TaskSession } from "../../../shared/taskSessionTypes";
 import { isDeepStrictEqual } from "node:util";
 import { openAppDatabase } from "../appDatabase";
+import { parseStoredSession } from "./sessionValidation";
+import { writeDiagnosticEvent } from "../../diagnostics/diagnosticLogger";
 
 export class SessionRepository {
   constructor(private readonly filename: string, private readonly namespace: string) {}
   async load(): Promise<TaskSession[]> {
     const database = await openAppDatabase(this.filename);
     try {
-      return database.prepare("SELECT data FROM task_sessions WHERE namespace = ? ORDER BY rowid").all(this.namespace)
-        .map((row) => JSON.parse(String(row.data)) as TaskSession);
+      const rows = database.prepare("SELECT id,task_id,data FROM task_sessions WHERE namespace = ? ORDER BY rowid").all(this.namespace);
+      const sessions = rows.flatMap((row) => {
+        const session = parseStoredSession(String(row.data), String(row.id), String(row.task_id));
+        return session ? [session] : [];
+      });
+      // 保留磁盘现场供修复；日志只记录数量，不包含原始 JSON、名称或路径。
+      if (sessions.length !== rows.length) void writeDiagnosticEvent("session.records_invalid", { count: rows.length - sessions.length });
+      return sessions;
     } finally { database.close(); }
   }
   async save(session: TaskSession, options: { preserveUpdateTime?: boolean } = {}) {

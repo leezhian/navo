@@ -1,7 +1,7 @@
 import { t as translate } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { buildFileTree } from "@/domain/fileTree";
 import type {
   AppSettings,
@@ -106,6 +106,7 @@ export function ReviewWorkspace({
   onToggleFile,
 }: ReviewWorkspaceProps) {
   const { t: translate } = useTranslation(["common", "review"]);
+  const reducedMotion = useReducedMotion();
   const codeViewRef = useRef<CodeViewHandle<LocalCommentMetadata>>(null);
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const { fileTreeWidth, isResizing, startResize } = useResizableFileTree(() => setIsFileTreeVisible(false));
@@ -164,7 +165,7 @@ export function ReviewWorkspace({
         <motion.div
           animate={getReviewLayoutStyle(isFileTreeVisible, fileTreeWidth)}
           className={getReviewLayoutClassName()}
-          transition={isResizing ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
+          transition={isResizing || reducedMotion ? { duration: 0 } : { duration: 0.18, ease: "easeOut" }}
         >
           <section className={getReviewPaneClassName(isFileTreeVisible)}>
             {summary?.isLargeDiff && <ReviewNoticeBar>{translate("review:diff.largeNotice")}</ReviewNoticeBar>}
@@ -199,9 +200,9 @@ export function ReviewWorkspace({
               <motion.div
                 animate={{ opacity: 1, x: 0 }}
                 className="min-h-0 min-w-0 overflow-hidden"
-                exit={{ opacity: 0, x: 28 }}
-                initial={{ opacity: 0, x: 28 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
+                exit={{ opacity: 0, x: reducedMotion ? 0 : 28 }}
+                initial={reducedMotion ? false : { opacity: 0, x: 28 }}
+                transition={{ duration: reducedMotion ? 0 : 0.18, ease: "easeOut" }}
               >
                 <FileTree
                   nodes={fileTree}

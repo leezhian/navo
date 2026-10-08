@@ -213,7 +213,9 @@ test("SQLite 持久化会话按命名空间隔离，删除任务级联删除", a
     const tasks = new TaskRepository(dbPath, "development");
     await tasks.create({ ...task, agent: undefined }, []);
     const sessions = new SessionRepository(dbPath, "development");
-    await sessions.save({ id: "session", taskId: task.id, kind: "agent", status: "stopped", title: "Native title", archivedAt: "2026-10-07T00:00:00.000Z" });
+    await sessions.save({ id: "session", taskId: task.id, kind: "agent", agent: selection, cwd: directory,
+      terminalId: "task-terminal", resumable: false, createdAt: "2026-10-07T00:00:00.000Z",
+      status: "stopped", title: "Native title", archivedAt: "2026-10-07T00:00:00.000Z" });
     assert.equal((await sessions.load()).length, 1);
     assert.equal((await sessions.load())[0].archivedAt, "2026-10-07T00:00:00.000Z");
     assert.equal((await sessions.load())[0].title, "Native title");

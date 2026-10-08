@@ -14,7 +14,7 @@ const errorCodes = new Set([
   "TASK_BRANCH_EXISTS", "TASK_INVALID_BRANCH", "TASK_DIRTY_REPOSITORY", "TASK_EMPTY_REPOSITORY",
   "TASK_INVALID_SOURCE", "TASK_DUPLICATE_RESOURCE", "TASK_DELETE_CHANGED", "TASK_DELETE_CONFIRMATION",
   "TASK_DELETE_FAILED", "TASK_DELETE_INSPECTION",
-  "SESSION_UNAVAILABLE", "SESSION_START_FAILED", "SESSION_EXIT_FAILED", "SESSION_DIRECTORY_MISSING",
+  "SESSION_UNAVAILABLE", "SESSION_START_FAILED", "SESSION_EXIT_FAILED", "SESSION_DIRECTORY_MISSING", "SESSION_LIMIT",
   "SESSION_MODE_UNSUPPORTED", "SESSION_OPTION_UNSUPPORTED", "SESSION_RESUME_UNSUPPORTED", "SESSION_STORAGE_FAILED", "AGENT_UNAVAILABLE",
   "SESSION_INVALID_NAME", "SESSION_NATIVE_UNSUPPORTED", "SESSION_NATIVE_MISSING", "SESSION_NATIVE_CHANGED", "SESSION_NATIVE_DELETE_FAILED",
 ]);
@@ -67,7 +67,7 @@ export function makeDiagnosticEntry(event: DiagnosticEvent, metadata: Diagnostic
     if (reasons.has(metadata.reason ?? "")) data.reason = metadata.reason;
     if (Array.isArray(metadata.changedFields)) data.changedFields = [...new Set(metadata.changedFields.filter((key) => Object.prototype.hasOwnProperty.call(defaultSettings, key)))].slice(0, 32);
     const code = diagnosticErrorCode(metadata.error);
-    const warning = warningCodes.has(code) || ["worktree.kept", "branch.kept", "task.cleanup_retained", "renderer.unresponsive", "log.repeated", "log.dropped"].includes(event);
+    const warning = warningCodes.has(code) || ["worktree.kept", "branch.kept", "task.cleanup_retained", "session.records_invalid", "renderer.unresponsive", "log.repeated", "log.dropped"].includes(event);
     const failure = metadata.error !== undefined || /(?:failed|uncaught|rejection|error|gone)$/.test(event);
     const entry: DiagnosticEntry = { schemaVersion: 1, time: new Date().toISOString(), level: warning ? "WARN" : failure ? "ERROR" : "INFO", scope: event.split(".")[0], event, data };
     if (metadata.error !== undefined) {

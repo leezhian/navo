@@ -27,13 +27,3 @@ export async function assignWorkspaceIdentities(steps: WorkspaceStep[], existing
   }
   return unique;
 }
-
-export function mergeTaskWorkspaces(existing: TaskResource[], resources: TaskResource[]) {
-  const result = [...existing];
-  for (const resource of resources) {
-    const index = result.findIndex((item) => item.resourceId === resource.resourceId);
-    if (index < 0) result.push(resource);
-    else result[index] = resource;
-  }
-  return result;
-}

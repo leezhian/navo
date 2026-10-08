@@ -79,6 +79,14 @@ test("操作开始结果耗时可关联，嵌套步骤共享 ID，并发操作�
   assert.equal(new Set(records.map((record) => record.data.operationId)).size, 2);
 });
 
+test("初始会话达到容量上限时保留可诊断的错误码", async (context) => {
+  const { logger, entries } = await fixture(context);
+  await logger.writeDiagnosticEvent("session.start.failed", { taskId: randomUUID(), error: new Error("SESSION_LIMIT") });
+  const [entry] = await entries();
+  assert.equal(entry.error.code, "SESSION_LIMIT");
+  assert.equal(entry.level, "ERROR");
+});
+
 test("可恢复保护为 WARN，取消为 INFO；同一异常堆栈只记录一次", async (context) => {
   const { logger, entries } = await fixture(context);
   const error = new Error("TASK_DELETE_CHANGED");
