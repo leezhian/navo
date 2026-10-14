@@ -159,10 +159,10 @@ test("设置默认英文与隔离工作区，保留旧外观并移除旧日志�
   const settings = normalizeAppSettings({ theme: "dark", diffCodeFontSize: 18, branchPrefix: "" });
   assert.equal(settings.locale, "en");
   assert.equal(settings.defaultTaskMode, "worktree");
-  assert.equal(settings.repositoriesDirectory, "~/Navo/repos");
-  assert.equal(settings.worktreesDirectory, "~/Navo/worktrees");
-  assert.equal(settings.tasksDirectory, "~/Navo/tasks");
-  assert.equal(normalizeAppSettings({ tasksDirectory: "   " }).tasksDirectory, "~/Navo/tasks");
+  assert.equal(settings.repositoriesDirectory, "~/navo/repos");
+  assert.equal(settings.worktreesDirectory, "~/navo/worktrees");
+  assert.equal(settings.tasksDirectory, "~/navo/tasks");
+  assert.equal(normalizeAppSettings({ tasksDirectory: "   " }).tasksDirectory, "~/navo/tasks");
   assert.equal(normalizeAppSettings({ tasksDirectory: "  ~/Custom Tasks  " }).tasksDirectory, "~/Custom Tasks");
   assert.equal(settings.branchPrefix, "");
   assert.equal(settings.theme, "dark");
@@ -181,7 +181,7 @@ test("克隆参数拒绝密码、token、无效协议、路径逃逸及相对目
   for (const name of ["..", ".", "../repo", "repo/name", "repo name"]) assert.throws(() => validateRepositoryName(name), /INVALID_REPOSITORY_NAME/);
   assert.equal(validateRepositoryName("项目-1"), "项目-1");
   assert.throws(() => resolveResourcePath("relative"), /INVALID_DIRECTORY/);
-  assert.equal(resolveResourcePath("~/Navo/repos"), path.join(os.homedir(), "Navo/repos"));
+  assert.equal(resolveResourcePath("~/navo/repos"), path.join(os.homedir(), "navo/repos"));
   const output = redactCloneOutput("https://user:secret@example.com/repo token=secret password=secret authorization=secret");
   assert.ok(!output.includes("secret"));
 });
@@ -367,7 +367,7 @@ test("任务目录支持旧配置默认值、SQLite 保存和路径校验，设�
   try { database.prepare("DELETE FROM settings WHERE key='tasksDirectory'").run(); }
   finally { database.close(); }
   const legacy = (await service.loadSettings()).settings;
-  assert.equal(legacy.tasksDirectory, "~/Navo/tasks");
+  assert.equal(legacy.tasksDirectory, "~/navo/tasks");
   assert.equal(legacy.theme, "dark");
   const tasksDirectory = path.join(directory, "task-folders");
   await service.saveSettings({ ...legacy, tasksDirectory: "  " + tasksDirectory + "  " });
@@ -379,7 +379,7 @@ test("任务目录支持旧配置默认值、SQLite 保存和路径校验，设�
   await service.saveSettings({ ...legacy, tasksDirectory: "~/Custom Tasks" });
   assert.equal((await service.loadSettings()).settings.tasksDirectory, "~/Custom Tasks");
   await service.saveSettings({ ...legacy, tasksDirectory: "" });
-  assert.equal((await service.loadSettings()).settings.tasksDirectory, "~/Navo/tasks");
+  assert.equal((await service.loadSettings()).settings.tasksDirectory, "~/navo/tasks");
 });
 
 test("旧 JSON 迁入 SQLite 并保留备份，重新加载只读取数据库", async (context) => {

@@ -88,9 +88,9 @@ export const diffDarkThemeOptions: Array<{ label: string; value: DiffDarkThemePr
 export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
   return {
     locale: normalizeLocale(value.locale),
-    repositoriesDirectory: normalizePath(value.repositoriesDirectory, "~/Navo/repos"),
-    worktreesDirectory: normalizePath(value.worktreesDirectory, "~/Navo/worktrees"),
-    tasksDirectory: normalizePath(value.tasksDirectory, "~/Navo/tasks"),
+    repositoriesDirectory: normalizePath(value.repositoriesDirectory, "~/navo/repos"),
+    worktreesDirectory: normalizePath(value.worktreesDirectory, "~/navo/worktrees"),
+    tasksDirectory: normalizePath(value.tasksDirectory, "~/navo/tasks"),
     defaultTaskMode: value.defaultTaskMode === "new-branch" || value.defaultTaskMode === "current-branch" ? value.defaultTaskMode : "worktree",
     branchPrefix: typeof value.branchPrefix === "string" ? value.branchPrefix.trim() : "navo/",
     keepAwakeDuringAgent: value.keepAwakeDuringAgent === true,
@@ -131,9 +131,9 @@ const defaultDiffSettings: DiffSettings = {
 export const defaultSettings: AppSettings = {
   ...defaultDiffSettings,
   locale: DEFAULT_LOCALE,
-  repositoriesDirectory: "~/Navo/repos",
-  worktreesDirectory: "~/Navo/worktrees",
-  tasksDirectory: "~/Navo/tasks",
+  repositoriesDirectory: "~/navo/repos",
+  worktreesDirectory: "~/navo/worktrees",
+  tasksDirectory: "~/navo/tasks",
   defaultTaskMode: "worktree",
   branchPrefix: "navo/",
   keepAwakeDuringAgent: false,

@@ -56,11 +56,11 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         const dialog=()=>document.querySelector('[role="dialog"]');
         await wait(()=>button('Agents'),'Missing settings navigation');
         const taskDirectory=()=>document.querySelector('input[aria-label="任务目录"]');
-        if(taskDirectory()?.value!=='~/Navo/tasks')throw new Error('Task directory must have a default path in General settings');
+        if(taskDirectory()?.value!=='~/navo/tasks')throw new Error('Task directory must have a default path in General settings');
         const directoryPicker=()=>document.querySelector('button[aria-label="选择目录: 任务目录"]');
         window.directoryChoice='/fixtures/task-folders';directoryPicker().click();
         await wait(()=>taskDirectory().value==='/fixtures/task-folders','Directory picker must update task directory');
-        if(window.currentAppSettings.repositoriesDirectory!=='~/Navo/repos'||window.currentAppSettings.worktreesDirectory!=='~/Navo/worktrees')throw new Error('Task directory must not change repository or worktree paths');
+        if(window.currentAppSettings.repositoriesDirectory!=='~/navo/repos'||window.currentAppSettings.worktreesDirectory!=='~/navo/worktrees')throw new Error('Task directory must not change repository or worktree paths');
         await wait(()=>!directoryPicker().disabled,'Directory picker must finish');
         window.directoryChoice=null;directoryPicker().click();await pause();
         if(taskDirectory().value!=='/fixtures/task-folders')throw new Error('Cancelling directory selection must preserve the path');

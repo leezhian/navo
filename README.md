@@ -153,11 +153,11 @@ Grok 能力探测仅发送 ACP `initialize`，读取 `_meta.modelState` 中的�
 
 v9 新增 `task_sessions`，持久化 Agent 配置、工作目录、进程状态与可用的原生恢复标识；应用重启仅恢复记录，不自动启动。普通终端、认证内容和输出不入库。
 
-常规设置提供独立的任务目录 `tasksDirectory`，默认 `~/Navo/tasks`，支持输入路径或系统目录选择，并沿用 SQLite 设置存储。旧配置缺少该字段或留空时使用默认值；无目录或多目录任务启动会话时使用此目录下的任务专属目录，写入独占的 `navo-task.md`；单目录默认使用实际工作区，不修改仓库规则文件、不搬迁已有任务。
+常规设置提供独立的任务目录 `tasksDirectory`，默认 `~/navo/tasks`，支持输入路径或系统目录选择，并沿用 SQLite 设置存储。旧配置缺少该字段或留空时使用默认值；无目录或多目录任务启动会话时使用此目录下的任务专属目录，写入独占的 `navo-task.md`；单目录默认使用实际工作区，不修改仓库规则文件、不搬迁已有任务。
 
 配置读取优先级为：SQLite 设置 → 旧 `settings.json` → localStorage 的 `navo-settings` / `vibe-reviewer-settings` → 默认值。仅在数据库尚无设置时尝试旧 JSON，规范化后整组导入，成功保留原文件作为备份，之后不再回读或写入；没有旧 JSON 时才由渲染进程迁移旧浏览器设置，写入成功后移除旧键。损坏的数据库、非法 JSON、迁移或保存失败会明确提示，不静默回退默认值或覆盖旧记录。Tasks 及其关联保存在同一 SQLite 数据库中，以 development/production 命名空间隔离。首次加载且任务库尚未初始化时，迁移原 localStorage 任务键，保留标识与顺序，成功后清理旧键；损坏数据不静默覆盖，空列表有独立初始化标记。官网与报告 Bug 链接继续指向现有 GitHub 仓库，不因更名而假定远端已改名。
 
-仓库与 Worktree 默认目录分别为 `~/Navo/repos`、`~/Navo/worktrees`；诊断日志默认为 `userData/logs/navo.log`，macOS 新安装通常为 `/Users/<用户名>/Library/Application Support/Navo/logs/navo.log`。SQLite 设置中的 `logFilePath` 保存用户选择的完整文件路径，空值使用默认位置。修改路径不迁移或删除旧文件，后续事件写入新位置；已有非空文件需符合 Navo 诊断日志格式，文件扩展名必须为 `.log`。定位操作通过 `shell.showItemInFolder` 打开系统文件管理器，并保证文件存在。日志始终记录，最大 `20 * 1024 * 1024` 字节，达到上限后重置同一文件并继续记录，不生成轮转文件。清理与写入共用串行队列，手动清理只清空当前文件，不删除目录或其他文件；旧开关、目录和保留时间偏好不再读取。仓库克隆依赖系统 Git 与现有 HTTPS 凭证 / SSH agent，不提供交互式密码输入。克隆失败或取消只清理本次独占创建的目录；记录保存失败则保留成功克隆的仓库。浏览器模式不提供配置/文件系统能力，使用真实 Electron 窗口验证。
+仓库与 Worktree 默认目录分别为 `~/navo/repos`、`~/navo/worktrees`；诊断日志默认为 `userData/logs/navo.log`，macOS 新安装通常为 `/Users/<用户名>/Library/Application Support/Navo/logs/navo.log`。SQLite 设置中的 `logFilePath` 保存用户选择的完整文件路径，空值使用默认位置。修改路径不迁移或删除旧文件，后续事件写入新位置；已有非空文件需符合 Navo 诊断日志格式，文件扩展名必须为 `.log`。定位操作通过 `shell.showItemInFolder` 打开系统文件管理器，并保证文件存在。日志始终记录，最大 `20 * 1024 * 1024` 字节，达到上限后重置同一文件并继续记录，不生成轮转文件。清理与写入共用串行队列，手动清理只清空当前文件，不删除目录或其他文件；旧开关、目录和保留时间偏好不再读取。仓库克隆依赖系统 Git 与现有 HTTPS 凭证 / SSH agent，不提供交互式密码输入。克隆失败或取消只清理本次独占创建的目录；记录保存失败则保留成功克隆的仓库。浏览器模式不提供配置/文件系统能力，使用真实 Electron 窗口验证。
 
 ## 任务创建与恢复
 
