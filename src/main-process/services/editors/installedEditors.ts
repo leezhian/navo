@@ -7,8 +7,14 @@ import type { InstalledEditor } from "../../../shared/workspaceOpenTypes";
 import { editorCatalog, type EditorDefinition } from "./editorCatalog";
 
 const execute = promisify(execFile);
-export const EDITOR_CACHE_MS = 5 * 60 * 1000;
+export const EDITOR_CACHE_MS = 30 * 60 * 1000;
+export const EDITOR_RETRY_MS = 60 * 1000;
 export interface DetectedEditor extends InstalledEditor { appPath: string; }
+
+async function detectedEditor(filename: string, definition: EditorDefinition): Promise<DetectedEditor> {
+  const appPath = await realpath(filename);
+  return { id: definition.id, name: definition.name, appPath };
+}
 
 export async function matchesEditorBundle(filename: string, definition: EditorDefinition) {
   if (!path.isAbsolute(filename) || !filename.endsWith(".app")) return false;
@@ -41,11 +47,11 @@ export async function detectInstalledEditors(): Promise<DetectedEditor[]> {
   const applications = await applicationPaths();
   const detected = await Promise.all(editorCatalog.map(async (definition) => {
     const candidates = applications.filter((filename) => definition.appNames.some((name) => path.basename(filename) === name + ".app" || path.basename(filename).startsWith(name + " ")));
-    for (const filename of candidates) if (await matchesEditorBundle(filename, definition)) return { id: definition.id, name: definition.name, appPath: await realpath(filename) };
+    for (const filename of candidates) if (await matchesEditorBundle(filename, definition)) return detectedEditor(filename, definition);
     for (const bundleId of definition.bundleIds) {
       try {
         const { stdout } = await execute("/usr/bin/mdfind", ["kMDItemCFBundleIdentifier == '" + bundleId + "'"], { timeout: 3000, maxBuffer: 64 * 1024 });
-        for (const filename of stdout.trim().split("\n").filter(Boolean)) if (await matchesEditorBundle(filename, definition)) return { id: definition.id, name: definition.name, appPath: await realpath(filename) };
+        for (const filename of stdout.trim().split("\n").filter(Boolean)) if (await matchesEditorBundle(filename, definition)) return detectedEditor(filename, definition);
       } catch { /* 索引不可用时仍保留普通应用目录的检测结果。 */ }
     }
     return null;
@@ -55,15 +61,16 @@ export async function detectInstalledEditors(): Promise<DetectedEditor[]> {
 
 export class InstalledEditorsCache {
   private cached: DetectedEditor[] = [];
-  private checkedAt: number | null = null;
+  private refreshAfter = 0;
   private pending: Promise<DetectedEditor[]> | null = null;
   constructor(private readonly detect = detectInstalledEditors, private readonly now = Date.now) {}
   list(): Promise<DetectedEditor[]> {
     if (this.pending) return this.pending;
-    if (this.checkedAt !== null && this.now() - this.checkedAt < EDITOR_CACHE_MS) return Promise.resolve(this.cached);
-    this.pending = this.detect().then((editors) => { this.cached = editors; this.checkedAt = this.now(); return editors; })
-      .catch(() => this.cached).finally(() => { this.pending = null; });
+    if (this.now() < this.refreshAfter) return Promise.resolve(this.cached);
+    this.pending = this.detect().then((editors) => { this.cached = editors; this.refreshAfter = this.now() + EDITOR_CACHE_MS; return editors; })
+      .catch(() => { this.refreshAfter = this.now() + EDITOR_RETRY_MS; return this.cached; }).finally(() => { this.pending = null; });
     return this.pending;
   }
-  invalidate() { this.checkedAt = null; }
+  find(id: InstalledEditor["id"]) { return this.cached.find((editor) => editor.id === id); }
+  invalidate() { this.refreshAfter = 0; }
 }

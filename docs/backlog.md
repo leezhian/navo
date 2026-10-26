@@ -12,7 +12,7 @@
 | 多项目共享上下文 | 单个任务可关联多个仓库，准备分支或 Worktree | 已通过首条指令交付资源；待补动态 Notes、跨会话共享上下文和协作规则 | [创建任务需求](prd/task-create.md)、[产品范围](../PRD.md) |
 | 服务商授权 | GitHub、GitHub Enterprise、GitLab、GitLab Self-Hosted、Linear 列表 | 真实连接、凭证安全存储、失效处理与断开；具体采用 OAuth、Device Flow 或 Token 仍需按平台确定 | [集成服务](../src/services/integrationApi.ts)、[集成需求](prd/settings/integrations.md) |
 | Issue / PR 远程数据 | 本地列表/看板、筛选、详情及创建任务时关联 | 远程拉取与刷新、描述/评论等详情、与服务商状态同步；当前刷新仅重读本地数据 | [Issue 数据](../src/stores/issueStore.ts)、[Issue 需求](prd/issues.md) |
-| 已有任务增补上下文 | 创建时可添加资源、Issue/PR、附件和普通链接；创建后可增补仓库/文件夹、配置分支及隔离 Worktree，也可改名及调整状态 | 已支持增补 Issue/PR、普通链接、原文件引用及任务笔记；待补已有资源编辑与解除关联、任务描述编辑 | [任务菜单](../src/components/tasks/TaskContextMenu.tsx)、[上下文展示](../src/components/tasks/TaskContextDetails.tsx) |
+| 已有任务增补上下文 | 创建时可添加资源、Issue/PR、附件和普通链接；创建后可增补仓库/文件夹、配置分支及隔离 Worktree，也可改名及调整状态 | 已支持增补 Issue/PR、普通链接、原文件引用及任务笔记，笔记支持预览、编辑和删除；待补其他已有资源编辑与解除关联、任务描述编辑 | [任务工作台](prd/task-workspace.md) |
 | 任务内代码审查 | 已有 diff 弹窗、文件树、评论及 Git 操作 | 已接入分支/变更面板和原有完整 Diff 弹窗；单个 commit 的 Diff 尚未接入 | [审查需求](prd/review.md)、[审查弹窗](../src/components/review/ReviewDialog.tsx) |
 | 任务内终端 | 已有终端渲染、独立 Shell 与主进程 PTY 服务 | 已接入任务内普通 Shell、工作目录绑定及关闭终止；跨重启输出和终端恢复未接入 | [终端需求](prd/terminal.md)、[终端组件](../src/components/terminal/TerminalWorkspace.tsx) |
 | 保持唤醒 | 设置开关可保存 | 实际系统防休眠及 Agent/远程访问生命周期联动 | [常规设置需求](prd/settings/general.md)、[设置页](../src/components/settings/GeneralSettingsPage.tsx) |

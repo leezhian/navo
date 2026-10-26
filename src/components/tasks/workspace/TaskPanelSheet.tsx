@@ -16,11 +16,13 @@ interface TaskPanelSheetProps {
   container: HTMLDivElement | null;
   /** 关闭后恢复到对应入口，不抢占上层弹窗或另一个面板的焦点。 */
   triggerRef: RefObject<HTMLButtonElement | null>;
+  /** 条目随上下文收起而卸载时，回退到始终可见的顶部入口。 */
+  fallbackTriggerRef?: RefObject<HTMLButtonElement | null>;
   /** 保留各面板的内容样式，浮层布局统一由共享类控制。 */
   className?: string;
 }
 
-export function TaskPanelSheet({ children, side, open, onOpenChange, width, title, closeLabel, container, triggerRef, className }: TaskPanelSheetProps) {
+export function TaskPanelSheet({ children, side, open, onOpenChange, width, title, closeLabel, container, triggerRef, fallbackTriggerRef, className }: TaskPanelSheetProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   return <Sheet modal={false} open={open} onOpenChange={onOpenChange}>
     {container && <SheetContent ref={contentRef} container={container} side={side} showCloseButton={false}
@@ -31,7 +33,8 @@ export function TaskPanelSheet({ children, side, open, onOpenChange, width, titl
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         const focused = document.activeElement;
-        if (focused === document.body || (focused instanceof Node && contentRef.current?.contains(focused))) triggerRef.current?.focus();
+        const trigger = triggerRef.current?.isConnected ? triggerRef.current : fallbackTriggerRef?.current;
+        if (focused === document.body || (focused instanceof Node && contentRef.current?.contains(focused))) trigger?.focus();
       }}>
       <SheetTitle className="sr-only">{title}</SheetTitle>
       {children}

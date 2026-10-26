@@ -35,7 +35,7 @@ export function TaskTerminalDrawer({ sessions, activeId, expanded, onSelect, new
         <IconTooltip label={t("tasks:runtime.hideTerminal")} size="icon-xs" onClick={onCollapse}><PanelBottomClose /></IconTooltip>
       </div>
     </header>
-    {active && (active.status === "running" || hasManagedTerminalSession(active.terminalId)) ? <TerminalWorkspace key={active.terminalId} title={active.title} sessionId={active.terminalId} cwd={active.cwd} compact attachOnly /> :
+    {active && (active.status === "running" || active.commandExitCode !== undefined || hasManagedTerminalSession(active.terminalId)) ? <TerminalWorkspace key={active.terminalId} title={active.title} sessionId={active.terminalId} cwd={active.cwd} compact attachOnly autoFocus={!active.command} /> :
       <div className="task-session-empty"><p>{t(active?.status === "failed" ? "tasks:runtime.startFailed" : "tasks:runtime.status.stopped")}</p></div>}
   </section>;
 }

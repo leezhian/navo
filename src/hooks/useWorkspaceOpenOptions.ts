@@ -1,22 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceOpenOptions } from "@/shared/workspaceOpenTypes";
-import { getTasksApi } from "@/services/taskApi";
+import { cachedWorkspaceOptions, invalidateWorkspaceOptions, loadWorkspaceOptions, workspaceOptionsKey } from "@/services/workspaceOpenOptions";
 
-/** 提前读取菜单；重新展开保留已有内容，IDE 的实际扫描由主进程缓存合并。 */
+/** 仅进入工作台或回到前台时检查过期缓存；展开菜单不执行查询。 */
 export function useWorkspaceOpenOptions(taskId: string, resourceId: string, workingPath: string, enabled: boolean) {
-  const [options, setOptions] = useState<WorkspaceOpenOptions | null>(null);
+  const key = workspaceOptionsKey(taskId, resourceId, workingPath);
+  const [snapshot, setSnapshot] = useState<{ key: string; options: WorkspaceOpenOptions | null } | null>(null);
   const revision = useRef(0);
   const refresh = useCallback(async () => {
     if (!enabled) return;
     const current = ++revision.current;
-    try {
-      const next = await getTasksApi().workspaceOpenOptions(taskId, resourceId);
-      if (current === revision.current) setOptions(next);
-    } catch { /* 读取失败保留已有选项，下次展开时重试，不在菜单中展示提示。 */ }
-  }, [taskId, resourceId, workingPath, enabled]);
+    const options = await loadWorkspaceOptions(key, taskId, resourceId);
+    if (current === revision.current) setSnapshot({ key, options });
+  }, [taskId, resourceId, key, enabled]);
   useEffect(() => {
-    setOptions(null);void refresh();
-    return () => { revision.current += 1; };
+    void refresh();
+    window.addEventListener("focus", refresh);
+    return () => { revision.current += 1;window.removeEventListener("focus", refresh); };
   }, [refresh]);
-  return { options, refresh };
+  const options = enabled ? snapshot?.key === key ? snapshot.options : cachedWorkspaceOptions(key) : null;
+  return { options, refreshAfterFailure: () => { invalidateWorkspaceOptions(key);void refresh(); } };
 }

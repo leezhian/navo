@@ -6,7 +6,6 @@ import { loadSettings, saveSettings } from "../services/settingsService";
 import { ResourceService } from "../services/resourceService";
 import { inspectResourceGit } from "../services/resourceGitInfo";
 import { clearDiagnosticLog, getDiagnosticLogFilePath, getDiagnosticLogStatus, prepareDiagnosticLogFile } from "../services/diagnosticLogService";
-import { validateDiagnosticLogPath } from "../services/diagnosticLogPath";
 import { updateApplicationMenu } from "../applicationMenu";
 
 let resources: ResourceService | null = null;
@@ -34,17 +33,6 @@ export function registerSettingsHandlers() {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
   ipcMain.handle(ipcChannels.settingsClearLogs, () => clearDiagnosticLog());
-  ipcMain.handle(ipcChannels.settingsChooseLogFile, async (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (!window) throw new Error("WINDOW_UNAVAILABLE");
-    const currentPath = getDiagnosticLogFilePath();
-    const result = await dialog.showOpenDialog(window, {
-      defaultPath: path.dirname(currentPath),
-      properties: ["openDirectory", "createDirectory"],
-    });
-    const directory = result.filePaths?.[0];
-    return result.canceled || !directory ? null : validateDiagnosticLogPath(path.join(directory, path.basename(currentPath)));
-  });
   ipcMain.handle(ipcChannels.settingsRevealLogFile, async () => {
     shell.showItemInFolder(await prepareDiagnosticLogFile());
   });

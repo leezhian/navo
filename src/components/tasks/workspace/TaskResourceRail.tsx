@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Archive, ChevronDown, ChevronRight, CircleDot, FileText, FolderGit2, GitPullRequest, Link2, NotebookPen, Plus, Terminal } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, CircleDot, FileText, FolderGit2, GitBranch, GitPullRequest, Link2, Plus, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import type { TaskResource } from "@/shared/taskTypes";
@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { sessionWorkspaceLabel } from "@/utils/taskSessionWorkspace";
 import { WorkspaceOpenActions } from "./WorkspaceOpenActions";
+import { WorkspaceCommandActions } from "./WorkspaceCommandActions";
+import { TaskNoteRow } from "./TaskNoteRow";
 
 interface TaskResourceRailProps {
   /** 只展示真实关联资源，不填充 demo 条目。 */
@@ -19,6 +21,16 @@ interface TaskResourceRailProps {
   activeId?: string;
   /** 仅在终端面板可见时提供，收起后不高亮条目。 */
   activeTerminalId?: string;
+  /** 仅高亮右侧当前可见的仓库或笔记；两者互斥。 */
+  activeResourceId?: string;
+  activeNoteId?: string;
+  /** 打开右侧笔记面板，保留触发按钮以恢复抽屉焦点。 */
+  onNote: (id: string, trigger: HTMLButtonElement) => void;
+  /** 右击删除只打开确认，不切换当前笔记。 */
+  onDeleteNote: (id: string) => void;
+  noteDeleteDisabled: boolean;
+  /** 在所选工作区的独立终端运行仓库命令。 */
+  onRunCommand: (resourceId: string, commandId: string) => void;
   /** 选择不同项切换并展示，相同项切换面板显隐，不启动新进程。 */
   onSelect: (session: TaskSession) => void;
   /** 与会话面板共用工作目录及 Agent 新建菜单。 */
@@ -66,7 +78,7 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
-export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
+export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, noteDeleteDisabled, onRunCommand, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
   const terminals = sessions.filter((session) => session.kind === "shell");
@@ -94,10 +106,12 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, o
       </div>; })}
     </ResourceGroup>
     <ResourceGroup title="CHANGES" count={repos.length} onAdd={onAddResource && (() => onAddResource("repositories"))}>
-      {repos.map((resource) => <div key={resource.resourceId} className="task-context-change">
-        <button className="task-context-row flex-1" onClick={() => onReview(resource)} title={resource.workingPath}>
-        <ContextItemIcon><FolderGit2 /></ContextItemIcon><span className="min-w-0 flex-1"><span className="block truncate">{resource.name}</span><small className="task-context-change-metadata"><span className="truncate">{resource.targetBranch || resource.sourceBranch}</span></small></span>
-        </button><div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} /></div>
+      {repos.map((resource) => <div key={resource.resourceId} className="task-context-change" data-active={resource.resourceId === activeResourceId}>
+        <button className="task-context-row flex-1" data-active={resource.resourceId === activeResourceId} aria-pressed={resource.resourceId === activeResourceId} onClick={() => onReview(resource)} title={resource.workingPath}>
+        <ContextItemIcon><GitBranch /></ContextItemIcon><span className="task-context-change-heading min-w-0 flex-1"><span className="block truncate">{resource.targetBranch || resource.sourceBranch}</span></span>
+        </button><div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} />
+          <WorkspaceCommandActions resource={resource} sessions={terminals} disabled={archivePending || task.status === "ARCHIVED" || !onWorkspaceOpenError} onRun={onRunCommand} />
+        </div>
       </div>)}
     </ResourceGroup>
     {terminals.length > 0 && <ResourceGroup title={t("tasks:runtime.terminals")} count={terminals.length} action={newTerminalControl}>
@@ -112,7 +126,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, o
       {task.webLinks?.map((link) => <button key={link.id} className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button>)}
     </ResourceGroup>
     <ResourceGroup title="NOTES" count={task.notes?.length ?? 0} onAdd={onAddResource && (() => onAddResource("notes"))}>
-      {task.notes?.map((note) => <button key={note.id} className="task-context-row" title={note.title || t("tasks:resources.untitledNote")} onClick={() => onPreview(note.title || t("tasks:resources.untitledNote"), note.content)}><ContextItemIcon><NotebookPen /></ContextItemIcon><span className="truncate">{note.title || t("tasks:resources.untitledNote")}</span></button>)}
+      {task.notes?.map((note) => <TaskNoteRow key={note.id} note={note} active={note.id === activeNoteId} deleteDisabled={noteDeleteDisabled} onOpen={onNote} onDelete={onDeleteNote} />)}
     </ResourceGroup>
   </aside>;
 }

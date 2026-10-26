@@ -16,6 +16,9 @@ export interface TaskSession {
   cwd: string;
   /** 创建时绑定的工作范围快照；旧记录缺省，不根据后续资源数量猜测范围。 */
   workspace?: TaskSessionWorkspace;
+  /** 手动执行的仓库命令；不保存脚本或在重启应用后自动重跑。 */
+  command?: { id: string; resourceId: string; name: string };
+  commandExitCode?: number;
   agent?: TaskAgentSelection;
   status: TaskSessionStatus;
   /** 每次启动生成新的 PTY 标识，重启不复用已结束的终端缓冲。 */
@@ -40,6 +43,8 @@ export interface StartTaskSessionInput {
   agent?: TaskAgentSelection;
   /** 快捷新建仅提交 Agent 标识，默认配置由主进程从真实能力缓存解析。 */
   agentId?: AgentId;
+  /** 仅 Shell 使用，必须同时指定任务工作区；实际脚本从本地仓库配置读取。 */
+  commandId?: string;
 }
 
 export interface TaskSessionsApi {

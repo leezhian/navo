@@ -16,7 +16,7 @@ export interface ResourceRecord {
   remoteUrl?: string;
   /** 资源用途说明；旧记录缺省为空。 */
   description?: string;
-  /** 命令按数组顺序保存；本阶段只配置，不执行。 */
+  /** 命令按数组顺序保存，可在任务工作区手动执行。 */
   commands?: ResourceCommand[];
   /** 重新加载时检查路径是否仍可访问。 */
   available: boolean;

@@ -1,4 +1,4 @@
-import type { AddTaskResourcesInput } from "../../shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskNote } from "../../shared/taskResourceTypes";
 import { isIssueItem } from "../../utils/adeDataValidation";
 import { isTaskWebLink } from "../../utils/taskWebLinks";
 import { TaskRepository } from "./taskRepository";
@@ -6,11 +6,15 @@ import { TaskResourceRepository } from "./taskResourceRepository";
 import { TaskFileSelections } from "./taskFileSelections";
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+function isValidNote(note: TaskNote) {
+  return note && typeof note.id === "string" && UUID.test(note.id) && typeof note.title === "string" && note.title.length <= 160
+    && typeof note.content === "string" && Boolean(note.content.trim()) && note.content.length <= 100000;
+}
 function validate(input: AddTaskResourcesInput) {
   if (!input || typeof input !== "object" || typeof input.requestId !== "string" || !UUID.test(input.requestId)
     || !Array.isArray(input.links) || input.links.length > 100 || !input.links.every(isIssueItem)
     || !Array.isArray(input.webLinks) || input.webLinks.length > 100 || !input.webLinks.every(isTaskWebLink)
-    || !Array.isArray(input.notes) || input.notes.length > 20 || !input.notes.every((note) => note && typeof note.id === "string" && UUID.test(note.id) && typeof note.title === "string" && note.title.length <= 160 && typeof note.content === "string" && Boolean(note.content.trim()) && note.content.length <= 100000)
+    || !Array.isArray(input.notes) || input.notes.length > 20 || !input.notes.every(isValidNote)
     || !Array.isArray(input.fileIds) || input.fileIds.length > 20 || !input.fileIds.every((id) => typeof id === "string" && UUID.test(id))) throw new Error("TASK_INVALID");
   for (const ids of [input.links.map((item) => item.id), input.webLinks.map((item) => item.id), input.notes.map((item) => item.id), input.fileIds]) if (new Set(ids).size !== ids.length) throw new Error("TASK_INVALID");
   if (!input.links.length && !input.webLinks.length && !input.notes.length && !input.fileIds.length) throw new Error("TASK_INVALID");
@@ -39,5 +43,15 @@ export class TaskResourceBindings {
     const file = (await this.task(taskId)).files?.find((item) => item.id === fileId);
     if (!file) throw new Error("TASK_ATTACHMENT_MISSING");
     return file.path;
+  }
+  async updateNote(taskId: string, note: TaskNote) {
+    if (typeof taskId !== "string" || !isValidNote(note)) throw new Error("TASK_INVALID");
+    await this.resources.mutateNote(taskId, note.id, note);
+    return this.task(taskId);
+  }
+  async deleteNote(taskId: string, noteId: string) {
+    if (typeof taskId !== "string" || typeof noteId !== "string" || !UUID.test(noteId)) throw new Error("TASK_INVALID");
+    await this.resources.mutateNote(taskId, noteId, null);
+    return this.task(taskId);
   }
 }

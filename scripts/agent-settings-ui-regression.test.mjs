@@ -18,6 +18,7 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
       import React from 'react'; import {createRoot} from 'react-dom/client'; import '/src/App.css';
       import i18n from '/src/i18n/index.ts'; import {SettingsPanel} from '/src/components/settings/SettingsPanel.tsx';
       import {defaultSettings} from '/src/domain/settings.ts'; import {TooltipProvider} from '/src/components/ui/tooltip.tsx';
+      import {useSettingsStore} from '/src/stores/settingsStore.ts';useSettingsStore.setState({logFilePath:'/fixtures/logs/navo.log'});
       await i18n.changeLanguage('zh-CN'); window.setLocale=locale=>i18n.changeLanguage(locale);
       let snapshot={defaultAgent:null,secureStorageAvailable:true,configurations:['claude','codex','grok','antigravity'].map(id=>({id,enabled:true,customPath:'',args:[],environmentNames:id==='claude'?['EXISTING_TOKEN']:[]}))};
       window.starts=[]; window.plans=[]; window.saved=[]; window.scans=0; window.scanIds=[]; const exits=new Set(); const output=new Set(); const changes=new Set();
@@ -26,7 +27,7 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
       const ready=new Promise(resolve=>window.releaseLoad=resolve);
       window.notify=()=>{for(const listener of changes)listener();};
       window.pushVersion=version=>{installations=installations.map(item=>item.id==='claude'?{...item,version}:item);window.notify();};
-      window.navo={settings:{getLogsStatus:async()=>({failed:false}),chooseDirectory:async()=>window.directoryChoice??null},agents:{
+      window.navo={settings:{getLogsStatus:async()=>({failed:false}),chooseDirectory:async()=>window.directoryChoice??null,revealLogFile:async()=>{window.revealedLog=true;},clearLogs:async()=>{if(window.failClear)throw Error('LOG_FAILED');window.clearedLog=true;}},agents:{
         load:async()=>{throw new Error('Settings must read the shared snapshot');},
         capabilitySnapshot:async()=>{await ready;const result=structuredClone({settings:snapshot,installations,entries:{}});if(window.holdSnapshot){window.holdSnapshot=false;await new Promise(resolve=>window.releaseSnapshot=resolve);}return result;},
         onCapabilitiesChanged:listener=>{changes.add(listener);return()=>changes.delete(listener);},
@@ -55,6 +56,21 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         const button=(label,root=document)=>[...root.querySelectorAll('button')].find(item=>item.textContent.trim()===label);
         const dialog=()=>document.querySelector('[role="dialog"]');
         await wait(()=>button('Agents'),'Missing settings navigation');
+        if(document.body.textContent.includes('诊断日志'))throw new Error('General settings must no longer display diagnostics');
+        button('关于').click();await wait(()=>document.querySelector('[role="group"][aria-label="诊断日志"]'),'Diagnostics must appear on About');
+        const logPanel=document.querySelector('[role="group"][aria-label="诊断日志"]');
+        const logRow=logPanel.closest('.settings-row');
+        if(logRow.querySelector('input')||logPanel.querySelectorAll('button').length!==3||logPanel.querySelector('.lucide-folder-open'))throw new Error('Diagnostic logs must expose only copy, open and clear actions');
+        if(document.body.textContent.includes('/fixtures/logs/navo.log')||document.querySelector('[title="/fixtures/logs/navo.log"]'))throw new Error('The log path must not be displayed or exposed in a tooltip');
+        Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedLogPath=value;}}});
+        button('复制路径',logPanel).click();await wait(()=>window.copiedLogPath==='/fixtures/logs/navo.log'&&button('已复制',logPanel),'Copy must use the full read-only log path');
+        button('打开',logPanel).click();await wait(()=>window.revealedLog,'Log open must still locate the file');await pause();
+        const clearButton=()=>[...logPanel.querySelectorAll('button')].find(item=>item.querySelector('.lucide-trash-2'));
+        window.failClear=true;clearButton().click();await wait(()=>logRow.querySelector('[role="alert"]'),'Clearing errors must remain visible');
+        window.failClear=false;clearButton().click();await wait(()=>window.clearedLog&&logRow.querySelector('[role="status"]'),'Retry must clear the log and show success');
+        if(window.currentAppSettings.logFilePath!=='')throw new Error('Log actions must not change the configured path');
+        await window.setLocale('en');await wait(()=>document.querySelector('[role="group"][aria-label="Diagnostic logs"]'),'About diagnostics must support English');
+        await window.setLocale('zh-CN');await pause();button('常规').click();await wait(()=>document.querySelector('input[aria-label="任务目录"]'),'General settings must remain accessible');
         const taskDirectory=()=>document.querySelector('input[aria-label="任务目录"]');
         if(taskDirectory()?.value!=='~/navo/tasks')throw new Error('Task directory must have a default path in General settings');
         const directoryPicker=()=>document.querySelector('button[aria-label="选择目录: 任务目录"]');
@@ -154,6 +170,7 @@ test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、�
         button('Advanced',claude()).click();
       })().catch(error=>{console.error(error.stack);throw error;})\`);
       if(process.env.NAVO_AGENT_SCREENSHOT){await new Promise(resolve=>setTimeout(resolve,500));require('node:fs').writeFileSync(process.env.NAVO_AGENT_SCREENSHOT,(await window.webContents.capturePage()).toPNG());}
+      if(process.env.NAVO_ABOUT_SCREENSHOT){await window.webContents.executeJavaScript(\`(async()=>{await window.setLocale('zh-CN');await new Promise(resolve=>setTimeout(resolve,50));[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='关于').click();})()\`);await new Promise(resolve=>setTimeout(resolve,300));require('node:fs').writeFileSync(process.env.NAVO_ABOUT_SCREENSHOT,(await window.webContents.capturePage()).toPNG());}
       app.exit(0);}catch(error){console.error(error.stack);app.exit(1);}});`);
     const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
     let output = "";

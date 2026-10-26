@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CircleDot, File, FolderGit2, GitPullRequest, Link2, NotebookPen } from "lucide-react";
+import { CircleDot, File, FolderGit2, GitPullRequest, Link2, NotebookText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import type { TaskResourceCategory } from "@/shared/taskResourceTypes";
@@ -17,7 +17,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 
 const categories = [
   { id: "repositories", icon: FolderGit2 }, { id: "issues", icon: CircleDot }, { id: "pullRequests", icon: GitPullRequest },
-  { id: "notes", icon: NotebookPen }, { id: "links", icon: Link2 }, { id: "files", icon: File },
+  { id: "notes", icon: NotebookText }, { id: "links", icon: Link2 }, { id: "files", icon: File },
 ] as const;
 
 interface TaskAddResourcesDialogProps {

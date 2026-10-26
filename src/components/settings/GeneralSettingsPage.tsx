@@ -7,13 +7,11 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AppSettings } from "@/domain/types";
 import { supportedLocales } from "@/shared/locales";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { settingsApi } from "@/services/settingsApi";
 import { getSettingsError } from "@/services/settingsErrors";
 import { SettingsList, SettingsPageHeader, SettingsRow, SettingsSectionHeader } from "./settingsPrimitives";
 import { SettingsTextField } from "./SettingsTextField";
 import { SettingsChoiceControl } from "./SettingsChoiceControl";
-import { DiagnosticLogSettings } from "./DiagnosticLogSettings";
 import { SettingsShortcuts } from "./SettingsShortcuts";
 
 interface GeneralSettingsPageProps {
@@ -27,8 +25,6 @@ type DirectorySettingKey = "repositoriesDirectory" | "worktreesDirectory" | "tas
 
 export function GeneralSettingsPage({ settings, updateSettings }: GeneralSettingsPageProps) {
   const { t } = useTranslation(["common", "settings"]);
-  const defaultLogFilePath = useSettingsStore((state) => state.logFilePath);
-  const logFilePath = settings.logFilePath || defaultLogFilePath;
   const [error, setError] = useState<unknown>(null);
   const [choosing, setChoosing] = useState(false);
   const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => updateSettings((current) => ({ ...current, [key]: value }));
@@ -70,7 +66,6 @@ export function GeneralSettingsPage({ settings, updateSettings }: GeneralSetting
         <SettingsRow title={t("settings:general.keepAwake")} description={t("settings:general.keepAwakeDescription")}><Switch aria-label={t("settings:general.keepAwake")} checked={settings.keepAwakeDuringAgent} onCheckedChange={(value) => update("keepAwakeDuringAgent", value)} /></SettingsRow>
       </SettingsList>
     </section>
-    <DiagnosticLogSettings filePath={logFilePath} onPathChange={(filePath) => update("logFilePath", filePath)} />
     <section className="mb-6">
       <SettingsSectionHeader title={t("settings:general.language")} />
       <SettingsList><SettingsRow title={t("settings:general.interfaceLanguage")} description={t("settings:general.languageDescription")}>

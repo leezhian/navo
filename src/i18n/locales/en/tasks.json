@@ -146,12 +146,34 @@
     "label": "Task toolbar"
   },
   "workspaceOpen": {
+    "editor": "Open in {{editor}}",
     "actions": "Open-in options for {{name}}",
     "fileManager": "Open in file manager",
     "terminal": "Open terminal",
     "provider": "Open on {{provider}}",
     "failed": "Could not open working directory",
     "failedDetail": "Check that the working directory, remote URL, or selected application is still available."
+  },
+  "commands": {
+    "title": "Run a command",
+    "choose": "Choose command",
+    "empty": "No commands yet",
+    "manage": "Manage commands…",
+    "run": "Run \"{{name}}\" in this worktree",
+    "stop": "Stop \"{{name}}\" in this worktree"
+  },
+  "notes": {
+    "title": "Task notes",
+    "edit": "Edit note",
+    "delete": "Delete note",
+    "close": "Close",
+    "resize": "Resize notes panel",
+    "deleteTitle": "Delete this note?",
+    "deleteDescription": "“{{title}}” will be deleted from this task, including any unsaved changes. This cannot be undone.",
+    "discardTitle": "Discard unsaved changes?",
+    "discardDescription": "This note has unsaved changes. They will be lost if you leave.",
+    "discard": "Discard changes",
+    "notFound": "This note has been deleted. Please select another note."
   },
   "resources": {
     "title": "Add resources",

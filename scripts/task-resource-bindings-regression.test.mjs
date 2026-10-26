@@ -86,3 +86,56 @@ test("v9 任务库升级资源表后保留既有任务，不生成笔记或文�
   assert.equal(migrated.length, 2);assert.equal(migrated[0].title, task.title);
   assert.deepEqual(migrated[0].notes, []);assert.deepEqual(migrated[0].files, []);
 });
+
+test("笔记编辑和删除持久化、保留顺序及其他资源，并更新后续会话上下文", async (context) => {
+  const { filename, tasks, bindings } = await fixture(context);
+  const first = { id: randomUUID(), title: "First", content: "Original content" };
+  const second = { id: randomUUID(), title: "Second", content: "Keep this note" };
+  await bindings.add(task.id, input({ notes: [first, second], webLinks: [{ id: randomUUID(), title: "Spec", url: "https://example.com" }] }), 1);
+  const updated = { ...first, title: "  Renamed  ", content: "# Updated body" };
+  const database = await openAppDatabase(filename);
+  try { database.prepare("UPDATE tasks SET updated_at=? WHERE namespace=? AND id=?").run(task.date, "test", task.id); }
+  finally { database.close(); }
+  const saved = await bindings.updateNote(task.id, updated);
+  assert.deepEqual(saved.notes, [{ ...updated, title: "Renamed" }, second]);
+  assert.equal(saved.title, task.title);assert.equal(saved.description, task.description);assert.equal(saved.status, task.status);
+  assert.ok(saved.updatedAt > task.date);assert.equal(saved.webLinks.length, 1);
+  assert.match(taskPrompt(saved), /Updated body/);assert.doesNotMatch(taskPrompt(saved), /Original content/);
+  assert.equal((await bindings.updateNote(task.id, updated)).updatedAt, saved.updatedAt);
+  assert.deepEqual((await new TaskRepository(filename, "test").load()).find(item => item.id === task.id).notes, saved.notes);
+  const deleted = await bindings.deleteNote(task.id, first.id);
+  assert.deepEqual(deleted.notes, [second]);assert.equal(deleted.webLinks.length, 1);
+  assert.doesNotMatch(taskPrompt(deleted), /Updated body/);
+  assert.equal((await tasks.load()).find(item => item.id === "other").notes.length, 0);
+  await bindings.deleteNote(task.id, second.id);
+  assert.deepEqual((await tasks.load()).find(item => item.id === task.id).notes, []);
+  await assert.rejects(bindings.deleteNote(task.id, first.id), /TASK_NOTE_NOT_FOUND/);
+});
+
+test("笔记修改校验归属、输入、归档及删除中状态，不误改其他任务或命名空间", async (context) => {
+  const { filename, tasks, bindings } = await fixture(context);
+  const note = { id: randomUUID(), title: "Keep", content: "Do not lose" };
+  await bindings.add(task.id, input({ notes: [note] }), 1);
+  const isolatedTasks = new TaskRepository(filename, "isolated");
+  await isolatedTasks.importLegacy([task]);
+  const isolated = new TaskResourceBindings(isolatedTasks, filename, "isolated");
+  for (const target of ["other", "missing"]) {
+    await assert.rejects(bindings.updateNote(target, note), /NOT_FOUND/);
+    await assert.rejects(bindings.deleteNote(target, note.id), /NOT_FOUND/);
+  }
+  await assert.rejects(isolated.updateNote(task.id, note), /TASK_NOTE_NOT_FOUND/);
+  await assert.rejects(isolated.deleteNote(task.id, note.id), /TASK_NOTE_NOT_FOUND/);
+  for (const invalid of [null, {}, { ...note, id: "invalid" }, { ...note, title: "x".repeat(161) }, { ...note, content: " " }, { ...note, content: "x".repeat(100001) }]) {
+    await assert.rejects(bindings.updateNote(task.id, invalid), /TASK_INVALID/);
+  }
+  await assert.rejects(bindings.deleteNote(task.id, "invalid"), /TASK_INVALID/);
+  await assert.rejects(bindings.updateNote(task.id, { ...note, id: randomUUID() }), /TASK_NOTE_NOT_FOUND/);
+  await tasks.update(items => items.map(item => item.id === task.id ? { ...item, status: "ARCHIVED" } : item));
+  await assert.rejects(bindings.updateNote(task.id, note), /TASK_BUSY/);
+  await assert.rejects(bindings.deleteNote(task.id, note.id), /TASK_BUSY/);
+  await tasks.update(items => items.map(item => item.id === task.id ? { ...item, status: "TODO" } : item));
+  await tasks.recordDeletion(task.id, { resourceId: "repo", worktree: "kept", branch: "kept" });
+  await assert.rejects(bindings.updateNote(task.id, note), /TASK_BUSY/);
+  await assert.rejects(bindings.deleteNote(task.id, note.id), /TASK_BUSY/);
+  assert.deepEqual((await tasks.load()).find(item => item.id === task.id).notes, [note]);
+});

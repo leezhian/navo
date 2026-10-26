@@ -1,5 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import type { AppLocale } from "../shared/locales";
+import type { WorkspaceOpenTarget } from "../shared/workspaceOpenTypes";
 
 /** 历史会话的 Agent 来源，顺序即筛选菜单的展示顺序。 */
 export const AGENT_TYPES = ["Claude Code", "ChatGPT", "OpenCode", "Qoder"] as const;
@@ -65,6 +66,8 @@ export interface ReviewSession {
 }
 
 export interface AppSettings {
+  /** 上次成功使用的打开方式；目标不可用时临时回退文件管理器。 */
+  lastWorkspaceOpenTarget: WorkspaceOpenTarget;
   /** 界面语言，首次使用默认英文。 */
   locale: AppLocale;
   /** 新克隆和未来 worktree 的默认位置，支持用户目录缩写。 */

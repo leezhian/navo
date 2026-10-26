@@ -27,12 +27,15 @@ interface TerminalRecord {
   pendingOutput: string;
   flushTimer: NodeJS.Timeout | null;
   isDisposed: boolean;
+  exit?: { exitCode: number; signal?: number };
 }
 
 const terminalRecords = new Map<string, TerminalRecord>();
 const terminalOwnerCleanupBound = new Set<number>();
 
 export interface TerminalLaunch {
+  /** 短命令可能在界面附着前结束，保留有界输出直到用户关闭终端。 */
+  retainOnExit?: boolean;
   /** 任务绑定目录缺失时禁止回退到用户主目录。 */
   strictCwd?: boolean;
   command: string;
@@ -100,7 +103,8 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
   pty.onExit(({ exitCode, signal }) => {
     if (record.isDisposed) return;
     flushTerminalOutput(params.sessionId, record);
-    terminalRecords.delete(params.sessionId);
+    if (launch?.retainOnExit) record.exit = { exitCode, signal };
+    else terminalRecords.delete(params.sessionId);
     record.isDisposed = true;
     record.onFinish?.();
     launch?.onExit?.(exitCode);
@@ -129,6 +133,7 @@ export function destroyTerminal(params: TerminalSessionParams, ownerId?: number)
   }
 
   terminalRecords.delete(params.sessionId);
+  if (record.exit) return;
   record.isDisposed = true;
   record.onFinish?.();
   if (record.flushTimer) {
@@ -220,12 +225,14 @@ export function resolveShell(): string {
 
 /** 渲染器重新挂载/刷新只附着已启动的会话，不重新启动 Agent。 */
 export function attachTerminal(params: CreateTerminalParams, ownerId: number) {
-  const record = getOwnedRecord(params.sessionId, ownerId);
+  const record = terminalRecords.get(params.sessionId);
+  if (!record || record.owner.id !== ownerId || (record.isDisposed && !record.exit)) throw new Error("SESSION_UNAVAILABLE");
   if (record.flushTimer) clearTimeout(record.flushTimer);
   record.flushTimer = null;
   record.pendingOutput = "";
   if (record.replay) record.owner.send(ipcChannels.terminalData, { sessionId: params.sessionId, data: record.replay });
-  resizeTerminal(params, ownerId);
+  if (record.exit) record.owner.send(ipcChannels.terminalExit, { sessionId: params.sessionId, ...record.exit });
+  else resizeTerminal(params, ownerId);
 }
 
 function resolveShellArgs(shell: string): string[] {

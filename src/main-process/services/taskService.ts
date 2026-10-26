@@ -18,7 +18,7 @@ import { TaskDeletionService } from "./taskDeletionService";
 import { isLegacyDemoTask } from "../../shared/legacyDemoRecords";
 import type { TaskAgentSelection } from "../../shared/agentCapabilities";
 import { isTaskAgentSelection } from "../../utils/taskAgentSelection";
-import type { AddTaskResourcesInput } from "../../shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskNote } from "../../shared/taskResourceTypes";
 import { TaskResourceBindings } from "./taskResourceBindings";
 import { TaskWorkspaceBindings } from "./taskWorkspaceBindings";
 import { isTaskResourceInput } from "../../utils/taskResourceInput";
@@ -56,6 +56,12 @@ export class TaskService {
   addResources(id: string, input: AddTaskResourcesInput, ownerId: number) {
     return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => input?.resources !== undefined
       ? this.workspaceBindings.add(id, input) : this.resourceBindings.add(id, input, ownerId)));
+  }
+  updateNote(id: string, note: TaskNote) {
+    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note)));
+  }
+  deleteNote(id: string, noteId: string) {
+    return diagnosticOperation("task.note.delete", { taskId: id }, () => this.serialize(() => this.resourceBindings.deleteNote(id, noteId)));
   }
 
   private attachmentDirectory(id: string) {

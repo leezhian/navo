@@ -12,7 +12,6 @@ export const settingsApi = {
   save: (settings: AppSettings) => requireDesktop().settings.save(settings),
   chooseDirectory: () => requireDesktop().settings.chooseDirectory(),
   clearLogs: () => requireDesktop().settings.clearLogs(),
-  chooseLogFile: () => requireDesktop().settings.chooseLogFile(),
   revealLogFile: () => requireDesktop().settings.revealLogFile(),
   getLogsStatus: () => requireDesktop().settings.getLogsStatus(),
 };

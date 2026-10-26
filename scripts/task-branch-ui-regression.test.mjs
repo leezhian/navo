@@ -51,6 +51,8 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           const button=label=>document.querySelector('button[aria-label="'+label+'"]');
           const pane=()=>document.querySelector('.task-branch-pane');const dialog=()=>document.querySelector('[data-slot="dialog-content"]');
           await wait(()=>pane()?.textContent.includes('live-repo-a'),'Real branch snapshot missing');
+          const selectedChange=()=>document.querySelector('.task-context-change[data-active="true"] button[aria-pressed="true"]');
+          if(selectedChange()?.title!=='/fixture/repo-a')throw Error('Default branch must highlight its CHANGES item');
           const heading=document.querySelector('.task-workbench-heading');
           if(!button('收起分支栏')?.querySelector('.lucide-panel-right-close')||button('显示分支栏'))throw Error('Visible branch pane must show the hide action and closing-direction icon');
           if(button('显示终端').getBoundingClientRect().left>=button('收起分支栏').getBoundingClientRect().left)throw Error('Terminal controls must precede the branch toggle');
@@ -58,6 +60,7 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           if(!contextButton.querySelector('.lucide-panel-left-close'))throw Error('Visible context must use the panel closing icon');
           contextButton.click();await wait(()=>contextButton.querySelector('.lucide-panel-left-open'),'Hidden context must use the panel opening icon');contextButton.click();await wait(()=>contextButton.querySelector('.lucide-panel-left-close'),'Reopened context icon did not reset');
           button('收起分支栏').click();await wait(()=>!pane()&&button('显示分支栏')?.querySelector('.lucide-panel-right-open'),'Hiding must update both the tooltip label and icon');
+          if(selectedChange())throw Error('Hidden branch must clear its selection');
           button('显示分支栏').click();await wait(()=>pane()?.textContent.includes('live-repo-a')&&button('收起分支栏'),'Reopening must restore hide action');
           if(getComputedStyle(document.querySelector('.task-branch-controls')).paddingTop!=='12px')throw Error('Branch content must keep 12px top spacing');
           if(document.querySelectorAll('.task-branch-file').length!==2||!pane().textContent.includes('未跟踪'))throw Error('Staged/unstaged files or tracked-only notice missing');
@@ -74,6 +77,7 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           await wait(()=>dialog(),'Branch diff dialog missing');dialog().querySelector('button[aria-label="关闭"]').click();await wait(()=>!dialog(),'Branch Diff close failed');
           window.holdBranch='repo-a';window.notifyChanges();await wait(()=>window.releaseBranch,'Deferred refresh did not start');
           document.querySelector('.task-context-change button[title="/fixture/repo-b"]').click();await wait(()=>pane().textContent.includes('live-repo-b'),'Repository switch failed');
+          if(selectedChange()?.title!=='/fixture/repo-b')throw Error('Selection must follow the displayed repository');
           window.releaseBranch();await new Promise(resolve=>setTimeout(resolve,60));if(pane().textContent.includes('live-repo-a'))throw Error('Stale response leaked across repositories');
           window.failBranch=true;window.dispatchEvent(new Event('focus'));await wait(()=>pane().querySelector('[role="alert"]'),'Read failures must not look like an empty repository');
           if(!pane().textContent.includes('live-repo-b'))throw Error('Failed background refresh must retain the prior snapshot');

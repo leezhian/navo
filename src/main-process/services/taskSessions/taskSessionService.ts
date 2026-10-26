@@ -6,6 +6,8 @@ import type { WebContents } from "electron";
 import type { Task } from "../../../domain/tasks";
 import { agentNames } from "../../../domain/agents";
 import type { AppSettings } from "../../../domain/types";
+import type { ResourceCommand, ResourceRecord } from "../../../shared/settingsTypes";
+import { resolveTaskCommand, taskCommandArguments } from "./taskCommand";
 import type { StartTaskSessionInput, TaskSession } from "../../../shared/taskSessionTypes";
 import { defaultAgentSelection, isTaskAgentSelection } from "../../../utils/taskAgentSelection";
 import { resolveSessionWorkspace } from "../../../utils/taskSessionWorkspace";
@@ -39,7 +41,8 @@ export class TaskSessionService {
     private readonly changed: (sessions: TaskSession[]) => void,
     private readonly attachmentPaths: (task: Task) => Promise<string[]> = async () => [],
     private readonly readTitle = readNativeSessionTitle,
-    private readonly nativeActions = { environment: nativeActionEnvironment, rename: renameNativeSession, remove: removeNativeSession }) {}
+    private readonly nativeActions = { environment: nativeActionEnvironment, rename: renameNativeSession, remove: removeNativeSession },
+    private readonly loadResources: () => Promise<ResourceRecord[]> = async () => []) {}
 
   private serialize<Result>(operation: () => Promise<Result>): Promise<Result> {
     const result = this.queue.then(operation);
@@ -134,6 +137,11 @@ export class TaskSessionService {
       if (!input || !["agent", "shell"].includes(input.kind) || typeof input.taskId !== "string") throw new Error("TASK_INVALID");
       const task = await this.loadTask(input.taskId);
       const workspace = resolveSessionWorkspace(task.resources ?? [], input.resourceId);
+      const command = input.commandId !== undefined ? await resolveTaskCommand(task, input, await this.loadResources()) : undefined;
+      if (command) {
+        const running = this.sessions.find((session) => session.taskId === task.id && session.command?.id === command.id && session.command.resourceId === input.resourceId && ["starting", "running"].includes(session.status));
+        if (running) { this.owned(running.id, owner);return this.sessions; }
+      }
       if (initial && this.sessions.some((session) => session.taskId === task.id && session.kind === "agent")) return this.sessions;
       if (this.sessions.filter((session) => session.status === "running" || session.status === "starting").length >= MAX_SESSIONS) throw new Error("SESSION_LIMIT");
       if (input.agentId !== undefined) requireAgentId(input.agentId);
@@ -144,19 +152,20 @@ export class TaskSessionService {
       if (input.kind === "shell") this.shellNumbers.set(task.id, number);
       const createdAt = new Date().toISOString();
       const session: TaskSession = { id: randomUUID(), taskId: task.id, kind: input.kind,
-        title: input.kind === "shell" ? `${path.basename(resolveShell())}${number}` : "",
+        title: command?.name ?? (input.kind === "shell" ? `${path.basename(resolveShell())}${number}` : ""),
+        ...(command ? { command: { id: command.id, resourceId: input.resourceId as string, name: command.name } } : {}),
         cwd: "", workspace, agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
         nativeSessionId: randomUUID(), resumable: false, createdAt, lastUpdateAt: createdAt, lastActiveAt: createdAt };
       this.sessions = [...this.sessions, session];
       this.bindOwner(session.id, owner);
       try { await this.save(session); }
       catch (error) { session.status = "failed"; session.error = "SESSION_STORAGE_FAILED"; this.publish(); throw error; }
-      await this.launch(session, task, owner, false, input.resourceId);
+      await this.launch(session, task, owner, false, input.resourceId, command);
       return this.publish();
     });
   }
 
-  private async launch(session: TaskSession, task: Task, owner: WebContents, resume: boolean, resourceId?: string | null) {
+  private async launch(session: TaskSession, task: Task, owner: WebContents, resume: boolean, resourceId?: string | null, command?: ResourceCommand) {
     void writeDiagnosticEvent("session.start.started", { taskId: task.id, operationId: session.id });
     try {
       const directoryId = session.workspace?.kind === "resource" ? session.workspace.resourceId : session.workspace?.kind === "all" ? null : resourceId;
@@ -173,7 +182,8 @@ export class TaskSessionService {
       const terminalId = session.terminalId;
       createTerminal({ sessionId: terminalId, cwd: session.cwd, cols: 80, rows: 24 }, owner, {
         strictCwd: true,
-        command: launch?.command ?? resolveShell(), args: launch?.args ?? (process.platform === "win32" ? [] : ["-l"]), env: launch?.env ?? process.env,
+        command: launch?.command ?? resolveShell(), args: command ? taskCommandArguments(command.script) : launch?.args ?? (process.platform === "win32" ? [] : ["-l"]), env: launch?.env ?? process.env,
+        retainOnExit: Boolean(command),
         onActivity: () => this.recordActivity(session, terminalId),
         onFinish: () => {
           void this.serialize(async () => {
@@ -186,6 +196,7 @@ export class TaskSessionService {
           void this.serialize(async () => {
             if (!this.sessions.includes(session) || session.archivedAt || session.terminalId !== terminalId) return;
             session.status = code === 0 ? "stopped" : "failed";
+            if (session.command) session.commandExitCode = code;
             if (code !== 0) session.error = "SESSION_EXIT_FAILED";
             await this.save(session);
           }).catch(() => undefined);

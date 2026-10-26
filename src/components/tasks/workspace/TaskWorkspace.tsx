@@ -28,6 +28,9 @@ import { useTaskSessionCreation } from "@/hooks/useTaskSessionCreation";
 import type { AgentId } from "@/shared/agentTypes";
 import { WorkspaceSeparator } from "./WorkspaceSeparator";
 import { TaskBranchPane } from "./TaskBranchPane";
+import { TaskNotePane } from "./TaskNotePane";
+import { TaskNoteDialogs } from "./TaskNoteDialogs";
+import { useTaskNoteEditor } from "@/hooks/useTaskNoteEditor";
 import "./task-workspace.css";
 
 interface TaskWorkspaceProps {
@@ -61,11 +64,13 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const [terminalHeight, setTerminalHeight] = useState(192);
   const [narrow, setNarrow] = useState(false);
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
-  const [branchOpen, setBranchOpen] = useState<boolean>();
-  const [branchWidth, setBranchWidth] = useState(326);
+  const [rightOpen, setRightOpen] = useState<boolean>();
+  const [rightWidth, setRightWidth] = useState(326);
+  const [rightContent, setRightContent] = useState<{ kind: "branch" } | { kind: "note"; id: string }>({ kind: "branch" });
   const [selectedResource, setSelectedResource] = useState<string>();
   const repositories = task.resources?.filter((resource) => resource.mode !== "folder") ?? [];
   const branchResource = repositories.find((resource) => resource.resourceId === selectedResource) ?? repositories[0];
+  const noteEditor = useTaskNoteEditor(task, rightContent.kind === "note" ? rightContent.id : undefined, () => setRightOpen(false));
   const [preview, setPreview] = useState<{ title: string; body: string } | null>(null);
   const [review, setReview] = useState<{ session: ReviewSession; mode: CompareMode; targetBranch: string; filePath?: string } | null>(null);
   const [addCategory, setAddCategory] = useState<TaskResourceCategory | null>(null);
@@ -73,13 +78,16 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const contentRef = useRef<HTMLDivElement>(null);
   const contextTriggerRef = useRef<HTMLButtonElement>(null);
   const branchTriggerRef = useRef<HTMLButtonElement>(null);
+  const noteTriggerRef = useRef<HTMLButtonElement>(null);
   const [layoutContainer, setLayoutContainer] = useState<HTMLDivElement | null>(null);
   const visibleTerminal = terminalOpen && terminals.length > 0;
   const showAgentPane = agentPaneOpen && (!expanded || !visibleTerminal);
   const contentWidth = workspaceWidth - (contextOpen && !narrow ? railWidth + 8 : 0);
-  const branchOverlay = contentWidth < 640 && agentPaneOpen;
-  const visibleBranch = Boolean(branchResource && (branchOpen ?? contentWidth >= 640) && (!expanded || !visibleTerminal));
-  const showUpper = showAgentPane || (visibleBranch && !branchOverlay);
+  const rightOverlay = contentWidth < 640 && (agentPaneOpen || rightContent.kind === "note");
+  const visibleRight = Boolean((rightContent.kind === "branch" ? branchResource : noteEditor.note) && (rightOpen ?? contentWidth >= 640) && (!expanded || !visibleTerminal));
+  const visibleBranch = visibleRight && rightContent.kind === "branch";
+  const visibleNote = visibleRight && rightContent.kind === "note";
+  const showUpper = showAgentPane || (visibleRight && !rightOverlay);
   const terminalFillsSpace = !showUpper;
 
   useEffect(() => {
@@ -101,8 +109,8 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   }, []);
   useEffect(() => { if (!terminals.length) setExpanded(false); }, [terminals.length]);
 
-  async function addTerminal(resourceId?: string) {
-    const created = await startSession({ kind: "shell", resourceId });
+  async function addTerminal(resourceId?: string, commandId?: string) {
+    const created = await startSession({ kind: "shell", resourceId, commandId });
     if (created) { setSelectedTerminal(created.id); setTerminalOpen(true); }
   }
   function selectContextSession(session: TaskSession) {
@@ -134,8 +142,24 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
     <Terminal />{terminals.length > 0 && <span className="task-terminal-badge" aria-hidden="true">{terminals.length}</span>}
   </IconTooltip>;
   function showBranch(resource: TaskResource) {
-    setSelectedResource(resource.resourceId); setBranchOpen(true); setExpanded(false);
-    if (narrow) setContextOpen(false);
+    noteEditor.leave(() => {
+      setSelectedResource(resource.resourceId); setRightContent({ kind: "branch" }); setRightOpen(true); setExpanded(false);
+      if (narrow) setContextOpen(false);
+    });
+  }
+  function showNote(id: string, trigger: HTMLButtonElement) {
+    const open = () => {
+      noteTriggerRef.current = trigger;
+      setRightContent({ kind: "note", id }); setRightOpen(true); setExpanded(false);
+      if (narrow) setContextOpen(false);
+    };
+    if (rightContent.kind === "note" && rightContent.id === id) open();
+    else noteEditor.leave(open);
+  }
+  function closeRight() { noteEditor.leave(() => setRightOpen(false)); }
+  function toggleContext() {
+    const toggle = () => { setContextOpen(!contextOpen); if (narrow) setRightOpen(false); };
+    if (narrow) noteEditor.leave(toggle); else toggle();
   }
   function showReview(mode: CompareMode, filePath?: string, branchName?: string) {
     const resource = branchResource;
@@ -149,10 +173,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   function runResource(operation: () => Promise<void>) {
     void operation().catch(() => setPreview({ title: t("tasks:runtime.resourceError"), body: t("tasks:runtime.resourceErrorDetail") }));
   }
-  const branchPane = branchResource ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={() => setBranchOpen(false)} onOpenDiff={showReview} /> : null;
+  const rightPane = rightContent.kind === "note" ? <TaskNotePane editor={noteEditor} onClose={closeRight} /> : branchResource ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={closeRight} onOpenDiff={showReview} /> : null;
+  const rightTitle = t(rightContent.kind === "note" ? "tasks:notes.title" : "tasks:branch.title");
+  const rightCloseLabel = t(rightContent.kind === "note" ? "tasks:notes.close" : "tasks:branch.close");
   return <div ref={rootRef} className="task-workbench" data-narrow={narrow} data-context-open={contextOpen}>
     <header className="task-workbench-heading">
-      <IconTooltip ref={contextTriggerRef} label={t("tasks:runtime.context")} aria-expanded={contextOpen} size="icon-sm" onClick={() => { setContextOpen(!contextOpen); if (narrow) setBranchOpen(false); }}>{contextOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</IconTooltip>
+      <IconTooltip ref={contextTriggerRef} label={t("tasks:runtime.context")} aria-expanded={contextOpen} size="icon-sm" onClick={toggleContext}>{contextOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</IconTooltip>
       <div className="task-workbench-title">
         <h2 id={headingId} title={task.title}>{task.title}</h2>
         <span className="task-workbench-task-status">{task.status}</span>
@@ -162,15 +188,18 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
           {multipleTerminalDirectories && !terminals.length ? <NewTerminalMenu {...terminalMenuProps} trigger={terminalButton} /> : terminalButton}
           {multipleTerminalDirectories && <NewTerminalMenu {...terminalMenuProps} trigger={<IconTooltip label={t("tasks:runtime.chooseTerminalDirectory")} size="icon-sm" className="w-4" disabled={pending}><ChevronDown /></IconTooltip>} />}
         </ButtonGroup>
-        {branchResource && <IconTooltip ref={branchTriggerRef} label={t(visibleBranch ? "tasks:branch.hide" : "tasks:branch.show")} aria-expanded={visibleBranch} size="icon-sm" onClick={() => { setBranchOpen(!visibleBranch); setExpanded(false); if (narrow) setContextOpen(false); }}>{visibleBranch ? <PanelRightClose /> : <PanelRightOpen />}</IconTooltip>}
-        {onOpenPage && <IconTooltip label={t("tasks:actions.openPage")} size="icon-sm" onClick={onOpenPage}><SquareArrowOutUpRight /></IconTooltip>}
-        {onOpenPage && <Button variant="ghost" size="icon-sm" aria-label={t("tasks:details.close")} onClick={onClose}><X /></Button>}
+        {branchResource && <IconTooltip ref={branchTriggerRef} label={t(visibleBranch ? "tasks:branch.hide" : "tasks:branch.show")} aria-expanded={visibleBranch} size="icon-sm" onClick={() => { if (visibleBranch) closeRight(); else showBranch(branchResource); }}>{visibleBranch ? <PanelRightClose /> : <PanelRightOpen />}</IconTooltip>}
+        {onOpenPage && <IconTooltip label={t("tasks:actions.openPage")} size="icon-sm" onClick={() => noteEditor.leave(onOpenPage)}><SquareArrowOutUpRight /></IconTooltip>}
+        {onOpenPage && <Button variant="ghost" size="icon-sm" aria-label={t("tasks:details.close")} onClick={() => noteEditor.leave(onClose)}><X /></Button>}
       </div>
     </header>
     {error && <div role="alert" className="task-workbench-error">{t("tasks:runtime.operationFailed")}<Button variant="ghost" size="sm" onClick={() => useTaskSessionStore.setState({ error: null })}>{t("common:actions.close")}</Button></div>}
     <div className="task-workbench-layout" ref={setLayoutContainer}>
         <TaskContextPanel narrow={narrow} open={contextOpen} onOpenChange={setContextOpen} width={railWidth} container={layoutContainer} triggerRef={contextTriggerRef}>
           <TaskResourceRail task={task} sessions={sessions} activeId={showAgentPane ? active?.id : undefined} activeTerminalId={visibleTerminal ? activeTerminal?.id : undefined}
+            activeResourceId={visibleBranch ? branchResource?.resourceId : undefined} activeNoteId={visibleNote ? noteEditor.note?.id : undefined} onNote={showNote}
+            onDeleteNote={(id) => noteEditor.requestDelete(id)} noteDeleteDisabled={noteEditor.pending || noteEditor.busy || noteEditor.readOnly}
+            onRunCommand={(resourceId, commandId) => void addTerminal(resourceId, commandId)}
             archivePending={pending} onArchive={(id) => void useTaskSessionStore.getState().archive(id)}
             onSelect={selectContextSession}
             newSessionControl={newSessionControl} newTerminalControl={newTerminalControl} onReview={showBranch}
@@ -186,9 +215,9 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
         {showAgentPane && <div className="task-agent-container"><AgentSessionPane task={task} session={active} newSessionControl={newSessionControl}
           emptySessionControl={<NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} withLabel />}
           onClosePane={() => { invalidateSelection("agent"); setAgentPaneOpen(false); }} /></div>}
-        {visibleBranch && !branchOverlay && <>
-          {showAgentPane && <WorkspaceSeparator label={t("tasks:branch.resize")} value={branchWidth} min={268} max={540} onDelta={(delta) => setBranchWidth((width) => Math.max(268, Math.min(540, contentWidth - 288, width - delta)))} />}
-          <div className="task-branch-container" style={showAgentPane ? { width: Math.min(branchWidth, contentWidth - 288) } : { flex: 1 }}>{branchPane}</div>
+        {visibleRight && !rightOverlay && <>
+          {showAgentPane && <WorkspaceSeparator label={t(rightContent.kind === "note" ? "tasks:notes.resize" : "tasks:branch.resize")} value={rightWidth} min={268} max={540} onDelta={(delta) => setRightWidth((width) => Math.max(268, Math.min(540, contentWidth - 288, width - delta)))} />}
+          <div className="task-branch-container" style={showAgentPane ? { width: Math.min(rightWidth, contentWidth - 288) } : { flex: 1 }}>{rightPane}</div>
         </>}
         </div>}
         {visibleTerminal && <>
@@ -199,15 +228,17 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
           </div>
         </>}
       </div>
-      {branchResource && branchOverlay && <TaskPanelSheet side="right" open={visibleBranch} onOpenChange={setBranchOpen} width={360} container={layoutContainer} triggerRef={branchTriggerRef}
-        className="task-branch-overlay" title={t("tasks:branch.title")} closeLabel={t("tasks:branch.close")}>
-        {branchPane}
+      {rightOverlay && <TaskPanelSheet side="right" open={visibleRight} onOpenChange={(open) => { if (!open) closeRight(); }} width={360} container={layoutContainer} triggerRef={rightContent.kind === "note" ? noteTriggerRef : branchTriggerRef}
+        fallbackTriggerRef={contextTriggerRef}
+        className="task-branch-overlay" title={rightTitle} closeLabel={rightCloseLabel}>
+        {rightPane}
       </TaskPanelSheet>}
     </div>
     <Dialog open={preview !== null} onOpenChange={(open) => { if (!open) setPreview(null); }}><DialogContent aria-describedby={undefined} className="sm:max-w-lg">
       <DialogTitle>{preview?.title}</DialogTitle><p className="whitespace-pre-wrap break-words text-sm leading-6">{preview?.body}</p>
     </DialogContent></Dialog>
     <ReviewDialog session={review?.session ?? null} open={review !== null} initialCompareMode={review?.mode} initialTargetBranch={review?.targetBranch} initialFilePath={review?.filePath} onOpenChange={(open) => { if (!open) setReview(null); }} settings={settings} resolvedTheme={resolvedTheme} onSettingsChange={updateSettings} />
+    <TaskNoteDialogs editor={noteEditor} />
     {addCategory && <TaskAddResourcesDialog task={task} initialCategory={addCategory} onClose={() => setAddCategory(null)} />}
   </div>;
 }

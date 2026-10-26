@@ -20,13 +20,17 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
       import {TaskSessionStatusIcon} from '/src/components/tasks/workspace/SessionStatusIcon.tsx';import {resolveSessionWorkspace} from '/src/utils/taskSessionWorkspace.ts';
       import {TooltipProvider} from '/src/components/ui/tooltip.tsx';import {useSettingsStore} from '/src/stores/settingsStore.ts';
       import {useTaskSessionStore,subscribeTaskSessions} from '/src/stores/taskSessionStore.ts';
-      await i18n.changeLanguage('zh-CN');useSettingsStore.setState({loaded:true});
+      import {useResourceStore} from '/src/stores/resourceStore.ts';
+      import {WORKSPACE_OPTIONS_CACHE_MS} from '/src/services/workspaceOpenOptions.ts';
+      const originalNow=Date.now;let timeOffset=0;Date.now=()=>originalNow()+timeOffset;window.expireWorkspaceOptions=()=>{timeOffset+=WORKSPACE_OPTIONS_CACHE_MS+1;window.dispatchEvent(new Event('focus'));};
+      await i18n.changeLanguage('zh-CN');useSettingsStore.setState({loaded:true,settings:{...useSettingsStore.getState().settings,locale:'zh-CN'}});
+      window.setCommandRecord=(id,commands=[{id:'build',name:'Build',script:'echo fixture',runOnWorktreeCreation:false}])=>useResourceStore.setState({loaded:true,records:[{id,name:'repo',kind:'repo',available:true,localPath:'/test',commands}]});window.setCommandRecord('repo');
       const data=new Set(),exits=new Set(),changed=new Set();window.creates=[];window.stops=[];window.restarts=[];window.archives=[];window.renames=[];window.removes=[];window.attached=[];window.destroyed=[];window.workspaceOpens=[];window.remoteProvider="GitLab";
       const task={id:'test-task',title:'任务工作台验证',description:'真实任务描述',date:'2026-10-07',projectName:'test',status:'TODO',resources:[],links:[],webLinks:[],attachments:[]};
       let records=[],number=0;window.scopeResources=[];const publish=()=>{for(const callback of changed)callback(structuredClone(records));return structuredClone(records);};
-      window.navo={settings:{},tasks:{workspaceOpenOptions:async()=>{window.optionsReadCount=(window.optionsReadCount||0)+1;if(window.failWorkspaceOptions)throw new Error('fixture read failure');return {editors:window.noEditors?[]:[{id:'vscode',name:'VS Code'},{id:'xcode',name:'Xcode'}],remote:{provider:window.remoteProvider,url:'https://gitlab.com/fixture/repo'},externalTerminal:true};},openWorkspace:async(taskId,resourceId,target)=>window.workspaceOpens.push({taskId,resourceId,target})},agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
+      window.navo={settings:{save:async settings=>{window.savedSettings=settings;return settings;}},resources:{onCloneProgress:()=>()=>{},inspectGit:async()=>({isRepository:true,remoteUrl:null})},tasks:{workspaceOpenOptions:async()=>{window.optionsReadCount=(window.optionsReadCount||0)+1;if(window.failWorkspaceOptions)throw new Error('fixture read failure');return {editors:window.noEditors?[]:[{id:'vscode',name:'VS Code'},{id:'xcode',name:'Xcode'}],remote:{provider:window.remoteProvider,url:'https://gitlab.com/fixture/repo'},externalTerminal:true};},openWorkspace:async(taskId,resourceId,target)=>window.workspaceOpens.push({taskId,resourceId,target})},agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
         list:async()=>structuredClone(records),onChanged:callback=>{changed.add(callback);return()=>changed.delete(callback);},
-        start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,title:input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',resumable:false});return publish();},
+        start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,command:input.commandId?{id:input.commandId,resourceId:input.resourceId,name:'Build'}:undefined,title:input.commandId?'Build':input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',resumable:false});return publish();},
         stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id||record.kind==='agent').map(record=>record.id===id?{...record,status:'stopped'}:record);return publish();},
         archive:async id=>{window.archives.push(id);records=records.map(record=>record.id===id?{...record,status:'stopped',archivedAt:new Date().toISOString()}:record);return publish();},
         rename:async(id,title)=>{window.renames.push({id,title});records=records.map(record=>record.id===id?{...record,title,status:'stopped'}:record);return publish();},
@@ -100,31 +104,53 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(getComputedStyle(document.querySelector('.task-context-group-heading')).height!=='32px'||getComputedStyle(document.querySelector('.task-context-group + .task-context-group')).marginTop!=='6px')throw new Error('Context groups must use 32px headings and 6px spacing');
         for(const heading of document.querySelectorAll('.task-context-group-heading'))if(getComputedStyle(heading.querySelector('button:first-child')).fontSize!=='12px'||getComputedStyle(heading.querySelector('small')).fontSize!=='10px')throw new Error('Category titles must be 12px with subordinate 10px counts');
         for(const name of ['CHANGES','PULL REQUESTS','ISSUES','LINKS'])if(!document.querySelector('.task-context-rail').textContent.includes(name))throw new Error('Missing '+name);
-        const workspaceButtons=()=>[...document.querySelectorAll('.task-context-change [data-slot="button-group"] > button')];
+        const workspaceButtons=()=>[...document.querySelectorAll('.task-context-change-actions > [data-slot="button-group"]:first-child > button')];
         if(workspaceButtons().length!==2||!workspaceButtons()[0].querySelector('.lucide-folder-open'))throw new Error('Changes row needs a file manager / dropdown split button');
         if(workspaceButtons().some(item=>item.dataset.variant!=='ghost'||getComputedStyle(item).borderTopWidth!=='0px'||getComputedStyle(item).borderRightWidth!=='0px'))throw new Error('Changes actions must be borderless ghost buttons');
         assertItemIcons();
-        assertMetadataActions(document.querySelector('.task-context-change'),'.task-context-change-metadata','.task-context-change-actions');
+        if(!document.querySelector('.task-context-change .task-context-item-icon .lucide-git-branch'))throw new Error('Changes must use git-branch icon');
+        const changeRow=document.querySelector('.task-context-change');const changeTitle=changeRow.querySelector('.block.truncate');
+        if(changeTitle.textContent!=='feature'||changeRow.querySelector('.task-context-row').textContent!=='feature'||getComputedStyle(changeTitle).fontSize!=='12px')throw new Error('Changes must show only the branch name as its title');
+        const changeTitleBounds=changeTitle.getBoundingClientRect(),changeActionsBounds=changeRow.querySelector('.task-context-change-actions').getBoundingClientRect();
+        if(changeActionsBounds.height!==20||Math.abs(changeActionsBounds.top-changeTitleBounds.bottom-2)>1||Math.abs(changeActionsBounds.right-changeTitleBounds.right)>1)throw new Error('Changes actions must remain below the full-width branch title');
         workspaceButtons()[0].click();await wait(()=>window.workspaceOpens.length===1&&!workspaceButtons()[0].disabled,'File manager shortcut failed');
         if(document.querySelector('[data-slot="dialog-content"]'))throw new Error('Open-in shortcut must not trigger the Diff row action');
         const workspaceItem=label=>[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.closest('[role="menu"]')?.dataset.state==='open'&&item.textContent===label);
         const workspaceMenu=async()=>{await new Promise(resolve=>setTimeout(resolve,200));workspaceButtons()[1].dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));await wait(()=>workspaceItem('在文件管理器中打开'),'Workspace menu missing');};
         await workspaceMenu();await wait(()=>workspaceItem('VS Code')&&workspaceItem('Xcode')&&workspaceItem('在 GitLab 上打开'),'Installed IDEs and provider menu missing');
+        if(!workspaceItem('VS Code').querySelector('svg[data-editor="vscode"]')||!workspaceItem('Xcode').querySelector('svg[data-editor="xcode"]'))throw new Error('Installed editors must display their mapped brand icons');
+        if(workspaceItem('VS Code').querySelector('path').getAttribute('d')===workspaceItem('Xcode').querySelector('path').getAttribute('d'))throw new Error('Different editors must not show the same generic icon');
+        if(!workspaceItem('在 GitLab 上打开').querySelector('svg[data-provider="GitLab"]'))throw new Error('GitLab menu must use its provider icon');
+        const initialOptionReads=window.optionsReadCount;
         const openInMenu=workspaceItem('VS Code').closest('[role="menu"]');
         if(openInMenu.querySelector('[role="menuitem"]')!==workspaceItem('VS Code')||workspaceItem('Xcode').nextElementSibling?.getAttribute('role')!=='separator'||workspaceItem('Xcode').nextElementSibling?.nextElementSibling!==workspaceItem('在文件管理器中打开'))throw new Error('IDEs must appear first, separated from workspace actions');
         if(getComputedStyle(openInMenu).width!=='192px')throw new Error('Open-in menu must use the narrower 192px width');
         workspaceItem('打开外部终端').click();await wait(()=>window.workspaceOpens.length===2&&!workspaceButtons()[1].disabled,'External terminal action failed');
+        if(!workspaceButtons()[0].querySelector('.lucide-terminal')||workspaceButtons()[0].getAttribute('aria-label')!=='打开外部终端')throw new Error('Shortcut must follow last successful target');
         if(window.creates.length)throw new Error('External terminal must not create a task terminal');
         await workspaceMenu();workspaceItem('VS Code').click();await wait(()=>window.workspaceOpens.length===3&&!workspaceButtons()[1].disabled,'IDE action failed');
-        window.remoteProvider='GitHub';await workspaceMenu();await wait(()=>workspaceItem('在 GitHub 上打开'),'Provider label must refresh from remote');workspaceItem('在 GitHub 上打开').click();await wait(()=>window.workspaceOpens.length===4,'Remote action failed');
+        if(!workspaceButtons()[0].querySelector('svg[data-editor="vscode"]')||workspaceButtons()[0].getAttribute('aria-label')!=='在 VS Code 中打开')throw new Error('Editor shortcut must use saved editor icon and label');
+        window.dispatchEvent(new Event('focus'));await pause();if(window.optionsReadCount!==initialOptionReads)throw new Error('Repeated menus and fresh-cache focus must not query options');
+        window.remoteProvider='GitHub';window.expireWorkspaceOptions();await workspaceMenu();await wait(()=>workspaceItem('在 GitHub 上打开'),'Expired options must refresh on focus');
+        if(!workspaceItem('在 GitHub 上打开').querySelector('svg[data-provider="GitHub"]'))throw new Error('Changed remote must update provider icon');
+        workspaceItem('在 GitHub 上打开').click();await wait(()=>window.workspaceOpens.length===4,'Remote action failed');
         if(window.workspaceOpens.some(call=>call.taskId!=='test-task'||call.resourceId!=='repo'))throw new Error('Open-in actions must bind the exact task resource');
         if(JSON.stringify(window.workspaceOpens.map(call=>call.target))!==JSON.stringify([{kind:'fileManager'},{kind:'terminal'},{kind:'editor',editorId:'vscode'},{kind:'remote'}]))throw new Error('Wrong open-in target');
+        await wait(()=>workspaceButtons()[0].querySelector('[data-provider="GitHub"]')&&window.savedSettings?.lastWorkspaceOpenTarget.kind==='remote','Remote shortcut should be saved in settings');
+        workspaceButtons()[0].click();await wait(()=>window.workspaceOpens.length===5&&!workspaceButtons()[0].disabled,'Saved shortcut did not open');if(window.workspaceOpens.at(-1).target.kind!=='remote')throw new Error('Shortcut still opens file manager');
         const dismissWorkspaceMenu=async()=>{workspaceItem('在文件管理器中打开').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait(()=>!workspaceItem('在文件管理器中打开'),'Workspace menu did not close');};
-        window.failWorkspaceOptions=true;const previousReads=window.optionsReadCount;await workspaceMenu();await wait(()=>window.optionsReadCount>previousReads,'Options should retry when opened');await pause();
+        window.failWorkspaceOptions=true;const previousReads=window.optionsReadCount;window.expireWorkspaceOptions();await wait(()=>window.optionsReadCount>previousReads,'Expired options should refresh on focus');await workspaceMenu();await pause();
         if(!workspaceItem('VS Code')||workspaceItem('无法读取打开选项，请重新展开重试'))throw new Error('Read failures must silently preserve previous options');
-        await dismissWorkspaceMenu();window.failWorkspaceOptions=false;window.noEditors=true;await workspaceMenu();await wait(()=>!workspaceItem('VS Code'),'Empty IDE list must update');
+        await dismissWorkspaceMenu();window.failWorkspaceOptions=false;window.noEditors=true;window.expireWorkspaceOptions();await workspaceMenu();await wait(()=>!workspaceItem('VS Code'),'Empty IDE list must update');
         if(workspaceItem('未检测到支持的 IDE')||document.querySelector('[role="menu"][data-state="open"] [role="separator"]'))throw new Error('Empty IDE lists must not add placeholder rows or separators');
-        await dismissWorkspaceMenu();window.noEditors=false;
+        await dismissWorkspaceMenu();
+        for(const provider of ['Bitbucket','Gitee','git.company.example']){
+          window.remoteProvider=provider;window.expireWorkspaceOptions();await workspaceMenu();await wait(()=>workspaceItem('在 '+provider+' 上打开'),'Provider-specific label missing');
+          const providerItem=workspaceItem('在 '+provider+' 上打开');
+          if(provider==='git.company.example'?!providerItem.querySelector('.lucide-globe'):!providerItem.querySelector('svg[data-provider="'+provider+'"]'))throw new Error('Wrong provider brand or unknown-host fallback');
+          await dismissWorkspaceMenu();
+        }
+        window.noEditors=false;
         if(document.querySelector('.task-context-rail').textContent.includes('NOTES'))throw new Error('Empty notes must hide');
         window.setTaskResources({});await wait(()=>!document.querySelector('.task-context-group'),'Cleared groups must hide');
         const sidebarActions=document.querySelector('.task-workbench-actions').querySelectorAll('button').length;
@@ -309,6 +335,32 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const beforeCancel=window.creates.length;document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await pause();if(window.creates.length!==beforeCancel)throw new Error('Cancelling the menu must not create a terminal');
         window.resizeFixture(240);await pause();
         const root=document.querySelector('.task-workbench');if(root.scrollWidth>root.clientWidth+2)throw new Error('Narrow workspace overflows');
+        window.resizeFixture(1100);window.setRecords([]);window.setTaskResources({resources:[repoResource]});window.setCommandRecord('repo-choice');
+        await wait(()=>document.querySelector('.task-context-change [role="group"][aria-label="运行命令"]'),'Command shortcut missing');
+        const commandGroup=()=>document.querySelector('.task-context-change [role="group"][aria-label="运行命令"]');
+        const commandButton=()=>commandGroup().querySelector('button[aria-label="选择命令"]');
+        const commandShortcut=()=>commandGroup().querySelector('button');
+        if(commandGroup().querySelectorAll('button').length!==2||!commandButton().querySelector('.lucide-chevron-down'))throw new Error('Commands must use separate shortcut and dropdown buttons');
+        if(commandShortcut().getAttribute('aria-label')!=='在此工作区运行「Build」')throw new Error('Shortcut tooltip must name the command and working directory scope');
+        if(commandGroup().getBoundingClientRect().left<=document.querySelector('.task-context-change [data-slot="button-group"]').getBoundingClientRect().right)throw new Error('Command shortcut must sit to the right of Open in');
+        await openDropdown(commandButton());await wait(()=>menuItem('Build'),'Configured commands missing');
+        const commandCount=window.creates.length;
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await pause();if(window.creates.length!==commandCount)throw new Error('Dropdown must not run a command');
+        commandShortcut().click();await wait(()=>window.creates.length===commandCount+1&&document.querySelector('.task-shell-pane')&&!commandButton().disabled,'Command shortcut did not reveal terminal');
+        if(window.creates.at(-1).commandId!=='build'||window.creates.at(-1).resourceId!=='repo-choice'||!document.querySelector('.task-shell-pane').textContent.includes('Build'))throw new Error('Command did not bind to selected workspace');
+        if(document.querySelector('.task-shell-pane [role="textbox"]')===document.activeElement)throw new Error('Running command must not steal input focus');
+        if(!commandShortcut().querySelector('.lucide-square')||commandShortcut().getAttribute('aria-label')!=='停止此工作区中的「Build」')throw new Error('Running shortcut must name the command it stops');
+        await openDropdown(commandButton());await wait(()=>menuItem('Build')?.querySelector('.lucide-square'),'Running command must show stop action');
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await pause();commandShortcut().click();await wait(()=>!document.querySelector('.task-shell-pane'),'Stop shortcut must close command terminal');
+        if(window.creates.length!==commandCount+1)throw new Error('Selecting running command must not start another process');
+        await openDropdown(commandButton());await wait(()=>menuItem('管理命令…'),'Manage commands missing');menuItem('管理命令…').click();await wait(()=>document.querySelector('[data-slot="dialog-content"]'),'Manage must reuse repo edit dialog');
+        const manageDialog=document.querySelector('[data-slot="dialog-content"]');if(!manageDialog.textContent.includes('Build'))throw new Error('Manage dialog shows wrong repository commands');
+        [...manageDialog.querySelectorAll('button')].find(item=>item.textContent==='取消').click();await wait(()=>!document.querySelector('[data-slot="dialog-content"]'),'Manage close failed');
+        window.setCommandRecord('repo-choice',[]);await wait(()=>!commandGroup(),'Empty commands must hide the whole button group');
+        if(document.querySelector('.task-context-change button[aria-label="选择命令"]')||window.creates.length!==commandCount+1)throw new Error('Empty commands must not retain a dropdown or execute');
+        if(document.querySelectorAll('.task-context-change-actions > [data-slot="button-group"]').length!==1||document.querySelector('.task-context-change-actions').getBoundingClientRect().width!==36)throw new Error('Hidden commands must not reserve space or hide Open in');
+        window.setCommandRecord('repo-choice');await window.setLocale('en');
+        await wait(()=>[...document.querySelectorAll('.task-context-change button')].some(item=>item.getAttribute('aria-label')==='Run "Build" in this worktree'),'English shortcut tooltip must contain command name and scope');
       })()\`);
       console.log('WORKBENCH_UI_OK');app.exit(0);}catch(error){console.error(error);app.exit(1);}
     });`);

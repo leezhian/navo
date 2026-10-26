@@ -74,11 +74,43 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
     assert.equal(processes.has(session.terminalId),false); nativeCalls.push(["remove",session.id]);
     if(options.failNative)throw new Error("SESSION_NATIVE_DELETE_FAILED");
   } };
-  const service = new TaskSessionService(repository, options.agents ?? {}, async () => options.task ?? task, () => ({ tasksDirectory: os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions);
+  const service = new TaskSessionService(repository, options.agents ?? {}, async () => options.task ?? task, () => ({ tasksDirectory: os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions, async () => options.resources ?? []);
   const owner = new EventEmitter(); owner.id = 1; owner.isDestroyed = () => false;
   const other = new EventEmitter(); other.id = 2; other.isDestroyed = () => false;
   return { service, saved, processes, owner, other, events, nativeCalls, launches: () => launches, fail: () => { failLaunch = true; } };
 }
+
+test("仓库命令只读取已保存脚本，在指定工作区执行并按命令去重，保留实际退出码", async context => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "navo-command-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const originalPath = path.join(directory, "repo");const firstPath = path.join(directory, "first");const secondPath = path.join(directory, "second");
+  await Promise.all([originalPath, firstPath, secondPath].map(directory => mkdir(directory)));
+  const command = { id: "build", name: "Build", script: "printf '%s\\n' 'quoted text'\nprintf done", runOnWorktreeCreation: true };
+  const record = { id: "repo", name: "repo", kind: "repo", localPath: originalPath, available: true, commands: [command] };
+  const current = { ...task, resources: [firstPath, secondPath].map((workingPath, index) => ({ resourceId: "workspace-" + index, repositoryId: "repo", name: "repo", mode: "worktree", workingPath, originalPath, sourceBranch: "main", targetBranch: "feature" })) };
+  const runtime = fixture([], undefined, { task: current, resources: [record], prepareTaskContext });
+  context.after(() => runtime.service.shutdown());
+  const input = { taskId: current.id, kind: "shell", resourceId: "workspace-0", commandId: "build", script: "untrusted renderer override" };
+  const records = await runtime.service.start(input, runtime.owner);
+  assert.equal(records.length, 1);assert.equal(records[0].title, "Build");assert.equal(records[0].cwd, await (await import("node:fs/promises")).realpath(firstPath));
+  assert.deepEqual(records[0].command, { id: "build", name: "Build", resourceId: "workspace-0" });
+  const process = runtime.processes.get(records[0].terminalId);
+  assert.deepEqual(process.launch.args, ["-l", "-c", command.script]);assert.equal(process.launch.command, "/bin/zsh");assert.equal(process.launch.retainOnExit, true);
+  assert.ok(!JSON.stringify(records[0]).includes(command.script));
+  await Promise.all([runtime.service.start(input, runtime.owner), runtime.service.start(input, runtime.owner)]);assert.equal(runtime.launches(), 1);
+  await assert.rejects(runtime.service.start(input, runtime.other), /SESSION_UNAVAILABLE/);
+  await runtime.service.start({ ...input, resourceId: "workspace-1" }, runtime.owner);assert.equal(runtime.launches(), 2);
+  await assert.rejects(runtime.service.start({ ...input, commandId: "missing" }, runtime.owner), /COMMAND_UNAVAILABLE/);
+  await assert.rejects(runtime.service.start({ ...input, kind: "agent" }, runtime.owner), /TASK_INVALID/);
+  await assert.rejects(runtime.service.start({ ...input, resourceId: null }, runtime.owner), /TASK_INVALID/);
+  current.status = "ARCHIVED";await assert.rejects(runtime.service.start(input, runtime.owner), /COMMAND_UNAVAILABLE/);current.status = "TODO";
+  process.launch.onExit(7);const exited = (await runtime.service.list()).find(item => item.id === records[0].id);
+  assert.equal(exited.commandExitCode, 7);assert.equal(exited.status, "failed");
+  command.script = "printf updated";await runtime.service.start(input, runtime.owner);assert.equal(runtime.launches(), 3);
+  const latest = (await runtime.service.list()).at(-1);assert.equal(runtime.processes.get(latest.terminalId).launch.args.at(-1), "printf updated");
+  await runtime.service.stop(latest.id, runtime.owner);assert.ok(!(await runtime.service.list()).some(item => item.id === latest.id));
+  record.localPath = secondPath;await assert.rejects(runtime.service.start(input, runtime.owner), /COMMAND_UNAVAILABLE/);
+});
 
 test("多仓库普通终端使用选定资源的实际工作目录，不启动 Agent 或接受外来资源", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-shell-directories-"));

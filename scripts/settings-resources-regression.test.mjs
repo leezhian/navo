@@ -592,18 +592,17 @@ test("拒绝已有其他日志文件时，不改变已保存路径或文件内�
   assert.equal(await readFile(unrelated, "utf8"), "Other application logs");
 });
 
-test("日志路径使用可取消的目录选择器，保留文件名并支持文件管理器定位", async (context) => {
+test("日志不提供路径选择接口，默认及历史路径仍支持文件管理器定位", async (context) => {
   const directory = await temporaryDirectory(context);
   const homeDirectory = path.join(directory, "home");
   const handlers = new Map();
-  let dialogResult = { canceled: true };
   let dialogOptions;
   let revealedPath;
   const electron = {
     app: { getPath: (name) => name === "home" ? homeDirectory : directory },
     ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
     BrowserWindow: { fromWebContents: () => ({}) },
-    dialog: { showOpenDialog: async (_window, options) => { dialogOptions = options; return dialogResult; } },
+    dialog: { showOpenDialog: async (_window, options) => { dialogOptions = options; return { canceled: true }; } },
     shell: { showItemInFolder: (filePath) => { revealedPath = filePath; } },
   };
   const load = createLoader({ electron });
@@ -614,21 +613,17 @@ test("日志路径使用可取消的目录选择器，保留文件名并支持�
   assert.deepEqual(dialogOptions.properties, ["openDirectory", "createDirectory"]);
   const bootstrap = await handlers.get(ipcChannels.settingsLoad)();
   assert.equal(bootstrap.logFilePath, path.join(directory, "logs", "navo.log"));
-  assert.equal(await handlers.get(ipcChannels.settingsChooseLogFile)({ sender: {} }), null);
-  const chosenDirectory = path.join(directory, "chosen");
-  await mkdir(chosenDirectory);
-  const chosenPath = path.join(chosenDirectory, "navo.log");
-  dialogResult = { canceled: false, filePaths: [chosenDirectory] };
-  assert.equal(await handlers.get(ipcChannels.settingsChooseLogFile)({ sender: {} }), chosenPath);
-  assert.deepEqual(dialogOptions.properties, ["openDirectory", "createDirectory"]);
-  assert.equal(dialogOptions.defaultPath, path.join(directory, "logs"));
+  assert.equal(handlers.has("settings:choose-log-file"), false);
+  assert.equal("settingsChooseLogFile" in ipcChannels, false);
+  await handlers.get(ipcChannels.settingsRevealLogFile)();
+  assert.equal(revealedPath, bootstrap.logFilePath);
+  assert.equal((await stat(revealedPath)).isFile(), true);
+  const chosenPath = path.join(directory, "legacy", "custom-name.log");
   const settings = load("src/main-process/services/settingsService.ts");
   await settings.saveSettings({ ...defaultSettings, logFilePath: chosenPath });
   await handlers.get(ipcChannels.settingsRevealLogFile)();
   assert.equal(revealedPath, chosenPath);
   assert.equal((await stat(chosenPath)).isFile(), true);
-  await settings.saveSettings({ ...defaultSettings, logFilePath: path.join(directory, "custom-name.log") });
-  assert.equal(await handlers.get(ipcChannels.settingsChooseLogFile)({ sender: {} }), path.join(chosenDirectory, "custom-name.log"));
 });
 
 test("迁移失败保留旧配置，重试成功后只使用主进程 SQLite", async () => {

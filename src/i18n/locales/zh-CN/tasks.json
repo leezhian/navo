@@ -138,12 +138,34 @@
     "label": "任务面板工具栏"
   },
   "workspaceOpen": {
+    "editor": "在 {{editor}} 中打开",
     "actions": "打开 {{name}} 的方式",
     "fileManager": "在文件管理器中打开",
     "terminal": "打开外部终端",
     "provider": "在 {{provider}} 上打开",
     "failed": "无法打开工作目录",
     "failedDetail": "请检查工作目录、远端地址或所选应用是否仍然可用。"
+  },
+  "commands": {
+    "title": "运行命令",
+    "choose": "选择命令",
+    "empty": "暂无命令",
+    "manage": "管理命令…",
+    "run": "在此工作区运行「{{name}}」",
+    "stop": "停止此工作区中的「{{name}}」"
+  },
+  "notes": {
+    "title": "任务笔记",
+    "edit": "编辑笔记",
+    "delete": "删除笔记",
+    "close": "关闭",
+    "resize": "调整笔记面板宽度",
+    "deleteTitle": "删除这条笔记？",
+    "deleteDescription": "「{{title}}」将从任务中删除，未保存的修改也会丢失。此操作无法撤销。",
+    "discardTitle": "放弃未保存的修改？",
+    "discardDescription": "笔记有未保存的修改，离开后将不会保留。",
+    "discard": "放弃修改",
+    "notFound": "笔记已被删除，请重新选择。"
   },
   "resources": {
     "title": "添加资源",

@@ -2,7 +2,7 @@ import type { IssueItem } from "../domain/issues";
 import type { TaskBranchSnapshot } from "./taskBranchTypes";
 import type { TaskAgentSelection } from "./agentCapabilities";
 import type { Task, TaskStatus } from "../domain/tasks";
-import type { AddTaskResourcesInput, TaskFileReference } from "./taskResourceTypes";
+import type { AddTaskResourcesInput, TaskFileReference, TaskNote } from "./taskResourceTypes";
 import type { WorkspaceOpenOptions, WorkspaceOpenTarget } from "./workspaceOpenTypes";
 import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview } from "./taskDeletionTypes";
 
@@ -91,6 +91,9 @@ export interface TasksApi {
   workspaceOpenOptions(taskId: string, resourceId: string): Promise<WorkspaceOpenOptions>;
   openWorkspace(taskId: string, resourceId: string, target: WorkspaceOpenTarget): Promise<void>;
   addResources(taskId: string, input: AddTaskResourcesInput): Promise<Task>;
+  /** 仅修改指定任务的笔记；返回最新任务以同步各工作台。 */
+  updateNote(taskId: string, note: TaskNote): Promise<Task>;
+  deleteNote(taskId: string, noteId: string): Promise<Task>;
   chooseResourceFile(): Promise<TaskFileReference | null>;
   releaseResourceFiles(ids: string[]): Promise<void>;
   revealResourceFile(taskId: string, fileId: string): Promise<void>;

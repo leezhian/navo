@@ -10,6 +10,7 @@ import { TaskSessionService } from "../services/taskSessions/taskSessionService"
 import { getCurrentSettings } from "../services/settingsService";
 import { getAgentService } from "./agentHandlers";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
+import { ResourceService } from "../services/resourceService";
 
 let sessions: TaskSessionService | null = null;
 export async function shutdownTaskSessions() { await sessions?.shutdown(); }
@@ -24,6 +25,7 @@ export function startInitialTaskSession(task: Task, owner: WebContents) {
 
 export function registerTaskSessionHandlers(tasks: TaskService) {
   const namespace = app.isPackaged ? "production" : "development";
+  const resources = new ResourceService(path.join(app.getPath("userData"), "resources.json"));
   async function task(id: string) {
     if (typeof id !== "string") throw new Error("TASK_INVALID");
     const found = (await tasks.repository.load())?.find((item) => item.id === id);
@@ -45,7 +47,7 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
         paths.push(path.join(app.getPath("userData"), "task-files", namespace, record.id, filename));
       }
       return paths;
-    });
+    }, undefined, undefined, () => resources.list());
   sessions = service;
   ipcMain.handle(ipcChannels.taskSessionsList, (event) => { owner(event); return service.list(); });
   ipcMain.handle(ipcChannels.taskSessionsStart, (event, input: StartTaskSessionInput) => service.start(input, owner(event)));

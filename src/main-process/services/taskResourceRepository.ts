@@ -94,6 +94,31 @@ export class TaskResourceRepository {
     } catch (error) { if (transactionOpen) database.exec("ROLLBACK"); throw error; }
     finally { database.close(); }
   }
+  async mutateNote(taskId: string, noteId: string, note: TaskNote | null) {
+    const database = await openAppDatabase(this.filename);
+    let transactionOpen = false;
+    try {
+      database.exec("BEGIN IMMEDIATE");
+      transactionOpen = true;
+      const task = database.prepare("SELECT status FROM tasks WHERE namespace=? AND id=?").get(this.namespace, taskId);
+      if (!task) throw new Error("TASK_NOT_FOUND");
+      if (task.status === "ARCHIVED" || database.prepare("SELECT 1 FROM task_deletions WHERE namespace=? AND task_id=?").get(this.namespace, taskId)) throw new Error("TASK_BUSY");
+      const current = database.prepare("SELECT title,content FROM task_notes WHERE namespace=? AND task_id=? AND id=?").get(this.namespace, taskId, noteId);
+      if (!current) throw new Error("TASK_NOTE_NOT_FOUND");
+      if (note) {
+        if (current.title !== note.title.trim() || current.content !== note.content) {
+          database.prepare("UPDATE task_notes SET title=?,content=? WHERE namespace=? AND task_id=? AND id=?").run(note.title.trim(), note.content, this.namespace, taskId, noteId);
+          this.touchTask(database, taskId);
+        }
+      } else {
+        database.prepare("DELETE FROM task_notes WHERE namespace=? AND task_id=? AND id=?").run(this.namespace, taskId, noteId);
+        this.touchTask(database, taskId);
+      }
+      database.exec("COMMIT");
+      transactionOpen = false;
+    } catch (error) { if (transactionOpen) database.exec("ROLLBACK"); throw error; }
+    finally { database.close(); }
+  }
   private touchTask(database: DatabaseSync, taskId: string) {
     database.prepare("UPDATE tasks SET updated_at=? WHERE namespace=? AND id=?").run(new Date().toISOString(), this.namespace, taskId);
   }

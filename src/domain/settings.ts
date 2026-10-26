@@ -1,6 +1,7 @@
 import type { AppSettings, DiffDarkThemePreset, DiffIndicatorMode, DiffLightThemePreset } from "./types";
 import { DEFAULT_LOCALE, normalizeLocale } from "../shared/locales";
 import type { TranslationKey } from "../i18n/types";
+import { normalizeWorkspaceOpenTarget } from "../utils/workspaceOpenTarget";
 
 export const DIFF_UI_FONT_SIZE_LIMITS = {
   max: 22,
@@ -87,6 +88,7 @@ export const diffDarkThemeOptions: Array<{ label: string; value: DiffDarkThemePr
 
 export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
   return {
+    lastWorkspaceOpenTarget: normalizeWorkspaceOpenTarget(value.lastWorkspaceOpenTarget),
     locale: normalizeLocale(value.locale),
     repositoriesDirectory: normalizePath(value.repositoriesDirectory, "~/navo/repos"),
     worktreesDirectory: normalizePath(value.worktreesDirectory, "~/navo/worktrees"),
@@ -129,6 +131,7 @@ const defaultDiffSettings: DiffSettings = {
 
 /** 应用默认配置：本地无存储或解析失败时的兜底，也是新安装后的初始值。 */
 export const defaultSettings: AppSettings = {
+  lastWorkspaceOpenTarget: { kind: "fileManager" },
   ...defaultDiffSettings,
   locale: DEFAULT_LOCALE,
   repositoriesDirectory: "~/navo/repos",

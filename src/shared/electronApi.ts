@@ -135,8 +135,6 @@ export interface NavoApi {
     save(settings: AppSettings): Promise<AppSettings>;
     /** 从当前用户主目录打开系统目录选择器，取消时返回 null。 */
     chooseDirectory(): Promise<string | null>;
-    /** 选择日志所在目录，返回保留当前文件名的新路径；取消时返回 null。 */
-    chooseLogFile(): Promise<string | null>;
     /** 在系统文件管理器中定位当前日志文件。 */
     revealLogFile(): Promise<void>;
     /** 清空当前诊断日志文件，不删除目录和其他文件。 */

@@ -21,4 +21,3 @@
 .resource-drop-area[data-drag-active="true"] p { color: var(--foreground); }
 .resource-drop-area[data-disabled="true"] { opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) { .resource-drop-area, .resource-row::before { transition: none; } }
-.settings-log-panel { padding: 12px 16px; }

@@ -11,6 +11,7 @@ const messages: Record<string, TranslationKey<"tasks" | "taskCreate">> = {
   TASK_INVALID: "tasks:errors.invalid",
   TASK_INVALID_TITLE: "tasks:errors.invalidTitle",
   TASK_NOT_FOUND: "tasks:errors.notFound",
+  TASK_NOTE_NOT_FOUND: "tasks:notes.notFound",
   TASK_INVALID_BRANCH: "taskCreate:errors.invalidBranch",
   TASK_BRANCH_EXISTS: "taskCreate:errors.branchExists",
   TASK_INVALID_SOURCE: "taskCreate:errors.invalidSource",

@@ -7,6 +7,7 @@ import { checkForAppUpdates, loadAppInfo, openAppExternalLink } from "@/services
 import { Bug, ExternalLink, RefreshCw } from "lucide-react";
 import classNames from "classnames";
 import { useTranslation } from "react-i18next";
+import { DiagnosticLogSettings } from "./DiagnosticLogSettings";
 
 export function AboutSettingsPage() {
   const { t } = useTranslation(["common", "settings"]);
@@ -69,6 +70,7 @@ export function AboutSettingsPage() {
           <SettingsRow title={translate("settings:about.feedback")} description={translate("settings:about.feedbackDescription")}>
             <ExternalLinkButton target="report-bug"><Bug aria-hidden="true" className="size-3.5" />{translate("settings:about.reportBug")}</ExternalLinkButton>
           </SettingsRow>
+          <DiagnosticLogSettings />
         </SettingsList>
       </section>
     </>

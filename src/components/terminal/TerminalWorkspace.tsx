@@ -5,6 +5,8 @@ import { useTerminalSession } from "./useTerminalSession";
 import type { TerminalSessionStatus } from "./terminalSessionManager";
 
 interface TerminalWorkspaceProps {
+  /** 命令快捷运行只展开输出，不抢走当前输入焦点。 */
+  autoFocus?: boolean;
   /** 任务服务已启动会话，不因视图挂载重新创建进程。 */
   attachOnly?: boolean;
   /** 主进程签发的设置操作凭据，不传时创建普通 Shell。 */
@@ -21,7 +23,7 @@ interface TerminalWorkspaceProps {
   cwd?: string;
 }
 
-export function TerminalWorkspace({ title, sessionId, cwd, operationToken, compact, onStatusChange, attachOnly }: TerminalWorkspaceProps) {
+export function TerminalWorkspace({ title, sessionId, cwd, operationToken, compact, onStatusChange, attachOnly, autoFocus = true }: TerminalWorkspaceProps) {
   const { t: translate } = useTranslation(["common", "terminal"]);
   const { html, handleKeyDown, handlePaste, paletteStyle, status, terminalRef } = useTerminalSession({
     cwd,
@@ -33,8 +35,8 @@ export function TerminalWorkspace({ title, sessionId, cwd, operationToken, compa
   useEffect(() => { onStatusChange?.(status); }, [status, onStatusChange]);
 
   useEffect(() => {
-    terminalRef.current?.focus();
-  }, [sessionId, terminalRef]);
+    if (autoFocus) terminalRef.current?.focus();
+  }, [sessionId, terminalRef, autoFocus]);
 
   return (
     <section className={"flex h-full min-h-0 min-w-0 flex-col bg-background " + (compact ? "" : "pt-12")}>

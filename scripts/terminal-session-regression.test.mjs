@@ -72,3 +72,20 @@ test("只有真实非空 PTY 输入输出通知活动，附着回放、缩放及
     assert.equal(activities, 2);
   } finally { terminal.destroyAllTerminals(); }
 });
+
+test("快速命令退出后可按所有权附着输出和退出码，关闭不误杀已退出的 PID", () => {
+  let onData, onExit;const sent = [];let kills = 0;
+  const pty = { pid: 123, onData: callback => { onData = callback; }, onExit: callback => { onExit = callback; }, resize: () => {}, kill: () => { kills++; }, write: () => {} };
+  const terminal = createLoader({ "node-pty": { spawn: () => pty }, "./terminateProcessTree": { terminateDescendants: () => { kills++; } } })("src/main-process/services/terminal/terminalService.ts");
+  const owner = new EventEmitter();owner.id = 1;owner.isDestroyed = () => false;owner.send = (channel, payload) => sent.push({ channel, payload });
+  const params = { sessionId: "quick-command", cols: 80, rows: 24 };
+  terminal.createTerminal(params, owner, { command: "/mock/shell", args: [], env: {}, retainOnExit: true, onFinish: () => {} });
+  onData("Command output");onExit({ exitCode: 7 });sent.length = 0;
+  assert.throws(() => terminal.attachTerminal(params, 2), /SESSION_UNAVAILABLE/);
+  terminal.attachTerminal(params, owner.id);
+  assert.equal(sent[0].payload.data, "Command output");assert.equal(sent[1].payload.exitCode, 7);
+  assert.throws(() => terminal.writeTerminal({ sessionId: params.sessionId, data: "no" }, owner.id));
+  terminal.destroyTerminal(params, owner.id);assert.equal(kills, 0);
+  assert.throws(() => terminal.attachTerminal(params, owner.id), /SESSION_UNAVAILABLE/);
+  terminal.destroyAllTerminals();
+});

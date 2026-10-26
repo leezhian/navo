@@ -59,7 +59,7 @@ export class TaskWorkspaceOpenService {
     }
     if (target.kind !== "editor" || !EDITOR_IDS.includes(target.editorId)) throw new Error("TASK_INVALID");
     const definition = editorCatalog.find((item) => item.id === target.editorId);
-    const editor = (await this.editors.list()).find((item) => item.id === target.editorId);
+    const editor = this.editors.find(target.editorId);
     if (!editor || !definition || !await this.host.matchesEditor(editor.appPath, definition)) {
       this.editors.invalidate();throw new Error("WORKSPACE_EDITOR_UNAVAILABLE");
     }

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import { stat } from "node:fs/promises";
-import type { AddTaskResourcesInput } from "../../shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskNote } from "../../shared/taskResourceTypes";
 import { ipcChannels } from "../../shared/ipcChannels";
 import type { TaskService } from "../services/taskService";
 
@@ -18,6 +18,12 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
   }
   ipcMain.handle(ipcChannels.tasksAddResources, (event, taskId: string, input: AddTaskResourcesInput) => {
     owner(event);return tasks.addResources(taskId, input, event.sender.id);
+  });
+  ipcMain.handle(ipcChannels.tasksUpdateNote, (event, taskId: string, note: TaskNote) => {
+    owner(event);return tasks.updateNote(taskId, note);
+  });
+  ipcMain.handle(ipcChannels.tasksDeleteNote, (event, taskId: string, noteId: string) => {
+    owner(event);return tasks.deleteNote(taskId, noteId);
   });
   ipcMain.handle(ipcChannels.tasksChooseResourceFile, async (event) => {
     const result = await dialog.showOpenDialog(owner(event), { defaultPath: app.getPath("home"), properties: ["openFile"] });

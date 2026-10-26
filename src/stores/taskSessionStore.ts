@@ -56,7 +56,7 @@ function receiveSessions(sessions: TaskSession[]) {
     void destroyManagedTerminalSession(session.terminalId);
   }
   useTaskSessionStore.setState({ sessions, loaded: true });
-  for (const session of sessions) if (!session.archivedAt && session.status === "running" && !attachedTerminals.has(session.terminalId)) {
+  for (const session of sessions) if (!session.archivedAt && (session.status === "running" || session.commandExitCode !== undefined) && !attachedTerminals.has(session.terminalId)) {
     attachedTerminals.add(session.terminalId);
     ensureManagedTerminalSession(session.terminalId, session.cwd, 80, 24, undefined, true);
   }
