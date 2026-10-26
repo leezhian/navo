@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { AppSettings } from "../../domain/types";
 import type { AddTaskResourcesInput } from "../../shared/taskResourceTypes";
 import type { TaskResourceInfo } from "../../shared/taskTypes";
@@ -36,11 +35,11 @@ export class TaskWorkspaceBindings {
     const infos = await Promise.all(input.resources.map((resource) => this.inspect(resource.resourceId)));
     const settings = this.getSettings();
     const manifest: TaskCreationManifest = {
-      workspaceDirectory: path.join(resolveResourcePath(settings.worktreesDirectory), taskId, input.requestId),
+      workspaceDirectory: resolveResourcePath(settings.worktreesDirectory), workspaceDirectoryShared: true,
       workspaceDirectoryOwned: false, attachmentDirectory: "", attachmentDirectoryOwned: false, steps: [],
     };
     for (let index = 0; index < infos.length; index += 1) {
-      manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, existing.length + index + 1));
+      manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, manifest.steps.map((step) => step.resource.workingPath)));
     }
     manifest.steps = await assignWorkspaceIdentities(manifest.steps, existing);
     const persist = () => this.tasks.recordOperation(input.requestId, "pending", manifest);

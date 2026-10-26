@@ -13,6 +13,8 @@ const { TaskService } = load("src/main-process/services/taskService.ts");
 const { ResourceService } = load("src/main-process/services/resourceService.ts");
 const { defaultSettings } = load("src/domain/settings.ts");
 const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
+const { worktreeList } = load("src/main-process/services/taskDeletionGit.ts");
+const { removeTaskWorktree } = load("src/main-process/services/taskWorktreeLock.ts");
 const execute = promisify(execFile);
 const keep = { deleteWorktrees: false, deleteBranches: false };
 const worktreeOnly = { deleteWorktrees: true, deleteBranches: false };
@@ -142,6 +144,7 @@ test("共享 Worktree、锁定 Worktree、未知归属和受保护分支均保�
   await service.remove(task.id, { token: shared.token }, 1);
   await access(resource.workingPath);
   const locked = await create([repo]);
+  await git(repo.localPath, "worktree", "unlock", locked.resources[0].workingPath);
   await git(repo.localPath, "worktree", "lock", locked.resources[0].workingPath);
   assert.equal((await remove(service, locked, everything)).items[0].worktreeReason, "locked");
   await access(locked.resources[0].workingPath);
@@ -156,6 +159,53 @@ test("共享 Worktree、锁定 Worktree、未知归属和受保护分支均保�
   database.close();
   assert.equal((await remove(service, legacy, everything)).canDeleteWorktrees, false);
   await access(old.workingPath);
+});
+
+test("新建 Worktree 默认锁定且仍可提交，重启后确认清理可解开应用锁", async (context) => {
+  const { directory, settings, service, repository, create } = await fixture(context);
+  const repo = await repository("repo");
+  const task = await create([repo]);
+  const resource = task.resources[0];
+  const checkout = (await worktreeList(repo.localPath)).find((item) => item.path === resource.ownership.path);
+  assert.equal(checkout.locked, true);
+  assert.equal(checkout.lockReason, resource.ownership.lockReason);
+  assert.ok(checkout.lockReason.startsWith("Navo 托管工作区 "));
+  await assert.rejects(git(repo.localPath, "worktree", "remove", resource.workingPath));
+  await writeFile(path.join(resource.workingPath, "file.txt"), "normal editing");
+  await git(resource.workingPath, "add", ".");
+  await git(resource.workingPath, "commit", "-m", "locked worktree remains usable");
+  const restarted = new TaskService(directory, "production", () => settings);
+  await remove(restarted, task, everything);
+  await assert.rejects(access(resource.workingPath));
+});
+
+test("删除失败恢复应用锁，不强删未确认的工作文件", async (context) => {
+  const { repository, create } = await fixture(context);
+  const repo = await repository("repo");
+  const task = await create([repo]);
+  const resource = task.resources[0];
+  await writeFile(path.join(resource.workingPath, "file.txt"), "keep changes");
+  await assert.rejects(removeTaskWorktree(resource));
+  const checkout = (await worktreeList(repo.localPath)).find((item) => item.path === resource.ownership.path);
+  assert.equal(checkout.locked, true);
+  assert.equal(checkout.lockReason, resource.ownership.lockReason);
+  assert.equal(await readFile(path.join(resource.workingPath, "file.txt"), "utf8"), "keep changes");
+});
+
+test("确认后锁被外部替换时拒绝旧确认，并保留新的外部锁", async (context) => {
+  const { service, repository, create } = await fixture(context);
+  const repo = await repository("repo");
+  const task = await create([repo]);
+  const resource = task.resources[0];
+  const preview = await service.inspectDeletion(task.id, everything, 1);
+  await git(repo.localPath, "worktree", "unlock", resource.workingPath);
+  await git(repo.localPath, "worktree", "lock", "--reason", "用户保留", resource.workingPath);
+  await assert.rejects(service.remove(task.id, { token: preview.token }, 1), /TASK_DELETE_CHANGED/);
+  await assert.rejects(removeTaskWorktree(resource), /TASK_DELETE_CHANGED/);
+  assert.equal((await remove(service, task, everything)).items[0].worktreeReason, "locked");
+  const checkout = (await worktreeList(repo.localPath)).find((item) => item.path === resource.ownership.path);
+  assert.equal(checkout.lockReason, "用户保留");
+  await access(resource.workingPath);
 });
 
 test("目录被替换或变成符号链接时不删除指向的内容", async (context) => {

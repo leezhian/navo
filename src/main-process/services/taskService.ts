@@ -122,12 +122,12 @@ export class TaskService {
         const selectedFiles = await this.files.prepare(ownerId, input.attachmentIds);
         const infos = await Promise.all(input.resources.map((resource) => this.inspectResource(resource.resourceId)));
         const manifest: TaskCreationManifest = {
-          workspaceDirectory: path.join(resolveResourcePath(settings.worktreesDirectory), input.requestId),
+          workspaceDirectory: resolveResourcePath(settings.worktreesDirectory), workspaceDirectoryShared: true,
           workspaceDirectoryOwned: false, attachmentDirectory: this.attachmentDirectory(input.requestId),
           attachmentDirectoryOwned: false, steps: [],
         };
         for (let index = 0; index < infos.length; index += 1) {
-          manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, index + 1));
+          manifest.steps.push(await prepareWorkspace(infos[index], input.resources[index], settings.branchPrefix, manifest.workspaceDirectory, manifest.steps.map((step) => step.resource.workingPath)));
         }
         manifest.steps = await assignWorkspaceIdentities(manifest.steps, []);
         const persist = () => this.repository.recordOperation(input.requestId, "pending", manifest);

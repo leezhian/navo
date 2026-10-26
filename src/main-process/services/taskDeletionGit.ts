@@ -42,6 +42,7 @@ export async function worktreeList(repository: string) {
       path: fields.find((field) => field.startsWith("worktree "))?.slice(9) ?? "",
       branch: fields.find((field) => field.startsWith("branch "))?.slice(7) ?? "",
       locked: fields.some((field) => field === "locked" || field.startsWith("locked ")),
+      lockReason: fields.find((field) => field.startsWith("locked "))?.slice(7) ?? "",
     };
   });
 }

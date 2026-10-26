@@ -42,7 +42,11 @@ export interface TaskResource extends Omit<TaskResourceInput, "resourceId"> {
   originalPath: string;
   workingPath: string;
   /** 创建成功时记录的文件系统身份；旧记录缺失时不推断可删除归属。 */
-  ownership?: { path: string; directoryId: string; gitDirectory: string; commonDirectory: string; commonDirectoryId: string; branchCreated?: boolean };
+  ownership?: {
+    path: string; directoryId: string; gitDirectory: string; commonDirectory: string; commonDirectoryId: string; branchCreated?: boolean;
+    /** 创建时写入 Git 的唯一锁原因，仅允许清理由 Navo 自己设置且仍匹配的锁。 */
+    lockReason?: string;
+  };
 }
 
 export interface TaskAttachment {

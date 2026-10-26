@@ -5,6 +5,7 @@ import { TaskRepository } from "./taskRepository";
 import { inspectDeletionItem, ownsWorkspace } from "./taskDeletionInspection";
 import { branchOid, deletionFingerprint, deletionGit, pathExists, worktreeList } from "./taskDeletionGit";
 import { diagnosticOperation, writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
+import { removeTaskWorktree } from "./taskWorktreeLock";
 
 const CONFIRMATION_LIFETIME_MS = 5 * 60 * 1000;
 const KEEP_RESOURCES: TaskDeletionOptions = { deleteWorktrees: false, deleteBranches: false };
@@ -69,13 +70,13 @@ export class TaskDeletionService {
         const progress: TaskDeletionProgress = { resourceId: entry.resource.resourceId, worktree: "pending", branchOid: entry.branchOid };
         if (entry.item.worktreeAction === "delete") {
           await this.repository.recordDeletion(taskId, progress);
-          // 日志写入期间文件仍可能变化；再次检查后才执行一次 --force，不绕过锁定 Worktree。
+          // 日志写入期间文件仍可能变化；再次检查后仅解开匹配的应用锁，不绕过外部锁。
           const checked = await this.inspect(taskId, options);
           if (checked.entries.find((item) => item.item.resourceId === entry.item.resourceId)?.fingerprint !== entry.fingerprint) throw new Error("TASK_DELETE_CHANGED");
           const force = entry.item.uncommittedFiles > 0 || entry.item.ignoredFiles > 0;
           await diagnosticOperation("worktree.delete", {
             resourceId: entry.item.resourceId, uncommittedFiles: entry.item.uncommittedFiles, ignoredFiles: entry.item.ignoredFiles,
-          }, () => deletionGit(entry.resource.originalPath, ["worktree", "remove", ...(force ? ["--force"] : []), "--", entry.resource.workingPath]), { started: true });
+          }, () => removeTaskWorktree(entry.resource, force), { started: true });
         }
         progress.worktree = "removed";
         await this.repository.recordDeletion(taskId, progress);

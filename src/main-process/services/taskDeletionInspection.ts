@@ -6,6 +6,7 @@ import type { TaskDeletionItem, TaskDeletionOptions } from "../../shared/taskDel
 import type { TaskRepository } from "./taskRepository";
 import { branchOid, deletionFingerprint, deletionGit, directoryIdentity, pathExists, workingCopyRisk, worktreeList } from "./taskDeletionGit";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
+import { isTaskWorktreeLock } from "./taskWorktreeLock";
 
 type DeletionContext = Awaited<ReturnType<TaskRepository["deletionContext"]>>;
 export interface InspectedDeletionItem {
@@ -82,7 +83,7 @@ export async function inspectDeletionItem(task: Task, resource: TaskResource, op
       }
       const checkout = worktrees.find((worktree) => worktree.path === ownership.path || worktree.path === resource.workingPath);
       if (!checkout || (checkout.branch && checkout.branch !== "refs/heads/" + resource.targetBranch)) { item.worktreeReason = "changed"; return result(); }
-      if (checkout.locked) { item.worktreeReason = "locked"; return result(); }
+      if (checkout.locked && !isTaskWorktreeLock(resource, checkout)) { item.worktreeReason = "locked"; return result(); }
       const risk = await workingCopyRisk(resource.workingPath);
       item.uncommittedFiles = risk.uncommittedFiles;
       item.ignoredFiles = risk.ignoredFiles;

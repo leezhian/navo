@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, writeFile, rm, access } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm, access, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -221,6 +221,8 @@ test("显式分支不叠加前缀，空前缀只生成八位短名，冲突或�
   input.resources[0].targetBranch = "custom-short";
   const task = await service.create(input, 1);
   assert.equal(task.resources[0].targetBranch, "custom-short");
+  assert.equal(path.dirname(task.resources[0].workingPath), settings.worktreesDirectory);
+  assert.match(path.basename(task.resources[0].workingPath), /^repo-[a-f0-9]{8}$/);
   const duplicate = { ...input, requestId: randomUUID() };
   await assert.rejects(service.create(duplicate, 1), /TASK_BRANCH_EXISTS/);
   duplicate.resources = [{ ...input.resources[0], targetBranch: "../invalid" }];
@@ -228,6 +230,53 @@ test("显式分支不叠加前缀，空前缀只生成八位短名，冲突或�
   settings.branchPrefix = "";
   const automatic = await service.create(await inputFor([record]), 1);
   assert.match(automatic.resources[0].targetBranch, /^[a-f0-9]{8}$/);
+  assert.equal(path.basename(automatic.resources[0].workingPath), "repo-" + automatic.resources[0].targetBranch);
+});
+
+test("不同任务的 Worktree 均平铺，分支后缀与目录一致，失败不清理共用根目录", async (context) => {
+  const { directory, service, settings, repo, inputFor } = await setup(context);
+  const record = await repo("repo");
+  const first = await service.create(await inputFor([record]), 1);
+  const second = await service.create(await inputFor([record]), 1);
+  for (const task of [first, second]) {
+    const resource = task.resources[0];
+    assert.equal(path.dirname(resource.workingPath), settings.worktreesDirectory);
+    assert.equal(path.basename(resource.workingPath), "repo-" + resource.targetBranch.slice(-8));
+  }
+  const before = (await readdir(settings.worktreesDirectory)).sort();
+  const database = new DatabaseSync(path.join(directory, "app.db"));
+  database.exec("CREATE TRIGGER reject_task BEFORE INSERT ON tasks BEGIN SELECT RAISE(ABORT, 'save failed'); END");
+  try { await assert.rejects(service.create(await inputFor([record]), 1), /save failed/); }
+  finally { database.close(); }
+  assert.deepEqual((await readdir(settings.worktreesDirectory)).sort(), before);
+  assert.deepEqual(await service.repository.operations(), []);
+  await access(first.resources[0].workingPath);
+  await access(second.resources[0].workingPath);
+});
+
+test("Git 创建前中断只回收独占空目录，不删除预留目录中的用户文件", async (context) => {
+  const { service, settings, repo, inputFor } = await setup(context);
+  const record = await repo("repo");
+  const persist = service.repository.recordOperation.bind(service.repository);
+  for (const dirty of [false, true]) {
+    let reservedPath;
+    service.repository.recordOperation = async (id, state, manifest) => {
+      await persist(id, state, manifest);
+      const step = manifest.steps[0];
+      if (state === "pending" && step.directoryReservation && !step.worktreeCreated) {
+        reservedPath = step.resource.workingPath;
+        if (dirty) await writeFile(path.join(reservedPath, "keep.txt"), "user data");
+        throw new Error("reservation interrupted");
+      }
+    };
+    await assert.rejects(service.create(await inputFor([record]), 1), dirty ? /TASK_CREATE_RETAINED/ : /reservation interrupted/);
+    if (dirty) assert.equal(await readFile(path.join(reservedPath, "keep.txt"), "utf8"), "user data");
+    else {
+      await assert.rejects(access(reservedPath));
+      assert.deepEqual(await service.repository.operations(), []);
+      assert.deepEqual(await readdir(settings.worktreesDirectory), []);
+    }
+  }
 });
 
 test("原目录新建分支拒绝未提交改动，当前分支模式不改动工作区", async (context) => {
@@ -334,7 +383,9 @@ test("中断恢复仅清理确认归属且未修改的工作区，用户改动�
     const id = randomUUID();
     const info = await service.inspectResource(record.id);
     const workspaceDirectory = path.join(settings.worktreesDirectory, id);
-    const step = await prepareWorkspace(info, { resourceId: record.id, mode: "worktree", sourceBranch: info.git.defaultSource, targetBranch: "" }, settings.branchPrefix, workspaceDirectory, 1);
+    const step = await prepareWorkspace(info, { resourceId: record.id, mode: "worktree", sourceBranch: info.git.defaultSource, targetBranch: "" }, settings.branchPrefix, workspaceDirectory);
+    // 模拟升级前的任务分组目录，恢复仍须按旧清单清理。
+    step.resource.workingPath = path.join(workspaceDirectory, "repo-1");
     const manifest = { workspaceDirectory, workspaceDirectoryOwned: false, attachmentDirectory: path.join(directory, "task-files", "production", id), attachmentDirectoryOwned: false, steps: [step] };
     const persist = () => service.repository.recordOperation(id, "pending", manifest);
     await persist();
@@ -368,6 +419,7 @@ test("自动分支在执行前遇到竞争冲突时重新生成，保留竞争�
   };
   const task = await service.create(input, 1);
   assert.notEqual(task.resources[0].targetBranch, collision);
+  assert.equal(path.basename(task.resources[0].workingPath), "repo-" + task.resources[0].targetBranch.slice(-8));
   assert.ok(await git(record.localPath, "rev-parse", "refs/heads/" + collision));
 });
 

@@ -59,6 +59,7 @@ test("已有任务追加真实 Worktree，原子保存、并发重试幂等及�
   assert.equal(await git(workspace.workingPath, "branch", "--show-current"), workspace.targetBranch);
   assert.equal(await git(repo.localPath, "branch", "--show-current"), "main");
   assert.ok(workspace.ownership);assert.equal((await service.repository.deletionContext(task.id)).owned.length, 1);
+  assert.ok((await git(repo.localPath, "worktree", "list", "--porcelain", "-z")).includes("locked " + workspace.ownership.lockReason));
   assert.deepEqual(await service.repository.operations(), []);
   const restarted = new TaskService(directory, "production", () => settings);
   assert.deepEqual((await restarted.load()).tasks.find((item) => item.id === task.id).resources, updated.resources);
@@ -128,7 +129,7 @@ test("重启回滚未完成的追加操作，不碰任务原有 Worktree", async
   const existing = await service.addResources(task.id, payload([await input(original)]), 1);
   const request = payload([await input(next)]);
   const manifest = { workspaceDirectory: path.join(settings.worktreesDirectory, task.id, request.requestId), workspaceDirectoryOwned: false, attachmentDirectory: "", attachmentDirectoryOwned: false, steps: [] };
-  manifest.steps.push(await prepareWorkspace(await service.inspectResource(next.id), request.resources[0], settings.branchPrefix, manifest.workspaceDirectory, 2));
+  manifest.steps.push(await prepareWorkspace(await service.inspectResource(next.id), request.resources[0], settings.branchPrefix, manifest.workspaceDirectory));
   const persist = () => service.repository.recordOperation(request.requestId, "pending", manifest);
   await persist();await createWorkspaceDirectory(manifest, persist);await createWorkspace(manifest.steps[0], persist);
   const restarted = new TaskService(directory, "production", () => settings);
@@ -147,6 +148,10 @@ test("同一 Repo 可追加多个独立 Worktree，复用同一个工作区时�
   assert.equal(new Set(second.resources.map(item => item.workingPath)).size, 2);
   assert.equal(new Set(second.resources.map(item => item.targetBranch)).size, 2);
   assert.ok(second.resources.every(item => item.repositoryId === repo.id));
+  for (const workspace of second.resources) {
+    assert.equal(path.dirname(workspace.workingPath), settings.worktreesDirectory);
+    assert.equal(path.basename(workspace.workingPath), "repo-" + workspace.targetBranch.slice(-8));
+  }
   assert.deepEqual(second.resources[0], first.resources[0]);
   const reuse = { ...await input(repo), sourceBranch: "refs/heads/" + first.resources[0].targetBranch, useExistingBranch: true };
   const repeated = await service.addResources(task.id, payload([reuse]), 1);
