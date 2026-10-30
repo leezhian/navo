@@ -9,13 +9,16 @@ import { assignWorkspaceIdentities } from "./taskWorkspaceIdentity";
 import { resolveResourcePath } from "./resourcePaths";
 import { createWorkspace, createWorkspaceDirectory, prepareWorkspace, rollbackWorkspaces } from "./taskWorkspaces";
 import type { TaskCreationManifest } from "./taskWorkspaces";
+import type { ResourceRecord } from "../../shared/settingsTypes";
+import { planWorktreeInitialization } from "./taskInitializationRepository";
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 export class TaskWorkspaceBindings {
   private readonly resources: TaskResourceRepository;
   constructor(private readonly tasks: TaskRepository, filename: string, namespace: string,
-    private readonly getSettings: () => AppSettings, private readonly inspect: (id: string) => Promise<TaskResourceInfo>) {
+    private readonly getSettings: () => AppSettings, private readonly inspect: (id: string) => Promise<TaskResourceInfo>,
+    private readonly loadResources: () => Promise<ResourceRecord[]> = async () => []) {
     this.resources = new TaskResourceRepository(filename, namespace);
   }
 
@@ -52,7 +55,8 @@ export class TaskWorkspaceBindings {
             { taskId, resourceId: step.resource.resourceId }, () => createWorkspace(step, persist), { started: true });
         } else await createWorkspace(step, persist);
       }
-      await this.resources.appendWorkspaces(taskId, input.requestId, manifest.steps.map((step) => step.resource));
+      const initialization = planWorktreeInitialization(manifest.steps, await this.loadResources());
+      await this.resources.appendWorkspaces(taskId, input.requestId, manifest.steps.map((step) => step.resource), initialization);
     } catch (error) {
       if (await rollbackWorkspaces(manifest)) {
         await this.tasks.recordOperation(input.requestId, "retained", manifest);

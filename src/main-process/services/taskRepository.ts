@@ -5,6 +5,8 @@ import type { TaskDeletionProgress } from "../../shared/taskDeletionTypes";
 import { openAppDatabase } from "./appDatabase";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { readTaskExtraResources } from "./taskResourceRepository";
+import { insertInitialization, readInitialization } from "./taskInitializationRepository";
+import type { StoredInitializationStep } from "./taskInitializationRepository";
 
 export interface StoredAttachment extends TaskAttachment {
   storageName: string;
@@ -32,6 +34,8 @@ export class TaskRepository {
         ...(agent ? { agent: JSON.parse(String(agent.data)) } : {}),
         id: taskId, title: String(row.title), description: String(row.description), date: String(row.date),
         updatedAt: String(row.updated_at),
+        contextVersion: Number(row.context_version),
+        initialization: readInitialization(database, this.namespace, taskId),
         projectName: String(row.project_name), status: row.status as Task["status"],
         archivedFrom: row.archived_from === "TODO" || row.archived_from === "DONE" ? row.archived_from : undefined,
         resources: resources.map((item) => JSON.parse(String(item.data))),
@@ -61,10 +65,11 @@ export class TaskRepository {
     }));
   }
 
-  create(task: Task, attachments: StoredAttachment[]): Promise<void> {
+  create(task: Task, attachments: StoredAttachment[], initialization: StoredInitializationStep[] = []): Promise<void> {
     return this.access((database) => transaction(database, () => {
       database.prepare("UPDATE tasks SET position = position + 1 WHERE namespace = ?").run(this.namespace);
       this.insert(database, task, 0);
+      insertInitialization(database, this.namespace, task.id, initialization);
       if (task.agent) database.prepare("INSERT INTO task_agents VALUES (?,?,?)").run(this.namespace, task.id, JSON.stringify(task.agent));
       task.resources?.forEach((resource, position) => {
         database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(this.namespace, task.id, position, JSON.stringify(resource));
@@ -90,9 +95,10 @@ export class TaskRepository {
       for (const task of current) if (!identifiers.has(task.id)) database.prepare("DELETE FROM tasks WHERE namespace = ? AND id = ?").run(this.namespace, task.id);
       const updatedAt = new Date().toISOString();
       next.forEach((task, position) => database.prepare(`UPDATE tasks SET
+        context_version = context_version + CASE WHEN title IS NOT ? THEN 1 ELSE 0 END,
         updated_at = CASE WHEN title IS NOT ? OR status IS NOT ? OR archived_from IS NOT ? THEN ? ELSE updated_at END,
         title = ?,status = ?,archived_from = ?,position = ? WHERE namespace = ? AND id = ?`)
-        .run(task.title, task.status, task.archivedFrom ?? null, updatedAt,
+        .run(task.title, task.title, task.status, task.archivedFrom ?? null, updatedAt,
           task.title, task.status, task.archivedFrom ?? null, position, this.namespace, task.id));
       return this.readTasks(database);
     }));

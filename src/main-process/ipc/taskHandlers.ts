@@ -10,6 +10,7 @@ import { registerTaskSessionHandlers, startInitialTaskSession, deleteTaskWithSes
 import { registerTaskResourceHandlers } from "./taskResourceHandlers";
 import { registerTaskWorkspaceOpenHandlers } from "./taskWorkspaceOpenHandlers";
 import { registerTaskBranchHandlers } from "./taskBranchHandlers";
+import { publishTask } from "./taskEvents";
 
 let tasks: TaskService | null = null;
 export async function flushTasks() { await tasks?.flush(); }
@@ -46,9 +47,14 @@ export function registerTaskHandlers() {
     service.files.release(event.sender.id, ids);
   });
   ipcMain.handle(ipcChannels.tasksPreviewAttachment, (_event, taskId: string, fileId: string) => service.previewAttachment(taskId, fileId));
-  ipcMain.handle(ipcChannels.tasksRename, (_event, id: string, title: string) => service.rename(id, title));
-  ipcMain.handle(ipcChannels.tasksMove, (_event, id: string, status: TaskStatus, beforeId: string | null) => service.move(id, status, beforeId));
-  ipcMain.handle(ipcChannels.tasksRestore, (_event, id: string) => service.restore(id));
+  function publishUpdated(id: string, records: Task[]) {
+    const task = records.find((record) => record.id === id);
+    if (task) publishTask(task);
+    return records;
+  }
+  ipcMain.handle(ipcChannels.tasksRename, (_event, id: string, title: string) => service.rename(id, title).then((records) => publishUpdated(id, records)));
+  ipcMain.handle(ipcChannels.tasksMove, (_event, id: string, status: TaskStatus, beforeId: string | null) => service.move(id, status, beforeId).then((records) => publishUpdated(id, records)));
+  ipcMain.handle(ipcChannels.tasksRestore, (_event, id: string) => service.restore(id).then((records) => publishUpdated(id, records)));
   ipcMain.handle(ipcChannels.tasksInspectDeletion, (event, id: string, options: TaskDeletionOptions) => {
     if (!owners.has(event.sender.id)) {
       const ownerId = event.sender.id;

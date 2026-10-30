@@ -11,6 +11,7 @@ interface TaskSessionState {
   start: (input: StartTaskSessionInput) => Promise<void>;
   stop: (id: string) => Promise<void>;
   archive: (id: string) => Promise<void>;
+  restore: (id: string) => Promise<void>;
   rename: (id: string, title: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
   restart: (id: string, resume: boolean) => Promise<void>;
@@ -35,6 +36,7 @@ export const useTaskSessionStore = create<TaskSessionState>((set, get) => {
     start: (input) => mutate(() => getTaskSessionsApi().start(input)),
     stop: (id) => mutate(() => getTaskSessionsApi().stop(id)),
     archive: (id) => mutate(() => getTaskSessionsApi().archive(id)),
+    restore: (id) => mutate(() => getTaskSessionsApi().restore(id)),
     rename: (id, title) => mutate(() => getTaskSessionsApi().rename(id, title)),
     remove: (id) => mutate(() => getTaskSessionsApi().remove(id)),
     restart: (id, resume) => mutate(() => getTaskSessionsApi().restart(id, resume)),

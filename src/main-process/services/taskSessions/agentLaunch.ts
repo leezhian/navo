@@ -4,8 +4,10 @@ import { agentShellEnvironment, runAgentProbe } from "../agents/agentEnvironment
 import { detectAgent } from "../agents/agentDetection";
 import { matchesAgentCapabilities } from "../../../utils/taskAgentSelection";
 import { agentLaunchArguments } from "./launchArguments";
+import { CONTEXT_INSTRUCTIONS, contextLaunchArguments, supportsSessionContext } from "./contextLaunchArguments";
+import type { TaskContextConnection } from "./taskContextServer";
 
-export async function prepareAgentLaunch(agents: AgentService, selection: TaskAgentSelection, nativeId: string, prompt: string, resume: boolean, nativeHistoryRoot?: string) {
+export async function prepareAgentLaunch(agents: AgentService, selection: TaskAgentSelection, nativeId: string, prompt: string, resume: boolean, nativeHistoryRoot?: string, connectContext?: () => Promise<TaskContextConnection>, dynamicPrompt?: string, prepareContextFile?: () => Promise<string>) {
   const { configurations } = await agents.repository.read();
   const config = configurations.find((item) => item.id === selection.agentId);
   if (!config?.enabled) throw new Error("AGENT_UNAVAILABLE");
@@ -18,6 +20,14 @@ export async function prepareAgentLaunch(agents: AgentService, selection: TaskAg
   if (!matchesAgentCapabilities(selection, capabilities)) throw new Error("AGENT_UNAVAILABLE");
   const help = await runAgentProbe(installation.binaryPath, ["--help"], env);
   if (help.code !== 0) throw new Error("AGENT_UNAVAILABLE");
+  const helpText = `${help.stdout}\n${help.stderr}`;
+  const context = connectContext && supportsSessionContext(selection.agentId, helpText) ? contextLaunchArguments(selection.agentId, await connectContext(), helpText) : undefined;
+  const canPassFileInstructions = !resume || (selection.agentId === "grok" && helpText.includes("--rules"));
+  const fileInstructions = !context && prepareContextFile && canPassFileInstructions ? await prepareContextFile() : undefined;
+  const fileArgs = fileInstructions && selection.agentId === "grok" && helpText.includes("--rules") ? ["--rules", fileInstructions] : [];
+  if (context) { Object.assign(env, context.env); prompt = (dynamicPrompt ?? prompt) + "\n\n" + CONTEXT_INSTRUCTIONS; }
+  else if (fileInstructions) prompt = (dynamicPrompt ?? prompt) + "\n\n" + fileInstructions;
   return { command: installation.binaryPath, env,
-    args: [...config.args, ...agentLaunchArguments(selection, nativeId, prompt, resume, `${help.stdout}\n${help.stderr}`)] };
+    contextMode: context ? "dynamic" as const : fileInstructions ? "file" as const : "snapshot" as const,
+    args: [...config.args, ...(context?.args ?? []), ...fileArgs, ...agentLaunchArguments(selection, nativeId, prompt, resume, helpText)] };
 }

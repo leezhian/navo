@@ -6,6 +6,10 @@ import type { TaskFileReference, TaskNote } from "../shared/taskResourceTypes";
 export type TaskStatus = "TODO" | "DONE" | "ARCHIVED";
 
 export interface Task {
+  /** 正文、笔记、资源每次成功修改后递增，供运行中的 Agent 判断上下文变化。 */
+  contextVersion?: number;
+  /** 新 Worktree 的初始化检查点；脚本仅保存在主进程数据库。 */
+  initialization?: import("../shared/taskContextTypes").TaskInitializationStep[];
   /** 创建时选择的 Agent、模型、模式和思考等级；旧任务可缺省。 */
   agent?: TaskAgentSelection;
   /** 任务的唯一标识，不在卡片中展示。 */

@@ -23,12 +23,12 @@ export function TaskNotePane({ editor, onClose }: TaskNotePaneProps) {
       <div className="flex min-w-0 items-center gap-2"><NotebookText className="shrink-0" /><span className="truncate text-xs" title={title}>{title}</span></div>
       <div className="flex shrink-0 items-center gap-1">
         {!draft && <IconTooltip label={t("tasks:notes.edit")} size="icon-xs" disabled={readOnly || pending} onClick={editor.edit}><Pencil /></IconTooltip>}
-        <IconTooltip label={t("tasks:notes.delete")} size="icon-xs" disabled={readOnly || pending} className="hover:bg-destructive/10 hover:text-destructive" onClick={() => editor.requestDelete()}><Trash2 /></IconTooltip>
+        {!editor.isPrompt && <IconTooltip label={t("tasks:notes.delete")} size="icon-xs" disabled={readOnly || pending} className="hover:bg-destructive/10 hover:text-destructive" onClick={() => editor.requestDelete()}><Trash2 /></IconTooltip>}
         <IconTooltip label={t("tasks:notes.close")} size="icon-xs" disabled={busy} onClick={onClose}><X /></IconTooltip>
       </div>
     </header>
     {draft ? <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <Input aria-label={t("tasks:resources.noteTitle")} placeholder={t("tasks:resources.noteTitle")} value={draft.title} maxLength={160} disabled={busy || readOnly} onChange={(event) => editor.change({ title: event.target.value })} className="h-8 shrink-0 text-xs" />
+      {!editor.isPrompt && <Input aria-label={t("tasks:resources.noteTitle")} placeholder={t("tasks:resources.noteTitle")} value={draft.title} maxLength={160} disabled={busy || readOnly} onChange={(event) => editor.change({ title: event.target.value })} className="h-8 shrink-0 text-xs" />}
       <textarea aria-label={t("tasks:resources.noteContent")} placeholder={t("tasks:resources.noteContent")} value={draft.content} maxLength={100000} disabled={busy || readOnly} onChange={(event) => editor.change({ content: event.target.value })}
         className="min-h-24 flex-1 resize-none rounded-lg border border-input bg-transparent p-3 font-mono text-xs leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring/30" />
       {editor.error !== null && <p role="alert" className="text-xs text-destructive">{getTaskError(editor.error)}</p>}

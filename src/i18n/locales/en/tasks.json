@@ -1,4 +1,28 @@
 {
+  "context": {
+    "prompt": "Prompt",
+    "detach": "Unlink",
+    "detachTitle": "Unlink this resource?",
+    "detachDescription": "Only removes this task's association. Files, worktrees, branches and external issues / PRs are kept.",
+    "changed": "Content changed in another view. Keep your draft and reopen the latest content before editing.",
+    "workspaceBusy": "Stop sessions, terminals or initialization commands using this workspace first.",
+    "archived": "Archived {{count}}",
+    "restoreSession": "Archived {{date}} · Click to restore without starting",
+    "dynamic": "Dynamic shared context: the Agent can read current prompt, resources and notes on demand. Reading on every turn is not guaranteed.",
+    "snapshot": "This session only has a startup snapshot. Restart to connect live context where the CLI supports it.",
+    "file": "The context file updates with task changes. The Agent is instructed to reread it each turn; reading is not guaranteed. Click to copy a reminder for the existing terminal.",
+    "fileFailed": "Context file sync failed; the Agent may read stale content. Click to retry and copy a reading reminder.",
+    "reminderCopied": "Reading reminder copied. Paste it into the CLI's conversation input.",
+    "reminderFailed": "Could not update or copy the context reminder. Please retry.",
+    "setup": "Worktree initialization",
+    "pending": "Pending",
+    "running": "Running",
+    "succeeded": "Completed",
+    "failed": "Failed or interrupted",
+    "retry": "Retry unfinished commands",
+    "retryHint": "Successful commands are skipped. Failed or interrupted scripts may have partially executed.",
+    "setupBlocked": "Complete worktree initialization before starting an Agent."
+  },
   "time": {
     "justNow": "just now",
     "minutes": "{{count}}m ago",

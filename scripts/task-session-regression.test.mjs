@@ -57,7 +57,7 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const events = [];
   const nativeCalls = [];
   const runtime = createLoader({
-    "./agentLaunch": { prepareAgentLaunch: async () => { if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); return { command: "/mock/cli", args: [], env: {} }; } },
+    "./agentLaunch": { prepareAgentLaunch: async (...args) => { if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); return { command: "/mock/cli", args: [], env: {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
     "./taskContext": { prepareTaskContext: options.prepareTaskContext ?? (async () => ({ cwd: os.tmpdir(), prompt: "task context" })), taskPrompt: () => "task context" },
     "../terminal/terminalService": {
       resolveShell: () => "/bin/zsh",
@@ -74,11 +74,94 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
     assert.equal(processes.has(session.terminalId),false); nativeCalls.push(["remove",session.id]);
     if(options.failNative)throw new Error("SESSION_NATIVE_DELETE_FAILED");
   } };
-  const service = new TaskSessionService(repository, options.agents ?? {}, async () => options.task ?? task, () => ({ tasksDirectory: os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions, async () => options.resources ?? []);
+  const service = new TaskSessionService(repository, options.agents ?? {}, async () => options.task ?? task, () => ({ tasksDirectory: options.tasksDirectory ?? os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions, async () => options.resources ?? []);
   const owner = new EventEmitter(); owner.id = 1; owner.isDestroyed = () => false;
   const other = new EventEmitter(); other.id = 2; other.isDestroyed = () => false;
   return { service, saved, processes, owner, other, events, nativeCalls, launches: () => launches, fail: () => { failLaunch = true; } };
 }
+
+test("Restore archive keeps native identity/options/cwd and activity, launches nothing and ignores old exit", async context => {
+  const current = { ...task };
+  const runtime = fixture([], undefined, { task: current });
+  context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  const [session] = await runtime.service.list();
+  const exit = runtime.processes.get(session.terminalId).launch.onExit;
+  await runtime.service.archive(session.id, runtime.owner);
+  const original = structuredClone(session);
+  current.status = "ARCHIVED";
+  await assert.rejects(runtime.service.restore(session.id, runtime.owner), /BUSY/);
+  current.status = "TODO";
+  await runtime.service.restore(session.id, runtime.owner);
+  assert.equal(session.archivedAt, undefined); assert.equal(session.status, "stopped");
+  for (const key of ["nativeSessionId", "cwd", "lastActiveAt"]) assert.equal(session[key], original[key]);
+  assert.deepEqual(session.agent, original.agent); assert.equal(runtime.launches(), 1);
+  exit(8); await runtime.service.list(); assert.equal(session.status, "stopped");
+});
+
+test("Session lifecycle revokes MCP credentials on stop/archive/window close and rotates them on restart", async context => {
+  const connections = [];
+  const runtime = fixture([], undefined, { context: connections });
+  context.after(() => runtime.service.shutdown());
+  const status = async connection => (await fetch(connection.url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.token}` }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) })).status;
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  const [session] = await runtime.service.list();
+  assert.equal(session.contextMode, "dynamic"); assert.equal(await status(connections[0]), 200);
+  await runtime.service.stop(session.id, runtime.owner); assert.equal(await status(connections[0]), 401);
+  await runtime.service.restart(session.id, true, runtime.owner); assert.equal(await status(connections[1]), 200);
+  await runtime.service.archive(session.id, runtime.owner); assert.equal(await status(connections[1]), 401);
+  await runtime.service.restore(session.id, runtime.owner); assert.equal(connections.length, 2);
+  await runtime.service.restart(session.id, true, runtime.owner);
+  runtime.owner.emit("destroyed"); await runtime.service.list(); assert.equal(await status(connections[2]), 401);
+});
+
+test("Agent startup/restart waits for initialization and workspace unlink is serialized with active sessions", async context => {
+  const current = { ...task, resources: [{ resourceId: "repo", name: "repo", workingPath: os.tmpdir(), mode: "worktree" }], initialization: [{ status: "failed" }] };
+  const runtime = fixture([], undefined, { task: current }); context.after(() => runtime.service.shutdown());
+  await assert.rejects(runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner), /INITIALIZATION_REQUIRED/);
+  assert.equal(runtime.launches(), 0);
+  current.initialization[0].status = "succeeded";
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  const [session] = await runtime.service.list();
+  await assert.rejects(runtime.service.withIdleWorkspace(task.id, "repo", async () => true), /WORKSPACE_BUSY/);
+  await runtime.service.stop(session.id, runtime.owner);
+  assert.equal(await runtime.service.withIdleWorkspace(task.id, "repo", async () => true), true);
+  current.initialization[0].status = "failed";
+  await assert.rejects(runtime.service.restart(session.id, true, runtime.owner), /INITIALIZATION_REQUIRED/);
+  assert.equal(runtime.launches(), 1);
+});
+
+test("Live-file sessions refresh committed context without PTY input or activity, and clean up on stop/restart", async context => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "navo-session-live-context-"));
+  const current = { ...task, contextVersion: 1, notes: [{ id: "note", title: "Note", content: "original" }] };
+  const instructions = [];
+  const runtime = fixture([], undefined, { task: current, contextFiles: instructions, tasksDirectory: directory });
+  context.after(async () => { await runtime.service.shutdown(); await rm(directory, { recursive: true, force: true }); });
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  const [session] = await runtime.service.list(); const originalActive = session.lastActiveAt;
+  assert.equal(session.contextMode, "file");
+  const first = JSON.parse(instructions[0].split("\n")[1]);
+  current.description = "new prompt"; current.notes = []; current.contextVersion++;
+  await runtime.service.updateTaskContext(task.id);
+  const file = JSON.parse(await readFile(first, "utf8"));
+  assert.equal(file.task.prompt, "new prompt"); assert.deepEqual(file.notes, []);
+  assert.equal(session.lastActiveAt, originalActive); assert.equal(runtime.launches(), 1); assert.equal(session.contextSyncFailed, false);
+  await assert.rejects(runtime.service.contextReminder(session.id, runtime.other), /UNAVAILABLE/);
+  assert.ok((await runtime.service.contextReminder(session.id, runtime.owner)).includes(first));
+  assert.equal(runtime.launches(), 1, "Copying a reminder does not restart or submit input");
+  current.status = "ARCHIVED"; await runtime.service.updateTaskContext(task.id);
+  assert.equal(JSON.parse(await readFile(first, "utf8")).unavailable, true);
+  await assert.rejects(runtime.service.contextReminder(session.id, runtime.owner), /UNAVAILABLE/);
+  current.status = "TODO"; await runtime.service.updateTaskContext(task.id);
+  assert.equal(JSON.parse(await readFile(first, "utf8")).task.prompt, "new prompt");
+  await runtime.service.stop(session.id, runtime.owner); await assert.rejects(readFile(first), { code: "ENOENT" });
+  await runtime.service.updateTaskContext(task.id); await assert.rejects(readFile(first), { code: "ENOENT" });
+  await runtime.service.restart(session.id, true, runtime.owner);
+  const second = JSON.parse(instructions[1].split("\n")[1]); assert.notEqual(first, second);
+  await rm(second); current.contextVersion++; await runtime.service.updateTaskContext(task.id);
+  assert.equal(session.contextSyncFailed, true); assert.equal(session.status, "running");
+  await runtime.service.archive(session.id, runtime.owner); assert.equal(runtime.processes.size, 0);
+});
 
 test("仓库命令只读取已保存脚本，在指定工作区执行并按命令去重，保留实际退出码", async context => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "navo-command-"));

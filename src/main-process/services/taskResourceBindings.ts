@@ -44,9 +44,10 @@ export class TaskResourceBindings {
     if (!file) throw new Error("TASK_ATTACHMENT_MISSING");
     return file.path;
   }
-  async updateNote(taskId: string, note: TaskNote) {
+  async updateNote(taskId: string, note: TaskNote, expected?: TaskNote) {
     if (typeof taskId !== "string" || !isValidNote(note)) throw new Error("TASK_INVALID");
-    await this.resources.mutateNote(taskId, note.id, note);
+    if (expected && !isValidNote(expected)) throw new Error("TASK_INVALID");
+    await this.resources.mutateNote(taskId, note.id, note, expected);
     return this.task(taskId);
   }
   async deleteNote(taskId: string, noteId: string) {

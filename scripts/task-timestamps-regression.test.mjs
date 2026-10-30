@@ -60,7 +60,7 @@ test("v10 升级回填任务和会话的已知时间，保留已存在的值并�
   database.prepare("INSERT INTO task_sessions VALUES (?,?,?,?)").run("other", task.id, session.id, JSON.stringify({ ...session, lastUpdateAt: archivedAt, lastActiveAt: archivedAt }));
   database.close();
   const upgraded = await openAppDatabase(filename);
-  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 11);
+  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 12);
   assert.equal(upgraded.prepare("SELECT updated_at FROM tasks WHERE id=?").get(task.id).updated_at, createdAt);
   const read = namespace => JSON.parse(upgraded.prepare("SELECT data FROM task_sessions WHERE namespace=?").get(namespace).data);
   assert.equal(read("test").lastUpdateAt, archivedAt);

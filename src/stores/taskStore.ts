@@ -19,7 +19,9 @@ interface TaskState {
   requestOpen: (id: string | null) => void;
   create: (input: CreateTaskInput) => Promise<Task>;
   addResources: (id: string, input: AddTaskResourcesInput) => Promise<Task>;
-  updateNote: (id: string, note: TaskNote) => Promise<Task>;
+  updateNote: (id: string, note: TaskNote, expected?: TaskNote) => Promise<Task>;
+  updatePrompt: (id: string, content: string, expected: string) => Promise<Task>;
+  detachResource: (id: string, input: import("@/shared/taskContextTypes").TaskResourceRemoval) => Promise<Task>;
   deleteNote: (id: string, noteId: string) => Promise<Task>;
   rename: (id: string, title: string) => Promise<boolean>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
@@ -27,12 +29,19 @@ interface TaskState {
   remove: (id: string, confirmation?: TaskDeletionConfirmation) => Promise<boolean>;
 }
 
+// IPC 通知可能先于较早的请求响应抵达，不能用旧快照覆盖初始化进度或其他视图的编辑。
+const broadcasts = new Map<string, Task>();
+function latestTask(task: Task) {
+  const latest = broadcasts.get(task.id);
+  return latest && (latest.contextVersion ?? 0) >= (task.contextVersion ?? 0) && latest.updatedAt >= task.updatedAt ? latest : task;
+}
+
 export const useTaskStore = create<TaskState>((set, get) => {
   async function updateTask(operation: () => Promise<Task>) {
     if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
     set({ pending: true, error: null });
     try {
-      const updated = await operation();
+      const updated = latestTask(await operation());
       set({ tasks: get().tasks.map((task) => task.id === updated.id ? updated : task) });
       return updated;
     } finally { set({ pending: false }); }
@@ -41,7 +50,7 @@ export const useTaskStore = create<TaskState>((set, get) => {
     if (get().pending || get().loading || !get().loaded) return false;
     const previous = get().tasks;
     set({ pending: true, error: null, ...(optimistic ? { tasks: optimistic } : {}) });
-    try { set({ tasks: await operation() }); return true; }
+    try { set({ tasks: (await operation()).map(latestTask) }); return true; }
     catch (error) { set({ tasks: previous, error }); return false; }
     finally { set({ pending: false }); }
   }
@@ -55,19 +64,21 @@ export const useTaskStore = create<TaskState>((set, get) => {
         const result = await getTasksApi().load();
         const tasks = result.tasks ?? await getTasksApi().importLegacy(readLegacyTasks());
         if (result.tasks === null) clearLegacyTasks();
-        set({ tasks, loaded: true, recoveryWarnings: result.recoveryWarnings });
+        set({ tasks: tasks.map(latestTask), loaded: true, recoveryWarnings: result.recoveryWarnings });
       } catch (error) { set({ error }); }
       finally { set({ loading: false }); }
     },
     requestOpen: (requestedTaskId) => set({ requestedTaskId }),
     addResources: (id, input) => updateTask(() => getTasksApi().addResources(id, input)),
-    updateNote: (id, note) => updateTask(() => getTasksApi().updateNote(id, note)),
+    updateNote: (id, note, expected) => updateTask(() => getTasksApi().updateNote(id, note, expected)),
+    updatePrompt: (id, content, expected) => updateTask(() => getTasksApi().updatePrompt(id, content, expected)),
+    detachResource: (id, input) => updateTask(() => getTasksApi().detachResource(id, input)),
     deleteNote: (id, noteId) => updateTask(() => getTasksApi().deleteNote(id, noteId)),
     async create(input) {
       if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
       set({ pending: true });
       try {
-        const task = await getTasksApi().create(input);
+        const task = latestTask(await getTasksApi().create(input));
         set({ tasks: [task, ...get().tasks.filter((item) => item.id !== task.id)] });
         return task;
       } finally { set({ pending: false }); }
@@ -78,3 +89,13 @@ export const useTaskStore = create<TaskState>((set, get) => {
     remove: (id, confirmation) => mutate(() => getTasksApi().remove(id, confirmation)),
   };
 });
+
+export function subscribeTaskChanges() {
+  try {
+    return getTasksApi().onChanged((updated) => {
+      broadcasts.set(updated.id, updated);
+      useTaskStore.setState((state) => ({ tasks: state.tasks.some((task) => task.id === updated.id)
+        ? state.tasks.map((task) => task.id === updated.id ? updated : task) : [updated, ...state.tasks] }));
+    });
+  } catch { return () => undefined; }
+}

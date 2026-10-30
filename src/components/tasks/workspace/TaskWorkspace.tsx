@@ -193,10 +193,10 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
         {onOpenPage && <Button variant="ghost" size="icon-sm" aria-label={t("tasks:details.close")} onClick={() => noteEditor.leave(onClose)}><X /></Button>}
       </div>
     </header>
-    {error && <div role="alert" className="task-workbench-error">{t("tasks:runtime.operationFailed")}<Button variant="ghost" size="sm" onClick={() => useTaskSessionStore.setState({ error: null })}>{t("common:actions.close")}</Button></div>}
+    {error && <div role="alert" className="task-workbench-error">{t(error === "SESSION_INITIALIZATION_REQUIRED" ? "tasks:context.setupBlocked" : "tasks:runtime.operationFailed")}<Button variant="ghost" size="sm" onClick={() => useTaskSessionStore.setState({ error: null })}>{t("common:actions.close")}</Button></div>}
     <div className="task-workbench-layout" ref={setLayoutContainer}>
         <TaskContextPanel narrow={narrow} open={contextOpen} onOpenChange={setContextOpen} width={railWidth} container={layoutContainer} triggerRef={contextTriggerRef}>
-          <TaskResourceRail task={task} sessions={sessions} activeId={showAgentPane ? active?.id : undefined} activeTerminalId={visibleTerminal ? activeTerminal?.id : undefined}
+          <TaskResourceRail task={task} sessions={allSessions.filter((session) => session.taskId === task.id)} activeId={showAgentPane ? active?.id : undefined} activeTerminalId={visibleTerminal ? activeTerminal?.id : undefined}
             activeResourceId={visibleBranch ? branchResource?.resourceId : undefined} activeNoteId={visibleNote ? noteEditor.note?.id : undefined} onNote={showNote}
             onDeleteNote={(id) => noteEditor.requestDelete(id)} noteDeleteDisabled={noteEditor.pending || noteEditor.busy || noteEditor.readOnly}
             onRunCommand={(resourceId, commandId) => void addTerminal(resourceId, commandId)}

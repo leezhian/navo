@@ -2,12 +2,16 @@ import { useRef, useState } from "react";
 import type { Task } from "@/domain/tasks";
 import type { TaskNote } from "@/shared/taskResourceTypes";
 import { useTaskStore } from "@/stores/taskStore";
+import { TASK_PROMPT_ID } from "@/shared/taskContextTypes";
+import { useTranslation } from "react-i18next";
 
 type NoteDraft = { taskId: string; original: TaskNote; title: string; content: string };
 type NoteConfirmation = { kind: "delete"; noteId: string } | { kind: "discard"; proceed: () => void };
 
 export function useTaskNoteEditor(task: Task, noteId: string | undefined, onDeleted: () => void) {
-  const note = task.notes?.find((item) => item.id === noteId);
+  const { t } = useTranslation(["tasks", "common"]);
+  const isPrompt = noteId === TASK_PROMPT_ID;
+  const note = isPrompt ? { id: TASK_PROMPT_ID, title: t("tasks:context.prompt"), content: task.description ?? "" } : task.notes?.find((item) => item.id === noteId);
   const [storedDraft, setDraft] = useState<NoteDraft | null>(null);
   const [confirmation, setConfirmation] = useState<NoteConfirmation | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -35,7 +39,8 @@ export function useTaskNoteEditor(task: Task, noteId: string | undefined, onDele
     if (!draft || !draft.content.trim() || readOnly || pending || saving.current) return;
     saving.current = true; setBusy(true); setError(null);
     try {
-      await useTaskStore.getState().updateNote(task.id, { id: draft.original.id, title: draft.title, content: draft.content });
+      if (isPrompt) await useTaskStore.getState().updatePrompt(task.id, draft.content, draft.original.content);
+      else await useTaskStore.getState().updateNote(task.id, { id: draft.original.id, title: draft.title, content: draft.content }, draft.original);
       reset();
     } catch (failure) { setError(failure); }
     finally { saving.current = false; setBusy(false); }
@@ -56,7 +61,7 @@ export function useTaskNoteEditor(task: Task, noteId: string | undefined, onDele
     finally { saving.current = false; setBusy(false); }
   }
   return {
-    note, deletionNote, draft, dirty, error, busy, pending, readOnly, confirmation: visibleConfirmation,
+    note, isPrompt, deletionNote, draft, dirty, error, busy, pending, readOnly, confirmation: visibleConfirmation,
     edit, leave, save, confirm,
     change: (patch: Partial<Pick<TaskNote, "title" | "content">>) => setDraft((current) => current ? { ...current, ...patch } : null),
     cancel: () => leave(() => undefined),

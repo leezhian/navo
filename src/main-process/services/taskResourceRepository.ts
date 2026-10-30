@@ -2,6 +2,8 @@ import type { DatabaseSync } from "node:sqlite";
 import type { AddTaskResourcesInput, TaskFileReference, TaskNote } from "../../shared/taskResourceTypes";
 import type { TaskResource } from "../../shared/taskTypes";
 import { openAppDatabase } from "./appDatabase";
+import { insertInitialization } from "./taskInitializationRepository";
+import type { StoredInitializationStep } from "./taskInitializationRepository";
 
 export function readTaskExtraResources(database: DatabaseSync, namespace: string, taskId: string) {
   const notes: TaskNote[] = database.prepare("SELECT id,title,content FROM task_notes WHERE namespace=? AND task_id=? ORDER BY rowid").all(namespace, taskId)
@@ -18,7 +20,7 @@ export class TaskResourceRepository {
     try { return Boolean(database.prepare("SELECT 1 FROM task_resource_batches WHERE namespace=? AND task_id=? AND request_id=?").get(this.namespace, taskId, requestId)); }
     finally { database.close(); }
   }
-  async appendWorkspaces(taskId: string, requestId: string, resources: TaskResource[]) {
+  async appendWorkspaces(taskId: string, requestId: string, resources: TaskResource[], initialization: StoredInitializationStep[] = []) {
     const database = await openAppDatabase(this.filename);
     const namespace = this.namespace;
     let transactionOpen = false;
@@ -44,6 +46,7 @@ export class TaskResourceRepository {
       }
       if (firstResource && resources.length) database.prepare("UPDATE tasks SET project_name=? WHERE namespace=? AND id=?").run(resources[0].name, namespace, taskId);
       if (changed) this.touchTask(database, taskId);
+      insertInitialization(database, namespace, taskId, initialization);
       database.prepare("INSERT INTO task_resource_batches VALUES (?,?,?)").run(namespace, taskId, requestId);
       database.prepare("DELETE FROM task_operations WHERE namespace=? AND id=?").run(namespace, requestId);
       database.exec("COMMIT");
@@ -58,7 +61,9 @@ export class TaskResourceRepository {
     try {
       database.exec("BEGIN IMMEDIATE");
       transactionOpen = true;
-      if (!database.prepare("SELECT 1 FROM tasks WHERE namespace=? AND id=?").get(namespace, taskId)) throw new Error("TASK_NOT_FOUND");
+      const task = database.prepare("SELECT status FROM tasks WHERE namespace=? AND id=?").get(namespace, taskId);
+      if (!task) throw new Error("TASK_NOT_FOUND");
+      if (task.status === "ARCHIVED" || database.prepare("SELECT 1 FROM task_deletions WHERE namespace=? AND task_id=?").get(namespace, taskId)) throw new Error("TASK_BUSY");
       if (!database.prepare("SELECT 1 FROM task_resource_batches WHERE namespace=? AND task_id=? AND request_id=?").get(namespace, taskId, input.requestId)) {
         let changed = false;
         for (const link of input.links) {
@@ -94,7 +99,7 @@ export class TaskResourceRepository {
     } catch (error) { if (transactionOpen) database.exec("ROLLBACK"); throw error; }
     finally { database.close(); }
   }
-  async mutateNote(taskId: string, noteId: string, note: TaskNote | null) {
+  async mutateNote(taskId: string, noteId: string, note: TaskNote | null, expected?: TaskNote) {
     const database = await openAppDatabase(this.filename);
     let transactionOpen = false;
     try {
@@ -105,6 +110,7 @@ export class TaskResourceRepository {
       if (task.status === "ARCHIVED" || database.prepare("SELECT 1 FROM task_deletions WHERE namespace=? AND task_id=?").get(this.namespace, taskId)) throw new Error("TASK_BUSY");
       const current = database.prepare("SELECT title,content FROM task_notes WHERE namespace=? AND task_id=? AND id=?").get(this.namespace, taskId, noteId);
       if (!current) throw new Error("TASK_NOTE_NOT_FOUND");
+      if (expected && (current.title !== expected.title || current.content !== expected.content)) throw new Error("TASK_CONTENT_CHANGED");
       if (note) {
         if (current.title !== note.title.trim() || current.content !== note.content) {
           database.prepare("UPDATE task_notes SET title=?,content=? WHERE namespace=? AND task_id=? AND id=?").run(note.title.trim(), note.content, this.namespace, taskId, noteId);
@@ -120,6 +126,6 @@ export class TaskResourceRepository {
     finally { database.close(); }
   }
   private touchTask(database: DatabaseSync, taskId: string) {
-    database.prepare("UPDATE tasks SET updated_at=? WHERE namespace=? AND id=?").run(new Date().toISOString(), this.namespace, taskId);
+    database.prepare("UPDATE tasks SET updated_at=?,context_version=context_version+1 WHERE namespace=? AND id=?").run(new Date().toISOString(), this.namespace, taskId);
   }
 }

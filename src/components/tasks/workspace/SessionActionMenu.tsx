@@ -34,12 +34,14 @@ export function SessionActionMenu({ session }: SessionActionMenuProps) {
   return <>
     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-foreground" aria-label={t("tasks:runtime.sessionActions")} disabled={pending}><ChevronDown className="size-3.5" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
+        {!session.archivedAt && <>
         <DropdownMenuItem className="text-xs" disabled={!nativeSupported || pending} onSelect={() => openAction("rename")}><Pencil className="size-3.5" />{t("tasks:runtime.renameSession")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" disabled={pending} onSelect={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restartAgent")}</DropdownMenuItem>
         <DropdownMenuItem className="text-xs" disabled={pending || !running} onSelect={() => void useTaskSessionStore.getState().stop(session.id)}><Power className="size-3.5" />{t("tasks:runtime.shutdownAgent")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" disabled={pending} onSelect={() => void useTaskSessionStore.getState().archive(session.id)}><Archive className="size-3.5" />{t("tasks:runtime.archiveSession")}</DropdownMenuItem>
+        </>}
         <DropdownMenuItem className="text-xs" variant="destructive" disabled={!nativeSupported || pending} onSelect={() => openAction("delete")}><Trash2 className="size-3.5" />{t("tasks:runtime.deleteSession")}</DropdownMenuItem>
         {!nativeSupported && <p className="px-2 py-1.5 text-[11px] text-muted-foreground">{t("tasks:runtime.nativeActionsUnavailable")}</p>}
       </DropdownMenuContent>

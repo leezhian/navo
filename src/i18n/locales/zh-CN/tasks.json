@@ -1,4 +1,28 @@
 {
+  "context": {
+    "prompt": "任务正文",
+    "detach": "解除关联",
+    "detachTitle": "解除资源关联？",
+    "detachDescription": "仅移除本任务的关联，不删除磁盘文件、Worktree、分支或外部 Issue / PR。",
+    "changed": "内容已在其他视图修改，请保留草稿并重新打开最新内容后再编辑。",
+    "workspaceBusy": "请先停止使用此工作目录的会话、终端或初始化命令。",
+    "archived": "已归档 {{count}}",
+    "restoreSession": "归档于 {{date}} · 点击恢复，不自动启动",
+    "dynamic": "动态共享上下文：Agent 可按需读取最新正文、资源和笔记，不保证每轮自动读取。",
+    "snapshot": "此会话仅有启动快照，尚未接入实时上下文；重新启动后按 CLI 能力接入。",
+    "file": "上下文文件随任务修改更新，Agent 按约定每轮重新读取；不保证模型已读取。点击复制读取提示，可粘贴到原终端。",
+    "fileFailed": "上下文文件同步失败，Agent 可能仍读取旧内容。点击重试并复制读取提示。",
+    "reminderCopied": "读取提示已复制，请粘贴到 CLI 的对话输入处。",
+    "reminderFailed": "无法更新或复制上下文读取提示，请重试。",
+    "setup": "Worktree 初始化",
+    "pending": "等待执行",
+    "running": "执行中",
+    "succeeded": "已完成",
+    "failed": "失败或已中断",
+    "retry": "重试未完成命令",
+    "retryHint": "已成功的命令不会重跑；失败或中断的脚本可能已经执行了一部分。",
+    "setupBlocked": "请先完成 Worktree 初始化，再启动 Agent。"
+  },
   "time": {
     "justNow": "刚刚",
     "minutes": "{{count}} 分钟前",

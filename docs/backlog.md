@@ -4,15 +4,15 @@
 
 ## 1. 明确 TODO 与功能缺口
 
-任务创建后的资源增补已接入；剩余范围为已有资源编辑、解除关联。代码中的 `TODO` 多数是任务状态，不是开发待办。
+任务创建后的资源增补已接入；已支持正文编辑和资源解除关联，剩余范围为普通链接等已有资源的原位编辑。代码中的 `TODO` 多数是任务状态，不是开发待办。
 
 | 功能 | 已有基础 | 尚未实现 | 核对入口 |
 | --- | --- | --- | --- |
 | 任务内 Agent 运行 | 本地任务、描述、附件、关联条目和工作目录；四种本机 CLI 的设置与检测，未知状态不隐藏；创建时按真实能力选择 Claude/Codex/Grok/Antigravity、模型、模式、思考等级并保存到任务 | 已接入原生 CLI 启动/停止/重启和 Claude/Grok 精确恢复；待补 Codex/Antigravity 原生恢复、Codex 非 default 模式、可靠等待输入状态、多账号及富聊天 | [任务页](../src/components/tasks/TaskPage.tsx)、[Agent 设置](prd/settings/agents.md) |
-| 多项目共享上下文 | 单个任务可关联多个仓库，准备分支或 Worktree | 已通过首条指令交付资源；待补动态 Notes、跨会话共享上下文和协作规则 | [创建任务需求](prd/task-create.md)、[产品范围](../PRD.md) |
+| 多项目共享上下文 | 单个任务可关联多个仓库，准备分支或 Worktree | Claude/Codex 已支持任务级只读 MCP，按需读取最新正文、资源和 Notes；Grok/Antigravity 已补实时上下文文件及每轮读取约定；待补它们的会话级 MCP、可靠逐轮交付确认及更多协作规则 | [创建任务需求](prd/task-create.md)、[产品范围](../PRD.md) |
 | 服务商授权 | GitHub、GitHub Enterprise、GitLab、GitLab Self-Hosted、Linear 列表 | 真实连接、凭证安全存储、失效处理与断开；具体采用 OAuth、Device Flow 或 Token 仍需按平台确定 | [集成服务](../src/services/integrationApi.ts)、[集成需求](prd/settings/integrations.md) |
 | Issue / PR 远程数据 | 本地列表/看板、筛选、详情及创建任务时关联 | 远程拉取与刷新、描述/评论等详情、与服务商状态同步；当前刷新仅重读本地数据 | [Issue 数据](../src/stores/issueStore.ts)、[Issue 需求](prd/issues.md) |
-| 已有任务增补上下文 | 创建时可添加资源、Issue/PR、附件和普通链接；创建后可增补仓库/文件夹、配置分支及隔离 Worktree，也可改名及调整状态 | 已支持增补 Issue/PR、普通链接、原文件引用及任务笔记，笔记支持预览、编辑和删除；待补其他已有资源编辑与解除关联、任务描述编辑 | [任务工作台](prd/task-workspace.md) |
+| 已有任务增补上下文 | 创建时可添加资源、Issue/PR、附件和普通链接；创建后可增补仓库/文件夹、配置分支及隔离 Worktree，也可改名及调整状态 | 已支持增补 Issue/PR、普通链接、原文件引用及任务笔记，笔记支持预览、编辑和删除；已支持任务正文编辑及其他资源解除关联；待补普通链接等资源的原位编辑 | [任务工作台](prd/task-workspace.md) |
 | 任务内代码审查 | 已有 diff 弹窗、文件树、评论及 Git 操作 | 已接入分支/变更面板和原有完整 Diff 弹窗；单个 commit 的 Diff 尚未接入 | [审查需求](prd/review.md)、[审查弹窗](../src/components/review/ReviewDialog.tsx) |
 | 任务内终端 | 已有终端渲染、独立 Shell 与主进程 PTY 服务 | 已接入任务内普通 Shell、工作目录绑定及关闭终止；跨重启输出和终端恢复未接入 | [终端需求](prd/terminal.md)、[终端组件](../src/components/terminal/TerminalWorkspace.tsx) |
 | 保持唤醒 | 设置开关可保存 | 实际系统防休眠及 Agent/远程访问生命周期联动 | [常规设置需求](prd/settings/general.md)、[设置页](../src/components/settings/GeneralSettingsPage.tsx) |
@@ -22,7 +22,7 @@
 ## 2. 仍需定义或可后续增强
 
 - 远程开发环境与 Remote Access：当前未接入；本机使用 SSH 地址克隆仓库不等于远程执行 Agent。
-- 普通链接可在系统浏览器打开，附件可定位应用管理的副本；正文编辑和自动网页抓取未接入。
+- 普通链接可在系统浏览器打开，附件可定位应用管理的副本；正文可编辑，自动网页抓取未接入。
 - 历史审查记录如何进入新任务流程、AI 审查建议、审查笔记同步、自定义 diff 忽略规则、项目固定、全局变更查看及默认对比分支策略，在产品索引中仍有待确认项，需要逐项细化而非直接视为已承诺功能。
 - 未跟踪文件的完整 diff 展示仍是审查文档中的后续范围，当前应区分文件状态提示与内容 diff。
 

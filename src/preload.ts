@@ -32,6 +32,8 @@ const api: NavoApi = {
     start: (input) => ipcRenderer.invoke(ipcChannels.taskSessionsStart, input),
     stop: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsStop, id),
     archive: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsArchive, id),
+    restore: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsRestore, id),
+    contextReminder: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsContextReminder, id),
     rename: (id, title) => ipcRenderer.invoke(ipcChannels.taskSessionsRename, id, title),
     remove: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsRemove, id),
     restart: (id, resume) => ipcRenderer.invoke(ipcChannels.taskSessionsRestart, id, resume),
@@ -72,7 +74,15 @@ const api: NavoApi = {
     workspaceOpenOptions: (id, resourceId) => ipcRenderer.invoke(ipcChannels.tasksWorkspaceOpenOptions, id, resourceId),
     openWorkspace: (id, resourceId, target) => ipcRenderer.invoke(ipcChannels.tasksOpenWorkspace, id, resourceId, target),
     addResources: (id, input) => ipcRenderer.invoke(ipcChannels.tasksAddResources, id, input),
-    updateNote: (id, note) => ipcRenderer.invoke(ipcChannels.tasksUpdateNote, id, note),
+    updateNote: (id, note, expected) => ipcRenderer.invoke(ipcChannels.tasksUpdateNote, id, note, expected),
+    updatePrompt: (id, content, expected) => ipcRenderer.invoke(ipcChannels.tasksUpdatePrompt, id, content, expected),
+    detachResource: (id, input) => ipcRenderer.invoke(ipcChannels.tasksDetachResource, id, input),
+    retryInitialization: (id) => ipcRenderer.invoke(ipcChannels.tasksRetryInitialization, id),
+    onChanged: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, task: import("./domain/tasks").Task) => listener(task);
+      ipcRenderer.on(ipcChannels.tasksChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.tasksChanged, handler);
+    },
     deleteNote: (id, noteId) => ipcRenderer.invoke(ipcChannels.tasksDeleteNote, id, noteId),
     chooseResourceFile: () => ipcRenderer.invoke(ipcChannels.tasksChooseResourceFile),
     releaseResourceFiles: (ids) => ipcRenderer.invoke(ipcChannels.tasksReleaseResourceFiles, ids),

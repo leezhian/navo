@@ -13,6 +13,10 @@ import { sessionWorkspaceLabel } from "@/utils/taskSessionWorkspace";
 import { WorkspaceOpenActions } from "./WorkspaceOpenActions";
 import { WorkspaceCommandActions } from "./WorkspaceCommandActions";
 import { TaskNoteRow } from "./TaskNoteRow";
+import { TASK_PROMPT_ID } from "@/shared/taskContextTypes";
+import { TaskResourceMenu } from "./TaskResourceMenu";
+import { ArchivedSessions } from "./ArchivedSessions";
+import { TaskInitializationPanel } from "./TaskInitializationPanel";
 
 interface TaskResourceRailProps {
   /** 只展示真实关联资源，不填充 demo 条目。 */
@@ -81,14 +85,17 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
 export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, noteDeleteDisabled, onRunCommand, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
+  const archived = sessions.filter((session) => session.kind === "agent" && session.archivedAt);
   const terminals = sessions.filter((session) => session.kind === "shell");
   const repos = task.resources?.filter((resource) => resource.mode !== "folder") ?? [];
   const folders = task.resources?.filter((resource) => resource.mode === "folder") ?? [];
   const prs = task.links?.filter((link) => link.group === "PR") ?? [];
   const issues = task.links?.filter((link) => link.group === "ISSUE") ?? [];
   return <aside className="task-context-rail" aria-label={t("tasks:runtime.context")}>
+    <TaskInitializationPanel task={task} />
     <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories")}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
-    <ResourceGroup title={t("tasks:runtime.sessions")} count={agents.length} action={newSessionControl}>
+    <ResourceGroup title={t("tasks:runtime.sessions")} count={agents.length + archived.length} action={newSessionControl}>
+      <ArchivedSessions sessions={archived} task={task} onRestored={onSelect} />
       {agents.map((session) => {
         const workspaceLabel = sessionWorkspaceLabel(session, task.resources ?? [], t("tasks:runtime.allWorktrees"), t("tasks:runtime.unknownWorkspace"));
         return <div key={session.id} className="task-context-session" data-active={session.id === activeId}>
@@ -106,26 +113,27 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
       </div>; })}
     </ResourceGroup>
     <ResourceGroup title="CHANGES" count={repos.length} onAdd={onAddResource && (() => onAddResource("repositories"))}>
-      {repos.map((resource) => <div key={resource.resourceId} className="task-context-change" data-active={resource.resourceId === activeResourceId}>
+      {repos.map((resource) => <TaskResourceMenu key={resource.resourceId} task={task} resource={{ kind: "workspace", id: resource.resourceId }}><div className="task-context-change" data-active={resource.resourceId === activeResourceId}>
         <button className="task-context-row flex-1" data-active={resource.resourceId === activeResourceId} aria-pressed={resource.resourceId === activeResourceId} onClick={() => onReview(resource)} title={resource.workingPath}>
         <ContextItemIcon><GitBranch /></ContextItemIcon><span className="task-context-change-heading min-w-0 flex-1"><span className="block truncate">{resource.targetBranch || resource.sourceBranch}</span></span>
         </button><div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} />
           <WorkspaceCommandActions resource={resource} sessions={terminals} disabled={archivePending || task.status === "ARCHIVED" || !onWorkspaceOpenError} onRun={onRunCommand} />
         </div>
-      </div>)}
+      </div></TaskResourceMenu>)}
     </ResourceGroup>
     {terminals.length > 0 && <ResourceGroup title={t("tasks:runtime.terminals")} count={terminals.length} action={newTerminalControl}>
       {terminals.map((session) => <button key={session.id} className="task-context-row" data-active={session.id === activeTerminalId} aria-pressed={session.id === activeTerminalId} onClick={() => onSelect(session)} title={session.cwd}><ContextItemIcon><Terminal /></ContextItemIcon><span className="truncate">{session.title}</span></button>)}
     </ResourceGroup>}
-    <ResourceGroup title="PULL REQUESTS" count={prs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}>{prs.map((link) => <button key={link.id} className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button>)}</ResourceGroup>
-    <ResourceGroup title="ISSUES" count={issues.length} onAdd={onAddResource && (() => onAddResource("issues"))}>{issues.map((link) => <button key={link.id} className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button>)}</ResourceGroup>
+    <ResourceGroup title="PULL REQUESTS" count={prs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}>{prs.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}</ResourceGroup>
+    <ResourceGroup title="ISSUES" count={issues.length} onAdd={onAddResource && (() => onAddResource("issues"))}>{issues.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}</ResourceGroup>
     <ResourceGroup title="LINKS" count={(task.attachments?.length ?? 0) + (task.webLinks?.length ?? 0) + (task.files?.length ?? 0) + folders.length} onAdd={onAddResource && (() => onAddResource("links"))}>
-      {folders.map((folder) => <button key={folder.resourceId} className="task-context-row" onClick={() => onPreview(folder.name, folder.workingPath)}><ContextItemIcon><FolderGit2 /></ContextItemIcon><span className="truncate">{folder.name}</span></button>)}
-      {task.attachments?.map((file) => <button key={file.id} className="task-context-row" title={file.name} onClick={() => onAttachment(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button>)}
-      {task.files?.map((file) => <button key={file.id} className="task-context-row" title={file.path} disabled={!onFile} onClick={() => onFile?.(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button>)}
-      {task.webLinks?.map((link) => <button key={link.id} className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button>)}
+      {folders.map((folder) => <TaskResourceMenu key={folder.resourceId} task={task} resource={{ kind: "workspace", id: folder.resourceId }}><button className="task-context-row" onClick={() => onPreview(folder.name, folder.workingPath)}><ContextItemIcon><FolderGit2 /></ContextItemIcon><span className="truncate">{folder.name}</span></button></TaskResourceMenu>)}
+      {task.attachments?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "attachment", id: file.id }}><button className="task-context-row" title={file.name} onClick={() => onAttachment(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button></TaskResourceMenu>)}
+      {task.files?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "file", id: file.id }}><button className="task-context-row" title={file.path} disabled={!onFile} onClick={() => onFile?.(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button></TaskResourceMenu>)}
+      {task.webLinks?.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "link", id: link.id }}><button className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button></TaskResourceMenu>)}
     </ResourceGroup>
-    <ResourceGroup title="NOTES" count={task.notes?.length ?? 0} onAdd={onAddResource && (() => onAddResource("notes"))}>
+    <ResourceGroup title="NOTES" count={(task.notes?.length ?? 0) + 1} onAdd={onAddResource && (() => onAddResource("notes"))}>
+      <button className="task-context-row" data-active={activeNoteId === TASK_PROMPT_ID} aria-pressed={activeNoteId === TASK_PROMPT_ID} onClick={(event) => onNote(TASK_PROMPT_ID, event.currentTarget)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{t("tasks:context.prompt")}</span></button>
       {task.notes?.map((note) => <TaskNoteRow key={note.id} note={note} active={note.id === activeNoteId} deleteDisabled={noteDeleteDisabled} onOpen={onNote} onDelete={onDeleteNote} />)}
     </ResourceGroup>
   </aside>;

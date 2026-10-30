@@ -24,6 +24,8 @@ export function parseStoredSession(data: string, id: string, taskId: string): Ta
     || typeof session.cwd !== "string" || !isText(session.terminalId) || typeof session.resumable !== "boolean"
     || !isDate(session.createdAt)
     || (session.titleSource !== undefined && session.titleSource !== "cli")
+    || (session.contextMode !== undefined && !["dynamic", "file", "snapshot"].includes(session.contextMode))
+    || (session.contextSyncFailed !== undefined && typeof session.contextSyncFailed !== "boolean")
     || (session.workspace !== undefined && !isWorkspace(session.workspace))
     || [session.archivedAt, session.lastUpdateAt, session.lastActiveAt].some((date) => date !== undefined && !isDate(date))
     || [session.nativeSessionId, session.nativeHistoryRoot, session.error].some((text) => text !== undefined && !isText(text))) return null;

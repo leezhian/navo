@@ -33,6 +33,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,command:input.commandId?{id:input.commandId,resourceId:input.resourceId,name:'Build'}:undefined,title:input.commandId?'Build':input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',resumable:false});return publish();},
         stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id||record.kind==='agent').map(record=>record.id===id?{...record,status:'stopped'}:record);return publish();},
         archive:async id=>{window.archives.push(id);records=records.map(record=>record.id===id?{...record,status:'stopped',archivedAt:new Date().toISOString()}:record);return publish();},
+        restore:async id=>{records=records.map(record=>record.id===id?{...record,archivedAt:undefined,status:'stopped'}:record);return publish();},
         rename:async(id,title)=>{window.renames.push({id,title});records=records.map(record=>record.id===id?{...record,title,status:'stopped'}:record);return publish();},
         remove:async id=>{window.removes.push(id);records=records.filter(record=>record.id!==id);return publish();},
         restart:async(id,resume)=>{window.restarts.push({id,resume});records=records.map(record=>record.id===id?{...record,status:'running'}:record);return publish();},openLink:async()=>{},revealAttachment:async()=>{}
@@ -59,7 +60,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
       await win.webContents.executeJavaScript(\`(async()=>{
         const pause=()=>new Promise(resolve=>setTimeout(resolve,40));
         const wait=async(check,message)=>{for(let i=0;i<200;i++){if(check())return;await pause();}throw new Error(message);};
-        const button=label=>document.querySelector('button[aria-label="'+label+'"]');
+        const button=label=>(label==='Session actions'?document.querySelector('.task-agent-pane'):document).querySelector('button[aria-label="'+label+'"]');
         const assertItemIcons=()=>{
           for(const item of document.querySelectorAll('.task-context-row, .task-context-session-select')){
             const title=item.querySelector('.block.truncate')??item.querySelector(':scope > span.truncate');
@@ -95,11 +96,11 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const titleBounds=document.querySelector('.task-workbench-heading h2').getBoundingClientRect();
         const statusBounds=document.querySelector('.task-workbench-task-status').getBoundingClientRect();
         if(statusBounds.width===0||Math.abs(statusBounds.left-titleBounds.right-8)>1)throw new Error('Task status must sit directly beside the title even in a narrow pane');
-        if(document.querySelector('.task-context-group'))throw new Error('Empty context groups must hide');
+        if(document.querySelectorAll('.task-context-group').length!==1||!document.querySelector('.task-context-rail').textContent.includes('任务正文'))throw new Error('Prompt must remain when other groups are empty');
         if(document.querySelector('.task-workbench-heading button[aria-label="新建会话"]'))throw new Error('Header must not offer new session');
         if(![...document.querySelectorAll('.task-session-empty button')].some(item=>item.textContent.includes('新建会话')))throw new Error('Empty task must still offer new session');
         window.setTaskResources({resources:[{resourceId:'repo',name:'repo',mode:'worktree',workingPath:'/test',targetBranch:'feature'}],links:[{id:'pr',group:'PR',title:'PR'},{id:'issue',group:'ISSUE',title:'Issue'}],attachments:[{id:'file',name:'file.txt'}]});
-        await wait(()=>document.querySelectorAll('.task-context-group').length===4,'Populated groups must appear');
+        await wait(()=>document.querySelectorAll('.task-context-group').length===5,'Populated groups must appear');
         for(const group of document.querySelectorAll('.task-context-group'))if(!group.querySelector('.task-context-group-heading button:not(:disabled) .lucide-plus'))throw new Error('Resource groups must expose add buttons');
         if(getComputedStyle(document.querySelector('.task-context-group-heading')).height!=='32px'||getComputedStyle(document.querySelector('.task-context-group + .task-context-group')).marginTop!=='6px')throw new Error('Context groups must use 32px headings and 6px spacing');
         for(const heading of document.querySelectorAll('.task-context-group-heading'))if(getComputedStyle(heading.querySelector('button:first-child')).fontSize!=='12px'||getComputedStyle(heading.querySelector('small')).fontSize!=='10px')throw new Error('Category titles must be 12px with subordinate 10px counts');
@@ -116,7 +117,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         workspaceButtons()[0].click();await wait(()=>window.workspaceOpens.length===1&&!workspaceButtons()[0].disabled,'File manager shortcut failed');
         if(document.querySelector('[data-slot="dialog-content"]'))throw new Error('Open-in shortcut must not trigger the Diff row action');
         const workspaceItem=label=>[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.closest('[role="menu"]')?.dataset.state==='open'&&item.textContent===label);
-        const workspaceMenu=async()=>{await new Promise(resolve=>setTimeout(resolve,200));workspaceButtons()[1].dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));await wait(()=>workspaceItem('在文件管理器中打开'),'Workspace menu missing');};
+        const workspaceMenu=async()=>{await new Promise(resolve=>setTimeout(resolve,200));workspaceButtons()[1].dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));await wait(()=>workspaceItem('在文件管理器中打开'),'Workspace menu missing after '+window.workspaceOpens.length+' actions');};
         await workspaceMenu();await wait(()=>workspaceItem('VS Code')&&workspaceItem('Xcode')&&workspaceItem('在 GitLab 上打开'),'Installed IDEs and provider menu missing');
         if(!workspaceItem('VS Code').querySelector('svg[data-editor="vscode"]')||!workspaceItem('Xcode').querySelector('svg[data-editor="xcode"]'))throw new Error('Installed editors must display their mapped brand icons');
         if(workspaceItem('VS Code').querySelector('path').getAttribute('d')===workspaceItem('Xcode').querySelector('path').getAttribute('d'))throw new Error('Different editors must not show the same generic icon');
@@ -151,8 +152,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
           await dismissWorkspaceMenu();
         }
         window.noEditors=false;
-        if(document.querySelector('.task-context-rail').textContent.includes('NOTES'))throw new Error('Empty notes must hide');
-        window.setTaskResources({});await wait(()=>!document.querySelector('.task-context-group'),'Cleared groups must hide');
+        if(!document.querySelector('.task-context-rail').textContent.includes('NOTES'))throw new Error('Prompt group must remain');
+        window.setTaskResources({});await wait(()=>document.querySelectorAll('.task-context-group').length===1,'Only Prompt remains after clearing resources');
         const sidebarActions=document.querySelector('.task-workbench-actions').querySelectorAll('button').length;
         window.setSidebar(false);await wait(()=>document.querySelector('.task-workbench-actions').querySelectorAll('button').length===sidebarActions-2,'Task page must remove close and promote buttons');
         window.setSidebar(true);await wait(()=>document.querySelector('.task-workbench-actions').querySelectorAll('button').length===sidebarActions,'Sidebar close must remain');
@@ -222,7 +223,9 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         rows()[0].querySelector('button[aria-label="Archive session"]').click();
         await wait(()=>rows().length===0,'Last archived row must disappear');
         await wait(()=>document.querySelector('#status [aria-label="No session"]'),'Archived records must not affect tab status');
-        if(document.querySelector('.task-context-group'))throw new Error('Empty session group must hide');
+        const archivedToggle=[...document.querySelectorAll('.task-context-rail button')].find(button=>button.textContent==='Archived 2');if(!archivedToggle||archivedToggle.getAttribute('aria-expanded')!=='false')throw Error('Archived list must start collapsed');archivedToggle.click();
+        await wait(()=>document.querySelector('button[title*="Click to restore"]'),'Archived rows missing');const launchesBeforeRestore=window.creates.length;document.querySelector('button[title*="Click to restore"]').click();await wait(()=>rows().length===1,'Restore must return an active row');if(window.creates.length!==launchesBeforeRestore)throw Error('Restore must not launch');rows()[0].querySelector('button[aria-label="Archive session"]').click();await wait(()=>rows().length===0,'Rearchive failed');
+        if(!document.querySelector('.task-context-rail').textContent.includes('Archived 2'))throw new Error('Archived-only session group must remain');
         if(!document.querySelector('.task-session-empty button'))throw new Error('Task must still allow creating a new session');
         const menuItem=label=>[...document.querySelectorAll('[role="menuitem"]')].find(element=>element.closest('[role="menu"]')?.dataset.state==='open'&&(element.querySelector(':scope > span')?.textContent||element.textContent).trim()===label);
         const openDropdown=async element=>{await new Promise(resolve=>setTimeout(resolve,200));element.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));};

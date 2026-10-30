@@ -11,6 +11,7 @@ import { SessionStatusIcon } from "./SessionStatusIcon";
 import { SessionActionMenu } from "./SessionActionMenu";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { hasManagedTerminalSession } from "@/components/terminal/terminalSessionManager";
+import { TaskSessionContextAction } from "./TaskSessionContextAction";
 
 interface AgentSessionPaneProps {
   /** 当前选中的 Agent 会话；普通 Shell 在下方独立展示。 */
@@ -31,6 +32,7 @@ export function AgentSessionPane({ task, session, newSessionControl, emptySessio
     <header className="task-workbench-panel-heading">
       <div className="flex min-w-0 items-center gap-2"><SessionStatusIcon status={session?.status} />{session && <AgentProviderIcon agentId={session.agent?.agentId} />}<span className="truncate text-xs" title={session ? sessionName : undefined}>{session ? sessionName : t("tasks:runtime.sessions")}</span></div>
       <div className="flex shrink-0 items-center gap-1">
+        {session && <TaskSessionContextAction key={session.id + session.terminalId} session={session} archived={task.status === "ARCHIVED"} />}
         {newSessionControl}
         {session && <><SessionActionMenu key={session.id} session={session} /><IconTooltip label={t("tasks:runtime.closePane")} size="icon-xs" onClick={onClosePane}><X className="size-3.5" /></IconTooltip></>}
       </div>

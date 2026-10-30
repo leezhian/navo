@@ -10,7 +10,7 @@ import { useAppNavigation } from "./hooks/useAppNavigation";
 import "./App.css";
 import { useEffect, useState } from "react";
 import { TaskCreateDialog } from "./components/tasks/create/TaskCreateDialog";
-import { useTaskStore } from "./stores/taskStore";
+import { useTaskStore, subscribeTaskChanges } from "./stores/taskStore";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "./stores/settingsStore";
 import { Button } from "./components/ui/button";
@@ -19,6 +19,7 @@ import { subscribeTaskSessions } from "./stores/taskSessionStore";
 
 function App() {
   useEffect(subscribeTaskSessions, []);
+  useEffect(subscribeTaskChanges, []);
   const { resolvedTheme, settings, updateSettings } = useLocalSettings();
   const navigation = useAppNavigation();
   const taskTabs = useTaskTabs();

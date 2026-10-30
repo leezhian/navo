@@ -23,6 +23,9 @@ import { TaskResourceBindings } from "./taskResourceBindings";
 import { TaskWorkspaceBindings } from "./taskWorkspaceBindings";
 import { isTaskResourceInput } from "../../utils/taskResourceInput";
 import { assignWorkspaceIdentities } from "./taskWorkspaceIdentity";
+import { TaskContentRepository } from "./taskContentRepository";
+import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
+import { planWorktreeInitialization, TaskInitializationRepository } from "./taskInitializationRepository";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
@@ -36,18 +39,24 @@ export class TaskService {
   readonly deletion: TaskDeletionService;
   readonly resourceBindings: TaskResourceBindings;
   private readonly workspaceBindings: TaskWorkspaceBindings;
+  private readonly content: TaskContentRepository;
+  private readonly initializationReady: Promise<void>;
 
   constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings,
     private readonly resolveAgent?: (selection: TaskAgentSelection) => Promise<TaskAgentSelection>) {
     this.repository = new TaskRepository(path.join(userData, "app.db"), namespace);
+    this.initializationReady = new TaskInitializationRepository(path.join(userData, "app.db"), namespace).recover();
+    // 保留失败供队列调用者处理，同时避免启动阶段未订阅的 rejected promise。
+    void this.initializationReady.catch(() => undefined);
+    this.content = new TaskContentRepository(path.join(userData, "app.db"), namespace);
     this.resources = new ResourceService(path.join(userData, "resources.json"));
     this.deletion = new TaskDeletionService(this.repository);
     this.resourceBindings = new TaskResourceBindings(this.repository, path.join(userData, "app.db"), namespace);
-    this.workspaceBindings = new TaskWorkspaceBindings(this.repository, path.join(userData, "app.db"), namespace, getSettings, (id) => this.inspectResource(id));
+    this.workspaceBindings = new TaskWorkspaceBindings(this.repository, path.join(userData, "app.db"), namespace, getSettings, (id) => this.inspectResource(id), () => this.resources.list());
   }
 
   private serialize<Result>(operation: () => Promise<Result>): Promise<Result> {
-    const result = this.queue.then(operation);
+    const result = this.queue.then(async () => { await this.initializationReady; return operation(); });
     this.queue = result.catch(() => undefined);
     return result;
   }
@@ -57,8 +66,14 @@ export class TaskService {
     return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => input?.resources !== undefined
       ? this.workspaceBindings.add(id, input) : this.resourceBindings.add(id, input, ownerId)));
   }
-  updateNote(id: string, note: TaskNote) {
-    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note)));
+  updateNote(id: string, note: TaskNote, expected?: TaskNote) {
+    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note, expected)));
+  }
+  updatePrompt(id: string, content: string, expected: string) {
+    return this.serialize(async () => { await this.content.updatePrompt(id, content, expected); return requireTask(await this.repository.load() ?? [], id); });
+  }
+  detachResource(id: string, input: TaskResourceRemoval) {
+    return this.serialize(async () => { await this.content.detach(id, input); return requireTask(await this.repository.load() ?? [], id); });
   }
   deleteNote(id: string, noteId: string) {
     return diagnosticOperation("task.note.delete", { taskId: id }, () => this.serialize(() => this.resourceBindings.deleteNote(id, noteId)));
@@ -162,7 +177,10 @@ export class TaskService {
             resources, links: input.links, webLinks: (input.webLinks ?? []).map(({ id, url, title }) => ({ id, url, title: title.trim() })),
             attachments: attachments.map(({ id, name, size }) => ({ id, name, size })),
           };
-          await this.repository.create(task, attachments);
+          const initialization = planWorktreeInitialization(manifest.steps, await this.resources.list());
+          await this.repository.create(task, attachments, initialization);
+          task.contextVersion = 1;
+          task.initialization = initialization.map(({ id, resourceId, name, status }) => ({ id, resourceId, name, status }));
           this.files.release(ownerId, input.attachmentIds);
           return task;
         } catch (error) {

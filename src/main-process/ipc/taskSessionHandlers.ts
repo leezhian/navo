@@ -11,16 +11,30 @@ import { getCurrentSettings } from "../services/settingsService";
 import { getAgentService } from "./agentHandlers";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { ResourceService } from "../services/resourceService";
+import { TaskInitializationService } from "../services/taskInitializationService";
+import { TaskInitializationRepository } from "../services/taskInitializationRepository";
+import { publishTask, onTaskPublished } from "./taskEvents";
 
 let sessions: TaskSessionService | null = null;
-export async function shutdownTaskSessions() { await sessions?.shutdown(); }
+let initialization: TaskInitializationService | null = null;
+let unsubscribeTasks: (() => void) | undefined;
+export async function shutdownTaskSessions() { unsubscribeTasks?.(); unsubscribeTasks = undefined; await initialization?.shutdown(); await sessions?.shutdown(); }
 export async function deleteTaskWithSessions<Result>(taskId: string, operation: () => Promise<Result>) {
+  await initialization?.cancel(taskId);
   return sessions ? sessions.deleteTask(taskId, operation) : operation();
 }
+export function withIdleTaskWorkspace<Result>(taskId: string, resourceId: string, operation: () => Promise<Result>) {
+  if (initialization?.isRunning(taskId)) throw new Error("TASK_WORKSPACE_BUSY");
+  return sessions ? sessions.withIdleWorkspace(taskId, resourceId, operation) : operation();
+}
 export function startInitialTaskSession(task: Task, owner: WebContents) {
-  if (task.agent) void sessions?.start({ taskId: task.id, kind: "agent" }, owner, true).catch((error) => {
+  void initializeTask(task, owner, true).catch((error) => {
     void writeDiagnosticEvent("session.start.failed", { taskId: task.id, error });
   });
+}
+export async function initializeTask(task: Task, owner: WebContents, startAgent = false, retry = false) {
+  const success = await initialization?.run(task.id, owner, retry);
+  if (success && startAgent && task.agent && !owner.isDestroyed()) await sessions?.start({ taskId: task.id, kind: "agent" }, owner, true);
 }
 
 export function registerTaskSessionHandlers(tasks: TaskService) {
@@ -49,10 +63,22 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
       return paths;
     }, undefined, undefined, () => resources.list());
   sessions = service;
+  unsubscribeTasks?.();
+  unsubscribeTasks = onTaskPublished((record) => { void service.updateTaskContext(record.id).catch(() => undefined); });
+  initialization = new TaskInitializationService(new TaskInitializationRepository(path.join(app.getPath("userData"), "app.db"), namespace), service, task, publishTask);
+  ipcMain.handle(ipcChannels.tasksRetryInitialization, async (event, taskId: string) => {
+    const sender = owner(event);
+    const record = await task(taskId);
+    if (record.status === "ARCHIVED") throw new Error("TASK_BUSY");
+    // 返回后立即可观察状态，不占用 IPC 等待一个长时间安装命令。
+    void initializeTask(record, sender, true, true).catch((error) => writeDiagnosticEvent("session.start.failed", { taskId, error }));
+  });
   ipcMain.handle(ipcChannels.taskSessionsList, (event) => { owner(event); return service.list(); });
+  ipcMain.handle(ipcChannels.taskSessionsContextReminder, (event, id: string) => service.contextReminder(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsStart, (event, input: StartTaskSessionInput) => service.start(input, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsStop, (event, id: string) => service.stop(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsArchive, (event, id: string) => service.archive(id, owner(event)));
+  ipcMain.handle(ipcChannels.taskSessionsRestore, (event, id: string) => service.restore(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsRename, (event, id: string, title: string) => service.rename(id, title, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsRemove, (event, id: string) => service.remove(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsRestart, (event, id: string, resume: boolean) => {

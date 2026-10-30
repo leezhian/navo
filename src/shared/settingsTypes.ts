@@ -45,7 +45,7 @@ export interface ResourceCommand {
   name: string;
   /** 原样保存多行脚本，不在编辑或保存时执行。 */
   script: string;
-  /** 预留自动执行标记，目前尚未接入 Worktree 创建流程。 */
+  /** 只在新建 Worktree 后自动执行；已有目录不会触发。 */
   runOnWorktreeCreation: boolean;
 }
 

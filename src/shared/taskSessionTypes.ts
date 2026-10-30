@@ -13,12 +13,18 @@ export interface TaskSession {
   titleSource?: "cli";
   /** Navo 内归档时间；归档保留会话记录，但不再运行或出现在活动列表。 */
   archivedAt?: string;
+  /** dynamic 为只读 MCP，file 为实时上下文文件；snapshot 用于旧会话或无法传递读取约定的 CLI。 */
+  contextMode?: "dynamic" | "file" | "snapshot";
+  /** 文件同步失败不停止 CLI，不表示模型已读取或未读取。 */
+  contextSyncFailed?: boolean;
   cwd: string;
   /** 创建时绑定的工作范围快照；旧记录缺省，不根据后续资源数量猜测范围。 */
   workspace?: TaskSessionWorkspace;
   /** 手动执行的仓库命令；不保存脚本或在重启应用后自动重跑。 */
   command?: { id: string; resourceId: string; name: string };
   commandExitCode?: number;
+  /** 初始化终端由协调器顺序执行，不通过手动命令入口重启。 */
+  initialization?: boolean;
   agent?: TaskAgentSelection;
   status: TaskSessionStatus;
   /** 每次启动生成新的 PTY 标识，重启不复用已结束的终端缓冲。 */
@@ -48,10 +54,13 @@ export interface StartTaskSessionInput {
 }
 
 export interface TaskSessionsApi {
+  /** 刷新本会话上下文文件并返回读取提示，仅供复制，不发送终端输入。 */
+  contextReminder(id: string): Promise<string>;
   list(): Promise<TaskSession[]>;
   start(input: StartTaskSessionInput): Promise<TaskSession[]>;
   stop(id: string): Promise<TaskSession[]>;
   archive(id: string): Promise<TaskSession[]>;
+  restore(id: string): Promise<TaskSession[]>;
   rename(id: string, title: string): Promise<TaskSession[]>;
   remove(id: string): Promise<TaskSession[]>;
   restart(id: string, resume: boolean): Promise<TaskSession[]>;

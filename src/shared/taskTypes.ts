@@ -92,7 +92,11 @@ export interface TasksApi {
   openWorkspace(taskId: string, resourceId: string, target: WorkspaceOpenTarget): Promise<void>;
   addResources(taskId: string, input: AddTaskResourcesInput): Promise<Task>;
   /** 仅修改指定任务的笔记；返回最新任务以同步各工作台。 */
-  updateNote(taskId: string, note: TaskNote): Promise<Task>;
+  updateNote(taskId: string, note: TaskNote, expected?: TaskNote): Promise<Task>;
+  updatePrompt(taskId: string, content: string, expected: string): Promise<Task>;
+  detachResource(taskId: string, input: import("./taskContextTypes").TaskResourceRemoval): Promise<Task>;
+  retryInitialization(taskId: string): Promise<void>;
+  onChanged(listener: (task: Task) => void): () => void;
   deleteNote(taskId: string, noteId: string): Promise<Task>;
   chooseResourceFile(): Promise<TaskFileReference | null>;
   releaseResourceFiles(ids: string[]): Promise<void>;

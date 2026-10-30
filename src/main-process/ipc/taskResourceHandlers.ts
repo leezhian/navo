@@ -4,6 +4,10 @@ import { stat } from "node:fs/promises";
 import type { AddTaskResourcesInput, TaskNote } from "../../shared/taskResourceTypes";
 import { ipcChannels } from "../../shared/ipcChannels";
 import type { TaskService } from "../services/taskService";
+import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
+import { withIdleTaskWorkspace, initializeTask } from "./taskSessionHandlers";
+import { publishTask } from "./taskEvents";
+import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 
 export function registerTaskResourceHandlers(tasks: TaskService) {
   const owners = new Set<number>();
@@ -17,13 +21,25 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
     return window;
   }
   ipcMain.handle(ipcChannels.tasksAddResources, (event, taskId: string, input: AddTaskResourcesInput) => {
-    owner(event);return tasks.addResources(taskId, input, event.sender.id);
+    owner(event);return tasks.addResources(taskId, input, event.sender.id).then((task) => {
+      publishTask(task);
+      if (input.resources) void initializeTask(task, event.sender).catch((error) => writeDiagnosticEvent("session.start.failed", { taskId, error }));
+      return task;
+    });
   });
-  ipcMain.handle(ipcChannels.tasksUpdateNote, (event, taskId: string, note: TaskNote) => {
-    owner(event);return tasks.updateNote(taskId, note);
+  ipcMain.handle(ipcChannels.tasksUpdateNote, (event, taskId: string, note: TaskNote, expected?: TaskNote) => {
+    owner(event);return tasks.updateNote(taskId, note, expected).then(publishTask);
   });
   ipcMain.handle(ipcChannels.tasksDeleteNote, (event, taskId: string, noteId: string) => {
-    owner(event);return tasks.deleteNote(taskId, noteId);
+    owner(event);return tasks.deleteNote(taskId, noteId).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksUpdatePrompt, (event, taskId: string, content: string, expected: string) => {
+    owner(event); return tasks.updatePrompt(taskId, content, expected).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksDetachResource, (event, taskId: string, input: TaskResourceRemoval) => {
+    owner(event);
+    const remove = () => tasks.detachResource(taskId, input).then(publishTask);
+    return input?.kind === "workspace" ? withIdleTaskWorkspace(taskId, input.id, remove) : remove();
   });
   ipcMain.handle(ipcChannels.tasksChooseResourceFile, async (event) => {
     const result = await dialog.showOpenDialog(owner(event), { defaultPath: app.getPath("home"), properties: ["openFile"] });

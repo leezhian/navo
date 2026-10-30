@@ -94,7 +94,7 @@ test("旧库升级跳过坏会话，正常会话回填已知时间且不删除�
   const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
   const upgraded = await openAppDatabase(filename);
   try {
-    assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 11);
+    assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 12);
     const saved = JSON.parse(upgraded.prepare("SELECT data FROM task_sessions WHERE id=?").get(session.id).data);
     assert.equal(saved.lastActiveAt, createdAt);
     assert.equal(saved.lastUpdateAt, createdAt);
