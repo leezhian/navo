@@ -55,7 +55,7 @@ test("已有任务追加真实 Worktree，原子保存、并发重试幂等及�
   assert.equal(updated.title, task.title);assert.equal(updated.description, task.description);assert.equal(updated.date, task.date);assert.equal(updated.status, task.status);
   assert.equal(updated.projectName, repo.name);assert.equal(updated.resources.length, 1);
   const workspace = updated.resources[0];
-  assert.match(workspace.targetBranch, /^navo\/[a-f0-9]{8}$/);
+  assert.match(workspace.targetBranch, /^navo\/navo-task-[a-f0-9]{8}$/);
   assert.equal(await git(workspace.workingPath, "branch", "--show-current"), workspace.targetBranch);
   assert.equal(await git(repo.localPath, "branch", "--show-current"), "main");
   assert.ok(workspace.ownership);assert.equal((await service.repository.deletionContext(task.id)).owned.length, 1);

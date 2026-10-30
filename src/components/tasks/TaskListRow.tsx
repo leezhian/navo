@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { Task } from "@/domain/tasks";
 import type { TaskDisplayOptions } from "@/domain/taskView";
-import { taskProjectLabel, taskProjectNames } from "@/utils/taskProjects";
+import { TaskProjectSummary } from "./TaskProjectSummary";
 import { TaskContextMenu } from "./TaskContextMenu";
 import { TaskSessionSummary } from "./TaskSessionSummary";
 import { TaskTime } from "./TaskTime";
@@ -27,7 +27,7 @@ export function TaskListRow({ task, display, selected = false, onSelect, selectO
       onClick={(event) => { if (selectOnClick || event.detail === 0) onSelect?.(); }}>
       <span className="task-title-with-sessions"><span className="min-w-0 truncate" title={task.title}>{task.title}</span><TaskSessionSummary taskId={task.id} /></span>
       <span className="task-list-metadata">
-        {display.showProject && <span className="task-project" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
+        {display.showProject && <TaskProjectSummary task={task} />}
         {display.showDate && <TaskTime value={task.date} />}
       </span>
     </Button>

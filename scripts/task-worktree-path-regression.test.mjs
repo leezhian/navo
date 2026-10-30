@@ -8,15 +8,15 @@ import { createLoader } from "./helpers/load-typescript.mjs";
 test("自动分支遇到已有目录或本批次重名时同时更换分支和目录后缀", async (context) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "navo-worktree-path-"));
   context.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(path.join(root, "repo-k7m2x9pq"));
-  const branches = ["navo/a1b2c3d4", "navo/e5f6g7h8"];
+  await mkdir(path.join(root, "repo-12345678"));
+  const branches = ["navo/navo-task-a1b2c3d4", "navo/navo-task-e5f60718"];
   const { assignWorktreePath } = createLoader({ "./taskGit": { generateTaskBranch: async () => branches.shift() } })
     ("src/main-process/services/taskWorktreePath.ts");
-  const step = { automaticTarget: true, branchPrefix: "navo/", repository: root, resource: { name: "repo", targetBranch: "navo/k7m2x9pq" } };
+  const step = { automaticTarget: true, branchPrefix: "navo/", repository: root, resource: { name: "repo", targetBranch: "navo/navo-task-12345678" } };
   await assignWorktreePath(step, root, [path.join(root, "repo-a1b2c3d4")]);
-  assert.equal(step.resource.targetBranch, "navo/e5f6g7h8");
-  assert.equal(step.resource.workingPath, path.join(root, "repo-e5f6g7h8"));
-  await access(path.join(root, "repo-k7m2x9pq"));
+  assert.equal(step.resource.targetBranch, "navo/navo-task-e5f60718");
+  assert.equal(step.resource.workingPath, path.join(root, "repo-e5f60718"));
+  await access(path.join(root, "repo-12345678"));
 });
 
 test("手动和已有分支另取短 ID，重名只重试目录且项目名不会越界", async (context) => {

@@ -65,8 +65,10 @@ test("Tasks 卡片和列表按状态分组，单个不显示数字，空会话�
           const card=document.querySelector('#card .task-card'),cardTitle=card.querySelector('.task-title'),project=card.querySelector('.task-project');
           const titleStyle=getComputedStyle(cardTitle),titleRect=cardTitle.getBoundingClientRect();
           if(titleStyle.webkitLineClamp!=='2'||Math.abs(titleRect.height-parseFloat(titleStyle.lineHeight)*2)>1||cardTitle.scrollHeight<=cardTitle.clientHeight)throw Error('Card title must wrap and clamp to two lines');
-          if(!project||project.getBoundingClientRect().top<titleRect.bottom||project.textContent!=='project +2'||project.title!=='project, Folder, other')throw Error('Project must sit below title with overflow count and full hover labels');
-          if(card.querySelector('.task-card-branches'))throw Error('Card must not display branches');
+          const branch='feature/long-branch-name'.repeat(8);
+          if(!project||project.getBoundingClientRect().top<titleRect.bottom||JSON.stringify([...project.querySelectorAll('.task-project-entry')].map(item=>item.textContent))!==JSON.stringify(['project'+branch,'Folder','othermain'])||project.title!=='project · '+branch+', Folder, other · main')throw Error('Projects must sit below title in resource order with full project/branch hover labels and no overflow count');
+          const branchLabel=project.querySelector('.task-project-branch');
+          if(project.querySelectorAll('.lucide-git-branch').length!==2||branchLabel?.textContent!==branch||getComputedStyle(project).textOverflow!=='ellipsis'||project.scrollWidth<=project.clientWidth)throw Error('Branches must follow each project with a Git branch icon and the full row must truncate without overflow');
           const footer=card.querySelector('.task-metadata'),time=footer.querySelector('time');
           if(time.hasAttribute('title'))throw Error('Card time must not show a hover tooltip');
           if(Math.abs(time.getBoundingClientRect().right-footer.getBoundingClientRect().right)>1)throw Error('Time must align to bottom right');

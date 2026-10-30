@@ -1,12 +1,12 @@
 import type { Task } from "@/domain/tasks";
 import { useTranslation } from "react-i18next";
 import { TaskContextMenu } from "./TaskContextMenu";
-import { taskProjectLabel, taskProjectNames } from "@/utils/taskProjects";
+import { TaskProjectSummary } from "./TaskProjectSummary";
 import { TaskSessionSummary } from "./TaskSessionSummary";
 import { TaskTime } from "./TaskTime";
 
 interface TaskCardProps {
-  /** 展示两行标题、会话状态、标题下的项目名和右下角日期。 */
+  /** 展示两行标题、会话状态、标题下的项目与分支和右下角日期。 */
   task: Task;
   /** 当前卡片是否对应已打开的任务详情。 */
   selected?: boolean;
@@ -40,7 +40,7 @@ export function TaskCard({ task, selected = false, onSelect, selectOnClick = fal
     >
       <div className="flex min-w-0 flex-col gap-2">
         <div className="task-title-with-sessions"><h3 className="task-title" title={task.title}>{task.title}</h3><TaskSessionSummary taskId={task.id} /></div>
-        {showProject && <span className="task-project text-xs text-muted-foreground" title={taskProjectNames(task).join(", ")}>{taskProjectLabel(task) || t("tasks:fields.noProject")}</span>}
+        {showProject && <TaskProjectSummary task={task} />}
       </div>
       {showDate && <div className="task-metadata">
         <TaskTime value={task.date} showTooltip={false} />

@@ -170,7 +170,7 @@ test("多仓库创建 Worktree、远程默认分支和短随机目标名，重�
   assert.equal(task.status, "TODO");
   assert.equal(task.resources.length, 2);
   for (const resource of task.resources) {
-    assert.match(resource.targetBranch, /^navo\/[a-f0-9]{8}$/);
+    assert.match(resource.targetBranch, /^navo\/navo-task-[a-f0-9]{8}$/);
     assert.equal(await git(resource.workingPath, "branch", "--show-current"), resource.targetBranch);
     assert.equal(await git(resource.originalPath, "branch", "--show-current"), "main");
   }
@@ -214,7 +214,7 @@ test("没有远程默认引用时按远程主分支、本地主分支、当前�
   assert.equal(await git(record.localPath, "symbolic-ref", "HEAD"), "refs/heads/" + task.resources[0].targetBranch);
 });
 
-test("显式分支不叠加前缀，空前缀只生成八位短名，冲突或无效名不覆盖", async (context) => {
+test("显式分支不叠加前缀，空前缀保留 navo-task- 和八位随机后缀，冲突或无效名不覆盖", async (context) => {
   const { repo, service, settings, inputFor } = await setup(context);
   const record = await repo("repo");
   const input = await inputFor([record]);
@@ -229,8 +229,8 @@ test("显式分支不叠加前缀，空前缀只生成八位短名，冲突或�
   await assert.rejects(service.create(duplicate, 1), /TASK_INVALID_BRANCH/);
   settings.branchPrefix = "";
   const automatic = await service.create(await inputFor([record]), 1);
-  assert.match(automatic.resources[0].targetBranch, /^[a-f0-9]{8}$/);
-  assert.equal(path.basename(automatic.resources[0].workingPath), "repo-" + automatic.resources[0].targetBranch);
+  assert.match(automatic.resources[0].targetBranch, /^navo-task-[a-f0-9]{8}$/);
+  assert.equal(path.basename(automatic.resources[0].workingPath), "repo-" + automatic.resources[0].targetBranch.slice(-8));
 });
 
 test("不同任务的 Worktree 均平铺，分支后缀与目录一致，失败不清理共用根目录", async (context) => {

@@ -27,7 +27,7 @@ export interface TaskResourceInput {
   resourceId: string;
   mode: TaskExecutionMode;
   sourceBranch: string;
-  /** 空字符串表示使用设置前缀生成 8 位随机短名。 */
+  /** 空字符串表示使用设置前缀 + navo-task- + 8 位随机十六进制字符。 */
   targetBranch: string;
   /** 使用所选已有分支，而不是从源分支创建新分支。 */
   useExistingBranch?: boolean;

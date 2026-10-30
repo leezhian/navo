@@ -62,7 +62,7 @@ export async function validateNewBranch(directory: string, name: string) {
 
 export async function generateTaskBranch(directory: string, prefix: string) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const name = prefix + randomBytes(4).toString("hex");
+    const name = prefix + "navo-task-" + randomBytes(4).toString("hex");
     try { await validateNewBranch(directory, name); return name; }
     catch (error) { if (!(error instanceof Error) || error.message !== "TASK_BRANCH_EXISTS") throw error; }
   }

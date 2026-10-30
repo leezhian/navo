@@ -163,7 +163,7 @@ v9 新增 `task_sessions`，持久化 Agent 配置、工作目录、进程状态
 
 - 任务契约位于 `src/shared/taskTypes.ts`；主进程 `TaskService` 校验并串行创建，`taskStore` 为渲染缓存。
 - `appDatabase.ts` 统一升级数据库；任务、资源关联、条目关联、普通链接、附件分别保存在 `tasks`、`task_resources`、`task_links`、`task_web_links`、`task_attachments`。创建日志使用 `task_operations`，保留的工作区使用 `managed_workspaces`，分步删除进度使用 `task_deletions`。v10 增加 `task_notes`、`task_file_references` 和 `task_resource_batches`，保存任务笔记、外部原文件引用和资源提交幂等记录；原文件不复制、不修改，删除任务只级联清理引用。
-- 实际探测 Git 能力，选择本地/远程跟踪分支。空目标名按设置前缀加八位随机短 ID 生成；手动名称不加前缀，自动名冲突重试，不覆盖已有分支。
+- 实际探测 Git 能力，选择本地/远程跟踪分支。空目标名按“设置前缀 + navo-task- + 八位随机十六进制字符”生成，例如 `navo/navo-task-a3f8c291`，空前缀时为 `navo-task-a3f8c291`；手动名称不加前缀或 `navo-task-`，自动名冲突重试，不覆盖已有分支。
 - Worktree 统一平铺在设置目录下，使用 `<项目名>-<随机八位>`，不再创建任务或批次子目录。自动分支沿用其随机后缀，手动或已有分支另生成目录短 ID；创建前检查重名并独占预留目录，回滚只清理本次工作区，保留共用根目录。旧工作区不搬迁，旧操作清单仍按原路径恢复。关闭隔离后明确选择原目录新建分支或当前分支，要求干净，不覆盖被忽略的文件。
 - 文件选择器签发窗口专属标识，创建接口不接收任意附件路径。附件副本位于 `userData/task-files/<命名空间>/<任务 UUID>/`，数据库只记录元信息，图片按需生成小预览。
 - 创建先记录操作清单，再准备文件和 Git 工作区，最后事务写入任务。失败和启动恢复只撤销本次已确认生成、HEAD 未变化且没有用户改动的内容；无法安全撤销则保留现场并提示。SQLite 不承担 Git/文件系统回滚。
