@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Task, TaskStatus } from "@/domain/tasks";
 import type { CreateTaskInput } from "@/shared/taskTypes";
-import type { AddTaskResourcesInput, TaskNote } from "@/shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskNoteUpdate } from "@/shared/taskResourceTypes";
 import type { TaskDeletionConfirmation } from "@/shared/taskDeletionTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { clearLegacyTasks, readLegacyTasks } from "@/services/adeData";
@@ -19,10 +19,10 @@ interface TaskState {
   requestOpen: (id: string | null) => void;
   create: (input: CreateTaskInput) => Promise<Task>;
   addResources: (id: string, input: AddTaskResourcesInput) => Promise<Task>;
-  updateNote: (id: string, note: TaskNote, expected?: TaskNote) => Promise<Task>;
+  updateNote: (id: string, note: TaskNoteUpdate, expectedVersion: number) => Promise<Task>;
   updatePrompt: (id: string, content: string, expected: string) => Promise<Task>;
   detachResource: (id: string, input: import("@/shared/taskContextTypes").TaskResourceRemoval) => Promise<Task>;
-  deleteNote: (id: string, noteId: string) => Promise<Task>;
+  deleteNote: (id: string, noteId: string, expectedVersion: number) => Promise<Task>;
   rename: (id: string, title: string) => Promise<boolean>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
   restore: (id: string) => Promise<boolean>;
@@ -70,10 +70,10 @@ export const useTaskStore = create<TaskState>((set, get) => {
     },
     requestOpen: (requestedTaskId) => set({ requestedTaskId }),
     addResources: (id, input) => updateTask(() => getTasksApi().addResources(id, input)),
-    updateNote: (id, note, expected) => updateTask(() => getTasksApi().updateNote(id, note, expected)),
+    updateNote: (id, note, expectedVersion) => updateTask(() => getTasksApi().updateNote(id, note, expectedVersion)),
     updatePrompt: (id, content, expected) => updateTask(() => getTasksApi().updatePrompt(id, content, expected)),
     detachResource: (id, input) => updateTask(() => getTasksApi().detachResource(id, input)),
-    deleteNote: (id, noteId) => updateTask(() => getTasksApi().deleteNote(id, noteId)),
+    deleteNote: (id, noteId, expectedVersion) => updateTask(() => getTasksApi().deleteNote(id, noteId, expectedVersion)),
     async create(input) {
       if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
       set({ pending: true });

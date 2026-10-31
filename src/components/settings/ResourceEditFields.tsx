@@ -73,6 +73,7 @@ export function ResourceEditFields({ form, disabled, onCommandEditingChange }: R
     <label className="grid gap-2 text-xs font-medium">{t("settings:resources.description")}
       <Textarea value={form.description} disabled={disabled} onChange={(event) => form.setDescription(event.target.value)} maxLength={RESOURCE_DESCRIPTION_MAX_LENGTH} rows={3} className="max-h-48 min-h-20 resize-y text-xs font-normal md:text-xs" placeholder={t("settings:resources.descriptionPlaceholder")} />
     </label>
-    <ResourceCommands commands={form.commands} disabled={disabled} onChange={form.setCommands} onEditingChange={onCommandEditingChange} />
+    <ResourceCommands commands={form.commands} disabled={disabled} onChange={form.setCommands} onEditingChange={onCommandEditingChange}
+      detection={form.commandDetection} detecting={form.detecting} detectionAdded={form.detectionAdded} onDetect={() => void form.detectCommands()} />
   </>;
 }

@@ -144,6 +144,8 @@ export interface NavoApi {
   };
   resources: {
     list(): Promise<ResourceRecord[]>;
+    /** 只读扫描 Node.js 配置，不执行项目代码；返回可编辑的检测草稿。 */
+    detectCommands(localPath: string): Promise<import("./resourceCommandDetection").ResourceCommandDetection>;
     /** 只读查询 Git remote；配置未变化时复用内存缓存，手动刷新可强制重新读取。 */
     inspectGit(localPath: string, forceRefresh?: boolean): Promise<ResourceGitInfo>;
     save(params: SaveResourceParams): Promise<ResourceRecord>;

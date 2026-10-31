@@ -37,6 +37,10 @@ export function registerSettingsHandlers() {
     shell.showItemInFolder(await prepareDiagnosticLogFile());
   });
   ipcMain.handle(ipcChannels.resourcesList, () => service.list());
+  ipcMain.handle(ipcChannels.resourcesDetectCommands, (event, localPath: string) => {
+    if (event.senderFrame !== event.sender.mainFrame || !BrowserWindow.fromWebContents(event.sender)) throw new Error("WINDOW_UNAVAILABLE");
+    return service.detectCommands(localPath);
+  });
   ipcMain.handle(ipcChannels.resourcesInspectGit, (event, localPath: string, forceRefresh?: boolean) => {
     if (event.senderFrame !== event.sender.mainFrame || !BrowserWindow.fromWebContents(event.sender)) throw new Error("WINDOW_UNAVAILABLE");
     return inspectResourceGit(localPath, forceRefresh === true);

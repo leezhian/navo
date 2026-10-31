@@ -20,6 +20,7 @@ test("资源编辑：真实远端回显、描述、命令草稿、勾选、取�
       await i18n.changeLanguage('zh-CN');window.setTestLocale=locale=>i18n.changeLanguage(locale);
       window.persisted={id:'fixture',kind:'folder',name:'navo',localPath:'/fixture/repo',available:true};window.saves=[];window.inspections=[];window.forcedInspections=[];
       window.navo={settings:{chooseDirectory:async()=>window.folderChoice??null},resources:{
+        detectCommands:async localPath=>{window.detectedPath=localPath;const result={commands:[{id:window.lateDetection?'late':'detected-test',name:window.lateDetection?'late':'test',script:window.lateDetection?'npm run late':'npm run test',runOnWorktreeCreation:false}],warnings:[]};if(window.holdDetection)return new Promise(resolve=>window.resolveDetection=()=>resolve(result));if(window.failDetection)throw Error('INVALID_DIRECTORY');return result;},
         onCloneProgress:()=>()=>{},cancelClone:async()=>{},
         list:async()=>[window.persisted,{id:'second',kind:'repo',name:'Second repo',localPath:'/fixture/new',available:true}],
         inspectGit:async(localPath,forceRefresh)=>{window.inspections.push(localPath);if(forceRefresh)window.forcedInspections.push(localPath);if(window.holdRemote){window.holdRemote=false;return new Promise(resolve=>window.resolveRemote=resolve);}if(window.failRemote||localPath==='/fixture/failure')throw Error('GIT_UNAVAILABLE');return localPath==='/fixture/repo'?{isRepository:true,remoteUrl:window.overrideRemote??'git@gitlab.example.com:team/navo.git'}:localPath==='/fixture/new'?{isRepository:true,remoteUrl:'https://github.com/team/new.git'}:{isRepository:false,remoteUrl:null};},
@@ -43,7 +44,7 @@ test("资源编辑：真实远端回显、描述、命令草稿、勾选、取�
         const button=(text,root=dialog())=>[...root.querySelectorAll('button')].find(item=>item.textContent.trim()===text);
         const field=(text,root=dialog())=>[...root.querySelectorAll('label')].find(item=>item.firstChild?.textContent.trim()===text)?.querySelector('input,textarea');
         const input=async(element,value)=>{const prototype=element.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}));await pause();};
-        const reopen=async()=>{document.getElementById('reopen').click();await wait(()=>dialog(),'Edit must reopen');};
+        const reopen=async()=>{(document.getElementById('reopen')??document.querySelector('[data-slot="resource-edit-trigger"]')).click();await wait(()=>dialog(),'Edit must reopen');};
         const choosePath=async value=>{window.folderChoice=value;dialog().querySelector('button[aria-label="选择目录"]').click();await pause();};
         const nameInput=()=>dialog().querySelector('[data-slot="resource-name-input"]');
         const editName=async()=>{dialog().querySelector('[data-slot="resource-name"]').click();await wait(()=>nameInput(),'Name input must appear after clicking');};
@@ -111,6 +112,27 @@ test("资源编辑：真实远端回显、描述、命令草稿、勾选、取�
         await wait(()=>window.forcedInspections.includes('/fixture/repo')&&!document.querySelector('button[aria-label="刷新"]').disabled,'List refresh must force-update cached Git metadata');
         rows[0].querySelector('[data-slot="resource-edit-trigger"]').click();await wait(()=>dialog()?.textContent.includes(window.overrideRemote),'Reopening must display the manually refreshed remote');
         window.overrideRemote='https://example.com/focus-refreshed.git';window.dispatchEvent(new Event('focus'));await wait(()=>dialog()?.textContent.includes(window.overrideRemote),'Returning to the app must check external config changes');
+        const detect=()=>dialog().querySelector('button[aria-label="重新检测命令"]');
+        if(!detect()||window.detectedPath)throw Error('Detection must be explicit when reopening an existing record');
+        const storedCommands=JSON.stringify(window.persisted.commands),saveCount=window.saves.length;
+        window.holdDetection=true;detect().click();await wait(()=>window.resolveDetection,'Detection did not start');
+        if(!button('保存').disabled||document.querySelectorAll('[data-slot="resource-command-row"]').length!==window.persisted.commands.length)throw Error('Detection must preserve existing rows and block stale saves');
+        window.resolveDetection();window.holdDetection=false;await wait(()=>!detect().disabled&&dialog().textContent.includes('npm run test'),'Declared scripts not merged into draft');
+        if(window.saves.length!==saveCount||JSON.stringify(window.persisted.commands)!==storedCommands)throw Error('Detection must not save automatically');
+        if(dialog().textContent.includes('建议命令')||dialog().textContent.includes('npm ci'))throw Error('Detection must only show declared scripts');
+        button('取消').click();await wait(()=>!dialog(),'Detection cancel failed');await reopen();
+        if(dialog().textContent.includes('npm run test')||JSON.stringify(window.persisted.commands)!==storedCommands)throw Error('Cancel must discard detection changes');
+        detect().click();await wait(()=>!detect().disabled&&dialog().textContent.includes('npm run test'),'Second detection failed');
+        const rowCount=document.querySelectorAll('[data-slot="resource-command-row"]').length;detect().click();await pause();await wait(()=>!detect().disabled,'Repeated detection did not settle');
+        if(document.querySelectorAll('[data-slot="resource-command-row"]').length!==rowCount)throw Error('Detection duplicated an existing command');
+        button('保存').click();await wait(()=>!dialog(),'Detected command save failed');
+        if(window.persisted.commands.find(item=>item.id==='detected-test')?.runOnWorktreeCreation!==false||'suggestions' in window.persisted.commandDetection)throw Error('Persisted detection must only include declared scripts without automatic execution');
+        await reopen();window.failDetection=true;detect().click();await wait(()=>dialog().querySelector('[role="alert"]'),'Detection failure must be visible');
+        if(!dialog().textContent.includes('npm run test'))throw Error('Detection failure cleared existing commands');window.failDetection=false;
+        window.holdDetection=true;window.lateDetection=true;window.resolveDetection=undefined;detect().click();await wait(()=>window.resolveDetection,'Slow detection did not start');
+        await choosePath('/fixture/new');window.resolveDetection();window.holdDetection=false;await pause();
+        if(dialog().textContent.includes('npm run late'))throw Error('Old path detection overwrote new path draft');
+        await window.setTestLocale('en');await wait(()=>dialog().querySelector('button[aria-label="Detect commands again"]'),'Detection tooltip must support English');
       })()\`);if(process.env.NAVO_RESOURCE_EDITOR_SCREENSHOT){await new Promise(resolve=>setTimeout(resolve,200));await require('node:fs/promises').writeFile(process.env.NAVO_RESOURCE_EDITOR_SCREENSHOT,(await win.webContents.capturePage()).toPNG());}app.exit(0);}catch(error){console.error(error.stack,errors.join('\\n'));app.exit(1);}});`);
     const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
     let output = "";

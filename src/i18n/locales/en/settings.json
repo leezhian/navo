@@ -17,6 +17,17 @@
     "description": "Description",
     "descriptionPlaceholder": "What this repository or folder is for…",
     "commands": {
+      "detect": "Detect commands again",
+      "detected_one": "Added {{count}} command",
+      "detected_other": "Added {{count}} commands",
+      "noNewCommands": "Detection complete. No new declared commands.",
+      "detectionWarnings": {
+        "unreadable": "Some configuration could not be read. Try detecting again.",
+        "invalidManifest": "Invalid configuration or script entry was skipped.",
+        "ambiguousManager": "Package manager could not be determined. Related commands were skipped.",
+        "unsupportedWorkspace": "This workspace configuration format is not supported and was skipped.",
+        "limitReached": "Scan or command limit reached. Some results were not added."
+      },
       "title": "Commands",
       "none": "No commands",
       "count_one": "{{count}} command",

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, Terminal, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCw, Terminal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { RESOURCE_COMMAND_LIMIT } from "@/shared/settingsTypes";
 import type { ResourceCommand } from "@/shared/settingsTypes";
 import { ResourceCommandEditor } from "./ResourceCommandEditor";
+import type { ResourceCommandDetection } from "@/shared/resourceCommandDetection";
 
 interface ResourceCommandsProps {
   /** 父表单持有的命令列表，数组顺序即保存顺序。 */
@@ -16,10 +17,19 @@ interface ResourceCommandsProps {
   onChange: (commands: ResourceCommand[]) => void;
   /** 命令编辑未确认时禁止提交父表单，避免静默丢弃。 */
   onEditingChange: (editing: boolean) => void;
+  /** 初次添加或上次手动检测的结果；省略时兼容旧资源。 */
+  detection?: ResourceCommandDetection;
+  /** 扫描保持原列表可见，期间仅禁用命令修改。 */
+  detecting?: boolean;
+  /** 手动扫描完成后新加入的声明命令数；null 不显示反馈。 */
+  detectionAdded?: number | null;
+  /** 用户显式重新扫描，不在打开表单时自动查询。 */
+  onDetect?: () => void;
 }
 
-export function ResourceCommands({ commands, disabled, onChange, onEditingChange }: ResourceCommandsProps) {
+export function ResourceCommands({ commands, disabled: formDisabled, onChange, onEditingChange, detection, detecting = false, detectionAdded, onDetect }: ResourceCommandsProps) {
   const { t } = useTranslation(["common", "settings"]);
+  const disabled = formDisabled || detecting;
   const [editing, setEditing] = useState<ResourceCommand | null>(null);
   function edit(command: ResourceCommand | null) { setEditing(command); onEditingChange(Boolean(command)); }
   function confirm(command: ResourceCommand) {
@@ -30,9 +40,13 @@ export function ResourceCommands({ commands, disabled, onChange, onEditingChange
   return <section className="grid gap-2" aria-label={t("settings:resources.commands.title")}>
     <div className="flex items-center justify-between">
       <h3 className="text-xs font-medium">{t("settings:resources.commands.title")}</h3>
+      <div className="flex items-center gap-1">
+      {onDetect && <IconTooltip label={t("settings:resources.commands.detect")} size="icon-xs" disabled={disabled || Boolean(editing)} onClick={onDetect}><RotateCw className={detecting ? "size-3.5 animate-spin" : "size-3.5"} /></IconTooltip>}
       <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" disabled={disabled || Boolean(editing) || commands.length >= RESOURCE_COMMAND_LIMIT}
         onClick={() => edit({ id: crypto.randomUUID(), name: "", script: "", runOnWorktreeCreation: false })}><Plus className="size-3.5" />{t("settings:resources.commands.add")}</Button>
+      </div>
     </div>
+    {detectionAdded !== null && detectionAdded !== undefined && <p role="status" className="text-xs text-muted-foreground">{detectionAdded ? t("settings:resources.commands.detected", { count: detectionAdded }) : t("settings:resources.commands.noNewCommands")}</p>}
     {commands.map((command) => editing?.id === command.id
       ? <ResourceCommandEditor key={command.id} command={editing} disabled={disabled} onConfirm={confirm} onCancel={() => edit(null)} />
       : <div key={command.id} data-slot="resource-command-row" className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted/50">
@@ -44,5 +58,8 @@ export function ResourceCommands({ commands, disabled, onChange, onEditingChange
         <IconTooltip label={t("common:actions.remove") + ": " + command.name} size="icon-sm" variant="ghost" className="hover:bg-destructive/10 hover:text-destructive" disabled={disabled || Boolean(editing)} onClick={() => onChange(commands.filter((item) => item.id !== command.id))}><Trash2 className="size-3.5" /></IconTooltip>
       </div>)}
     {editing && !commands.some((command) => command.id === editing.id) && <ResourceCommandEditor key={editing.id} command={editing} disabled={disabled} onConfirm={confirm} onCancel={() => edit(null)} />}
+    {(detection?.warnings ?? []).map((warning, index) => <p key={`${warning.source}-${warning.code}-${index}`} role="status" className="text-xs text-muted-foreground" title={warning.source}>
+      {warning.source}: {t(`settings:resources.commands.detectionWarnings.${warning.code}`)}
+    </p>)}
   </section>;
 }

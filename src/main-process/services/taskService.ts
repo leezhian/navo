@@ -18,7 +18,7 @@ import { TaskDeletionService } from "./taskDeletionService";
 import { isLegacyDemoTask } from "../../shared/legacyDemoRecords";
 import type { TaskAgentSelection } from "../../shared/agentCapabilities";
 import { isTaskAgentSelection } from "../../utils/taskAgentSelection";
-import type { AddTaskResourcesInput, TaskNote } from "../../shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskNoteInput, TaskNoteUpdate } from "../../shared/taskResourceTypes";
 import { TaskResourceBindings } from "./taskResourceBindings";
 import { TaskWorkspaceBindings } from "./taskWorkspaceBindings";
 import { isTaskResourceInput } from "../../utils/taskResourceInput";
@@ -66,8 +66,11 @@ export class TaskService {
     return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => input?.resources !== undefined
       ? this.workspaceBindings.add(id, input) : this.resourceBindings.add(id, input, ownerId)));
   }
-  updateNote(id: string, note: TaskNote, expected?: TaskNote) {
-    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note, expected)));
+  createAgentNote(id: string, note: TaskNoteInput, sessionId: string, authorize: () => void) {
+    return diagnosticOperation("task.note.create", { taskId: id, operationId: sessionId }, () => this.serialize(() => this.resourceBindings.createAgentNote(id, note, sessionId, authorize)));
+  }
+  updateNote(id: string, note: TaskNoteUpdate, expectedVersion: number, authorize?: () => void) {
+    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note, expectedVersion, authorize)));
   }
   updatePrompt(id: string, content: string, expected: string) {
     return this.serialize(async () => { await this.content.updatePrompt(id, content, expected); return requireTask(await this.repository.load() ?? [], id); });
@@ -75,8 +78,8 @@ export class TaskService {
   detachResource(id: string, input: TaskResourceRemoval) {
     return this.serialize(async () => { await this.content.detach(id, input); return requireTask(await this.repository.load() ?? [], id); });
   }
-  deleteNote(id: string, noteId: string) {
-    return diagnosticOperation("task.note.delete", { taskId: id }, () => this.serialize(() => this.resourceBindings.deleteNote(id, noteId)));
+  deleteNote(id: string, noteId: string, expectedVersion: number, authorize?: () => void) {
+    return diagnosticOperation("task.note.delete", { taskId: id }, () => this.serialize(() => this.resourceBindings.deleteNote(id, noteId, expectedVersion, authorize)));
   }
 
   private attachmentDirectory(id: string) {

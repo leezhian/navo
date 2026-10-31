@@ -2,7 +2,7 @@ import type { IssueItem } from "../domain/issues";
 import type { TaskBranchSnapshot } from "./taskBranchTypes";
 import type { TaskAgentSelection } from "./agentCapabilities";
 import type { Task, TaskStatus } from "../domain/tasks";
-import type { AddTaskResourcesInput, TaskFileReference, TaskNote } from "./taskResourceTypes";
+import type { AddTaskResourcesInput, TaskFileReference, TaskNoteUpdate } from "./taskResourceTypes";
 import type { WorkspaceOpenOptions, WorkspaceOpenTarget } from "./workspaceOpenTypes";
 import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview } from "./taskDeletionTypes";
 
@@ -91,13 +91,14 @@ export interface TasksApi {
   workspaceOpenOptions(taskId: string, resourceId: string): Promise<WorkspaceOpenOptions>;
   openWorkspace(taskId: string, resourceId: string, target: WorkspaceOpenTarget): Promise<void>;
   addResources(taskId: string, input: AddTaskResourcesInput): Promise<Task>;
-  /** 仅修改指定任务的笔记；返回最新任务以同步各工作台。 */
-  updateNote(taskId: string, note: TaskNote, expected?: TaskNote): Promise<Task>;
+  /** 仅修改指定任务的笔记，必须提交编辑开始时的笔记版本。 */
+  updateNote(taskId: string, note: TaskNoteUpdate, expectedVersion: number): Promise<Task>;
   updatePrompt(taskId: string, content: string, expected: string): Promise<Task>;
   detachResource(taskId: string, input: import("./taskContextTypes").TaskResourceRemoval): Promise<Task>;
   retryInitialization(taskId: string): Promise<void>;
   onChanged(listener: (task: Task) => void): () => void;
-  deleteNote(taskId: string, noteId: string): Promise<Task>;
+  /** 使用打开删除确认时的版本，避免删除确认期间被其他会话更新的笔记。 */
+  deleteNote(taskId: string, noteId: string, expectedVersion: number): Promise<Task>;
   chooseResourceFile(): Promise<TaskFileReference | null>;
   releaseResourceFiles(ids: string[]): Promise<void>;
   revealResourceFile(taskId: string, fileId: string): Promise<void>;

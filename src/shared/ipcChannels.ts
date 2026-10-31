@@ -1,4 +1,5 @@
 export const ipcChannels = {
+  resourcesDetectCommands: "resources:detect-commands",
   tasksLoadBranch: "tasks:load-branch",
   taskSessionsList: "task-sessions:list",
   taskSessionsStart: "task-sessions:start",

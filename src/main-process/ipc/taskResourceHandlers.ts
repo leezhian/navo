@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import { stat } from "node:fs/promises";
-import type { AddTaskResourcesInput, TaskNote } from "../../shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskNoteUpdate } from "../../shared/taskResourceTypes";
 import { ipcChannels } from "../../shared/ipcChannels";
 import type { TaskService } from "../services/taskService";
 import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
@@ -27,11 +27,11 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
       return task;
     });
   });
-  ipcMain.handle(ipcChannels.tasksUpdateNote, (event, taskId: string, note: TaskNote, expected?: TaskNote) => {
-    owner(event);return tasks.updateNote(taskId, note, expected).then(publishTask);
+  ipcMain.handle(ipcChannels.tasksUpdateNote, (event, taskId: string, note: TaskNoteUpdate, expectedVersion: number) => {
+    owner(event);return tasks.updateNote(taskId, note, expectedVersion).then(publishTask);
   });
-  ipcMain.handle(ipcChannels.tasksDeleteNote, (event, taskId: string, noteId: string) => {
-    owner(event);return tasks.deleteNote(taskId, noteId).then(publishTask);
+  ipcMain.handle(ipcChannels.tasksDeleteNote, (event, taskId: string, noteId: string, expectedVersion: number) => {
+    owner(event);return tasks.deleteNote(taskId, noteId, expectedVersion).then(publishTask);
   });
   ipcMain.handle(ipcChannels.tasksUpdatePrompt, (event, taskId: string, content: string, expected: string) => {
     owner(event); return tasks.updatePrompt(taskId, content, expected).then(publishTask);

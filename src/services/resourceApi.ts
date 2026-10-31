@@ -9,6 +9,7 @@ function api() {
 
 export const resourceApi = {
   list: () => api().list(),
+  detectCommands: (localPath: string) => api().detectCommands(localPath),
   inspectGit: (localPath: string, forceRefresh = false) => api().inspectGit(localPath, forceRefresh),
   save: (params: SaveResourceParams) => api().save(params),
   addFolder: (localPath: string) => api().save({ kind: "folder", name: getFolderName(localPath), localPath }),

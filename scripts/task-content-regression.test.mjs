@@ -33,8 +33,8 @@ test("Prompt uses description, preserves title, rejects stale writes and increme
   assert.equal((await tasks.load())[0].contextVersion, 2);
   const note = { id: randomUUID(), title: "Note", content: "body" };
   await bindings.add(base.id, { requestId: randomUUID(), notes: [note], links: [], webLinks: [], fileIds: [] }, 1);
-  await bindings.updateNote(base.id, { ...note, content: "new body" }, note);
-  await assert.rejects(bindings.updateNote(base.id, { ...note, content: "stale body" }, note), /CONTENT_CHANGED/);
+  await bindings.updateNote(base.id, { ...note, content: "new body" }, 1);
+  await assert.rejects(bindings.updateNote(base.id, { ...note, content: "stale body" }, 1), /CONTENT_CHANGED/);
   assert.equal((await tasks.load())[0].contextVersion, 4);
   const isolated = new TaskContentRepository(filename, "other");
   await assert.rejects(isolated.updatePrompt(base.id, "bad", "Edited prompt"), /NOT_FOUND/);

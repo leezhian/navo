@@ -1,4 +1,5 @@
 import type { AppSettings } from "../domain/types";
+import type { ResourceCommandDetection } from "./resourceCommandDetection";
 
 export interface SettingsBootstrap {
   /** null 表示尚未保存配置，渲染进程可迁移旧偏好。 */
@@ -18,6 +19,8 @@ export interface ResourceRecord {
   description?: string;
   /** 命令按数组顺序保存，可在任务工作区手动执行。 */
   commands?: ResourceCommand[];
+  /** 最近一次静态检测的声明命令与警告，编辑页可手动重新检测。 */
+  commandDetection?: ResourceCommandDetection;
   /** 重新加载时检查路径是否仍可访问。 */
   available: boolean;
 }
@@ -32,6 +35,8 @@ export interface SaveResourceParams {
   description?: string;
   /** 未传入时保留已有命令；空数组用于清空。 */
   commands?: ResourceCommand[];
+  /** 编辑页重新检测的草稿结果，随保存一起写入，取消不落库。 */
+  commandDetection?: ResourceCommandDetection;
 }
 
 export const RESOURCE_DESCRIPTION_MAX_LENGTH = 4000;

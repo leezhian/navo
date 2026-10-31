@@ -23,6 +23,7 @@ import { readNativeSessionTitle } from "./nativeSessionTitle";
 import { canManageNativeSession, nativeActionEnvironment, removeNativeSession, renameNativeSession, requireSessionName } from "./nativeSessionActions";
 import { TaskContextServer } from "./taskContextServer";
 import { TaskContextFiles } from "./taskContextFiles";
+import type { TaskContextNoteActions } from "./taskNoteTools";
 
 const MAX_SESSIONS = 32;
 const ACTIVITY_FLUSH_DELAY_MS = 1000;
@@ -46,8 +47,9 @@ export class TaskSessionService {
     private readonly attachmentPaths: (task: Task) => Promise<string[]> = async () => [],
     private readonly readTitle = readNativeSessionTitle,
     private readonly nativeActions = { environment: nativeActionEnvironment, rename: renameNativeSession, remove: removeNativeSession },
-    private readonly loadResources: () => Promise<ResourceRecord[]> = async () => []) {
-    this.contextServer = new TaskContextServer(loadTask, attachmentPaths);
+    private readonly loadResources: () => Promise<ResourceRecord[]> = async () => [],
+    noteActions?: TaskContextNoteActions) {
+    this.contextServer = new TaskContextServer(loadTask, attachmentPaths, noteActions);
   }
 
   private serialize<Result>(operation: () => Promise<Result>): Promise<Result> {

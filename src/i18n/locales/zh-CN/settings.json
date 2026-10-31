@@ -17,6 +17,16 @@
     "description": "描述",
     "descriptionPlaceholder": "说明这个仓库或文件夹的用途…",
     "commands": {
+      "detect": "重新检测命令",
+      "detected_other": "已补充 {{count}} 条命令",
+      "noNewCommands": "检测完成，没有新的声明命令。",
+      "detectionWarnings": {
+        "unreadable": "部分配置无法读取，可重新检测。",
+        "invalidManifest": "配置格式或脚本条目无效，已跳过。",
+        "ambiguousManager": "无法确定包管理器，已跳过相关命令。",
+        "unsupportedWorkspace": "工作区配置格式暂不支持，已跳过。",
+        "limitReached": "已达到扫描或命令数量上限，部分结果未加入。"
+      },
       "title": "命令",
       "none": "暂无命令",
       "count_other": "{{count}} 条命令",

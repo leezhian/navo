@@ -13,7 +13,7 @@ export interface TaskSession {
   titleSource?: "cli";
   /** Navo 内归档时间；归档保留会话记录，但不再运行或出现在活动列表。 */
   archivedAt?: string;
-  /** dynamic 为只读 MCP，file 为实时上下文文件；snapshot 用于旧会话或无法传递读取约定的 CLI。 */
+  /** dynamic 为任务 MCP（含笔记读写），file 为实时上下文文件；snapshot 用于旧会话或无法传递读取约定的 CLI。 */
   contextMode?: "dynamic" | "file" | "snapshot";
   /** 文件同步失败不停止 CLI，不表示模型已读取或未读取。 */
   contextSyncFailed?: boolean;

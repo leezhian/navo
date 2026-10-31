@@ -33,7 +33,7 @@ test("资源原子追加、重试幂等、任务及命名空间隔离，笔记�
   const payload = input({ links: [issue], webLinks: [{ id: randomUUID(), title: "Spec", url: "https://example.com/spec" }], notes: [note], fileIds: [file.id] });
   const updated = await bindings.add(task.id, payload, 1);
   assert.equal(updated.title, task.title);assert.equal(updated.description, task.description);assert.equal(updated.status, task.status);
-  assert.equal(updated.links.length, 1);assert.deepEqual(updated.notes, [note]);assert.equal(updated.files[0].path, file.path);
+  assert.equal(updated.links.length, 1);assert.equal(updated.notes[0].content, note.content);assert.equal(updated.notes[0].version, 1);assert.equal(updated.notes[0].origin, "user");assert.equal(updated.files[0].path, file.path);
   assert.equal((await bindings.add(task.id, payload, 1)).notes.length, 1);
   assert.equal((await tasks.load()).find((item) => item.id === "other").notes.length, 0);
   assert.match(taskPrompt(updated), /Task context/);assert.ok(taskPrompt(updated).includes(file.path));
@@ -81,7 +81,7 @@ test("v9 任务库升级资源表后保留既有任务，不生成笔记或文�
   let database = await openAppDatabase(filename);
   database.exec("DROP TABLE task_resource_batches; DROP TABLE task_notes; DROP TABLE task_file_references; PRAGMA user_version=9");database.close();
   database = await openAppDatabase(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 12);database.close();
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 13);database.close();
   const migrated = await tasks.load();
   assert.equal(migrated.length, 2);assert.equal(migrated[0].title, task.title);
   assert.deepEqual(migrated[0].notes, []);assert.deepEqual(migrated[0].files, []);
@@ -96,20 +96,21 @@ test("笔记编辑和删除持久化、保留顺序及其他资源，并更新�
   const database = await openAppDatabase(filename);
   try { database.prepare("UPDATE tasks SET updated_at=? WHERE namespace=? AND id=?").run(task.date, "test", task.id); }
   finally { database.close(); }
-  const saved = await bindings.updateNote(task.id, updated);
-  assert.deepEqual(saved.notes, [{ ...updated, title: "Renamed" }, second]);
+  const saved = await bindings.updateNote(task.id, updated, 1);
+  assert.deepEqual(saved.notes.map(({ id, title, content }) => ({ id, title, content })), [{ ...updated, title: "Renamed" }, second]);
+  assert.equal(saved.notes[0].version, 2);assert.equal(saved.notes[1].version, 1);
   assert.equal(saved.title, task.title);assert.equal(saved.description, task.description);assert.equal(saved.status, task.status);
   assert.ok(saved.updatedAt > task.date);assert.equal(saved.webLinks.length, 1);
   assert.match(taskPrompt(saved), /Updated body/);assert.doesNotMatch(taskPrompt(saved), /Original content/);
-  assert.equal((await bindings.updateNote(task.id, updated)).updatedAt, saved.updatedAt);
+  assert.equal((await bindings.updateNote(task.id, updated, 2)).updatedAt, saved.updatedAt);
   assert.deepEqual((await new TaskRepository(filename, "test").load()).find(item => item.id === task.id).notes, saved.notes);
-  const deleted = await bindings.deleteNote(task.id, first.id);
-  assert.deepEqual(deleted.notes, [second]);assert.equal(deleted.webLinks.length, 1);
+  const deleted = await bindings.deleteNote(task.id, first.id, 2);
+  assert.deepEqual(deleted.notes, [saved.notes[1]]);assert.equal(deleted.webLinks.length, 1);
   assert.doesNotMatch(taskPrompt(deleted), /Updated body/);
   assert.equal((await tasks.load()).find(item => item.id === "other").notes.length, 0);
-  await bindings.deleteNote(task.id, second.id);
+  await bindings.deleteNote(task.id, second.id, 1);
   assert.deepEqual((await tasks.load()).find(item => item.id === task.id).notes, []);
-  await assert.rejects(bindings.deleteNote(task.id, first.id), /TASK_NOTE_NOT_FOUND/);
+  await assert.rejects(bindings.deleteNote(task.id, first.id, 2), /TASK_NOTE_NOT_FOUND/);
 });
 
 test("笔记修改校验归属、输入、归档及删除中状态，不误改其他任务或命名空间", async (context) => {
@@ -120,22 +121,22 @@ test("笔记修改校验归属、输入、归档及删除中状态，不误改�
   await isolatedTasks.importLegacy([task]);
   const isolated = new TaskResourceBindings(isolatedTasks, filename, "isolated");
   for (const target of ["other", "missing"]) {
-    await assert.rejects(bindings.updateNote(target, note), /NOT_FOUND/);
-    await assert.rejects(bindings.deleteNote(target, note.id), /NOT_FOUND/);
+    await assert.rejects(bindings.updateNote(target, note, 1), /NOT_FOUND/);
+    await assert.rejects(bindings.deleteNote(target, note.id, 1), /NOT_FOUND/);
   }
-  await assert.rejects(isolated.updateNote(task.id, note), /TASK_NOTE_NOT_FOUND/);
-  await assert.rejects(isolated.deleteNote(task.id, note.id), /TASK_NOTE_NOT_FOUND/);
+  await assert.rejects(isolated.updateNote(task.id, note, 1), /TASK_NOTE_NOT_FOUND/);
+  await assert.rejects(isolated.deleteNote(task.id, note.id, 1), /TASK_NOTE_NOT_FOUND/);
   for (const invalid of [null, {}, { ...note, id: "invalid" }, { ...note, title: "x".repeat(161) }, { ...note, content: " " }, { ...note, content: "x".repeat(100001) }]) {
-    await assert.rejects(bindings.updateNote(task.id, invalid), /TASK_INVALID/);
+    await assert.rejects(bindings.updateNote(task.id, invalid, 1), /TASK_INVALID/);
   }
-  await assert.rejects(bindings.deleteNote(task.id, "invalid"), /TASK_INVALID/);
-  await assert.rejects(bindings.updateNote(task.id, { ...note, id: randomUUID() }), /TASK_NOTE_NOT_FOUND/);
+  await assert.rejects(bindings.deleteNote(task.id, "invalid", 1), /TASK_INVALID/);
+  await assert.rejects(bindings.updateNote(task.id, { ...note, id: randomUUID() }, 1), /TASK_NOTE_NOT_FOUND/);
   await tasks.update(items => items.map(item => item.id === task.id ? { ...item, status: "ARCHIVED" } : item));
-  await assert.rejects(bindings.updateNote(task.id, note), /TASK_BUSY/);
-  await assert.rejects(bindings.deleteNote(task.id, note.id), /TASK_BUSY/);
+  await assert.rejects(bindings.updateNote(task.id, note, 1), /TASK_BUSY/);
+  await assert.rejects(bindings.deleteNote(task.id, note.id, 1), /TASK_BUSY/);
   await tasks.update(items => items.map(item => item.id === task.id ? { ...item, status: "TODO" } : item));
   await tasks.recordDeletion(task.id, { resourceId: "repo", worktree: "kept", branch: "kept" });
-  await assert.rejects(bindings.updateNote(task.id, note), /TASK_BUSY/);
-  await assert.rejects(bindings.deleteNote(task.id, note.id), /TASK_BUSY/);
-  assert.deepEqual((await tasks.load()).find(item => item.id === task.id).notes, [note]);
+  await assert.rejects(bindings.updateNote(task.id, note, 1), /TASK_BUSY/);
+  await assert.rejects(bindings.deleteNote(task.id, note.id, 1), /TASK_BUSY/);
+  assert.equal((await tasks.load()).find(item => item.id === task.id).notes[0].content, note.content);
 });

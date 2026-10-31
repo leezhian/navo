@@ -61,7 +61,11 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
         paths.push(path.join(app.getPath("userData"), "task-files", namespace, record.id, filename));
       }
       return paths;
-    }, undefined, undefined, () => resources.list());
+    }, undefined, undefined, () => resources.list(), {
+      create: (id, note, sessionId, authorize) => tasks.createAgentNote(id, note, sessionId, authorize).then(publishTask),
+      update: (id, note, version, authorize) => tasks.updateNote(id, note, version, authorize).then(publishTask),
+      remove: (id, noteId, version, authorize) => tasks.deleteNote(id, noteId, version, authorize).then(publishTask),
+    });
   sessions = service;
   unsubscribeTasks?.();
   unsubscribeTasks = onTaskPublished((record) => { void service.updateTaskContext(record.id).catch(() => undefined); });

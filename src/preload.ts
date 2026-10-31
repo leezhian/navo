@@ -74,7 +74,7 @@ const api: NavoApi = {
     workspaceOpenOptions: (id, resourceId) => ipcRenderer.invoke(ipcChannels.tasksWorkspaceOpenOptions, id, resourceId),
     openWorkspace: (id, resourceId, target) => ipcRenderer.invoke(ipcChannels.tasksOpenWorkspace, id, resourceId, target),
     addResources: (id, input) => ipcRenderer.invoke(ipcChannels.tasksAddResources, id, input),
-    updateNote: (id, note, expected) => ipcRenderer.invoke(ipcChannels.tasksUpdateNote, id, note, expected),
+    updateNote: (id, note, expectedVersion) => ipcRenderer.invoke(ipcChannels.tasksUpdateNote, id, note, expectedVersion),
     updatePrompt: (id, content, expected) => ipcRenderer.invoke(ipcChannels.tasksUpdatePrompt, id, content, expected),
     detachResource: (id, input) => ipcRenderer.invoke(ipcChannels.tasksDetachResource, id, input),
     retryInitialization: (id) => ipcRenderer.invoke(ipcChannels.tasksRetryInitialization, id),
@@ -83,7 +83,7 @@ const api: NavoApi = {
       ipcRenderer.on(ipcChannels.tasksChanged, handler);
       return () => ipcRenderer.removeListener(ipcChannels.tasksChanged, handler);
     },
-    deleteNote: (id, noteId) => ipcRenderer.invoke(ipcChannels.tasksDeleteNote, id, noteId),
+    deleteNote: (id, noteId, expectedVersion) => ipcRenderer.invoke(ipcChannels.tasksDeleteNote, id, noteId, expectedVersion),
     chooseResourceFile: () => ipcRenderer.invoke(ipcChannels.tasksChooseResourceFile),
     releaseResourceFiles: (ids) => ipcRenderer.invoke(ipcChannels.tasksReleaseResourceFiles, ids),
     revealResourceFile: (id, fileId) => ipcRenderer.invoke(ipcChannels.tasksRevealResourceFile, id, fileId),
@@ -107,6 +107,7 @@ const api: NavoApi = {
   },
   resources: {
     list: () => ipcRenderer.invoke(ipcChannels.resourcesList),
+    detectCommands: (localPath) => ipcRenderer.invoke(ipcChannels.resourcesDetectCommands, localPath),
     inspectGit: (localPath, forceRefresh) => ipcRenderer.invoke(ipcChannels.resourcesInspectGit, localPath, forceRefresh),
     save: (params: SaveResourceParams) => ipcRenderer.invoke(ipcChannels.resourcesSave, params),
     remove: (id: string) => ipcRenderer.invoke(ipcChannels.resourcesRemove, id),

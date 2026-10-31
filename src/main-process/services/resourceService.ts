@@ -9,6 +9,9 @@ import type { CloneProgress, CloneResourceParams, ResourceRecord, SaveResourcePa
 import { readJsonFile, writeJsonFile } from "./jsonFileStorage";
 import { redactCloneOutput, resolveResourcePath, validateCloneUrl, validateRepositoryName } from "./resourcePaths";
 import { normalizeResourceCommands, normalizeResourceDescription } from "../../utils/resourceConfiguration";
+import { mergeDetectedCommands, normalizeCommandDetection } from "../../utils/resourceCommandDetection";
+import { detectResourceCommands } from "./commandDetection/detectResourceCommands";
+import type { ResourceCommandDetection } from "../../shared/resourceCommandDetection";
 
 interface CloneOperation {
   process: ChildProcess | null;
@@ -44,8 +47,17 @@ export class ResourceService {
         if (params.id && !previous) throw new Error("RESOURCE_NOT_FOUND");
         if (records.some((record) => record.localPath === localPath && record.id !== params.id)) throw new Error("DUPLICATE_RESOURCE");
         const description = normalizeResourceDescription(params.description === undefined ? previous?.description ?? "" : params.description);
-        const commands = normalizeResourceCommands(params.commands === undefined ? previous?.commands ?? [] : params.commands);
-        const record: ResourceRecord = { id: previous?.id ?? randomUUID(), kind: params.kind, name: params.name.trim(), localPath, available: true, description, commands };
+        let commands = normalizeResourceCommands(params.commands === undefined ? previous?.commands ?? [] : params.commands);
+        let commandDetection = normalizeCommandDetection(params.commandDetection === undefined ? (previous?.localPath === localPath ? previous.commandDetection : undefined) : params.commandDetection);
+        if (!previous || previous.localPath !== localPath) {
+          // 检测失败不能回滚已克隆或刚添加的目录；结果可在编辑页重试。
+          try { commandDetection = await detectResourceCommands(localPath); }
+          catch { commandDetection = { commands: [], warnings: [{ source: ".", code: "unreadable" }] }; }
+          const merged = mergeDetectedCommands(commands, commandDetection.commands);
+          commands = merged.commands;
+          if (merged.limited && commandDetection.warnings.length < 50) commandDetection.warnings.push({ source: ".", code: "limitReached" });
+        }
+        const record: ResourceRecord = { id: previous?.id ?? randomUUID(), kind: params.kind, name: params.name.trim(), localPath, available: true, description, commands, ...(commandDetection ? { commandDetection } : {}) };
         const savedRemote = remoteUrl || (previous?.localPath === localPath ? previous.remoteUrl : undefined);
         if (params.kind === "repo" && savedRemote) record.remoteUrl = savedRemote;
         await writeJsonFile(this.storagePath, previous ? records.map((item) => item.id === record.id ? record : item) : [...records, record]);
@@ -63,6 +75,8 @@ export class ResourceService {
       });
     });
   }
+  /** 只返回检测结果；已有资源是否保存由编辑表单决定。 */
+  detectCommands(localPath: string): Promise<ResourceCommandDetection> { return detectResourceCommands(localPath); }
 
   async clone(params: CloneResourceParams, ownerId: number, onProgress: (progress: CloneProgress) => void): Promise<ResourceRecord> {
     return diagnosticOperation("resource.clone", {}, async () => {
@@ -169,7 +183,7 @@ export class ResourceService {
     if (!Array.isArray(value) || value.some((record) => !record || typeof record.id !== "string" || !record.id || typeof record.name !== "string" || typeof record.localPath !== "string" || !path.isAbsolute(record.localPath) || (record.remoteUrl !== undefined && typeof record.remoteUrl !== "string") || (record.kind !== "repo" && record.kind !== "folder"))) throw new Error("INVALID_RESOURCE_STORAGE");
     if (new Set(value.map((record) => record.id)).size !== value.length) throw new Error("INVALID_RESOURCE_STORAGE");
     try {
-      return value.map((record) => ({ ...record, description: normalizeResourceDescription(record.description === undefined ? "" : record.description), commands: normalizeResourceCommands(record.commands === undefined ? [] : record.commands) }));
+      return value.map((record) => ({ ...record, description: normalizeResourceDescription(record.description === undefined ? "" : record.description), commands: normalizeResourceCommands(record.commands === undefined ? [] : record.commands), ...(record.commandDetection !== undefined ? { commandDetection: normalizeCommandDetection(record.commandDetection) } : {}) }));
     } catch { throw new Error("INVALID_RESOURCE_STORAGE"); }
   }
 

@@ -1,13 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { AddTaskResourcesInput, TaskFileReference, TaskNote } from "../../shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskFileReference } from "../../shared/taskResourceTypes";
 import type { TaskResource } from "../../shared/taskTypes";
 import { openAppDatabase } from "./appDatabase";
 import { insertInitialization } from "./taskInitializationRepository";
 import type { StoredInitializationStep } from "./taskInitializationRepository";
+import { insertTaskNote, readTaskNotes } from "./taskNoteRepository";
 
 export function readTaskExtraResources(database: DatabaseSync, namespace: string, taskId: string) {
-  const notes: TaskNote[] = database.prepare("SELECT id,title,content FROM task_notes WHERE namespace=? AND task_id=? ORDER BY rowid").all(namespace, taskId)
-    .map((row) => ({ id: String(row.id), title: String(row.title), content: String(row.content) }));
+  const notes = readTaskNotes(database, namespace, taskId);
   const files: TaskFileReference[] = database.prepare("SELECT id,name,path,size FROM task_file_references WHERE namespace=? AND task_id=? ORDER BY rowid").all(namespace, taskId)
     .map((row) => ({ id: String(row.id), name: String(row.name), path: String(row.path), size: Number(row.size) }));
   return { notes, files };
@@ -84,7 +84,7 @@ export class TaskResourceRepository {
           changed = true;
         }
         for (const note of input.notes) {
-          database.prepare("INSERT INTO task_notes VALUES (?,?,?,?,?)").run(namespace, taskId, note.id, note.title.trim(), note.content);
+          insertTaskNote(database, namespace, taskId, note);
           changed = true;
         }
         for (const file of files) {
@@ -93,32 +93,6 @@ export class TaskResourceRepository {
         }
         if (changed) this.touchTask(database, taskId);
         database.prepare("INSERT INTO task_resource_batches VALUES (?,?,?)").run(namespace, taskId, input.requestId);
-      }
-      database.exec("COMMIT");
-      transactionOpen = false;
-    } catch (error) { if (transactionOpen) database.exec("ROLLBACK"); throw error; }
-    finally { database.close(); }
-  }
-  async mutateNote(taskId: string, noteId: string, note: TaskNote | null, expected?: TaskNote) {
-    const database = await openAppDatabase(this.filename);
-    let transactionOpen = false;
-    try {
-      database.exec("BEGIN IMMEDIATE");
-      transactionOpen = true;
-      const task = database.prepare("SELECT status FROM tasks WHERE namespace=? AND id=?").get(this.namespace, taskId);
-      if (!task) throw new Error("TASK_NOT_FOUND");
-      if (task.status === "ARCHIVED" || database.prepare("SELECT 1 FROM task_deletions WHERE namespace=? AND task_id=?").get(this.namespace, taskId)) throw new Error("TASK_BUSY");
-      const current = database.prepare("SELECT title,content FROM task_notes WHERE namespace=? AND task_id=? AND id=?").get(this.namespace, taskId, noteId);
-      if (!current) throw new Error("TASK_NOTE_NOT_FOUND");
-      if (expected && (current.title !== expected.title || current.content !== expected.content)) throw new Error("TASK_CONTENT_CHANGED");
-      if (note) {
-        if (current.title !== note.title.trim() || current.content !== note.content) {
-          database.prepare("UPDATE task_notes SET title=?,content=? WHERE namespace=? AND task_id=? AND id=?").run(note.title.trim(), note.content, this.namespace, taskId, noteId);
-          this.touchTask(database, taskId);
-        }
-      } else {
-        database.prepare("DELETE FROM task_notes WHERE namespace=? AND task_id=? AND id=?").run(this.namespace, taskId, noteId);
-        this.touchTask(database, taskId);
       }
       database.exec("COMMIT");
       transactionOpen = false;

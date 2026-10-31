@@ -47,7 +47,7 @@ export function ResourceDialog({ record, repositoriesDirectory, onClose, onRetur
         <DialogFooter className={record ? "bg-transparent py-3" : undefined}>
           {form.busy && form.isClone ? <Button type="button" variant="secondary" disabled={form.cancelling} onClick={() => void form.cancelClone()}>{t(form.cancelling ? "settings:resources.cancelling" : "settings:resources.cancelClone")}</Button>
             : <Button type="button" variant="ghost" disabled={disabled} onClick={onClose}>{t("common:actions.cancel")}</Button>}
-          <Button type="submit" disabled={disabled || commandEditing}>{t(form.busy ? form.isClone ? "settings:resources.cloning" : "common:status.saving" : record ? "common:actions.save" : "common:actions.confirm")}</Button>
+          <Button type="submit" disabled={disabled || commandEditing || form.detecting}>{t(form.busy ? form.isClone ? "settings:resources.cloning" : "common:status.saving" : record ? "common:actions.save" : "common:actions.confirm")}</Button>
         </DialogFooter>
       </form>
     </DialogContent>
