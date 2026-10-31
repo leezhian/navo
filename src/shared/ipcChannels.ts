@@ -14,6 +14,7 @@ export const ipcChannels = {
   taskSessionsRename: "task-sessions:rename",
   taskSessionsRemove: "task-sessions:remove",
   taskSessionsRestart: "task-sessions:restart",
+  taskSessionsResumeVisible: "task-sessions:resume-visible",
   taskSessionsChanged: "task-sessions:changed",
   taskSessionsRevealAttachment: "task-sessions:reveal-attachment",
   taskSessionsOpenLink: "task-sessions:open-link",

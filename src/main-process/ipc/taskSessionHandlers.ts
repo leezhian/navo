@@ -89,6 +89,7 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
     if (typeof resume !== "boolean") throw new Error("TASK_INVALID");
     return service.restart(id, resume, owner(event));
   });
+  ipcMain.handle(ipcChannels.taskSessionsResumeVisible, (event, id: string) => service.restart(id, true, owner(event), true));
   ipcMain.handle(ipcChannels.taskSessionsOpenLink, async (event, taskId: string, id: string) => {
     owner(event);
     const link = (await task(taskId)).webLinks?.find((item) => item.id === id);

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useVisibleSessionResume } from "@/hooks/useVisibleSessionResume";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SquareArrowOutUpRight, Terminal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
@@ -89,6 +90,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const visibleNote = visibleRight && rightContent.kind === "note";
   const showUpper = showAgentPane || (visibleRight && !rightOverlay);
   const terminalFillsSpace = !showUpper;
+  useVisibleSessionResume(task, active, showAgentPane && !(visibleRight && rightOverlay), rootRef);
 
   useEffect(() => {
     const element = rootRef.current;

@@ -9,14 +9,14 @@ export function agentLaunchArguments(selection: TaskAgentSelection, nativeId: st
   }
   option("--model", selection.modelId);
   if (selection.agentId === "codex") {
-    if (resume || selection.modeId !== "default") throw new Error("SESSION_MODE_UNSUPPORTED");
+    if (selection.modeId !== "default") throw new Error("SESSION_MODE_UNSUPPORTED");
     if (selection.effort) option("--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`);
-    args.push("--", prompt);
+    if (resume) { args.unshift("resume");args.push("--", nativeId); }
+    else args.push("--", prompt);
   } else if (selection.agentId === "antigravity") {
-    if (resume) throw new Error("SESSION_RESUME_UNSUPPORTED");
     option("--mode", selection.modeId);
     if (selection.effort) option("--effort", selection.effort);
-    option("--prompt-interactive", prompt);
+    option(resume ? "--conversation" : "--prompt-interactive", resume ? nativeId : prompt);
   } else {
     option("--permission-mode", selection.modeId);
     if (selection.effort) option(selection.agentId === "grok" ? "--reasoning-effort" : "--effort", selection.effort);

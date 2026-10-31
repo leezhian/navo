@@ -26,9 +26,10 @@ export function parseStoredSession(data: string, id: string, taskId: string): Ta
     || (session.titleSource !== undefined && session.titleSource !== "cli")
     || (session.contextMode !== undefined && !["dynamic", "file", "snapshot"].includes(session.contextMode))
     || (session.contextSyncFailed !== undefined && typeof session.contextSyncFailed !== "boolean")
+    || (session.resumeOnOpen !== undefined && typeof session.resumeOnOpen !== "boolean")
     || (session.workspace !== undefined && !isWorkspace(session.workspace))
-    || [session.archivedAt, session.lastUpdateAt, session.lastActiveAt].some((date) => date !== undefined && !isDate(date))
-    || [session.nativeSessionId, session.nativeHistoryRoot, session.error].some((text) => text !== undefined && !isText(text))) return null;
+    || [session.archivedAt, session.lastUpdateAt, session.lastActiveAt, session.nativeLaunchAt].some((date) => date !== undefined && !isDate(date))
+    || [session.nativeSessionId, session.nativeLaunchId, session.nativeHistoryRoot, session.error].some((text) => text !== undefined && !isText(text))) return null;
   // 兼容没有活动时间的旧记录，仅使用已知时间回填，不制造新活动。
   return { ...session, lastUpdateAt: session.lastUpdateAt ?? session.archivedAt ?? session.createdAt,
     lastActiveAt: session.lastActiveAt ?? session.createdAt } as TaskSession;

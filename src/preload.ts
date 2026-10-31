@@ -37,6 +37,7 @@ const api: NavoApi = {
     rename: (id, title) => ipcRenderer.invoke(ipcChannels.taskSessionsRename, id, title),
     remove: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsRemove, id),
     restart: (id, resume) => ipcRenderer.invoke(ipcChannels.taskSessionsRestart, id, resume),
+    resumeVisible: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsResumeVisible, id),
     revealAttachment: (taskId, id) => ipcRenderer.invoke(ipcChannels.taskSessionsRevealAttachment, taskId, id),
     openLink: (taskId, id) => ipcRenderer.invoke(ipcChannels.taskSessionsOpenLink, taskId, id),
     onChanged: (listener) => {

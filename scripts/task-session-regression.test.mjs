@@ -10,7 +10,7 @@ const load = createLoader();
 const { agentLaunchArguments } = load("src/main-process/services/taskSessions/launchArguments.ts");
 const { prepareTaskContext } = load("src/main-process/services/taskSessions/taskContext.ts");
 const selection = { agentId: "claude", modelId: "model", modelName: "Model", modeId: "plan", modeName: "plan", effort: "high" };
-const help = "--model --permission-mode --session-id --resume --effort --reasoning-effort --mode --prompt-interactive --config";
+const help = "--model --permission-mode --session-id --resume --effort --reasoning-effort --mode --prompt-interactive --conversation --config";
 const task = { id: "task-1", title: "Task", description: "Fix $(touch /tmp/unsafe)\nSecond line", date: new Date().toISOString(), projectName: "", status: "TODO", resources: [], agent: selection };
 
 test("CLI 参数逐项传递，首条指令只交付一次，恢复使用精确原生 ID", () => {
@@ -28,7 +28,27 @@ test("Codex 不伪造模式与恢复参数，reasoning 配置使用 TOML 字符�
   const args = agentLaunchArguments({ ...selection, agentId: "codex", modeId: "default" }, "uuid", "prompt", false, help);
   assert.ok(args.includes('model_reasoning_effort="high"'));
   assert.throws(() => agentLaunchArguments({ ...selection, agentId: "codex" }, "uuid", "prompt", false, help), /MODE_UNSUPPORTED/);
-  assert.throws(() => agentLaunchArguments({ ...selection, agentId: "antigravity" }, "uuid", "prompt", true, help), /RESUME_UNSUPPORTED/);
+  assert.deepEqual(agentLaunchArguments({ ...selection, agentId: "antigravity" }, "uuid", "prompt", true, help).slice(-2), ["--conversation", "uuid"]);
+  const resumed = agentLaunchArguments({ ...selection, agentId: "codex", modeId: "default" }, "uuid", "prompt", true, help);
+  assert.equal(resumed[0], "resume");assert.deepEqual(resumed.slice(-2), ["--", "uuid"]);assert.ok(!resumed.includes("prompt"));
+});
+
+test("可见会话恢复合并并发请求，用户停止、归档任务和失败均不自动重启", async context => {
+  const runtime = fixture();context.after(() => runtime.service.shutdown());
+  const [created] = await runtime.service.start({ taskId: task.id, kind: "agent", agent: selection }, runtime.owner);
+  const cold = fixture([{ ...created, status: "running" }]);context.after(() => cold.service.shutdown());
+  const loaded = await cold.service.list();assert.equal(loaded[0].status, "stopped");assert.equal(cold.launches(), 0);
+  const nativeId = loaded[0].nativeSessionId;
+  await Promise.all([cold.service.restart(created.id, true, cold.owner, true), cold.service.restart(created.id, true, cold.owner, true)]);
+  assert.equal(cold.launches(), 1);assert.equal((await cold.service.list())[0].nativeSessionId, nativeId);
+  await cold.service.stop(created.id, cold.owner);
+  await cold.service.restart(created.id, true, cold.owner, true);assert.equal(cold.launches(), 1);
+  await cold.service.restart(created.id, true, cold.owner);assert.equal(cold.launches(), 2);
+  const archived = fixture([{ ...created, status: "stopped" }], undefined, { task: { ...task, status: "ARCHIVED" } });context.after(() => archived.service.shutdown());
+  await archived.service.restart(created.id, true, archived.owner, true);assert.equal(archived.launches(), 0);
+  await assert.rejects(archived.service.restart(created.id, true, archived.owner), /SESSION_BUSY/);
+  const failed = fixture([{ ...created, status: "failed", error: "SESSION_EXIT_FAILED" }]);context.after(() => failed.service.shutdown());
+  await failed.service.restart(created.id, true, failed.owner, true);assert.equal(failed.launches(), 0);
 });
 
 test("自动工作目录隔离、多仓库上下文、无效目录与符号链接保护", async () => {

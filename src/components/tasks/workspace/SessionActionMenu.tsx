@@ -11,8 +11,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 interface SessionActionMenuProps {
   /** 所有操作只作用于当前会话，不删除任务或工作目录。 */
   session: TaskSession;
+  /** 已归档任务允许查看记录，但禁止启动或恢复 Agent。 */
+  taskArchived?: boolean;
 }
-export function SessionActionMenu({ session }: SessionActionMenuProps) {
+export function SessionActionMenu({ session, taskArchived = false }: SessionActionMenuProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const pending = useTaskSessionStore((state) => state.pending);
   const error = useTaskSessionStore((state) => state.error);
@@ -37,7 +39,7 @@ export function SessionActionMenu({ session }: SessionActionMenuProps) {
         {!session.archivedAt && <>
         <DropdownMenuItem className="text-xs" disabled={!nativeSupported || pending} onSelect={() => openAction("rename")}><Pencil className="size-3.5" />{t("tasks:runtime.renameSession")}</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-xs" disabled={pending} onSelect={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restartAgent")}</DropdownMenuItem>
+        <DropdownMenuItem className="text-xs" disabled={pending || taskArchived} onSelect={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restartAgent")}</DropdownMenuItem>
         <DropdownMenuItem className="text-xs" disabled={pending || !running} onSelect={() => void useTaskSessionStore.getState().stop(session.id)}><Power className="size-3.5" />{t("tasks:runtime.shutdownAgent")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" disabled={pending} onSelect={() => void useTaskSessionStore.getState().archive(session.id)}><Archive className="size-3.5" />{t("tasks:runtime.archiveSession")}</DropdownMenuItem>

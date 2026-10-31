@@ -30,9 +30,15 @@ export interface TaskSession {
   /** 每次启动生成新的 PTY 标识，重启不复用已结束的终端缓冲。 */
   terminalId: string;
   nativeSessionId?: string;
+  /** 新会话关联标识，用于核对无法预设 ID 的 CLI 原生记录，不按最近时间猜测。 */
+  nativeLaunchId?: string;
+  /** 本次新对话开始时间，仅用于缩小原生记录的核对范围。 */
+  nativeLaunchAt?: string;
   /** 原生历史的实际根目录，防止配置变更后误操作另一个目录。 */
   nativeHistoryRoot?: string;
   resumable: boolean;
+  /** 应用退出保留待恢复状态；用户停止、自然退出或失败时关闭自动恢复。 */
+  resumeOnOpen?: boolean;
   createdAt: string;
   /** 会话元数据最近一次实际变更时间，不包含读取及终端缓冲回放。 */
   lastUpdateAt: string;
@@ -64,6 +70,8 @@ export interface TaskSessionsApi {
   rename(id: string, title: string): Promise<TaskSession[]>;
   remove(id: string): Promise<TaskSession[]>;
   restart(id: string, resume: boolean): Promise<TaskSession[]>;
+  /** 当前可见会话的自动恢复；已运行或不满足条件时幂等返回，不另建对话。 */
+  resumeVisible(id: string): Promise<TaskSession[]>;
   onChanged(listener: (sessions: TaskSession[]) => void): () => void;
   /** 通过已存储的任务及附件标识定位，不接受任意文件路径。 */
   revealAttachment(taskId: string, attachmentId: string): Promise<void>;

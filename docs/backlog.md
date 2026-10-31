@@ -8,7 +8,7 @@
 
 | 功能 | 已有基础 | 尚未实现 | 核对入口 |
 | --- | --- | --- | --- |
-| 任务内 Agent 运行 | 本地任务、描述、附件、关联条目和工作目录；四种本机 CLI 的设置与检测，未知状态不隐藏；创建时按真实能力选择 Claude/Codex/Grok/Antigravity、模型、模式、思考等级并保存到任务 | 已接入原生 CLI 启动/停止/重启和 Claude/Grok 精确恢复；待补 Codex/Antigravity 原生恢复、Codex 非 default 模式、可靠等待输入状态、多账号及富聊天 | [任务页](../src/components/tasks/TaskPage.tsx)、[Agent 设置](prd/settings/agents.md) |
+| 任务内 Agent 运行 | 本地任务、描述、附件、关联条目和工作目录；四种本机 CLI 的设置与检测，未知状态不隐藏；创建时按真实能力选择 Claude/Codex/Grok/Antigravity、模型、模式、思考等级并保存到任务 | 已接入四种原生 CLI 的启动/停止/重启及按精确 ID 恢复，当前可见会话按条件自动恢复；Codex/Antigravity 新会话核对原生记录后绑定 ID，旧记录不猜测；待补 Codex 非 default 模式、可靠等待输入状态、多账号及富聊天 | [任务页](../src/components/tasks/TaskPage.tsx)、[Agent 设置](prd/settings/agents.md) |
 | 多项目共享上下文 | 单个任务可关联多个仓库，准备分支或 Worktree | Claude/Codex 已支持任务级 MCP，按需读取最新正文和资源，并按独立版本读写当前任务 Notes；Grok/Antigravity 使用实时上下文文件及每轮读取约定，尚不支持笔记写回；待补它们的会话级 MCP、可靠逐轮交付确认及更多协作规则 | [创建任务需求](prd/task-create.md)、[产品范围](../PRD.md) |
 | 服务商授权 | GitHub、GitHub Enterprise、GitLab、GitLab Self-Hosted、Linear 列表 | 真实连接、凭证安全存储、失效处理与断开；具体采用 OAuth、Device Flow 或 Token 仍需按平台确定 | [集成服务](../src/services/integrationApi.ts)、[集成需求](prd/settings/integrations.md) |
 | Issue / PR 远程数据 | 本地列表/看板、筛选、详情及创建任务时关联 | 远程拉取与刷新、描述/评论等详情、与服务商状态同步；当前刷新仅重读本地数据 | [Issue 数据](../src/stores/issueStore.ts)、[Issue 需求](prd/issues.md) |

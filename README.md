@@ -153,7 +153,7 @@ Agent 主进程模块位于 `src/main-process/services/agents`，IPC 契约位�
 
 Grok 能力探测仅发送 ACP `initialize`，读取 `_meta.modelState` 中的模型与模型级思考等级，不创建会话、不复用用户 leader。Antigravity 模型来自 `agy models` 的真实列表，模式及会话级思考等级来自 `agy --help`；帮助兼容 stdout/stderr，未返回模型级限制时不推断。协议探测及 Antigravity 模型查询均设 20 秒上限，普通帮助命令为 5 秒，不新增 SDK 或下载辅助服务。
 
-v9 新增 `task_sessions`，持久化 Agent 配置、工作目录、进程状态与可用的原生恢复标识；应用重启仅恢复记录，不自动启动。普通终端、认证内容和输出不入库。
+v9 新增 `task_sessions`，持久化 Agent 配置、工作目录、进程状态与可用的原生恢复标识；应用重启先恢复记录，不批量启动，当前可见且符合条件的会话再自动恢复。普通终端、认证内容和输出不入库。
 
 常规设置提供独立的任务目录 `tasksDirectory`，默认 `~/navo/tasks`，支持输入路径或系统目录选择，并沿用 SQLite 设置存储。旧配置缺少该字段或留空时使用默认值；无目录或多目录任务启动会话时使用此目录下的任务专属目录，写入独占的 `navo-task.md`；单目录默认使用实际工作区，不修改仓库规则文件、不搬迁已有任务。
 
@@ -210,9 +210,9 @@ ReviewWorkspace
 
 任务工作台使用 Ghostty VT 与 node-pty 展示原生 CLI 和普通 Shell。任务服务负责进程创建、停止及 SQLite 会话记录，视图仅附着已有 PTY；关闭页面不结束进程，关闭普通终端会结束进程树。渲染重挂载保留缓冲，输出只在内存中保存有界重放内容，不记录到诊断日志。
 
-任务侧栏和标签复用工作台，以实际容器宽度控制上下文折叠。资源分组为 CHANGES、PULL REQUESTS、ISSUES、LINKS、NOTES，无子项时隐藏；仓库条目打开实际工作目录的分支栏，支持文件筛选、暂存/未暂存统计和相对源分支的提交列表；完整 Diff 复用原有审查组件，以弹窗展示。NOTES 固定首项为可编辑的任务正文，其后为可编辑、删除的 Markdown 笔记。其他资源可通过右击二次确认解除关联，保留磁盘内容。任务标签页只保留标签关闭，侧栏保留关闭入口；会话面板和上下文的新建菜单在单目录时直接选 Agent，多目录时先选工作范围再选 Agent；模型、模式和思考等级采用真实能力默认值。关闭会话面板只隐藏模块，点击上下文恢复原实例；面板不重复展示配置/运行状态文案。Claude/Grok 使用精确 UUID 恢复；Codex/Antigravity 暂不提供原生恢复，Codex 暂只支持 default 模式，不支持时明确报错。
+任务侧栏和标签复用工作台，以实际容器宽度控制上下文折叠。资源分组为 CHANGES、PULL REQUESTS、ISSUES、LINKS、NOTES，无子项时隐藏；仓库条目打开实际工作目录的分支栏，支持文件筛选、暂存/未暂存统计和相对源分支的提交列表；完整 Diff 复用原有审查组件，以弹窗展示。NOTES 固定首项为可编辑的任务正文，其后为可编辑、删除的 Markdown 笔记。其他资源可通过右击二次确认解除关联，保留磁盘内容。任务标签页只保留标签关闭，侧栏保留关闭入口；会话面板和上下文的新建菜单在单目录时直接选 Agent，多目录时先选工作范围再选 Agent；模型、模式和思考等级采用真实能力默认值。关闭会话面板只隐藏模块，点击上下文恢复原实例；面板不重复展示配置/运行状态文案。四种 CLI 使用精确原生 ID 恢复，当前可见会话按条件自动恢复；Codex/Antigravity 的新会话在唯一关联核对后开放恢复。Codex 暂只支持 default 模式，不支持时明确报错。
 
-任务上下文的会话展示 Agent 品牌图标、真实 CLI 名称和文字状态；Claude/Grok 按精确原生标识读取本地元数据，约每 5 秒更新名称，缺失时显示未命名，不推断其他会话。归档会话会终止其进程树并保存归档标识，保留历史记录，从活动列表和标签状态统计排除；上下文中提供默认收起的归档列表，恢复只返回活动列表，不启动 Agent；这与只改状态的任务归档不同。会话菜单支持重命名、归档、删除；Claude/Grok 的重命名与删除同步原生记录，确认后先停止进程，原生删除成功才移除 Navo 记录。不支持可靠原生管理的 CLI 禁用相应选项，不能仅改本地记录冒充同步成功。
+任务上下文的会话展示 Agent 品牌图标、真实 CLI 名称和文字状态；Claude/Grok 按精确原生标识读取本地元数据，Codex/Antigravity 在唯一关联标识与目录匹配后绑定原生 ID，约每 5 秒更新名称，缺失时显示未命名，不推断其他会话。归档会话会终止其进程树并保存归档标识，保留历史记录，从活动列表和标签状态统计排除；上下文中提供默认收起的归档列表，解除归档先返回活动列表，再由当前可见面板按条件恢复；这与只改状态的任务归档不同。会话菜单支持重命名、归档、删除；Claude/Grok 的重命名与删除同步原生记录，确认后先停止进程，原生删除成功才移除 Navo 记录。不支持可靠原生管理的 CLI 禁用相应选项，不能仅改本地记录冒充同步成功。
 
 `node --test scripts/native-session-title-regression.test.mjs scripts/task-session-regression.test.mjs scripts/task-workspace-ui-regression.test.mjs` 验证生命周期、参数、SQLite、资源上下文、窄屏与终端同步；测试不调用真实模型。
 
@@ -266,3 +266,15 @@ src/components/ui/icon-tooltip.tsx
 新建 Worktree 在与任务数据同一事务中保存初始化命令快照，顺序运行并记录检查点；失败保留现场，重试跳过成功步骤，冷启动不重跑中断脚本。Agent 启动与恢复检查初始化状态。
 
 动态上下文通过会话级 Streamable HTTP MCP 提供，监听随机回环端口，凭证仅存内存并随会话结束撤销。Claude 使用临时 `--mcp-config`，Codex 使用 `--config` 覆盖及环境变量凭证（参考 [官方 MCP 配置](https://developers.openai.com/codex/mcp)）；Grok/Antigravity 无 MCP 时生成会话独立的实时上下文文件，任务修改后原子更新；提示 Agent 每轮重新读取，Grok 恢复时通过 `--rules` 重新传递文件读取约定。原终端输入保持不变，不拦截回车、不自动插入文本、不新增消息输入框；上下文图标可刷新文件并复制读取提示，但不表示模型已读取。不会修改全局配置、仓库规则文件或 hooks。数据库 v12 新增任务上下文版本及初始化检查点。v13 为 `task_notes` 增加独立版本、创建来源/会话、排序及创建/更新时间，旧笔记原位迁移并保留顺序与已有时间。任务 MCP 提供 `get_task_context`、`get_task_note`、`create_task_note`、`update_task_note`、`delete_task_note`；写入仅限当前任务普通笔记，编辑/删除强制比对笔记版本，提交成功后通知界面及运行中的文件上下文。归档/删除中的任务、跨任务引用和失效凭证不能写入；正文与其他资源仍只读。笔记变更同时递增任务上下文版本，无变化保存不递增，不保存历史正文。Grok/Antigravity 的文件模式只读，不将文件修改写回数据库。
+
+### 会话自动恢复
+
+会话面板可见时才自动恢复；隐藏标签、后台窗口、用户停止、自然退出、失败及归档均不触发。每页每会话只尝试一次，主进程队列合并重复请求。已归档任务继续禁止手动和自动恢复。
+
+恢复参数依据官方说明，并在启动时核对本机 CLI 帮助：
+- [Claude Code CLI](https://code.claude.com/docs/en/cli-reference)：`claude --resume <id>`。
+- [Grok Build CLI](https://docs.x.ai/build/cli/reference)：`grok --resume <id>`。
+- [Codex CLI](https://developers.openai.com/codex/cli/reference/#codex-resume)：`codex resume <id>`。
+- [Antigravity CLI](https://antigravity.google/docs/cli/reference)：`agy --conversation <id>`。
+
+Codex/Antigravity 的新会话带唯一关联标识，只读核对本机原生元数据/用户输入与工作目录后绑定真实 ID；不使用 `--last`、`--continue`，不根据最近时间选会话。原生存储格式不支持或旧会话没有关联标识时不伪造恢复，仍可重新启动新对话。恢复不重发原任务，Antigravity 当前无法在恢复参数中安全重新交付动态文件约定时标为快照模式。

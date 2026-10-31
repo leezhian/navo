@@ -11,6 +11,7 @@ import { resolveTaskCommand, taskCommandArguments } from "./taskCommand";
 import type { StartTaskSessionInput, TaskSession } from "../../../shared/taskSessionTypes";
 import { defaultAgentSelection, isTaskAgentSelection } from "../../../utils/taskAgentSelection";
 import { resolveSessionWorkspace } from "../../../utils/taskSessionWorkspace";
+import { canAutoResumeSession } from "../../../utils/taskSessionResume";
 import { readLegacySessionWorkspace } from "./legacySessionWorkspace";
 import { requireAgentId } from "../agents/agentRepository";
 import type { AgentService } from "../agents/agentService";
@@ -20,6 +21,7 @@ import { prepareTaskContext, taskPrompt } from "./taskContext";
 import { prepareAgentLaunch } from "./agentLaunch";
 import { writeDiagnosticEvent } from "../../diagnostics/diagnosticLogger";
 import { readNativeSessionTitle } from "./nativeSessionTitle";
+import { readNativeSessionBinding } from "./nativeSessionBinding";
 import { canManageNativeSession, nativeActionEnvironment, removeNativeSession, renameNativeSession, requireSessionName } from "./nativeSessionActions";
 import { TaskContextServer } from "./taskContextServer";
 import { TaskContextFiles } from "./taskContextFiles";
@@ -86,7 +88,12 @@ export class TaskSessionService {
     let changed = false;
     for (const session of this.sessions) {
       if (session.kind !== "agent" || session.archivedAt) continue;
-      const title = await this.readTitle(session, this.titleEnvironments.get(session.id));
+      const native = await readNativeSessionBinding(session);
+      if (native && !session.resumable) {
+        session.nativeSessionId = native.id; session.resumable = true;
+        await this.repository.save(session);changed = true;
+      }
+      const title = native?.title || await this.readTitle(session, this.titleEnvironments.get(session.id));
       if (!title || (title === session.title && session.titleSource === "cli")) continue;
       const updated = { ...session, title, titleSource: "cli" as const };
       await this.repository.save(updated);
@@ -208,7 +215,8 @@ export class TaskSessionService {
         title: command?.name ?? (input.kind === "shell" ? `${path.basename(resolveShell())}${number}` : ""),
         ...(command ? { command: { id: command.id, resourceId: input.resourceId as string, name: command.name } } : {}),
         cwd: "", workspace, agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
-        nativeSessionId: randomUUID(), resumable: false, createdAt, lastUpdateAt: createdAt, lastActiveAt: createdAt };
+        ...((agent?.agentId === "codex" || agent?.agentId === "antigravity") && input.kind === "agent" ? { nativeLaunchId: randomUUID(), nativeLaunchAt: createdAt } : { nativeSessionId: randomUUID() }),
+        resumable: false, createdAt, lastUpdateAt: createdAt, lastActiveAt: createdAt };
       this.sessions = [...this.sessions, session];
       this.bindOwner(session.id, owner);
       try { await this.save(session); }
@@ -226,18 +234,20 @@ export class TaskSessionService {
       if (session.agent) context.prompt += "\nAttachments (reference files):\n" + (await this.attachmentPaths(task)).map((filename) => JSON.stringify(filename)).join("\n");
       session.cwd = context.cwd;
       if (!(await stat(session.cwd)).isDirectory()) throw new Error("SESSION_DIRECTORY_MISSING");
-      if (!session.nativeSessionId) throw new Error("SESSION_UNAVAILABLE");
-      const launch = session.agent ? await prepareAgentLaunch(this.agents, session.agent, session.nativeSessionId, context.prompt, resume, session.nativeHistoryRoot,
+      if (resume ? !session.nativeSessionId : !session.nativeSessionId && !session.nativeLaunchId) throw new Error("SESSION_UNAVAILABLE");
+      const launch = session.agent ? await prepareAgentLaunch(this.agents, session.agent, session.nativeSessionId ?? "", context.prompt, resume, session.nativeHistoryRoot,
         () => this.contextServer.connect(session.id, task.id), taskPrompt(task, false), async () => {
           const current = await this.loadTask(task.id);
           if (current.status === "ARCHIVED") throw new Error("SESSION_BUSY");
           return this.contextFiles.prepare(session.id, current, this.settings().tasksDirectory, await this.attachmentPaths(current));
-        }) : undefined;
+        }, session.nativeLaunchId) : undefined;
       if (launch) session.contextMode = launch.contextMode;
       delete session.contextSyncFailed;
       if (launch) this.titleEnvironments.set(session.id, { GROK_HOME: launch.env.GROK_HOME, CLAUDE_CONFIG_DIR: launch.env.CLAUDE_CONFIG_DIR });
       if (launch && session.agent?.agentId === "grok") session.nativeHistoryRoot = launch.env.GROK_HOME || path.join(os.homedir(), ".grok");
       if (launch && session.agent?.agentId === "claude") session.nativeHistoryRoot = launch.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+      if (launch && session.agent?.agentId === "codex") session.nativeHistoryRoot = launch.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+      if (launch && session.agent?.agentId === "antigravity") session.nativeHistoryRoot = path.join(os.homedir(), ".gemini", "antigravity-cli");
       if (this.closing || owner.isDestroyed()) throw new Error("SESSION_UNAVAILABLE");
       const terminalId = session.terminalId;
       createTerminal({ sessionId: terminalId, cwd: session.cwd, cols: 80, rows: 24 }, owner, {
@@ -251,9 +261,11 @@ export class TaskSessionService {
           queueMicrotask(() => finished?.(null));
           void this.serialize(async () => {
             if (!this.sessions.includes(session) || session.terminalId !== terminalId) return;
+            if (this.closing || owner.isDestroyed()) return;
             await this.contextFiles.release(session.id);
             if (!["running", "starting"].includes(session.status)) return;
             session.status = "stopped";
+            session.resumeOnOpen = false;
             await this.save(session);
           }).catch(() => undefined);
         },
@@ -261,8 +273,10 @@ export class TaskSessionService {
           finished?.(code);
           void this.serialize(async () => {
             if (!this.sessions.includes(session) || session.archivedAt || session.terminalId !== terminalId) return;
+            if (this.closing || owner.isDestroyed()) return;
             await this.releaseContext(session);
             session.status = code === 0 ? "stopped" : "failed";
+            session.resumeOnOpen = false;
             if (session.command) session.commandExitCode = code;
             if (code !== 0) session.error = "SESSION_EXIT_FAILED";
             await this.save(session);
@@ -270,8 +284,9 @@ export class TaskSessionService {
         },
       });
       session.status = "running";
+      session.resumeOnOpen = true;
       this.recordActivity(session, terminalId);
-      session.resumable = session.agent?.agentId === "claude" || session.agent?.agentId === "grok";
+      session.resumable = Boolean(session.nativeSessionId && (resume || session.agent?.agentId === "claude" || session.agent?.agentId === "grok"));
       delete session.error;
       await this.save(session);
       void writeDiagnosticEvent("session.start.succeeded", { taskId: task.id, operationId: session.id });
@@ -280,6 +295,7 @@ export class TaskSessionService {
       await this.releaseContext(session);
       destroyTerminal({ sessionId: session.terminalId }, owner.id);
       session.status = "failed";
+      session.resumeOnOpen = false;
       const code = error instanceof Error ? error.message : "";
       session.error = /^(SESSION_[A-Z_]+|AGENT_UNAVAILABLE)$/.test(code) ? code : "SESSION_START_FAILED";
       await this.save(session);
@@ -292,6 +308,7 @@ export class TaskSessionService {
       await this.initialize();
       const session = this.owned(id, owner);
       session.status = "stopped";
+      session.resumeOnOpen = false;
       await this.releaseContext(session);
       destroyTerminal({ sessionId: session.terminalId }, owner.id);
       void writeDiagnosticEvent("session.stop.succeeded", { taskId: session.taskId, operationId: session.id });
@@ -300,24 +317,31 @@ export class TaskSessionService {
       return this.publish();
     });
   }
-  restart(id: string, resume: boolean, owner: WebContents) {
+  restart(id: string, resume: boolean, owner: WebContents, automatic = false) {
     return this.serialize(async () => {
       await this.initialize();
       const session = this.owned(id, owner);
+      const task = await this.loadTask(session.taskId);
+      if (automatic && (this.closing || !canAutoResumeSession(session, task))) return this.sessions;
+      if (automatic) { session.resumeOnOpen = false;await this.repository.save(session); }
       if (this.closing || session.archivedAt || session.kind !== "agent" || (resume && ["starting", "running"].includes(session.status))) throw new Error("SESSION_BUSY");
       if (resume && !session.resumable) throw new Error("SESSION_RESUME_UNSUPPORTED");
-      const task = await this.loadTask(session.taskId);
       // 重启在同一串行操作内先停止旧进程，旧 PTY 的延迟回调不能覆盖新实例。
       if (task.status === "ARCHIVED") throw new Error("SESSION_BUSY");
       if (task.initialization?.some((step) => step.status !== "succeeded")) throw new Error("SESSION_INITIALIZATION_REQUIRED");
       if (session.workspace?.kind === "resource" && !task.resources?.some((resource) => session.workspace?.kind === "resource" && resource.resourceId === session.workspace.resourceId)) throw new Error("SESSION_DIRECTORY_MISSING");
+      if (this.sessions.filter((item) => item.id !== session.id && ["starting", "running"].includes(item.status)).length >= MAX_SESSIONS) throw new Error("SESSION_LIMIT");
       if (!resume) {
         session.status = "stopped";
         await this.releaseContext(session);
         destroyTerminal({ sessionId: session.terminalId }, owner.id);
         await this.save(session);
       }
-      if (!resume) { session.nativeSessionId = randomUUID(); session.resumable = false; session.title = ""; delete session.titleSource; }
+      if (!resume) {
+        if (session.agent?.agentId === "codex" || session.agent?.agentId === "antigravity") { delete session.nativeSessionId; session.nativeLaunchId = randomUUID();session.nativeLaunchAt = new Date().toISOString(); }
+        else session.nativeSessionId = randomUUID();
+        session.resumable = false; session.title = ""; delete session.titleSource;
+      }
       session.terminalId = "task-" + randomUUID(); session.status = "starting";
       this.bindOwner(id, owner);
       await this.save(session);
@@ -338,6 +362,7 @@ export class TaskSessionService {
       if (session.kind !== "agent") throw new Error("SESSION_UNAVAILABLE");
       if (session.archivedAt) return this.sessions;
       session.status = "stopped";
+      session.resumeOnOpen = false;
       await this.releaseContext(session);
       destroyTerminal({ sessionId: session.terminalId }, owner.id);
       const archived = { ...session, archivedAt: new Date().toISOString() };
@@ -357,7 +382,7 @@ export class TaskSessionService {
       if ((await this.loadTask(session.taskId)).status === "ARCHIVED") throw new Error("SESSION_BUSY");
       if (session.kind !== "agent") throw new Error("SESSION_UNAVAILABLE");
       if (!session.archivedAt) return this.sessions;
-      const restored = { ...session, status: "stopped" as const, terminalId: "task-" + randomUUID() };
+      const restored = { ...session, status: "stopped" as const, resumeOnOpen: true, terminalId: "task-" + randomUUID() };
       delete restored.archivedAt;
       await this.repository.save(restored);
       Object.assign(session, restored); delete session.archivedAt;
@@ -390,6 +415,7 @@ export class TaskSessionService {
       if (!canManageNativeSession(session) || session.archivedAt) throw new Error("SESSION_NATIVE_UNSUPPORTED");
       const { env } = await this.nativeActions.environment(this.agents, session);
       session.status = "stopped";
+      session.resumeOnOpen = false;
       await this.releaseContext(session);
       destroyTerminal({ sessionId: session.terminalId }, owner.id);
       await this.repository.save(session);
@@ -442,6 +468,7 @@ export class TaskSessionService {
       await this.initialize();
       for (const session of this.sessions.filter((item) => item.taskId === taskId)) {
         session.status = "stopped";
+        session.resumeOnOpen = false;
         await this.releaseContext(session);
         destroyTerminal({ sessionId: session.terminalId }); this.owners.delete(session.id);
         await this.repository.save(session);
