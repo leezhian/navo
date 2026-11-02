@@ -5,6 +5,7 @@ import { getSettingsError } from "./settingsErrors";
 const messages: Record<string, TranslationKey<"tasks" | "taskCreate">> = {
   TASK_CONTENT_CHANGED: "tasks:context.changed",
   TASK_WORKSPACE_BUSY: "tasks:context.workspaceBusy",
+  TASK_LAST_WORKSPACE: "tasks:changesMenu.lastWorkspace",
   TASK_AGENT_UNAVAILABLE: "taskCreate:agent.unavailable",
   TASK_DELETE_CHANGED: "tasks:deletion.errors.changed",
   TASK_DELETE_CONFIRMATION: "tasks:deletion.errors.confirmation",

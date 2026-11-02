@@ -38,8 +38,17 @@ export interface TaskDeletionConfirmation {
 
 /** 删除操作独立于创建回滚日志；重启后只展示进度，不自动继续破坏性操作。 */
 export interface TaskDeletionProgress {
+  /** 单独清理工作区的恢复记录；省略表示删除整个任务。 */
+  scope?: "workspace";
   resourceId: string;
   worktree: "pending" | "removed";
   branch?: "pending" | "removed";
   branchOid: string;
+}
+
+export interface TaskWorktreeDeletionPreview {
+  /** 绑定窗口、任务和指定工作区的一次性凭据。 */
+  token: string;
+  blocked: boolean;
+  item: TaskDeletionItem;
 }

@@ -78,6 +78,8 @@ const api: NavoApi = {
     updateNote: (id, note, expectedVersion) => ipcRenderer.invoke(ipcChannels.tasksUpdateNote, id, note, expectedVersion),
     updatePrompt: (id, content, expected) => ipcRenderer.invoke(ipcChannels.tasksUpdatePrompt, id, content, expected),
     detachResource: (id, input) => ipcRenderer.invoke(ipcChannels.tasksDetachResource, id, input),
+    inspectWorktreeDeletion: (id, resourceId) => ipcRenderer.invoke(ipcChannels.tasksInspectWorktreeDeletion, id, resourceId),
+    deleteWorktree: (id, resourceId, confirmation) => ipcRenderer.invoke(ipcChannels.tasksDeleteWorktree, id, resourceId, confirmation),
     retryInitialization: (id) => ipcRenderer.invoke(ipcChannels.tasksRetryInitialization, id),
     onChanged: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, task: import("./domain/tasks").Task) => listener(task);

@@ -13,6 +13,7 @@ import { defaultAgentSelection, isTaskAgentSelection } from "../../../utils/task
 import { resolveSessionWorkspace } from "../../../utils/taskSessionWorkspace";
 import { canAutoResumeSession } from "../../../utils/taskSessionResume";
 import { readLegacySessionWorkspace } from "./legacySessionWorkspace";
+import { sessionFromSource } from "./sessionFromSource";
 import { requireAgentId } from "../agents/agentRepository";
 import type { AgentService } from "../agents/agentService";
 import { createTerminal, destroyTerminal, resolveShell } from "../terminal/terminalService";
@@ -195,7 +196,9 @@ export class TaskSessionService {
       const task = await this.loadTask(input.taskId);
       if (task.status === "ARCHIVED") throw new Error(input.commandId ? "SESSION_COMMAND_UNAVAILABLE" : "SESSION_BUSY");
       if (input.kind === "agent" && task.initialization?.some((step) => step.status !== "succeeded")) throw new Error("SESSION_INITIALIZATION_REQUIRED");
-      const workspace = resolveSessionWorkspace(task.resources ?? [], input.resourceId);
+      if (input.sourceSessionId !== undefined && (typeof input.sourceSessionId !== "string" || !input.sourceSessionId || input.kind !== "agent" || input.resourceId !== undefined || input.commandId !== undefined || input.agent !== undefined || !input.agentId)) throw new Error("TASK_INVALID");
+      const source = input.sourceSessionId === undefined ? undefined : await sessionFromSource(task, this.owned(input.sourceSessionId, owner));
+      const workspace = source?.workspace ?? resolveSessionWorkspace(task.resources ?? [], input.resourceId);
       const command = initialization?.command ?? (input.commandId !== undefined ? await resolveTaskCommand(task, input, await this.loadResources()) : undefined);
       if (command) {
         const running = this.sessions.find((session) => session.taskId === task.id && session.command?.id === command.id && session.command.resourceId === input.resourceId && ["starting", "running"].includes(session.status));
@@ -214,7 +217,7 @@ export class TaskSessionService {
         ...(initialization ? { initialization: true } : {}),
         title: command?.name ?? (input.kind === "shell" ? `${path.basename(resolveShell())}${number}` : ""),
         ...(command ? { command: { id: command.id, resourceId: input.resourceId as string, name: command.name } } : {}),
-        cwd: "", workspace, agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
+        cwd: source?.cwd ?? "", workspace, agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
         ...((agent?.agentId === "codex" || agent?.agentId === "antigravity") && input.kind === "agent" ? { nativeLaunchId: randomUUID(), nativeLaunchAt: createdAt } : { nativeSessionId: randomUUID() }),
         resumable: false, createdAt, lastUpdateAt: createdAt, lastActiveAt: createdAt };
       this.sessions = [...this.sessions, session];

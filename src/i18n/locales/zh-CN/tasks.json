@@ -1,4 +1,18 @@
 {
+  "changesMenu": {
+    "openIn": "打开方式",
+    "newSession": "在此新建会话",
+    "newTerminal": "在此新建终端",
+    "runCommand": "在此运行命令",
+    "copyBranch": "复制分支名",
+    "copyPath": "复制 Worktree 路径",
+    "copyRemote": "复制远程 URL",
+    "deleteWorktree": "删除 Worktree",
+    "lastWorkspace": "最后一个工作目录不能解除关联。",
+    "copyFailed": "复制失败，请重试。",
+    "deleteTitle": "删除 Worktree？",
+    "deleteDescription": "删除此 Worktree 的磁盘目录并解除任务关联，保留任务和分支。目录中的未提交改动和文件将一并删除，此操作无法撤销。"
+  },
   "context": {
     "prompt": "任务正文",
     "detach": "解除关联",
@@ -8,7 +22,6 @@
     "workspaceBusy": "请先停止使用此工作目录的会话、终端或初始化命令。",
     "archived": "已归档 {{count}}",
     "restoreSession": "归档于 {{date}} · 点击恢复，不自动启动",
-    "dynamic": "动态共享上下文：Agent 可按需读取最新正文和资源，并读写当前任务的笔记；不保证每轮自动读取。",
     "snapshot": "此会话仅有启动快照，尚未接入实时上下文；重新启动后按 CLI 能力接入。",
     "file": "上下文文件随任务修改更新，Agent 按约定每轮重新读取；不保证模型已读取。点击复制读取提示，可粘贴到原终端。",
     "fileFailed": "上下文文件同步失败，Agent 可能仍读取旧内容。点击重试并复制读取提示。",
@@ -180,6 +193,8 @@
   },
   "notes": {
     "title": "任务笔记",
+    "copy": "复制笔记",
+    "copyFailed": "复制笔记失败，请重试。",
     "edit": "编辑笔记",
     "delete": "删除笔记",
     "close": "关闭",
@@ -253,6 +268,7 @@
     "closePane": "关闭面板",
     "sessionActions": "会话操作",
     "renameSession": "重命名会话",
+    "newSessionFrom": "从此会话新建",
     "deleteSession": "删除会话",
     "sessionName": "会话名称",
     "renameNativeDescription": "将先停止会话，再修改 CLI 保存的真实名称。不会重新发送任务指令；修改后可恢复会话。",

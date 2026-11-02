@@ -22,6 +22,7 @@ interface TaskState {
   updateNote: (id: string, note: TaskNoteUpdate, expectedVersion: number) => Promise<Task>;
   updatePrompt: (id: string, content: string, expected: string) => Promise<Task>;
   detachResource: (id: string, input: import("@/shared/taskContextTypes").TaskResourceRemoval) => Promise<Task>;
+  deleteWorktree: (id: string, resourceId: string, confirmation: TaskDeletionConfirmation) => Promise<Task>;
   deleteNote: (id: string, noteId: string, expectedVersion: number) => Promise<Task>;
   rename: (id: string, title: string) => Promise<boolean>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
@@ -73,6 +74,7 @@ export const useTaskStore = create<TaskState>((set, get) => {
     updateNote: (id, note, expectedVersion) => updateTask(() => getTasksApi().updateNote(id, note, expectedVersion)),
     updatePrompt: (id, content, expected) => updateTask(() => getTasksApi().updatePrompt(id, content, expected)),
     detachResource: (id, input) => updateTask(() => getTasksApi().detachResource(id, input)),
+    deleteWorktree: (id, resourceId, confirmation) => updateTask(() => getTasksApi().deleteWorktree(id, resourceId, confirmation)),
     deleteNote: (id, noteId, expectedVersion) => updateTask(() => getTasksApi().deleteNote(id, noteId, expectedVersion)),
     async create(input) {
       if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");

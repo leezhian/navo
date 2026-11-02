@@ -9,6 +9,8 @@ export const ipcChannels = {
   taskSessionsContextReminder: "task-sessions:context-reminder",
   tasksUpdatePrompt: "tasks:update-prompt",
   tasksDetachResource: "tasks:detach-resource",
+  tasksInspectWorktreeDeletion: "tasks:inspect-worktree-deletion",
+  tasksDeleteWorktree: "tasks:delete-worktree",
   tasksRetryInitialization: "tasks:retry-initialization",
   tasksChanged: "tasks:changed",
   taskSessionsRename: "task-sessions:rename",

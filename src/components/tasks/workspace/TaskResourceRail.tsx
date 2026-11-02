@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import type { TaskResource } from "@/shared/taskTypes";
 import type { TaskSession } from "@/shared/taskSessionTypes";
+import type { AgentId } from "@/shared/agentTypes";
 import type { TaskResourceCategory } from "@/shared/taskResourceTypes";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ import { WorkspaceCommandActions } from "./WorkspaceCommandActions";
 import { TaskNoteRow } from "./TaskNoteRow";
 import { TASK_PROMPT_ID } from "@/shared/taskContextTypes";
 import { TaskResourceMenu } from "./TaskResourceMenu";
+import { TaskChangeMenu } from "./TaskChangeMenu";
+import { TaskSessionMenu } from "./TaskSessionMenu";
 import { ArchivedSessions } from "./ArchivedSessions";
 import { TaskInitializationPanel } from "./TaskInitializationPanel";
 
@@ -35,8 +38,15 @@ interface TaskResourceRailProps {
   noteDeleteDisabled: boolean;
   /** 在所选工作区的独立终端运行仓库命令。 */
   onRunCommand: (resourceId: string, commandId: string) => void;
-  /** 选择不同项切换并展示，相同项切换面板显隐，不启动新进程。 */
-  onSelect: (session: TaskSession) => void;
+  /** CHANGES 右键菜单直接绑定所选目录，与会话加号共用 Agent 列表。 */
+  agentChoices?: Array<{ id: AgentId; ready: boolean }>;
+  onNewSession?: (agentId: AgentId, resourceId: string) => void;
+  /** 沿用所选会话目录创建全新对话，不复制原生历史。 */
+  onNewSessionFrom?: (agentId: AgentId, sourceSessionId: string) => void;
+  /** 在所选目录创建任务内终端。 */
+  onNewTerminal?: (resourceId: string) => void;
+  /** 左键同项切换显隐；右键 Open 传 forceOpen，始终展示所选会话。 */
+  onSelect: (session: TaskSession, forceOpen?: boolean) => void;
   /** 与会话面板共用工作目录及 Agent 新建菜单。 */
   newSessionControl: ReactNode;
   /** 归档为独立操作，不触发选择；归档会终止进程并保留历史记录。 */
@@ -82,7 +92,7 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
-export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, noteDeleteDisabled, onRunCommand, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
+export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
   const archived = sessions.filter((session) => session.kind === "agent" && session.archivedAt);
@@ -95,10 +105,13 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
     <TaskInitializationPanel task={task} />
     <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories")}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
     <ResourceGroup title={t("tasks:runtime.sessions")} count={agents.length + archived.length} action={newSessionControl}>
-      <ArchivedSessions sessions={archived} task={task} onRestored={onSelect} />
+      <ArchivedSessions sessions={archived} task={task} onRestored={onSelect} agentChoices={agentChoices} onNewSessionFrom={onNewSessionFrom} />
       {agents.map((session) => {
         const workspaceLabel = sessionWorkspaceLabel(session, task.resources ?? [], t("tasks:runtime.allWorktrees"), t("tasks:runtime.unknownWorkspace"));
-        return <div key={session.id} className="task-context-session" data-active={session.id === activeId}>
+        const workspace = session.workspace;
+        const canCreate = task.status !== "ARCHIVED" && Boolean(workspace && (workspace.kind === "all" || task.resources?.some((resource) => resource.resourceId === workspace.resourceId)));
+        return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={archivePending} onOpen={() => onSelect(session, true)} onArchive={() => onArchive(session.id)} onNewSession={onNewSessionFrom}>
+        <div className="task-context-session" data-active={session.id === activeId}>
         <button className="task-context-session-select" aria-pressed={session.id === activeId} onClick={() => onSelect(session)} title={session.title || t("tasks:runtime.untitledSession")}>
           <ContextItemIcon><AgentProviderIcon agentId={session.agent?.agentId} /></ContextItemIcon>
           <span className="min-w-0 flex-1"><span className="block truncate">{session.title || t("tasks:runtime.untitledSession")}</span>
@@ -110,16 +123,17 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
           </span>
         </button>
         <IconTooltip label={t("tasks:runtime.archiveSession")} className="task-context-session-archive size-5" size="icon-xs" disabled={archivePending} onClick={() => onArchive(session.id)}><Archive className="size-3" /></IconTooltip>
-      </div>; })}
+      </div></TaskSessionMenu>; })}
     </ResourceGroup>
     <ResourceGroup title="CHANGES" count={repos.length} onAdd={onAddResource && (() => onAddResource("repositories"))}>
-      {repos.map((resource) => <TaskResourceMenu key={resource.resourceId} task={task} resource={{ kind: "workspace", id: resource.resourceId }}><div className="task-context-change" data-active={resource.resourceId === activeResourceId}>
+      {repos.map((resource) => <TaskChangeMenu key={resource.resourceId} task={task} resource={resource} sessions={terminals} agentChoices={agentChoices} pending={archivePending}
+        onOpen={() => onReview(resource)} onRunCommand={onRunCommand} onNewSession={onNewSession} onNewTerminal={onNewTerminal} onOpenError={onWorkspaceOpenError}><div className="task-context-change" data-active={resource.resourceId === activeResourceId}>
         <button className="task-context-row flex-1" data-active={resource.resourceId === activeResourceId} aria-pressed={resource.resourceId === activeResourceId} onClick={() => onReview(resource)} title={resource.workingPath}>
         <ContextItemIcon><GitBranch /></ContextItemIcon><span className="task-context-change-heading min-w-0 flex-1"><span className="block truncate">{resource.targetBranch || resource.sourceBranch}</span></span>
         </button><div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} />
           <WorkspaceCommandActions resource={resource} sessions={terminals} disabled={archivePending || task.status === "ARCHIVED" || !onWorkspaceOpenError} onRun={onRunCommand} />
         </div>
-      </div></TaskResourceMenu>)}
+      </div></TaskChangeMenu>)}
     </ResourceGroup>
     {terminals.length > 0 && <ResourceGroup title={t("tasks:runtime.terminals")} count={terminals.length} action={newTerminalControl}>
       {terminals.map((session) => <button key={session.id} className="task-context-row" data-active={session.id === activeTerminalId} aria-pressed={session.id === activeTerminalId} onClick={() => onSelect(session)} title={session.cwd}><ContextItemIcon><Terminal /></ContextItemIcon><span className="truncate">{session.title}</span></button>)}
@@ -133,7 +147,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
       {task.webLinks?.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "link", id: link.id }}><button className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button></TaskResourceMenu>)}
     </ResourceGroup>
     <ResourceGroup title="NOTES" count={(task.notes?.length ?? 0) + 1} onAdd={onAddResource && (() => onAddResource("notes"))}>
-      <button className="task-context-row" data-active={activeNoteId === TASK_PROMPT_ID} aria-pressed={activeNoteId === TASK_PROMPT_ID} onClick={(event) => onNote(TASK_PROMPT_ID, event.currentTarget)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{t("tasks:context.prompt")}</span></button>
+      <TaskNoteRow note={{ id: TASK_PROMPT_ID, title: t("tasks:context.prompt"), content: task.description ?? "" }} active={activeNoteId === TASK_PROMPT_ID} deleteDisabled onOpen={onNote} />
       {task.notes?.map((note) => <TaskNoteRow key={note.id} note={note} active={note.id === activeNoteId} deleteDisabled={noteDeleteDisabled} onOpen={onNote} onDelete={onDeleteNote} />)}
     </ResourceGroup>
   </aside>;

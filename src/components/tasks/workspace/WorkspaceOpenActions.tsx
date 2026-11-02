@@ -1,13 +1,10 @@
-import { useRef, useState } from "react";
 import { ChevronDown, FolderOpen, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskResource } from "@/shared/taskTypes";
-import type { WorkspaceOpenTarget } from "@/shared/workspaceOpenTypes";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { getTasksApi } from "@/services/taskApi";
-import { useWorkspaceOpenOptions } from "@/hooks/useWorkspaceOpenOptions";
+import { useWorkspaceOpenActions } from "@/hooks/useWorkspaceOpenActions";
 import { RepositoryProviderIcon } from "@/components/icons/RepositoryProviderIcon";
 import { WorkspaceTargetIcon } from "./WorkspaceTargetIcon";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -22,29 +19,12 @@ interface WorkspaceOpenActionsProps {
 }
 export function WorkspaceOpenActions({ taskId, resource, onError }: WorkspaceOpenActionsProps) {
   const { t } = useTranslation(["tasks", "common"]);
-  const { options, refreshAfterFailure } = useWorkspaceOpenOptions(taskId, resource.resourceId, resource.workingPath, Boolean(onError));
+  const { options, open, busy, disabled } = useWorkspaceOpenActions(taskId, resource, onError);
   const preferred = useSettingsStore((state) => state.settings.lastWorkspaceOpenTarget);
   const defaultTarget = availableWorkspaceOpenTarget(preferred, options);
   const defaultLabel = defaultTarget.kind === "editor" ? t("tasks:workspaceOpen.editor", { editor: options?.editors.find((editor) => editor.id === defaultTarget.editorId)?.name })
     : defaultTarget.kind === "remote" ? t("tasks:workspaceOpen.provider", { provider: options?.remote?.provider })
     : t(defaultTarget.kind === "terminal" ? "tasks:workspaceOpen.terminal" : "tasks:workspaceOpen.fileManager");
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
-  const disabled = !onError || busy;
-  async function open(target: WorkspaceOpenTarget) {
-    if (!onError || busyRef.current) return;
-    busyRef.current = true;setBusy(true);
-    try {
-      await getTasksApi().openWorkspace(taskId, resource.resourceId, target);
-      const store = useSettingsStore.getState();
-      const previous = store.settings.lastWorkspaceOpenTarget;
-      if (previous.kind !== target.kind || (previous.kind === "editor" && target.kind === "editor" && previous.editorId !== target.editorId)) {
-        store.update((settings) => ({ ...settings, lastWorkspaceOpenTarget: target }));
-      }
-    }
-    catch { if (target.kind === "editor") refreshAfterFailure();onError(); }
-    finally { busyRef.current = false;setBusy(false); }
-  }
   return <ButtonGroup className="shrink-0" aria-label={t("tasks:workspaceOpen.actions", { name: resource.name })}>
     <IconTooltip label={defaultLabel} variant="ghost" size="icon-xs" className="size-5 border-0" disabled={disabled} onClick={() => void open(defaultTarget)}><WorkspaceTargetIcon target={defaultTarget} options={options} /></IconTooltip>
     <DropdownMenu><DropdownMenuTrigger asChild>

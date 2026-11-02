@@ -22,9 +22,9 @@ async function browserAssertions() {
   await wait(() => button().getAttribute("aria-label").includes("同步失败"), "File sync failure is not visible");
   window.fail = true; button().click(); await wait(() => button().getAttribute("aria-label").includes("无法更新"), "Copy failure not reported");
   if (window.copied.length !== 1 || window.writes !== 0) throw Error("Failed read must not copy or submit data");
-  window.fail = false; window.renderMode("dynamic"); await wait(() => button().getAttribute("aria-label").includes("动态共享上下文"), "MCP mode changed");
-  button().click(); if (window.reads !== 2) throw Error("MCP tooltip must not request file data");
-  window.renderMode("file", true, false, true); await wait(() => button().disabled, "Archived task must not expose copy");
+  window.fail = false; window.renderMode("dynamic"); await wait(() => !button(), "MCP mode must not display an explanation action");
+  if (window.reads !== 2) throw Error("MCP mode must not request file data");
+  window.renderMode("file", true, false, true); await wait(() => button()?.disabled, "Archived task must not expose copy");
   await window.setLocale("en"); window.renderMode("file", true); await wait(() => button().getAttribute("aria-label").includes("context file"), "English label missing");
   if (window.writes !== 0) throw Error("Context action must never submit PTY input");
 }

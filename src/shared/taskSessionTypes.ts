@@ -52,6 +52,8 @@ export interface StartTaskSessionInput {
   kind: "agent" | "shell";
   /** 任务内工作区 ID，不是全局仓库 ID；省略时单目录自动选择，null 使用全部资源。 */
   resourceId?: string | null;
+  /** 从同任务会话沿用工作目录；仅 Agent 使用，与 resourceId 互斥，不复制历史和 Agent 配置。 */
+  sourceSessionId?: string;
   agent?: TaskAgentSelection;
   /** 快捷新建仅提交 Agent 标识，默认配置由主进程从真实能力缓存解析。 */
   agentId?: AgentId;

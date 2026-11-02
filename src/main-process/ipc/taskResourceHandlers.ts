@@ -5,6 +5,7 @@ import type { AddTaskResourcesInput, TaskNoteUpdate } from "../../shared/taskRes
 import { ipcChannels } from "../../shared/ipcChannels";
 import type { TaskService } from "../services/taskService";
 import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
+import type { TaskDeletionConfirmation } from "../../shared/taskDeletionTypes";
 import { withIdleTaskWorkspace, initializeTask } from "./taskSessionHandlers";
 import { publishTask } from "./taskEvents";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
@@ -16,7 +17,7 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
     if (!window || event.senderFrame !== event.sender.mainFrame) throw new Error("WINDOW_UNAVAILABLE");
     if (!owners.has(event.sender.id)) {
       owners.add(event.sender.id);
-      event.sender.once("destroyed", () => { tasks.resourceBindings.files.release(event.sender.id); owners.delete(event.sender.id); });
+      event.sender.once("destroyed", () => { tasks.resourceBindings.files.release(event.sender.id); tasks.worktreeDeletion.forgetOwner(event.sender.id); owners.delete(event.sender.id); });
     }
     return window;
   }
@@ -40,6 +41,14 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
     owner(event);
     const remove = () => tasks.detachResource(taskId, input).then(publishTask);
     return input?.kind === "workspace" ? withIdleTaskWorkspace(taskId, input.id, remove) : remove();
+  });
+  ipcMain.handle(ipcChannels.tasksInspectWorktreeDeletion, (event, taskId: string, resourceId: string) => {
+    owner(event);
+    return withIdleTaskWorkspace(taskId, resourceId, () => tasks.inspectWorktreeDeletion(taskId, resourceId, event.sender.id));
+  });
+  ipcMain.handle(ipcChannels.tasksDeleteWorktree, (event, taskId: string, resourceId: string, confirmation: TaskDeletionConfirmation) => {
+    owner(event);
+    return withIdleTaskWorkspace(taskId, resourceId, () => tasks.deleteWorktree(taskId, resourceId, confirmation, event.sender.id).then(publishTask));
   });
   ipcMain.handle(ipcChannels.tasksChooseResourceFile, async (event) => {
     const result = await dialog.showOpenDialog(owner(event), { defaultPath: app.getPath("home"), properties: ["openFile"] });

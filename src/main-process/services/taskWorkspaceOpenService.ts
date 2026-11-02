@@ -38,7 +38,7 @@ export class TaskWorkspaceOpenService {
       this.editors.list(), this.host.inspect(directory).catch(() => null),
       this.host.platform === "darwin" ? this.host.terminalAvailable() : false,
     ]);
-    return { editors: editors.map(({ id, name }) => ({ id, name })), remote: repositoryWebLink(git?.remoteUrl ?? null), externalTerminal };
+    return { editors: editors.map(({ id, name }) => ({ id, name })), remote: repositoryWebLink(git?.remoteUrl ?? null), remoteUrl: git?.remoteUrl ?? null, externalTerminal };
   }
   async open(taskId: string, resourceId: string, target: WorkspaceOpenTarget) {
     const directory = await this.directory(taskId, resourceId);

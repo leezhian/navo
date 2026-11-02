@@ -364,7 +364,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(document.querySelectorAll('.task-context-change-actions > [data-slot="button-group"]').length!==1||document.querySelector('.task-context-change-actions').getBoundingClientRect().width!==36)throw new Error('Hidden commands must not reserve space or hide Open in');
         window.setCommandRecord('repo-choice');await window.setLocale('en');
         await wait(()=>[...document.querySelectorAll('.task-context-change button')].some(item=>item.getAttribute('aria-label')==='Run "Build" in this worktree'),'English shortcut tooltip must contain command name and scope');
-      })()\`);
+      })().catch(error=>{console.error(error.stack);throw error;})\`);
       console.log('WORKBENCH_UI_OK');app.exit(0);}catch(error){console.error(error);app.exit(1);}
     });`);
     let output = "";

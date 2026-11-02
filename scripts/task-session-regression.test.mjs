@@ -77,8 +77,8 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const events = [];
   const nativeCalls = [];
   const runtime = createLoader({
-    "./agentLaunch": { prepareAgentLaunch: async (...args) => { if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); return { command: "/mock/cli", args: [], env: {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
-    "./taskContext": { prepareTaskContext: options.prepareTaskContext ?? (async () => ({ cwd: os.tmpdir(), prompt: "task context" })), taskPrompt: () => "task context" },
+    "./agentLaunch": { prepareAgentLaunch: async (...args) => { if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); options.prompts?.push(args[3]); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); return { command: "/mock/cli", args: [], env: {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
+    "./taskContext": { prepareTaskContext: options.prepareTaskContext ?? (async () => ({ cwd: os.tmpdir(), prompt: "task context" })), taskPrompt: options.taskPrompt ?? (() => "task context") },
     "../terminal/terminalService": {
       resolveShell: () => "/bin/zsh",
       createTerminal: (params, owner, launch) => { launches++; processes.set(params.sessionId, { params, owner, launch }); },
@@ -99,6 +99,56 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const other = new EventEmitter(); other.id = 2; other.isDestroyed = () => false;
   return { service, saved, processes, owner, other, events, nativeCalls, launches: () => launches, fail: () => { failLaunch = true; } };
 }
+
+test("从会话新建沿用实际目录，使用新 Agent 默认配置与最新上下文，保留来源会话", async context => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "navo-session-from-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const repo = path.join(directory, "repo"); await mkdir(repo);
+  const current = { ...task, resources: [{ resourceId: "repo", name: "repo", mode: "worktree", workingPath: repo, sourceBranch: "main", targetBranch: "feature" }] };
+  const capabilities = { agentId: "grok", models: [{ id: "default-model", name: "Default model", efforts: ["low"], defaultEffort: "low" }], modes: [{ id: "default", name: "Default" }], defaultModelId: "default-model", defaultModeId: "default" };
+  const options = { task: current, tasksDirectory: path.join(directory, "tasks"), prepareTaskContext, taskPrompt: load("src/main-process/services/taskSessions/taskContext.ts").taskPrompt, prompts: [], agents: { capabilities: async () => capabilities } };
+  const runtime = fixture([], undefined, options); context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: "agent", resourceId: "repo", agent: selection }, runtime.owner);
+  const [source] = await runtime.service.list(); const original = structuredClone(source);
+  current.description = "Updated task prompt"; current.notes = [{ id: "note", title: "New note", content: "Current context" }];
+  await runtime.service.start({ taskId: task.id, kind: "agent", sourceSessionId: source.id, agentId: "grok" }, runtime.owner);
+  const created = (await runtime.service.list())[1];
+  assert.equal(created.cwd, source.cwd); assert.deepEqual(created.workspace, source.workspace);
+  assert.notEqual(created.id, source.id); assert.notEqual(created.terminalId, source.terminalId); assert.notEqual(created.nativeSessionId, source.nativeSessionId);
+  assert.equal(created.agent.agentId, "grok"); assert.equal(created.agent.modelId, "default-model"); assert.equal(created.agent.effort, "low");
+  assert.ok(options.prompts[1].includes("Updated task prompt")); assert.ok(options.prompts[1].includes("Current context"));
+  assert.deepEqual(source, original); assert.ok(runtime.processes.has(source.terminalId)); assert.equal(runtime.launches(), 2);
+  await runtime.service.start({ taskId: task.id, kind: "agent", resourceId: null, agent: selection }, runtime.owner);
+  const all = (await runtime.service.list())[2]; options.tasksDirectory = path.join(directory, "moved-settings");
+  await runtime.service.start({ taskId: task.id, kind: "agent", sourceSessionId: all.id, agentId: "grok" }, runtime.owner);
+  const fromAll = (await runtime.service.list())[3]; assert.equal(fromAll.cwd, all.cwd); assert.deepEqual(fromAll.workspace, { kind: "all" });
+  await runtime.service.archive(source.id, runtime.owner); const archived = structuredClone(source);
+  await runtime.service.start({ taskId: task.id, kind: "agent", sourceSessionId: source.id, agentId: "grok" }, runtime.owner);
+  const fromArchived = (await runtime.service.list())[4];
+  assert.equal(fromArchived.cwd, source.cwd); assert.deepEqual(fromArchived.workspace, source.workspace);
+  assert.notEqual(fromArchived.nativeSessionId, source.nativeSessionId); assert.equal(fromArchived.archivedAt, undefined);
+  assert.deepEqual(source, archived); assert.equal(runtime.processes.has(source.terminalId), false);
+  current.status = "ARCHIVED";
+  await assert.rejects(runtime.service.start({ taskId: task.id, kind: "agent", sourceSessionId: source.id, agentId: "grok" }, runtime.owner), /SESSION_BUSY/);
+  assert.equal((await runtime.service.list()).length, 5);
+  await runtime.service.shutdown();
+});
+
+test("从会话新建拒绝越权、跨任务、失效目录和混合输入，归档来源也不回退其他目录", async context => {
+  const current = { ...task, resources: [{ resourceId: "repo", name: "repo", workingPath: os.tmpdir(), mode: "worktree" }] };
+  const runtime = fixture([], undefined, { task: current }); context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  const [source] = await runtime.service.list();
+  const input = { taskId: task.id, kind: "agent", agentId: "grok", sourceSessionId: source.id };
+  await assert.rejects(runtime.service.start(input, runtime.other), /SESSION_UNAVAILABLE/);
+  for (const change of [{ sourceSessionId: null }, { sourceSessionId: "" }, { kind: "shell" }, { resourceId: null }, { agent: selection }, { commandId: "build" }, { agentId: undefined }]) await assert.rejects(runtime.service.start({ ...input, ...change }, runtime.owner), /TASK_INVALID/);
+  current.id = "other-task"; await assert.rejects(runtime.service.start(input, runtime.owner), /SESSION_UNAVAILABLE/); current.id = task.id;
+  current.resources = []; await assert.rejects(runtime.service.start(input, runtime.owner), /SESSION_DIRECTORY_MISSING/);
+  current.resources = [{ resourceId: "repo", name: "repo", workingPath: path.join(os.tmpdir(), "navo-missing-" + source.id), mode: "worktree" }];
+  await assert.rejects(runtime.service.start(input, runtime.owner), /SESSION_DIRECTORY_MISSING/);
+  await runtime.service.archive(source.id, runtime.owner); await assert.rejects(runtime.service.start(input, runtime.owner), /SESSION_DIRECTORY_MISSING/);
+  assert.equal((await runtime.service.list()).length, 1); assert.equal(runtime.launches(), 1);
+});
 
 test("Restore archive keeps native identity/options/cwd and activity, launches nothing and ignores old exit", async context => {
   const current = { ...task };

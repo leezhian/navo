@@ -47,13 +47,15 @@ test("Unlink only removes task association and ownership, keeping workspaces and
   const { tasks, content, directory, filename } = await fixture(context);
   const workspace = path.join(directory, "workspace"); await mkdir(workspace);
   const original = path.join(workspace, "keep.txt"); await writeFile(original, "keep");
-  const resources = [{ resourceId: "workspace", name: "repo", mode: "worktree", workingPath: workspace, originalPath: workspace, sourceBranch: "main", targetBranch: "feature", ownership: { path: workspace } }];
+  const resources = [{ resourceId: "workspace", name: "repo", mode: "worktree", workingPath: workspace, originalPath: workspace, sourceBranch: "main", targetBranch: "feature", ownership: { path: workspace } },
+    { resourceId: "remaining", name: "remaining", mode: "folder", workingPath: directory, originalPath: directory, sourceBranch: "", targetBranch: "" }];
   await tasks.create({ ...base, id: "bound", resources, webLinks: [{ id: "link", title: "Spec", url: "https://example.com" }] }, [{ id: "attachment", name: "keep.txt", size: 4, storageName: "copy.txt" }]);
   await content.detach("bound", { kind: "workspace", id: "workspace" });
   await content.detach("bound", { kind: "link", id: "link" });
   await content.detach("bound", { kind: "attachment", id: "attachment" });
   const task = (await tasks.load()).find(task => task.id === "bound");
-  assert.equal(task.resources.length, 0); assert.equal(task.webLinks.length, 0); assert.equal(task.attachments.length, 0); assert.equal(task.projectName, "");
+  assert.equal(task.resources.length, 1); assert.equal(task.webLinks.length, 0); assert.equal(task.attachments.length, 0); assert.equal(task.projectName, "remaining");
+  await assert.rejects(content.detach("bound", { kind: "workspace", id: "remaining" }), /TASK_LAST_WORKSPACE/);
   assert.equal(task.contextVersion, 4); assert.equal(await readFile(original, "utf8"), "keep");
   const database = await openAppDatabase(filename);
   assert.equal(database.prepare("SELECT COUNT(*) AS count FROM managed_workspaces WHERE task_id='bound'").get().count, 0); database.close();

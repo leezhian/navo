@@ -3,10 +3,12 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskSession } from "@/shared/taskSessionTypes";
 import type { Task } from "@/domain/tasks";
+import type { AgentId } from "@/shared/agentTypes";
 import { useTaskSessionStore } from "@/stores/taskSessionStore";
 import { sessionWorkspaceLabel } from "@/utils/taskSessionWorkspace";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { SessionActionMenu } from "./SessionActionMenu";
+import { TaskSessionMenu } from "./TaskSessionMenu";
 
 interface ArchivedSessionsProps {
   /** 只包含本任务的归档 Agent 会话。 */
@@ -14,8 +16,12 @@ interface ArchivedSessionsProps {
   task: Task;
   /** 仅选择恢复后的已停止会话，不启动 CLI。 */
   onRestored: (session: TaskSession) => void;
+  /** 沿用工作台的可用 Agent 快照，不在展开菜单时检测。 */
+  agentChoices?: Array<{ id: AgentId; ready: boolean }>;
+  /** 归档记录仅作为目录来源，新建不恢复原会话。 */
+  onNewSessionFrom?: (agentId: AgentId, sourceSessionId: string) => void;
 }
-export function ArchivedSessions({ sessions, task, onRestored }: ArchivedSessionsProps) {
+export function ArchivedSessions({ sessions, task, onRestored, agentChoices = [], onNewSessionFrom }: ArchivedSessionsProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const [open, setOpen] = useState(false);
   const pending = useTaskSessionStore((state) => state.pending);
@@ -29,12 +35,18 @@ export function ArchivedSessions({ sessions, task, onRestored }: ArchivedSession
     <button className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground" aria-expanded={open} onClick={() => setOpen(!open)}>
       {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}{t("tasks:context.archived", { count: sessions.length })}
     </button>
-    {open && sessions.map((session) => <div key={session.id} className="flex items-center"><button className="task-context-row min-w-0 flex-1" disabled={pending || task.status === "ARCHIVED"}
+    {open && sessions.map((session) => {
+      const workspace = session.workspace;
+      const canCreate = task.status !== "ARCHIVED" && Boolean(workspace && (workspace.kind === "all" || task.resources?.some((resource) => resource.resourceId === workspace.resourceId)));
+      return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={pending}
+        onRestore={task.status !== "ARCHIVED" ? () => void restore(session) : undefined} onNewSession={onNewSessionFrom}>
+      <div className="flex items-center"><button className="task-context-row min-w-0 flex-1" disabled={pending || task.status === "ARCHIVED"}
       title={t("tasks:context.restoreSession", { date: new Date(session.archivedAt ?? session.createdAt).toLocaleString() })} onClick={() => void restore(session)}>
       <span className="task-context-item-icon"><AgentProviderIcon agentId={session.agent?.agentId} /></span>
       <span className="min-w-0"><span className="block truncate">{session.title || t("tasks:runtime.untitledSession")}</span>
         <span className="block truncate text-[11px] text-muted-foreground">{sessionWorkspaceLabel(session, task.resources ?? [], t("tasks:runtime.allWorktrees"), t("tasks:runtime.unknownWorkspace"))}</span>
       </span>
-    </button><SessionActionMenu session={session} /></div>)}
+    </button><SessionActionMenu session={session} /></div></TaskSessionMenu>;
+    })}
   </div>;
 }

@@ -66,7 +66,7 @@ test("工作目录打开严格绑定任务：使用 Worktree，外部终端不�
     const cache = new InstalledEditorsCache(async () => { scans++;return [{ id: "vscode", name: "VS Code", appPath: "/fixture/Code.app" }]; }, () => now);
     const host = { platform: "darwin", inspect: async cwd => { assert.equal(cwd, actual);return { isRepository: true, remoteUrl: remote }; }, openPath: async cwd => { paths.push(cwd);return ""; }, openExternal: async url => { urls.push(url); }, launch: async (...args) => { launches.push(args); }, matchesEditor: async () => installed, terminalAvailable: async () => true };
     const service = new TaskWorkspaceOpenService(async () => tasks, cache, host);
-    const options = await service.options("task", "repo");assert.deepEqual(options.editors, [{ id: "vscode", name: "VS Code" }]);assert.equal(options.remote.provider, "GitHub");
+    const options = await service.options("task", "repo");assert.deepEqual(options.editors, [{ id: "vscode", name: "VS Code" }]);assert.equal(options.remote.provider, "GitHub");assert.equal(options.remoteUrl, remote);
     await service.open("task", "repo", { kind: "fileManager" });assert.deepEqual(paths, [actual]);
     await service.open("task", "repo", { kind: "terminal" });assert.deepEqual(launches[0], ["/System/Applications/Utilities/Terminal.app", actual]);
     now = EDITOR_CACHE_MS;

@@ -115,10 +115,10 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
     const created = await startSession({ kind: "shell", resourceId, commandId });
     if (created) { setSelectedTerminal(created.id); setTerminalOpen(true); }
   }
-  function selectContextSession(session: TaskSession) {
+  function selectContextSession(session: TaskSession, forceOpen = false) {
     if (session.kind === "agent") {
       invalidateSelection("agent");
-      setAgentPaneOpen(session.id !== active?.id || !showAgentPane);
+      setAgentPaneOpen(forceOpen || session.id !== active?.id || !showAgentPane);
       setSelectedAgent(session.id);
       setExpanded(false);
     } else {
@@ -132,8 +132,8 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
     invalidateSelection("shell");
     setTerminalOpen(!visibleTerminal);
   }
-  async function addAgent(agentId: AgentId, resourceId?: string | null) {
-    const created = await startSession({ kind: "agent", agentId, resourceId });
+  async function addAgent(agentId: AgentId, resourceId?: string | null, sourceSessionId?: string) {
+    const created = await startSession({ kind: "agent", agentId, resourceId, sourceSessionId });
     if (created) { setSelectedAgent(created.id); setAgentPaneOpen(true); setExpanded(false); if (narrow) setContextOpen(false); }
   }
   const newSessionControl = <NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} />;
@@ -202,6 +202,8 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
             activeResourceId={visibleBranch ? branchResource?.resourceId : undefined} activeNoteId={visibleNote ? noteEditor.note?.id : undefined} onNote={showNote}
             onDeleteNote={(id) => noteEditor.requestDelete(id)} noteDeleteDisabled={noteEditor.pending || noteEditor.busy || noteEditor.readOnly}
             onRunCommand={(resourceId, commandId) => void addTerminal(resourceId, commandId)}
+            agentChoices={agentChoices} onNewSession={(id, resourceId) => void addAgent(id, resourceId)} onNewTerminal={(resourceId) => void addTerminal(resourceId)}
+            onNewSessionFrom={(id, sourceSessionId) => void addAgent(id, undefined, sourceSessionId)}
             archivePending={pending} onArchive={(id) => void useTaskSessionStore.getState().archive(id)}
             onSelect={selectContextSession}
             newSessionControl={newSessionControl} newTerminalControl={newTerminalControl} onReview={showBranch}

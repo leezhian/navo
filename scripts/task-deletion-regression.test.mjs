@@ -303,3 +303,61 @@ test("Detached HEAD 有明确警告；无远端引用不宣称已推送", async 
   assert.equal(preview.items[0].unpushedCommits, null);
   await service.remove(task.id, { token: preview.token }, 1);
 });
+
+test("单独删除 Worktree 绑定窗口与工作区，保留任务、分支和其他目录", async context => {
+  const { service, repository, create } = await fixture(context);
+  const task = await create([await repository("one"), await repository("two")]);
+  const [first, second] = task.resources;
+  await writeFile(path.join(first.workingPath, "file.txt"), "uncommitted");
+  const preview = await service.inspectWorktreeDeletion(task.id, first.resourceId, 1);
+  assert.equal(preview.blocked, false); assert.equal(preview.item.uncommittedFiles, 1);
+  await assert.rejects(service.deleteWorktree(task.id, first.resourceId, { token: preview.token }, 2), /CONFIRMATION/);
+  await access(first.workingPath);
+  await assert.rejects(service.deleteWorktree(task.id, second.resourceId, { token: preview.token }, 1), /CONFIRMATION/);
+  const confirmed = await service.inspectWorktreeDeletion(task.id, first.resourceId, 1);
+  const updated = await service.deleteWorktree(task.id, first.resourceId, { token: confirmed.token }, 1);
+  assert.equal(updated.id, task.id); assert.deepEqual(updated.resources.map(item => item.resourceId), [second.resourceId]);
+  assert.equal(updated.contextVersion, task.contextVersion + 1);
+  await assert.rejects(access(first.workingPath)); await access(second.workingPath);
+  assert.ok(await git(first.originalPath, "rev-parse", first.targetBranch));
+  assert.deepEqual((await service.repository.deletionContext(task.id)).progress, []);
+  await assert.rejects(service.detachResource(task.id, { kind: "workspace", id: second.resourceId }), /TASK_LAST_WORKSPACE/);
+  await assert.rejects(service.deleteWorktree(task.id, first.resourceId, { token: confirmed.token }, 1), /CONFIRMATION/);
+});
+
+test("单独清理拒绝过期风险确认、已有目录、共享目录和归档任务", async context => {
+  const { service, repository, create } = await fixture(context);
+  const repo = await repository("repo"); const task = await create([repo]); const resource = task.resources[0];
+  const preview = await service.inspectWorktreeDeletion(task.id, resource.resourceId, 1);
+  await writeFile(path.join(resource.workingPath, "new.txt"), "changed after preview");
+  await assert.rejects(service.deleteWorktree(task.id, resource.resourceId, { token: preview.token }, 1), /DELETE_CHANGED/);
+  await access(resource.workingPath);
+  const existing = await create([repo], "current-branch");
+  assert.equal((await service.inspectWorktreeDeletion(existing.id, existing.resources[0].resourceId, 1)).blocked, true);
+  await service.repository.create({ ...task, id: randomUUID(), title: "shared", resources: [{ ...resource, ownership: undefined }] }, []);
+  const shared = await service.inspectWorktreeDeletion(task.id, resource.resourceId, 1);
+  assert.equal(shared.blocked, true); assert.equal(shared.item.worktreeReason, "shared");
+  await service.move(task.id, "ARCHIVED", null);
+  await assert.rejects(service.inspectWorktreeDeletion(task.id, resource.resourceId, 1), /TASK_BUSY/);
+});
+
+test("物理清理后落库失败可重新确认收尾，替换目录不会被误删", async context => {
+  const { service, repository, create } = await fixture(context);
+  const task = await create([await repository("repo")]); const resource = task.resources[0];
+  const content = service.worktreeDeletion.content;
+  const detach = content.detach.bind(content);
+  content.detach = async () => { throw Error("database unavailable"); };
+  const preview = await service.inspectWorktreeDeletion(task.id, resource.resourceId, 1);
+  await assert.rejects(service.deleteWorktree(task.id, resource.resourceId, { token: preview.token }, 1), /database unavailable/);
+  await assert.rejects(access(resource.workingPath));
+  assert.equal((await service.repository.load()).find(item => item.id === task.id).resources.length, 1);
+  await mkdir(resource.workingPath); await writeFile(path.join(resource.workingPath, "keep.txt"), "replacement");
+  const replaced = await service.inspectWorktreeDeletion(task.id, resource.resourceId, 1);
+  assert.equal(replaced.blocked, true); assert.equal(await readFile(path.join(resource.workingPath, "keep.txt"), "utf8"), "replacement");
+  await rm(resource.workingPath, { recursive: true }); content.detach = detach;
+  const retry = await service.inspectWorktreeDeletion(task.id, resource.resourceId, 1);
+  assert.equal(retry.item.worktreeAction, "removed");
+  const updated = await service.deleteWorktree(task.id, resource.resourceId, { token: retry.token }, 1);
+  assert.equal(updated.resources.length, 0); assert.ok(await git(resource.originalPath, "rev-parse", resource.targetBranch));
+  assert.deepEqual((await service.repository.deletionContext(task.id)).progress, []);
+});

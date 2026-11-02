@@ -1,4 +1,18 @@
 {
+  "changesMenu": {
+    "openIn": "Open in",
+    "newSession": "New session here",
+    "newTerminal": "New terminal here",
+    "runCommand": "Run command here",
+    "copyBranch": "Copy branch name",
+    "copyPath": "Copy worktree path",
+    "copyRemote": "Copy remote URL",
+    "deleteWorktree": "Delete worktree",
+    "lastWorkspace": "The last working directory cannot be unlinked.",
+    "copyFailed": "Copy failed. Please try again.",
+    "deleteTitle": "Delete worktree?",
+    "deleteDescription": "Delete this worktree from disk and unlink it from the task. The task and branch are kept. Uncommitted changes and files in this directory will be deleted. This cannot be undone."
+  },
   "context": {
     "prompt": "Prompt",
     "detach": "Unlink",
@@ -8,7 +22,6 @@
     "workspaceBusy": "Stop sessions, terminals or initialization commands using this workspace first.",
     "archived": "Archived {{count}}",
     "restoreSession": "Archived {{date}} · Click to restore without starting",
-    "dynamic": "Dynamic shared context: the Agent can read current prompt and resources, and read or write this task's notes. Reading on every turn is not guaranteed.",
     "snapshot": "This session only has a startup snapshot. Restart to connect live context where the CLI supports it.",
     "file": "The context file updates with task changes. The Agent is instructed to reread it each turn; reading is not guaranteed. Click to copy a reminder for the existing terminal.",
     "fileFailed": "Context file sync failed; the Agent may read stale content. Click to retry and copy a reading reminder.",
@@ -181,13 +194,15 @@
   "commands": {
     "title": "Run a command",
     "choose": "Choose command",
-    "empty": "No commands yet",
+    "empty": "No command yet",
     "manage": "Manage commands…",
     "run": "Run \"{{name}}\" in this worktree",
     "stop": "Stop \"{{name}}\" in this worktree"
   },
   "notes": {
     "title": "Task notes",
+    "copy": "Copy note",
+    "copyFailed": "Could not copy note. Please try again.",
     "edit": "Edit note",
     "delete": "Delete note",
     "close": "Close",
@@ -261,6 +276,7 @@
     "restartAgent": "Restart Agent",
     "shutdownAgent": "Shut down agent",
     "renameSession": "Rename session",
+    "newSessionFrom": "New session from this one",
     "deleteSession": "Delete session",
     "sessionName": "Session name",
     "renameNativeDescription": "The session will stop before its native CLI name is updated. No task prompt is resent; you can resume it afterwards.",

@@ -24,6 +24,7 @@ import { TaskWorkspaceBindings } from "./taskWorkspaceBindings";
 import { isTaskResourceInput } from "../../utils/taskResourceInput";
 import { assignWorkspaceIdentities } from "./taskWorkspaceIdentity";
 import { TaskContentRepository } from "./taskContentRepository";
+import { TaskWorktreeDeletionService } from "./taskWorktreeDeletionService";
 import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
 import { planWorktreeInitialization, TaskInitializationRepository } from "./taskInitializationRepository";
 
@@ -37,6 +38,7 @@ export class TaskService {
   private queue: Promise<unknown> = Promise.resolve();
   private recovered = false;
   readonly deletion: TaskDeletionService;
+  readonly worktreeDeletion: TaskWorktreeDeletionService;
   readonly resourceBindings: TaskResourceBindings;
   private readonly workspaceBindings: TaskWorkspaceBindings;
   private readonly content: TaskContentRepository;
@@ -49,6 +51,7 @@ export class TaskService {
     // 保留失败供队列调用者处理，同时避免启动阶段未订阅的 rejected promise。
     void this.initializationReady.catch(() => undefined);
     this.content = new TaskContentRepository(path.join(userData, "app.db"), namespace);
+    this.worktreeDeletion = new TaskWorktreeDeletionService(this.repository, this.content);
     this.resources = new ResourceService(path.join(userData, "resources.json"));
     this.deletion = new TaskDeletionService(this.repository);
     this.resourceBindings = new TaskResourceBindings(this.repository, path.join(userData, "app.db"), namespace);
@@ -77,6 +80,12 @@ export class TaskService {
   }
   detachResource(id: string, input: TaskResourceRemoval) {
     return this.serialize(async () => { await this.content.detach(id, input); return requireTask(await this.repository.load() ?? [], id); });
+  }
+  inspectWorktreeDeletion(id: string, resourceId: string, ownerId: number) {
+    return this.serialize(() => this.worktreeDeletion.preview(id, resourceId, ownerId));
+  }
+  deleteWorktree(id: string, resourceId: string, confirmation: TaskDeletionConfirmation, ownerId: number) {
+    return this.serialize(() => this.worktreeDeletion.remove(id, resourceId, confirmation, ownerId));
   }
   deleteNote(id: string, noteId: string, expectedVersion: number, authorize?: () => void) {
     return diagnosticOperation("task.note.delete", { taskId: id }, () => this.serialize(() => this.resourceBindings.deleteNote(id, noteId, expectedVersion, authorize)));

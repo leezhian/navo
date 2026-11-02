@@ -4,7 +4,7 @@ import type { TaskAgentSelection } from "./agentCapabilities";
 import type { Task, TaskStatus } from "../domain/tasks";
 import type { AddTaskResourcesInput, TaskFileReference, TaskNoteUpdate } from "./taskResourceTypes";
 import type { WorkspaceOpenOptions, WorkspaceOpenTarget } from "./workspaceOpenTypes";
-import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview } from "./taskDeletionTypes";
+import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview, TaskWorktreeDeletionPreview } from "./taskDeletionTypes";
 
 export type TaskExecutionMode = "worktree" | "new-branch" | "current-branch" | "folder";
 
@@ -95,6 +95,9 @@ export interface TasksApi {
   updateNote(taskId: string, note: TaskNoteUpdate, expectedVersion: number): Promise<Task>;
   updatePrompt(taskId: string, content: string, expected: string): Promise<Task>;
   detachResource(taskId: string, input: import("./taskContextTypes").TaskResourceRemoval): Promise<Task>;
+  /** 检查指定 Worktree；删除必须提交本窗口获得的确认凭据。 */
+  inspectWorktreeDeletion(taskId: string, resourceId: string): Promise<TaskWorktreeDeletionPreview>;
+  deleteWorktree(taskId: string, resourceId: string, confirmation: TaskDeletionConfirmation): Promise<Task>;
   retryInitialization(taskId: string): Promise<void>;
   onChanged(listener: (task: Task) => void): () => void;
   /** 使用打开删除确认时的版本，避免删除确认期间被其他会话更新的笔记。 */

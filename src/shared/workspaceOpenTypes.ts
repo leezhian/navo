@@ -8,6 +8,8 @@ export interface RepositoryWebLink { provider: string; url: string; }
 export interface WorkspaceOpenOptions {
   editors: InstalledEditor[];
   remote: RepositoryWebLink | null;
+  /** Git remote 的原始传输地址（去除凭证），复制时保留 SSH/HTTPS 格式。 */
+  remoteUrl: string | null;
   externalTerminal: boolean;
 }
 export type WorkspaceOpenTarget = { kind: "fileManager" | "terminal" | "remote" } | { kind: "editor"; editorId: EditorId };
