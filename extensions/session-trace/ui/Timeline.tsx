@@ -1,24 +1,26 @@
 import type { TraceEvent } from "../../../src/shared/extensionTypes";
-import type { Labels } from "./labels";
+import { useTranslation } from "react-i18next";
 interface TimelineProps {
   /** 已记录时间的事件；缺少耗时时显示时间标记，不补造持续时长。 */
   events: TraceEvent[];
+  /** 超过时间线数量上限时提示用户，列表仍可查看完整记录。 */
   truncated: boolean;
-  labels: Labels;
+  /** 点击标记后定位列表中的对应事件。 */
   onSelect: (id: number) => void;
 }
-export function Timeline({ events, truncated, labels: l, onSelect }: TimelineProps) {
+export function Timeline({ events, truncated, onSelect }: TimelineProps) {
+  const { t } = useTranslation(["trace"]);
   const dates = events
     .flatMap((event) => (event.timestamp ? [Date.parse(event.timestamp), Date.parse(event.timestamp) + (event.durationMs ?? 0)] : []))
     .filter(Number.isFinite);
-  if (!dates.length) return <p className="timeline-empty">{l.timelineMissing}</p>;
+  if (!dates.length) return <p className="timeline-empty">{t("trace:timelineMissing")}</p>;
   const start = Math.min(...dates),
     end = Math.max(...dates),
     total = Math.max(1, end - start);
   const lanes = [
-    { label: l.input, kinds: ["user", "context", "system"] },
-    { label: l.model, kinds: ["assistant", "reasoning"] },
-    { label: l.tools, kinds: ["tool", "error"] },
+    { label: t("trace:input"), kinds: ["user", "context", "system"] },
+    { label: t("trace:model"), kinds: ["assistant", "reasoning"] },
+    { label: t("trace:tools"), kinds: ["tool", "error"] },
   ];
   return (
     <div className="timeline">
@@ -42,15 +44,15 @@ export function Timeline({ events, truncated, labels: l, onSelect }: TimelinePro
                     left: `${Math.min(99, ((Date.parse(event.timestamp ?? "") - start) / total) * 100)}%`,
                     width: `${Math.max(0.5, ((event.durationMs ?? 0) / total) * 100)}%`,
                   }}
-                  aria-label={`${l.kinds[event.kind]} · ${event.tool ?? event.preview}`}
-                  title={`${event.tool ?? event.preview}\n${event.timestamp}${event.durationMs === undefined ? ` · ${l.missing}` : ` · ${event.durationMs}ms`}`}
+                  aria-label={`${t(`trace:kinds.${event.kind}`)} · ${event.tool ?? event.preview}`}
+                  title={`${event.tool ?? event.preview}\n${event.timestamp}${event.durationMs === undefined ? ` · ${t("trace:missing")}` : ` · ${event.durationMs}ms`}`}
                   onClick={() => onSelect(event.id)}
                 />
               ))}
           </div>
         </div>
       ))}
-      {truncated && <span className="muted">{l.timelineClipped}</span>}
+      {truncated && <span className="muted">{t("trace:timelineClipped")}</span>}
     </div>
   );
 }

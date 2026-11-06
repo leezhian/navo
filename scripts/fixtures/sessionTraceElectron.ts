@@ -41,6 +41,7 @@ void app.whenReady().then(async () => {
       if ((await api.status()).enabled) throw Error("Install enabled extension implicitly");
       (document.querySelector('[role="switch"]') as HTMLButtonElement).click();
       await wait(() => document.querySelector('[role="switch"]')?.getAttribute("aria-checked") === "true", "Enable did not persist");
+      await (window as unknown as { setFixtureLanguage: (language: string) => Promise<unknown> }).setFixtureLanguage("en");
       (window as unknown as { showLabs: (value: boolean) => void }).showLabs(false);
       await wait(() => Boolean(document.querySelector("iframe")), "Plugin frame missing");
       return true;
@@ -63,18 +64,44 @@ void app.whenReady().then(async () => {
       await wait(() => Boolean(document.querySelector(".detail pre")?.textContent?.includes("sessionId")));
       const search = document.querySelector<HTMLInputElement>("input[type=search]");
       if (!search) throw Error("Search missing");
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "fixture message 239"); search.dispatchEvent(new Event("input", { bubbles: true }));
-      await wait(() => document.querySelectorAll(".event-row").length === 1);
+      const searchFor = (value: string) => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, value);
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      const jump = () => {
+        const marker = document.querySelector<HTMLButtonElement>('.timeline button[aria-label="User · fixture message 149"]');
+        if (!marker) throw Error("Timeline target missing");
+        marker.click();
+      };
+      const assertJump = async () => {
+        await wait(() => Boolean(document.querySelector('.event-row[aria-expanded="true"][title="fixture message 149"]')));
+        // 等防抖窗口过去，确认目标页不会被后来的搜索回调覆盖。
+        await new Promise(resolve => setTimeout(resolve, 400));
+        if (search.value || !document.querySelector("footer")?.textContent?.includes("2 / 3") ||
+          !document.querySelector('.event-row[aria-expanded="true"][title="fixture message 149"]')) throw Error("Timeline jump was reset by search");
+      };
+      searchFor("fixture message 239");
+      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event");
+      jump(); await assertJump();
+      searchFor("fixture message 23");
+      await pause(); // 输入已进入 React 状态，但 180ms 防抖尚未触发。
+      jump(); await assertJump();
+      searchFor("fixture message 239");
+      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event");
+      if (document.documentElement.lang !== "en" || !document.querySelector(".stats")?.textContent?.includes("240 turns")) throw Error("English locale was not applied");
+      if (!document.querySelector(".stats")?.textContent?.includes("— model requests")) throw Error("Unknown requests were displayed as zero");
       return { virtualRows: count, text: document.body.innerText };
     };
     const result = await frame.executeJavaScript(`(${uiChecks.toString()})()`);
     assert.match(result.text, /fixture message 239/);
     await appendFile(source, JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message 239 appended" } }) + "\n");
     for (let attempt = 0; attempt < 100; attempt++) { const count = await frame.executeJavaScript("document.querySelectorAll('.event-row').length"); if (count === 2) break; if (attempt === 99) throw Error("Incremental update missing"); await new Promise(resolve => setTimeout(resolve, 50)); }
+    assert.equal(await frame.executeJavaScript(`document.querySelector('[role="status"]').textContent`), "2 events");
     const screenshot = await win.webContents.capturePage(); await writeFile(path.join(directory, "trace.png"), screenshot.toPNG());
     await win.webContents.executeJavaScript("window.navo.extensions.setEnabled(false)");
     await assert.rejects(win.webContents.executeJavaScript("window.navo.extensions.openTrace('trace-session')"), /EXTENSION_DISABLED/);
     await win.webContents.executeJavaScript(`(async () => {
+      await window.setFixtureLanguage('zh-CN');
       window.showLabs(true);
       const wait = async (predicate) => { for (let i=0;i<200;i++) { if(predicate())return; await new Promise(resolve=>setTimeout(resolve,40)); } throw Error('Labs uninstall UI timed out'); };
       const uninstall = () => Array.from(document.querySelectorAll('button')).find(button => button.textContent === '卸载');

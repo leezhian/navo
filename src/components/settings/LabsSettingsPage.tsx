@@ -1,3 +1,5 @@
+import { extensionErrorKeys } from "@/services/extensionErrorMessages";
+import { normalizeExtensionErrorCode } from "@/shared/extensionErrors";
 import { useState } from "react";
 import { FlaskConical, Download, FolderOpen, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -86,9 +88,7 @@ export function LabsSettingsPage() {
       )}
       {message && (
         <p role="alert" className="mt-3 text-xs text-destructive">
-          {t(`settings:labs.errors.${message}` as "settings:labs.errors.OPERATION_FAILED", {
-            defaultValue: t("settings:labs.errors.OPERATION_FAILED"),
-          })}
+          {t(extensionErrorKeys[normalizeExtensionErrorCode(message)])}
         </p>
       )}
       <Dialog open={confirm} onOpenChange={setConfirm}>

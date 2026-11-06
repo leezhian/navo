@@ -178,3 +178,19 @@ test("TypeScript 拒绝缺失 key、中文 key 和任意动态字符串", () => 
   const diagnostics = ts.getPreEmitDiagnostics(program);
   assert.equal(diagnostics.length, 0, ts.formatDiagnosticsWithColorAndContext(diagnostics, { getCanonicalFileName: (file) => file, getCurrentDirectory: () => process.cwd(), getNewLine: () => "\n" }));
 });
+
+test("插件错误码映射覆盖已知错误，未知持久化值及 IPC 错误使用通用提示", () => {
+  const { extensionErrorCodes, normalizeExtensionErrorCode } = load("src/shared/extensionErrors.ts");
+  const { extensionErrorCode } = load("src/services/extensionsApi.ts");
+  const { extensionErrorKeys } = load("src/services/extensionErrorMessages.ts");
+  assert.deepEqual(Object.keys(extensionErrorKeys).sort(), [...extensionErrorCodes].sort());
+  for (const code of extensionErrorCodes) {
+    assert.equal(normalizeExtensionErrorCode(code), code);
+    assert.equal(extensionErrorCode(new Error("Error invoking remote method 'extension': Error: " + code)), code);
+    for (const { value: locale } of supportedLocales) assert.ok(resources[locale].settings.labs.errors[code]);
+  }
+  for (const unknown of [undefined, null, "SQLITE_BUSY", "UNKNOWN_CODE", "settings:pages.labs"]) {
+    assert.equal(normalizeExtensionErrorCode(unknown), "OPERATION_FAILED");
+    assert.equal(extensionErrorCode(new Error(String(unknown))), "OPERATION_FAILED");
+  }
+});

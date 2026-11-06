@@ -218,7 +218,9 @@
       "LEASE_EXPIRED": "The trace view expired. Open it again.",
       "EVENT_MISSING": "This event is no longer available. Refresh the trace.",
       "EXTENSION_UNAVAILABLE": "This feature requires the Navo desktop app.",
-      "OPERATION_FAILED": "Operation failed. Check file permissions and retry."
+      "OPERATION_FAILED": "Operation failed. Check file permissions and retry.",
+      "BUSY": "Another extension operation is in progress. Please retry shortly.",
+      "INVALID_QUERY": "This trace query is invalid. Reopen the trace and retry."
     }
   }
 }

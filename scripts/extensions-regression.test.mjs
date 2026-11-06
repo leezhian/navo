@@ -53,6 +53,16 @@ test('concurrent operations are rejected, cancellation cleans the incomplete pac
  finally{globalThis.fetch=originalFetch;}
 }));
 
+test('initial installation record write failure restores a retryable state without restarting',()=>fixture(async root=>{
+ const {bytes,release}=bundle(),pkg=path.join(root,'official.navo-extension');await writeFile(pkg,bytes);
+ const original=new ExtensionRepository(path.join(root,'app.db'),'test');let failWrites=true;
+ const repository={load:()=>original.load(),save:value=>{if(failWrites)throw Error('SQLITE_BUSY');return original.save(value);}};
+ const statuses=[];const service=new ExtensionService(path.join(root,'extension'),repository,release,status=>statuses.push(status),()=>{});await service.initialize();
+ await assert.rejects(service.install(pkg),/OPERATION_FAILED/);assert.equal(service.status.operation,'idle');assert.equal(service.status.version,null);assert.equal(service.status.progress,0);
+ await assert.rejects(service.install(pkg),/OPERATION_FAILED/);assert.equal(statuses.at(-1).operation,'idle');assert.equal((await original.load()).operation,'idle');
+ service.cancel();failWrites=false;await service.install(pkg);assert.equal(service.status.version,'0.1.0');assert.equal(service.status.enabled,false);await service.uninstall();
+}));
+
 test('runtime leases share a process, bind windows and revoke access before teardown',async()=>{
  const children=[];
  const loadRuntime=createLoader({electron:{utilityProcess:{fork:()=>{

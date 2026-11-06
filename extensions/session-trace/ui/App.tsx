@@ -2,15 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Clock3, ChevronLeft, ChevronRight, PanelRight } from "lucide-react";
 import type { TraceDetail, TraceEvent, TracePage, TraceQuery } from "../../../src/shared/extensionTypes";
 import { bridge } from "./bridge";
-import { labels } from "./labels";
+import { useTranslation } from "react-i18next";
+import { normalizeLocale } from "../../../src/shared/locales";
 import { EventList } from "./EventList";
 import { Timeline } from "./Timeline";
 import { EventDetail } from "./EventDetail";
 
 const PAGE_SIZE = 80;
 export function App() {
-  const [locale, setLocale] = useState("zh-CN"),
-    l = locale.startsWith("zh") ? labels["zh-CN"] : labels.en;
+  const { t, i18n } = useTranslation(["trace"]);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [query, setQuery] = useState<TraceQuery>({ kind: "page", limit: PAGE_SIZE, offset: 0, filter: "all", search: "" });
   const [search, setSearch] = useState("");
   const [page, setPage] = useState<TracePage | null>(null),
@@ -29,20 +30,24 @@ export function App() {
     () =>
       bridge.subscribe(
         (value) => {
-          setLocale(value.locale || "zh-CN");
-          document.documentElement.lang = value.locale;
+          const locale = normalizeLocale(value.locale);
+          void i18n.changeLanguage(locale);
+          document.documentElement.lang = locale;
           document.documentElement.style.colorScheme = value.dark ? "dark" : "light";
           for (const [name, value_] of Object.entries(value.tokens))
             if (/^[a-z-]+$/.test(name)) document.documentElement.style.setProperty("--" + name, value_);
         },
         () => setRevision((value) => value + 1),
       ),
-    [],
+    [i18n],
   );
-  useEffect(() => {
-    const timer = setTimeout(() => setQuery((current) => ({ ...current, search, offset: 0 })), 180);
-    return () => clearTimeout(timer);
-  }, [search]);
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
+  function searchInput(value: string) {
+    setSearch(value);
+    setSelected(null);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setQuery((current) => ({ ...current, search: value, offset: 0 })), 180);
+  }
   useEffect(() => {
     const sequence = ++request.current;
     setLoading(true);
@@ -90,6 +95,8 @@ export function App() {
     setFollow(false);
   }, []);
   function jump(id: number) {
+    // 时间线定位取消尚未提交的搜索，避免防抖回调再把分页重置为首页。
+    clearTimeout(searchTimer.current);
     setSearch("");
     setFollow(false);
     setQuery({ kind: "page", offset: Math.floor((id - 1) / PAGE_SIZE) * PAGE_SIZE, limit: PAGE_SIZE, filter: "all", search: "" });
@@ -104,23 +111,15 @@ export function App() {
           <Clock3 size={14} />
           {duration === null ? "—" : `${duration.toFixed(1)}s`}
         </span>
-        <span>
-          {stats?.rounds ?? "—"} {l.rounds}
+        <span>{stats ? t("trace:counts.turns", { count: stats.rounds }) : t("trace:unknown.turns")}</span>
+        <span title={stats?.requests === null ? t("trace:requestUnknown") : undefined}>
+          {stats?.requests == null ? t("trace:unknown.requests") : t("trace:counts.requests", { count: stats.requests })}
         </span>
-        <span title={stats?.requests === null ? l.requestUnknown : undefined}>
-          {stats?.requests ?? "—"} {l.requests}
-        </span>
-        <span>
-          {stats?.tools ?? "—"} {l.tools}
-        </span>
+        <span>{stats ? t("trace:counts.tools", { count: stats.tools }) : t("trace:unknown.tools")}</span>
         <span>{stats?.tokens == null ? "—" : (stats.tokens / 1000).toFixed(1) + "k"} tokens</span>
-        {!!stats?.errors && (
-          <span className="error-count">
-            {stats.errors} {l.errors}
-          </span>
-        )}
+        {!!stats?.errors && <span className="error-count">{t("trace:counts.errors", { count: stats.errors })}</span>}
       </div>
-      <Timeline events={timeline.events} truncated={timeline.truncated} labels={l} onSelect={jump} />
+      <Timeline events={timeline.events} truncated={timeline.truncated} onSelect={jump} />
       <div className="toolbar">
         <div className="filters">
           {(["all", "user", "context", "tool", "error"] as const).map((filter) => (
@@ -133,7 +132,7 @@ export function App() {
                 setFollow(false);
               }}
             >
-              {filter === "all" ? l.all : l.kinds[filter]}
+              {filter === "all" ? t("trace:all") : t(`trace:kinds.${filter}`)}
             </button>
           ))}
         </div>
@@ -142,25 +141,27 @@ export function App() {
           <input
             type="search"
             value={search}
-            placeholder={l.search}
-            aria-label={l.search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setSelected(null);
-            }}
+            placeholder={t("trace:search")}
+            aria-label={t("trace:search")}
+            onChange={(event) => searchInput(event.target.value)}
           />
         </label>
-        <button aria-label={l.inspector} title={l.inspector} aria-pressed={inspector} onClick={() => setInspector((value) => !value)}>
+        <button
+          aria-label={t("trace:inspector")}
+          title={t("trace:inspector")}
+          aria-pressed={inspector}
+          onClick={() => setInspector((value) => !value)}
+        >
           <PanelRight size={15} />
         </button>
       </div>
       {error ? (
         <div className="empty" role="alert">
-          {l.error}
-          <button onClick={() => setRevision((value) => value + 1)}>{l.retry}</button>
+          {t("trace:error")}
+          <button onClick={() => setRevision((value) => value + 1)}>{t("trace:retry")}</button>
         </div>
       ) : !page ? (
-        <div className="empty">{l.loading}</div>
+        <div className="empty">{t("trace:loading")}</div>
       ) : (
         <div className="trace-body">
           <EventList
@@ -169,27 +170,26 @@ export function App() {
             detail={detail}
             detailError={detailError}
             inspector={inspector}
-            labels={l}
             onSelect={select}
           />
           {inspector && selected !== null && (
             <aside className="inspector detail">
-              <EventDetail selected={selected} detail={detail} failed={detailError} labels={l} />
+              <EventDetail selected={selected} detail={detail} failed={detailError} />
             </aside>
           )}
         </div>
       )}
       <footer>
         <span role="status" aria-live="polite">
-          {loading ? l.loading : `${page?.total ?? 0} ${l.events}`}
+          {loading ? t("trace:loading") : t("trace:counts.events", { count: page?.total ?? 0 })}
         </span>
         <label>
           <input type="checkbox" checked={follow} onChange={(event) => setFollow(event.target.checked)} />
-          {l.following}
+          {t("trace:following")}
         </label>
         <span className="spacer" />
         <button
-          aria-label={l.previous}
+          aria-label={t("trace:previous")}
           disabled={!query.offset || loading}
           onClick={() => {
             setFollow(false);
@@ -203,7 +203,7 @@ export function App() {
           {Math.floor((query.offset ?? 0) / PAGE_SIZE) + 1} / {Math.max(1, Math.ceil((page?.total ?? 0) / PAGE_SIZE))}
         </span>
         <button
-          aria-label={l.next}
+          aria-label={t("trace:next")}
           disabled={(query.offset ?? 0) + PAGE_SIZE >= (page?.total ?? 0) || loading}
           onClick={() => {
             setSelected(null);

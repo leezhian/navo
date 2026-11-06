@@ -1,3 +1,4 @@
+import { extensionErrorKeys } from "@/services/extensionErrorMessages";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getExtensionsApi, extensionErrorCode } from "@/services/extensionsApi";
@@ -91,7 +92,7 @@ export function SessionTracePane({ session, visible }: SessionTracePaneProps) {
   if (error)
     return (
       <div className="task-session-empty">
-        <p role="alert">{t(`settings:labs.errors.${error}`)}</p>
+        <p role="alert">{t(extensionErrorKeys[error])}</p>
         <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>
           {t("settings:labs.retry")}
         </Button>

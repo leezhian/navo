@@ -1,3 +1,5 @@
+import { normalizeExtensionErrorCode } from "../../../shared/extensionErrors";
+import type { ExtensionErrorCode } from "../../../shared/extensionErrors";
 import { mkdir, readFile, rename, rm, lstat } from "node:fs/promises";
 import path from "node:path";
 import type { ExtensionStatus } from "../../../shared/extensionTypes";
@@ -6,15 +8,14 @@ import { downloadExtension } from "./extensionDownload";
 import { MAX_PACKAGE_BYTES, unpackPackage, verifyInstallation } from "./extensionPackage";
 import type { ExtensionRelease } from "./extensionPackage";
 
-const failureCodes = new Set(["PACKAGE_INVALID", "INCOMPATIBLE", "RELEASE_UNAVAILABLE", "DOWNLOAD_FAILED", "BUSY"]);
 export function extensionError(error: unknown) {
-  return error instanceof Error && failureCodes.has(error.message) ? error.message : "OPERATION_FAILED";
+  return normalizeExtensionErrorCode(error instanceof Error ? error.message : undefined);
 }
 
 export class ExtensionService {
   private record: InstalledExtension = { version: null, enabled: false, operation: "idle" };
   private progress = 0;
-  private error: string | null = null;
+  private error: ExtensionErrorCode | null = null;
   private compatible = true;
   private abort: AbortController | null = null;
   private busy = false;
@@ -98,12 +99,15 @@ export class ExtensionService {
       this.abort = new AbortController();
       const signal = this.abort.signal;
       const stage = path.join(this.directory, "staging");
+      const previous = this.record;
+      let recorded = false;
       this.record = { version: null, enabled: false, operation: "installing" };
       this.progress = 0;
-      await this.repository.save(this.record);
-      this.emit();
       const timeout = setTimeout(() => this.abort?.abort("timeout"), 120000);
       try {
+        await this.repository.save(this.record);
+        recorded = true;
+        this.emit();
         if (filename && (!(await lstat(filename)).isFile() || (await lstat(filename)).size > MAX_PACKAGE_BYTES))
           throw Error("PACKAGE_INVALID");
         const bytes = filename
@@ -122,6 +126,12 @@ export class ExtensionService {
         this.progress = 100;
         this.compatible = true;
       } catch (error) {
+        this.progress = 0;
+        // 初次写入失败时安装尚未开始，恢复内存即可；不要再次写入故障存储。
+        if (!recorded) {
+          this.record = previous;
+          throw error;
+        }
         // 安装尚未提交时仅清理本功能自己的目录，不接触 Agent 历史。
         this.record = { version: null, enabled: false, operation: "installing" };
         await rm(stage, { recursive: true, force: true });

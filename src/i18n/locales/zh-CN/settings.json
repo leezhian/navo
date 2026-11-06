@@ -216,7 +216,9 @@
       "LEASE_EXPIRED": "轨迹视图已失效，请重新打开。",
       "EVENT_MISSING": "该事件已不存在，请刷新轨迹。",
       "EXTENSION_UNAVAILABLE": "此功能需要在 Navo 桌面应用中使用。",
-      "OPERATION_FAILED": "操作失败，请检查文件权限后重试。"
+      "OPERATION_FAILED": "操作失败，请检查文件权限后重试。",
+      "BUSY": "另一个插件操作正在进行，请稍后重试。",
+      "INVALID_QUERY": "轨迹查询无效，请重新打开轨迹后重试。"
     }
   }
 }

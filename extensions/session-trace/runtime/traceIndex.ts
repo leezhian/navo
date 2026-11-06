@@ -44,7 +44,7 @@ export class TraceIndex {
       CREATE INDEX IF NOT EXISTS calls ON events(call_id);
       CREATE TABLE IF NOT EXISTS usage(key TEXT PRIMARY KEY, tokens INTEGER);
       CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT);`);
-    const saved = this.db.prepare("SELECT value FROM metadata WHERE key='checkpoint-v1'").get();
+    const saved = this.db.prepare("SELECT value FROM metadata WHERE key='checkpoint-v2'").get();
     this.checkpoint = saved ? JSON.parse(String(saved.value)) : { offset: 0, identity: "", tail: "", parser: { provider, round: 0 } };
   }
   private async fingerprint(offset: number) {
@@ -115,7 +115,7 @@ export class TraceIndex {
       // 留下未完成尾行，下次从最后一个完整换行继续，避免半个 UTF-8 字符或半条 JSON 被丢弃。
       checkpoint.tail = await this.fingerprint(checkpoint.offset);
       checkpoint.modified = info.mtimeMs;
-      this.db.prepare("INSERT OR REPLACE INTO metadata VALUES('checkpoint-v1',?)").run(JSON.stringify(checkpoint));
+      this.db.prepare("INSERT OR REPLACE INTO metadata VALUES('checkpoint-v2',?)").run(JSON.stringify(checkpoint));
       return checkpoint.offset !== before;
     } finally {
       await file.close();
@@ -152,6 +152,8 @@ export class TraceIndex {
         return;
       }
     }
+    // 已配对的工具结果不能被后续重放的调用记录覆盖为“待执行”。
+    if (event.callId && this.db.prepare("SELECT seq FROM events WHERE key=? AND result_loc IS NOT NULL").get(event.key)) return;
     const data: Omit<TraceEvent, "id"> = {
       kind: event.kind,
       round: event.round,
@@ -165,7 +167,7 @@ export class TraceIndex {
     this.db
       .prepare(
         `INSERT INTO events(key,kind,request,call_id,data,content,search,loc,len,truncated) VALUES(?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(key) DO UPDATE SET data=excluded.data,content=excluded.content,search=excluded.search,loc=excluded.loc,len=excluded.len,truncated=excluded.truncated`,
+      ON CONFLICT(key) DO UPDATE SET kind=excluded.kind,request=excluded.request,call_id=excluded.call_id,data=excluded.data,content=excluded.content,search=excluded.search,loc=excluded.loc,len=excluded.len,truncated=excluded.truncated`,
       )
       .run(
         event.key,

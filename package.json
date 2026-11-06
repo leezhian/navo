@@ -14,7 +14,7 @@
     "lint": "eslint --ext .ts,.tsx .",
     "test:i18n": "node --test scripts/i18n-regression.test.mjs",
     "build:session-trace": "node scripts/build-session-trace.mjs",
-    "test:session-trace": "node --test scripts/session-trace-regression.test.mjs scripts/extensions-regression.test.mjs scripts/session-trace-ui-regression.test.mjs"
+    "test:session-trace": "node --test scripts/session-trace-regression.test.mjs scripts/extensions-regression.test.mjs scripts/session-trace-ui-regression.test.mjs scripts/session-trace-i18n-regression.test.mjs"
   },
   "keywords": [],
   "author": {

@@ -82,13 +82,13 @@ export function parseRecord(raw: unknown, offset: number, state: ParserState): P
           `:${index}`,
         );
         event.synthetic = synthetic || undefined;
-        if (typeof message.id === "string") {
-          event.key = `${message.id}:${index}`;
-          event.request = message.id;
-        }
+        // 同一次响应可分为多条 UUID 记录；请求 ID 只用于分组及 Token 去重。
+        if (typeof row.uuid === "string" && row.uuid) event.key = `record:${row.uuid}:${index}`;
+        if (typeof message.id === "string") event.request = message.id;
         if (type === "tool_use") {
           event.tool = text(block.name);
-          event.callId = text(block.id);
+          event.callId = text(block.id) || undefined;
+          if (event.callId) event.key = `call:${event.callId}`;
         }
         if (type === "tool_result") event.resultFor = text(block.tool_use_id);
         const tokens = usage(message.usage);

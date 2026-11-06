@@ -1,3 +1,5 @@
+import type { ExtensionErrorCode } from "./extensionErrors";
+
 export type ExtensionOperation = "idle" | "installing" | "uninstalling";
 export interface ExtensionStatus {
   id: "session-trace";
@@ -8,7 +10,7 @@ export interface ExtensionStatus {
   compatible: boolean;
   operation: ExtensionOperation;
   progress: number;
-  error: string | null;
+  error: ExtensionErrorCode | null;
 }
 export interface ExtensionManifest {
   id: "session-trace";
