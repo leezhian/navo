@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { TraceDetail, TraceEvent } from "../../../src/shared/extensionTypes";
 import { useTranslation } from "react-i18next";
@@ -15,10 +15,12 @@ interface EventListProps {
   detailError: boolean;
   /** 侧栏模式只选中行，详情由并列面板承载。 */
   inspector: boolean;
+  /** 主动跟随时，在页面加载、追加和视口变化后保持最后一条事件可见。 */
+  following: boolean;
   /** 展开或收起事件，不执行轨迹中的命令。 */
   onSelect: (id: number) => void;
 }
-export function EventList({ events, selected, detail, detailError, inspector, onSelect }: EventListProps) {
+export function EventList({ events, selected, detail, detailError, inspector, following, onSelect }: EventListProps) {
   const { t, i18n } = useTranslation(["trace"]);
   const scroller = useRef<HTMLDivElement>(null);
   const locatedSelection = useRef<number | null>(null);
@@ -68,6 +70,14 @@ export function EventList({ events, selected, detail, detailError, inspector, on
     }
   }, [selected, rows]);
   const height = rows.length ? rows[rows.length - 1].top + rows[rows.length - 1].height : 0;
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (!following || !element) return;
+    element.scrollTop = element.scrollHeight;
+    // 同步虚拟列表的可见范围，避免滚动后短暂显示空白。
+    setViewport((current) => current.top === element.scrollTop && current.height === element.clientHeight
+      ? current : { top: element.scrollTop, height: element.clientHeight });
+  }, [following, height, viewport.height]);
   return (
     <div
       className="events"

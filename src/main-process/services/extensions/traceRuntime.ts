@@ -1,6 +1,6 @@
 import { utilityProcess } from "electron";
 import type { UtilityProcess } from "electron";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -28,6 +28,10 @@ interface Lease {
   sessionId: string;
   runtime: Runtime;
 }
+interface PendingOpen {
+  owner: number;
+  cancelled: boolean;
+}
 const filters = ["all", "user", "assistant", "reasoning", "context", "system", "tool", "error", "compaction", "unknown"];
 export function validateTraceQuery(value: TraceQuery) {
   if (
@@ -44,6 +48,7 @@ export function validateTraceQuery(value: TraceQuery) {
 export class TraceRuntime {
   private runtimes = new Map<string, Runtime>();
   private leases = new Map<string, Lease>();
+  private opening = new Map<string, PendingOpen>();
   private stopping = new Map<string, Promise<void>>();
   private counter = 0;
   constructor(
@@ -75,16 +80,35 @@ export class TraceRuntime {
       runtime.process.postMessage({ ...message, id });
     });
   }
-  async open(sessionId: string, owner: number) {
+  async open(sessionId: string, owner: number, id: string) {
     this.requireEnabled();
-    if (typeof sessionId !== "string" || sessionId.length > 160 || this.leases.size >= 32) throw Error("INVALID_QUERY");
+    const leaseCount = new Set([...this.leases.keys(), ...this.opening.keys()]).size;
+    if (
+      typeof sessionId !== "string" || sessionId.length > 160 || leaseCount >= 32 ||
+      typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id) ||
+      this.leases.has(id) || this.opening.has(id)
+    ) throw Error("INVALID_QUERY");
+    const opening: PendingOpen = { owner, cancelled: false };
+    // 先登记请求，元数据读取、等待旧进程退出和首次索引期间均允许取消。
+    this.opening.set(id, opening);
+    try {
+      return await this.openLease(sessionId, owner, id, opening);
+    } finally {
+      this.opening.delete(id);
+    }
+  }
+  private async openLease(sessionId: string, owner: number, id: string, opening: PendingOpen) {
+    const requireActive = () => {
+      if (opening.cancelled) throw Error("LEASE_EXPIRED");
+      this.requireEnabled();
+    };
     const session = await this.session(sessionId);
+    requireActive();
     if (!session || session.kind !== "agent") throw Error("SESSION_MISSING");
-    this.requireEnabled();
     const source = this.describe(session),
       fingerprint = JSON.stringify(source);
     await this.stopping.get(fingerprint);
-    this.requireEnabled();
+    requireActive();
     let runtime = this.runtimes.get(fingerprint);
     if (!runtime) {
       const cache = path.join(
@@ -135,12 +159,11 @@ export class TraceRuntime {
       });
       runtime.ready = this.send(runtime, { type: "open", session: source, cache });
     }
-    const id = randomUUID();
     runtime.leases.add(id);
     this.leases.set(id, { owner, sessionId, runtime });
     try {
       await runtime.ready;
-      this.requireEnabled();
+      requireActive();
       if (!this.leases.has(id)) throw Error("EXTENSION_DISABLED");
       return { id, uiUrl: "navo-extension://session-trace/ui/index.html" };
     } catch (error) {
@@ -165,6 +188,8 @@ export class TraceRuntime {
     return result;
   }
   close(id: string, owner: number) {
+    const opening = this.opening.get(id);
+    if (opening?.owner === owner) opening.cancelled = true;
     const lease = this.leases.get(id);
     if (!lease || lease.owner !== owner) return;
     this.leases.delete(id);
@@ -175,9 +200,11 @@ export class TraceRuntime {
         .catch(() => undefined);
   }
   closeOwner(owner: number) {
+    for (const [id, opening] of this.opening) if (opening.owner === owner) this.close(id, owner);
     for (const [id, lease] of this.leases) if (lease.owner === owner) this.close(id, owner);
   }
   async closeAll() {
+    for (const opening of this.opening.values()) opening.cancelled = true;
     await Promise.all([...this.runtimes.values()].map((runtime) => this.stop(runtime, "EXTENSION_DISABLED")));
     await Promise.all(this.stopping.values());
   }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile, readFile, mkdir, access } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
@@ -74,12 +74,73 @@ test('runtime leases share a process, bind windows and revoke access before tear
  const extension={status,directory:'/isolated/trace-test',installedDirectory:'/isolated/trace-test/installed',reportRuntimeFailure(){}};
  let exists=true;const session={id:'session',kind:'agent',nativeSessionId:'12345678-1234-1234-1234-123456789abc',nativeHistoryRoot:'/isolated/native',cwd:'/isolated/work',agent:{agentId:'claude'},createdAt:'2026-11-06T00:00:00Z'};
  const notifications=[];const runtime=new TraceRuntime(()=>extension,async()=>exists?session:undefined,(owner,update)=>notifications.push({owner,update}));
- const first=await runtime.open('session',1),second=await runtime.open('session',2);assert.equal(children.length,1);
+ const first=await runtime.open('session',1,randomUUID()),second=await runtime.open('session',2,randomUUID());assert.equal(children.length,1);
  await assert.rejects(runtime.query(first.id,{kind:'page'},2),/LEASE_EXPIRED/);
  runtime.close(first.id,2);assert.equal((await runtime.query(first.id,{kind:'page'},1)).total,0);
  runtime.close(first.id,1);assert.equal(children[0].killed,undefined);
  status.enabled=false;await runtime.closeAll();assert.equal(children[0].killed,true);assert.equal(notifications.at(-1).owner,2);
  await assert.rejects(runtime.query(second.id,{kind:'page'},2),/EXTENSION_DISABLED/);
- status.enabled=true;const third=await runtime.open('session',1);exists=false;await assert.rejects(runtime.query(third.id,{kind:'page'},1),/SESSION_MISSING/);await runtime.closeAll();
+ status.enabled=true;const third=await runtime.open('session',1,randomUUID());exists=false;await assert.rejects(runtime.query(third.id,{kind:'page'},1),/SESSION_MISSING/);await runtime.closeAll();
  for(const query of [{kind:'delete'}, {kind:'page',limit:100000}, {kind:'detail',eventId:-1}, {kind:'page',search:'x'.repeat(501)}])assert.throws(()=>validateTraceQuery(query),/INVALID_QUERY/);
+});
+
+test('pending trace opens can be cancelled before metadata resolves or initial indexing finishes', async () => {
+  const children = [];
+  const loadRuntime = createLoader({ electron: { utilityProcess: { fork: () => {
+    const child = new EventEmitter();
+    child.postMessage = message => { child.openMessage = message; };
+    child.kill = () => { child.killed = true; queueMicrotask(() => child.emit('exit', 0)); return true; };
+    children.push(child);
+    return child;
+  } } } });
+  const { TraceRuntime } = loadRuntime('src/main-process/services/extensions/traceRuntime.ts');
+  const extension = {
+    status: { enabled: true, compatible: true, operation: 'idle' },
+    directory: '/isolated/trace-test', installedDirectory: '/isolated/trace-test/installed', reportRuntimeFailure() {},
+  };
+  const session = {
+    id: 'session', kind: 'agent', nativeSessionId: randomUUID(), nativeHistoryRoot: '/isolated/native',
+    cwd: '/isolated/work', agent: { agentId: 'claude' }, createdAt: '2026-11-06T00:00:00Z',
+  };
+  let resolveSession;
+  let metadata = new Promise(resolve => { resolveSession = resolve; });
+  const runtime = new TraceRuntime(() => extension, () => metadata, () => {});
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  try {
+    for (const cancel of [id => runtime.close(id, 1), () => runtime.closeOwner(1), () => runtime.closeAll()]) {
+      metadata = new Promise(resolve => { resolveSession = resolve; });
+      const id = randomUUID();
+      const cancelled = assert.rejects(runtime.open('session', 1, id), /LEASE_EXPIRED/);
+      await cancel(id);
+      resolveSession(session);
+      await cancelled;
+      assert.equal(children.length, 0, 'Cancelling metadata lookup must prevent a later process launch');
+    }
+    metadata = Promise.resolve(session);
+    const firstId = randomUUID(), secondId = randomUUID();
+    const first = runtime.open('session', 1, firstId), second = runtime.open('session', 2, secondId);
+    const firstCancelled = assert.rejects(first, /LEASE_EXPIRED/);
+    await tick();
+    assert.equal(children.length, 1);
+    await assert.rejects(runtime.open('session', 2, firstId), /INVALID_QUERY/);
+    runtime.close(firstId, 2);
+    assert.equal(children[0].killed, undefined, 'Another window cannot cancel the request');
+    runtime.close(firstId, 1);
+    assert.equal(children[0].killed, undefined, 'The remaining view still needs the shared parser');
+    children[0].emit('message', { id: children[0].openMessage.id, result: true });
+    await firstCancelled;
+    assert.equal((await second).id, secondId);
+    runtime.close(secondId, 2);
+    await runtime.closeAll();
+
+    const lastId = randomUUID();
+    const lastCancelled = assert.rejects(runtime.open('session', 1, lastId), /LEASE_EXPIRED/);
+    await tick();
+    runtime.close(lastId, 1);
+    assert.equal(children[1].killed, true, 'The last view must stop indexing without waiting for its first response');
+    await lastCancelled;
+    children[1].emit('message', { id: children[1].openMessage.id, result: true });
+  } finally {
+    await runtime.closeAll();
+  }
 });

@@ -97,7 +97,7 @@ export async function registerExtensionHandlers() {
     owner(event);
     return service.uninstall();
   });
-  ipcMain.handle(ipcChannels.traceOpen, (event, id) => runtime.open(id, owner(event)));
+  ipcMain.handle(ipcChannels.traceOpen, (event, id, leaseId) => runtime.open(id, owner(event), leaseId));
   ipcMain.handle(ipcChannels.traceQuery, (event, id, query) => runtime.query(id, query, owner(event)));
   ipcMain.handle(ipcChannels.traceClose, (event, id) => runtime.close(id, owner(event)));
   protocol.handle("navo-extension", async (request) => {

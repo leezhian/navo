@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { registerExtensionScheme, registerExtensionHandlers, shutdownExtensions } from "../../src/main-process/ipc/extensionHandlers";
 import { TaskRepository } from "../../src/main-process/services/taskRepository";
 import { SessionRepository } from "../../src/main-process/services/taskSessions/sessionRepository";
+import { verifyTraceReading } from "./sessionTraceReading";
 
 registerExtensionScheme();
 const directory = process.env.NAVO_TRACE_TEST_DIRECTORY as string;
@@ -15,7 +16,7 @@ const logs = path.join(native, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
 const source = path.join(logs, id + ".jsonl");
 const now = "2026-11-06T08:00:00Z";
 const agent = { agentId: "claude" as const, modelId: "model", modelName: "Model", modeId: "default", modeName: "default", effort: null };
-const rows = Array.from({ length: 240 }, (_, index) => JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: [{ type: "text", text: `fixture message ${index}` }] } })).join("\n") + "\n";
+const rows = Array.from({ length: 220 }, (_, index) => JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: [{ type: "text", text: `fixture message ${index}` }] } })).join("\n") + "\n";
 
 void app.whenReady().then(async () => {
   app.dock?.hide();
@@ -75,7 +76,7 @@ void app.whenReady().then(async () => {
     const uiChecks = async () => {
       const pause = () => new Promise(resolve => setTimeout(resolve, 40));
       const wait = async (predicate: () => boolean) => { for (let i = 0; i < 250; i++) { if (predicate()) return; await pause(); } throw Error(document.body.innerText); };
-      await wait(() => document.body.innerText.includes("240"));
+      await wait(() => document.body.innerText.includes("220"));
       if ("navo" in window || "require" in window) throw Error("Host capabilities leaked into iframe");
       const count = document.querySelectorAll(".event-row").length;
       if (count >= 80 || count < 1) throw Error("List was not virtualized");
@@ -101,26 +102,29 @@ void app.whenReady().then(async () => {
         if (search.value || !document.querySelector("footer")?.textContent?.includes("2 / 3") ||
           !document.querySelector('.event-row[aria-expanded="true"][title="fixture message 149"]')) throw Error("Timeline jump was reset by search");
       };
-      searchFor("fixture message 239");
-      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 239"]')));
+      searchFor("fixture message 219");
+      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]')));
       jump(); await assertJump();
       searchFor("fixture message 23");
       await pause(); // 输入已进入 React 状态，但 180ms 防抖尚未触发。
       jump(); await assertJump();
-      searchFor("fixture message 239");
-      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 239"]')));
-      if (document.documentElement.lang !== "en" || !document.querySelector(".stats")?.textContent?.includes("240 turns")) throw Error("English locale was not applied");
+      searchFor("fixture message 219");
+      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]')));
+      if (document.documentElement.lang !== "en" || !document.querySelector(".stats")?.textContent?.includes("220 turns")) throw Error("English locale was not applied");
       if (!document.querySelector(".stats")?.textContent?.includes("— model requests")) throw Error("Unknown requests were displayed as zero");
       return { virtualRows: count, text: document.body.innerText };
     };
     const result = await frame.executeJavaScript(`(${uiChecks.toString()})()`);
-    assert.match(result.text, /fixture message 239/);
-    await appendFile(source, JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message 239 appended" } }) + "\n");
+    assert.match(result.text, /fixture message 219/);
+    await appendFile(source, JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message 219 appended" } }) + "\n");
     for (let attempt = 0; attempt < 100; attempt++) { const count = await frame.executeJavaScript("document.querySelectorAll('.event-row').length"); if (count === 2) break; if (attempt === 99) throw Error("Incremental update missing"); await new Promise(resolve => setTimeout(resolve, 50)); }
     assert.equal(await frame.executeJavaScript(`document.querySelector('[role="status"]').textContent`), "2 events");
+    await verifyTraceReading(win, frame, () => appendFile(source, JSON.stringify({
+      sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message follow appended" },
+    }) + "\n"));
     const screenshot = await win.webContents.capturePage(); await writeFile(path.join(directory, "trace.png"), screenshot.toPNG());
     await win.webContents.executeJavaScript("window.navo.extensions.setEnabled(false)");
-    await assert.rejects(win.webContents.executeJavaScript("window.navo.extensions.openTrace('trace-session')"), /EXTENSION_DISABLED/);
+    await assert.rejects(win.webContents.executeJavaScript("window.navo.extensions.openTrace('trace-session', crypto.randomUUID())"), /EXTENSION_DISABLED/);
     await win.webContents.executeJavaScript(`(async () => {
       await window.setFixtureLanguage('zh-CN');
       window.showLabs(true);

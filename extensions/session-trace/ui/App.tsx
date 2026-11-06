@@ -1,107 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Search, Clock3, ChevronLeft, ChevronRight, PanelRight } from "lucide-react";
-import type { TraceDetail, TraceEvent, TracePage, TraceQuery } from "../../../src/shared/extensionTypes";
-import { bridge } from "./bridge";
 import { useTranslation } from "react-i18next";
-import { normalizeLocale } from "../../../src/shared/locales";
+import { useTraceData } from "./hooks/useTraceData";
 import { EventList } from "./EventList";
 import { Timeline } from "./Timeline";
 import { EventDetail } from "./EventDetail";
 
-const PAGE_SIZE = 80;
 export function App() {
-  const { t, i18n } = useTranslation(["trace"]);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const [query, setQuery] = useState<TraceQuery>({ kind: "page", limit: PAGE_SIZE, offset: 0, filter: "all", search: "" });
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState<TracePage | null>(null),
-    [timeline, setTimeline] = useState<{ events: TraceEvent[]; truncated: boolean }>({ events: [], truncated: false });
-  const [selected, setSelected] = useState<number | null>(null),
-    [detail, setDetail] = useState<TraceDetail | null>(null);
-  const [error, setError] = useState(false),
-    [detailError, setDetailError] = useState(false),
-    [loading, setLoading] = useState(true),
-    [revision, setRevision] = useState(0),
-    [follow, setFollow] = useState(false);
-  const request = useRef(0),
-    detailRequest = useRef(0);
+  const { t } = useTranslation(["trace"]);
   const [inspector, setInspector] = useState(false);
-  useEffect(
-    () =>
-      bridge.subscribe(
-        (value) => {
-          const locale = normalizeLocale(value.locale);
-          void i18n.changeLanguage(locale);
-          document.documentElement.lang = locale;
-          document.documentElement.style.colorScheme = value.dark ? "dark" : "light";
-          for (const [name, value_] of Object.entries(value.tokens))
-            if (/^[a-z-]+$/.test(name)) document.documentElement.style.setProperty("--" + name, value_);
-        },
-        () => setRevision((value) => value + 1),
-      ),
-    [i18n],
-  );
-  useEffect(() => () => clearTimeout(searchTimer.current), []);
-  function searchInput(value: string) {
-    setSearch(value);
-    setSelected(null);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => setQuery((current) => ({ ...current, search: value, offset: 0 })), 180);
-  }
-  useEffect(() => {
-    const sequence = ++request.current;
-    setLoading(true);
-    setError(false);
-    void Promise.all([bridge.query(query), bridge.query({ kind: "timeline" })])
-      .then(([result, marks]) => {
-        if (sequence !== request.current) return;
-        const next = result as TracePage;
-        setPage(next);
-        setTimeline(marks as typeof timeline);
-        setLoading(false);
-        const lastOffset = Math.max(0, Math.floor((next.total - 1) / PAGE_SIZE) * PAGE_SIZE);
-        if (follow && next.total && query.offset !== lastOffset) setQuery((current) => ({ ...current, offset: lastOffset }));
-        else if ((query.offset ?? 0) > lastOffset) setQuery((current) => ({ ...current, offset: lastOffset }));
-      })
-      .catch(() => {
-        if (sequence === request.current) {
-          setError(true);
-          setLoading(false);
-        }
-      });
-    return () => {
-      request.current++;
-    };
-  }, [query, revision, follow]);
-  useEffect(() => {
-    const sequence = ++detailRequest.current;
-    setDetail(null);
-    setDetailError(false);
-    if (selected !== null)
-      void bridge
-        .query({ kind: "detail", eventId: selected })
-        .then((value) => {
-          if (sequence === detailRequest.current) setDetail(value as TraceDetail);
-        })
-        .catch(() => {
-          if (sequence === detailRequest.current) setDetailError(true);
-        });
-    return () => {
-      detailRequest.current++;
-    };
-  }, [selected, revision]);
-  const select = useCallback((id: number) => {
-    setSelected((current) => (current === id ? null : id));
-    setFollow(false);
-  }, []);
-  function jump(id: number) {
-    // 时间线定位取消尚未提交的搜索，避免防抖回调再把分页重置为首页。
-    clearTimeout(searchTimer.current);
-    setSearch("");
-    setFollow(false);
-    setQuery({ kind: "page", offset: Math.floor((id - 1) / PAGE_SIZE) * PAGE_SIZE, limit: PAGE_SIZE, filter: "all", search: "" });
-    setSelected(id);
-  }
+  const {
+    page, timeline, selected, detail, error, detailError, loading, follow, search,
+    filter: activeFilter, pageNumber, pageCount, hasPrevious, hasNext,
+    searchInput, changeFilter, select, jump, changePage, setFollow, refresh,
+  } = useTraceData();
   const stats = page?.stats;
   const duration = stats?.start && stats.end ? (Date.parse(stats.end) - Date.parse(stats.start)) / 1000 : null;
   return (
@@ -125,12 +37,8 @@ export function App() {
           {(["all", "user", "context", "tool", "error"] as const).map((filter) => (
             <button
               key={filter}
-              aria-pressed={query.filter === filter}
-              onClick={() => {
-                setQuery((current) => ({ ...current, filter, offset: 0 }));
-                setSelected(null);
-                setFollow(false);
-              }}
+              aria-pressed={activeFilter === filter}
+              onClick={() => changeFilter(filter)}
             >
               {filter === "all" ? t("trace:all") : t(`trace:kinds.${filter}`)}
             </button>
@@ -158,7 +66,7 @@ export function App() {
       {error ? (
         <div className="empty" role="alert">
           {t("trace:error")}
-          <button onClick={() => setRevision((value) => value + 1)}>{t("trace:retry")}</button>
+          <button onClick={refresh}>{t("trace:retry")}</button>
         </div>
       ) : !page ? (
         <div className="empty">{t("trace:loading")}</div>
@@ -170,6 +78,7 @@ export function App() {
             detail={detail}
             detailError={detailError}
             inspector={inspector}
+            following={follow}
             onSelect={select}
           />
           {inspector && selected !== null && (
@@ -190,25 +99,18 @@ export function App() {
         <span className="spacer" />
         <button
           aria-label={t("trace:previous")}
-          disabled={!query.offset || loading}
-          onClick={() => {
-            setFollow(false);
-            setSelected(null);
-            setQuery((current) => ({ ...current, offset: Math.max(0, (current.offset ?? 0) - PAGE_SIZE) }));
-          }}
+          disabled={!hasPrevious || loading}
+          onClick={() => changePage(-1)}
         >
           <ChevronLeft size={14} />
         </button>
         <span>
-          {Math.floor((query.offset ?? 0) / PAGE_SIZE) + 1} / {Math.max(1, Math.ceil((page?.total ?? 0) / PAGE_SIZE))}
+          {pageNumber} / {pageCount}
         </span>
         <button
           aria-label={t("trace:next")}
-          disabled={(query.offset ?? 0) + PAGE_SIZE >= (page?.total ?? 0) || loading}
-          onClick={() => {
-            setSelected(null);
-            setQuery((current) => ({ ...current, offset: (current.offset ?? 0) + PAGE_SIZE }));
-          }}
+          disabled={!hasNext || loading}
+          onClick={() => changePage(1)}
         >
           <ChevronRight size={14} />
         </button>

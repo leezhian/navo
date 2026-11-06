@@ -87,8 +87,8 @@ export interface ExtensionsApi {
   setEnabled(enabled: boolean): Promise<void>;
   uninstall(): Promise<void>;
   onChanged(listener: (status: ExtensionStatus) => void): () => void;
-  /** 会话 ID 由主进程核对；租约绑定调用窗口，关闭后拒绝全部请求。 */
-  openTrace(sessionId: string): Promise<TraceLease>;
+  /** 会话由主进程核对；调用方预先生成租约 UUID，以便在首次索引完成前关闭请求。租约绑定当前窗口。 */
+  openTrace(sessionId: string, leaseId: string): Promise<TraceLease>;
   queryTrace(leaseId: string, query: TraceQuery): Promise<TraceResult>;
   closeTrace(leaseId: string): Promise<void>;
   onTraceChanged(listener: (update: TraceUpdate) => void): () => void;
