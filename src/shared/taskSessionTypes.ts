@@ -71,7 +71,8 @@ export interface TaskSessionsApi {
   restore(id: string): Promise<TaskSession[]>;
   rename(id: string, title: string): Promise<TaskSession[]>;
   remove(id: string): Promise<TaskSession[]>;
-  restart(id: string, resume: boolean): Promise<TaskSession[]>;
+  /** false 停止旧进程后重连原对话；true 仅恢复已停止会话。两者均不创建新对话。 */
+  restart(id: string, resumeOnly: boolean): Promise<TaskSession[]>;
   /** 当前可见会话的自动恢复；已运行或不满足条件时幂等返回，不另建对话。 */
   resumeVisible(id: string): Promise<TaskSession[]>;
   onChanged(listener: (sessions: TaskSession[]) => void): () => void;

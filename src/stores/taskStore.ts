@@ -27,6 +27,7 @@ interface TaskState {
   rename: (id: string, title: string) => Promise<boolean>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
   restore: (id: string) => Promise<boolean>;
+  archive: (id: string, confirmation: TaskDeletionConfirmation) => Promise<boolean>;
   remove: (id: string, confirmation?: TaskDeletionConfirmation) => Promise<boolean>;
 }
 
@@ -88,6 +89,7 @@ export const useTaskStore = create<TaskState>((set, get) => {
     rename: (id, title) => mutate(() => getTasksApi().rename(id, title)),
     move: (id, status, beforeId) => mutate(() => getTasksApi().move(id, status, beforeId), moveTask(get().tasks, id, status, beforeId)),
     restore: (id) => mutate(() => getTasksApi().restore(id)),
+    archive: (id, confirmation) => mutate(() => getTasksApi().archive(id, confirmation)),
     remove: (id, confirmation) => mutate(() => getTasksApi().remove(id, confirmation)),
   };
 });

@@ -118,6 +118,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
           },
           rename: async (id,title) => persisted = persisted.map(task => task.id === id ? { ...task,title } : task),
           move: async (id,status) => persisted = persisted.map(task => task.id === id ? { ...task,status,archivedFrom: task.status } : task),
+          archive: async (id) => persisted = persisted.map(task => task.id === id ? { ...task,status:'ARCHIVED',archivedFrom: task.status } : task),
           restore: async (id) => persisted = persisted.map(task => task.id === id ? { ...task,status: task.archivedFrom || 'TODO' } : task),
           inspectDeletion: async () => ({ token: 'fixture-confirmation', canDeleteWorktrees: false, blocked: false, items: [] }),
           remove: async (id) => persisted = persisted.filter(task => task.id !== id),
@@ -794,6 +795,8 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await click('确认');
             await waitFor(() => !dialog() && document.querySelector('.task-card').textContent.includes('重命名后的任务'), 'Rename not reflected');
             await menu('归档');
+            await waitFor(() => dialog()?.textContent.includes('归档任务？'), 'Archive must confirm before changing status');
+            await click('归档任务');
             await waitFor(() => document.querySelector('[data-status="ARCHIVED"] .task-card'), 'Archive failed');
             document.querySelector('.task-card').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:80,clientY:80}));
             await waitFor(() => document.querySelector('[role="menu"]'), 'Missing archived menu');

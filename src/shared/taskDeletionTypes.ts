@@ -1,3 +1,5 @@
+export type TaskCleanupAction = "delete" | "archive";
+
 export interface TaskDeletionOptions {
   deleteWorktrees: boolean;
   /** 仅在同时删除 Worktree 时生效，只涉及本地分支。 */
@@ -39,7 +41,7 @@ export interface TaskDeletionConfirmation {
 /** 删除操作独立于创建回滚日志；重启后只展示进度，不自动继续破坏性操作。 */
 export interface TaskDeletionProgress {
   /** 单独清理工作区的恢复记录；省略表示删除整个任务。 */
-  scope?: "workspace";
+  scope?: "workspace" | "archive";
   resourceId: string;
   worktree: "pending" | "removed";
   branch?: "pending" | "removed";

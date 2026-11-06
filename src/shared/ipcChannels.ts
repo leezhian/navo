@@ -50,6 +50,7 @@ export const ipcChannels = {
   tasksPreviewAttachment: "tasks:preview-attachment",
   tasksRename: "tasks:rename",
   tasksMove: "tasks:move",
+  tasksArchive: "tasks:archive",
   tasksRestore: "tasks:restore",
   tasksRemove: "tasks:remove",
   tasksInspectDeletion: "tasks:inspect-deletion",

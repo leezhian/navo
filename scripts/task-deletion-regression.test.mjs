@@ -10,6 +10,7 @@ import { createLoader } from "./helpers/load-typescript.mjs";
 
 const load = createLoader({ electron: { nativeImage: { createFromPath: () => ({ isEmpty: () => true }) } } });
 const { TaskService } = load("src/main-process/services/taskService.ts");
+const { SessionRepository } = load("src/main-process/services/taskSessions/sessionRepository.ts");
 const { ResourceService } = load("src/main-process/services/resourceService.ts");
 const { defaultSettings } = load("src/domain/settings.ts");
 const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
@@ -42,13 +43,13 @@ async function fixture(context) {
     await git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
     return resources.save({ kind: "repo", name, localPath: root });
   }
-  async function create(records, mode = "worktree", targetBranch = "") {
+  async function create(records, mode = "worktree", targetBranch = "", attachmentIds = []) {
     const taskResources = [];
     for (const record of records) {
       const info = await service.inspectResource(record.id);
       taskResources.push({ resourceId: record.id, mode, sourceBranch: info.git.defaultSource, targetBranch });
     }
-    return service.create({ requestId: randomUUID(), description: "删除回归任务", resources: taskResources, links: [], attachmentIds: [] }, 1);
+    return service.create({ requestId: randomUUID(), description: "删除回归任务", resources: taskResources, links: [], attachmentIds }, 1);
   }
   return { directory, settings, service, repository, create };
 }
@@ -59,6 +60,76 @@ async function remove(service, task, options) {
   await service.remove(task.id, { token: preview.token }, 1);
   return preview;
 }
+
+test("归档默认保留目录、分支、附件、笔记和会话，恢复回到原状态", async context => {
+  const { directory, service, repository, create } = await fixture(context); const repo = await repository("repo");
+  const file = path.join(directory, "reference.txt"); await writeFile(file, "Keep attached content");
+  const selected = await service.files.add(1, [file]);
+  const task = await create([repo], "worktree", "", selected.map(item => item.id));
+  const note = { id: randomUUID(), title: "Decision", content: "Keep this note" };
+  await service.addResources(task.id, { requestId: randomUUID(), notes: [note], links: [], webLinks: [], fileIds: [] }, 1);
+  const sessions = new SessionRepository(path.join(directory, "app.db"), "production");
+  const session = { id: randomUUID(), taskId: task.id, kind: "agent", title: "Original", titleSource: "cli", cwd: task.resources[0].workingPath, workspace: { kind: "resource", resourceId: repo.id, name: "repo", branch: task.resources[0].targetBranch }, agent: { agentId: "claude", modelId: "model", modelName: "Model", modeId: "default", modeName: "Default", effort: null }, status: "stopped", terminalId: "original", nativeSessionId: randomUUID(), resumable: true, createdAt: new Date().toISOString(), lastUpdateAt: new Date().toISOString(), lastActiveAt: new Date().toISOString() };
+  await sessions.save(session); await service.move(task.id, "DONE", null);
+  const initialization = { id: randomUUID(), resourceId: task.resources[0].resourceId, name: "Setup", script: "echo setup", status: "running" };
+  const database = await openAppDatabase(path.join(directory, "app.db"));
+  database.prepare("INSERT INTO task_initialization VALUES (?,?,?,?)").run("production", task.id, initialization.id, JSON.stringify(initialization));
+  const preview = await service.inspectDeletion(task.id, keep, 1, "archive");
+  database.prepare("UPDATE task_initialization SET data=? WHERE namespace=? AND task_id=?").run(JSON.stringify({ ...initialization, status: "failed" }), "production", task.id);
+  database.close();
+  const records = await service.archive(task.id, { token: preview.token }, 1); const archived = records.find(item => item.id === task.id);
+  assert.equal(archived.status, "ARCHIVED"); assert.equal(archived.archivedFrom, "DONE");
+  assert.equal(archived.notes[0].content, note.content); assert.equal(archived.attachments.length, 1);
+  const storageName = await service.repository.attachment(task.id, archived.attachments[0].id);
+  assert.equal(await readFile(path.join(directory, "task-files", "production", task.id, storageName), "utf8"), "Keep attached content");
+  await access(task.resources[0].workingPath); assert.ok(await git(repo.localPath, "rev-parse", task.resources[0].targetBranch));
+  assert.equal((await sessions.load())[0].nativeSessionId, session.nativeSessionId);
+  assert.equal((await service.restore(task.id)).find(item => item.id === task.id).status, "DONE");
+});
+
+test("归档清理 Worktree 与本地分支，保留资源路径和历史；确认凭据不能用于删除任务", async context => {
+  const { service, repository, create } = await fixture(context); const repo = await repository("repo"); const task = await create([repo]);
+  const workspace = task.resources[0]; await writeFile(path.join(workspace.workingPath, "new.txt"), "unsaved");
+  let preview = await service.inspectDeletion(task.id, everything, 1, "archive");
+  assert.equal(preview.items[0].uncommittedFiles, 1);
+  await assert.rejects(service.remove(task.id, { token: preview.token }, 1), /TASK_DELETE_CONFIRMATION/);
+  await assert.rejects(service.archive(task.id, { token: preview.token }, 2), /TASK_ARCHIVE_CONFIRMATION/);
+  await writeFile(path.join(workspace.workingPath, "new.txt"), "changed after preview");
+  await assert.rejects(service.archive(task.id, { token: preview.token }, 1), /TASK_ARCHIVE_CHANGED/);
+  await access(workspace.workingPath);
+  preview = await service.inspectDeletion(task.id, everything, 1, "delete");
+  await assert.rejects(service.archive(task.id, { token: preview.token }, 1), /TASK_ARCHIVE_CONFIRMATION/);
+  preview = await service.inspectDeletion(task.id, everything, 1, "archive");
+  const archived = (await service.archive(task.id, { token: preview.token }, 1))[0];
+  assert.equal(archived.status, "ARCHIVED"); assert.equal(archived.resources[0].workingPath, workspace.workingPath); assert.equal(archived.resources[0].ownership, undefined);
+  await assert.rejects(access(workspace.workingPath)); await assert.rejects(git(repo.localPath, "rev-parse", workspace.targetBranch));
+  await access(repo.localPath); assert.ok(await git(repo.localPath, "rev-parse", "refs/remotes/origin/main"));
+  assert.deepEqual((await service.repository.deletionContext(task.id)).progress, []);
+  await service.restore(task.id); await assert.rejects(access(workspace.workingPath));
+});
+
+test("归档清理后落库失败保留进度，重启后重新确认可收尾；现有目录与共享目录不删除", async context => {
+  const { directory, settings, service, repository, create } = await fixture(context); const repo = await repository("repo"); const task = await create([repo]);
+  service.repository.completeArchival = async () => { throw Error("database unavailable"); };
+  let preview = await service.inspectDeletion(task.id, worktreeOnly, 1, "archive");
+  await assert.rejects(service.archive(task.id, { token: preview.token }, 1), /TASK_ARCHIVE_FAILED/);
+  assert.equal((await service.load()).tasks.find(item => item.id === task.id).status, "TODO");
+  assert.equal((await service.repository.deletionContext(task.id)).progress[0].scope, "archive");
+  const restarted = new TaskService(directory, "production", () => settings);
+  preview = await restarted.inspectDeletion(task.id, worktreeOnly, 1, "archive"); assert.equal(preview.items[0].worktreeAction, "removed");
+  await restarted.archive(task.id, { token: preview.token }, 1);
+  assert.equal((await restarted.load()).tasks.find(item => item.id === task.id).status, "ARCHIVED");
+  assert.deepEqual((await restarted.repository.deletionContext(task.id)).progress, []);
+  assert.ok(await git(repo.localPath, "rev-parse", task.resources[0].targetBranch));
+  const current = await create([repo], "current-branch");
+  preview = await restarted.inspectDeletion(current.id, everything, 1, "archive"); assert.equal(preview.items[0].worktreeReason, "existing");
+  await restarted.archive(current.id, { token: preview.token }, 1); await access(repo.localPath);
+  const shared = await create([repo]); const sibling = await create([repo]);
+  const db = await openAppDatabase(path.join(directory, "app.db"));
+  try { db.prepare("UPDATE task_resources SET data=? WHERE namespace='production' AND task_id=?").run(JSON.stringify(shared.resources[0]), sibling.id); } finally { db.close(); }
+  preview = await restarted.inspectDeletion(shared.id, everything, 1, "archive"); assert.equal(preview.items[0].worktreeReason, "shared");
+  await restarted.archive(shared.id, { token: preview.token }, 1); await access(shared.resources[0].workingPath);
+});
 
 test("默认仅删除任务；当前分支模式即使请求清理也保留全部工作文件", async (context) => {
   const { service, repository, create } = await fixture(context);

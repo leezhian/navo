@@ -70,6 +70,18 @@
     "noMatches": "没有匹配的文件",
     "noChanges": "没有文件变更"
   },
+  "archival": {
+    "title": "归档任务？",
+    "description": "将停止「{{title}}」的 Agent，保留任务、会话历史、笔记和附件，之后可恢复任务。",
+    "cleanupWarning": "清理前会关闭任务终端；删除的 Worktree 和分支无法通过恢复任务找回。",
+    "checking": "正在检查归档范围…",
+    "confirm": "归档任务",
+    "archiving": "正在归档…",
+    "changed": "资源状态已变化。请查看更新后的清单，再次确认归档。",
+    "confirmation": "归档确认已失效。请查看更新后的清单，再次确认。",
+    "inspection": "无法完成安全检查。请重试，或取消清理选项后仅归档任务。",
+    "failed": "归档未完成，任务与历史已保留，Agent 已停止。请重新检查清理范围后重试。"
+  },
   "deletion": {
     "description": "将停止「{{title}}」的会话和终端，删除任务、会话记录、关联记录及附件副本。",
     "keepByDefault": "默认保留 Worktree 和分支。",
@@ -242,7 +254,8 @@
     "start": "启动",
     "stop": "停止会话",
     "resume": "恢复对话",
-    "restart": "重新启动新对话",
+    "restart": "重启 Agent",
+    "restartUnavailable": "尚未识别可恢复的原生对话，暂时无法重启。可通过新建会话开始其他工作。",
     "restartAgent": "重启 Agent",
     "shutdownAgent": "关闭 Agent",
     "showTerminal": "显示终端",

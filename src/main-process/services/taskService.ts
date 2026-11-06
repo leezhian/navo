@@ -225,6 +225,7 @@ export class TaskService {
   }
 
   move(id: string, status: TaskStatus, beforeTaskId: string | null) {
+    if (status === "ARCHIVED") return this.archive(id, undefined, 0, beforeTaskId);
     return diagnosticOperation("task.move", { taskId: id, status }, async () => {
       return this.serialize(() => this.repository.update((tasks) => {
         requireTask(tasks, id);
@@ -243,8 +244,13 @@ export class TaskService {
     });
   }
 
-  inspectDeletion(id: string, options: TaskDeletionOptions, ownerId = 0) {
-    return this.serialize(() => this.deletion.preview(id, options, ownerId));
+  inspectDeletion(id: string, options: TaskDeletionOptions, ownerId = 0, action: import("../../shared/taskDeletionTypes").TaskCleanupAction = "delete") {
+    return this.serialize(() => this.deletion.preview(id, options, ownerId, action));
+  }
+
+  archive(id: string, confirmation?: TaskDeletionConfirmation, ownerId = 0, beforeTaskId: string | null = null) {
+    if (beforeTaskId !== null && typeof beforeTaskId !== "string") return Promise.reject(new Error("TASK_INVALID"));
+    return diagnosticOperation("task.archive", { taskId: id }, () => this.serialize(() => this.deletion.archive(id, confirmation, ownerId, beforeTaskId)), { started: true });
   }
 
   remove(id: string, confirmation?: TaskDeletionConfirmation, ownerId = 0) {

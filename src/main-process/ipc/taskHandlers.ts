@@ -4,9 +4,9 @@ import { TaskService } from "../services/taskService";
 import { getCurrentSettings } from "../services/settingsService";
 import type { CreateTaskInput } from "../../shared/taskTypes";
 import type { Task, TaskStatus } from "../../domain/tasks";
-import type { TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
+import type { TaskCleanupAction, TaskDeletionConfirmation, TaskDeletionOptions } from "../../shared/taskDeletionTypes";
 import { resolveTaskAgentSelection } from "./agentHandlers";
-import { registerTaskSessionHandlers, startInitialTaskSession, deleteTaskWithSessions } from "./taskSessionHandlers";
+import { registerTaskSessionHandlers, startInitialTaskSession, deleteTaskWithSessions, archiveTaskWithSessions } from "./taskSessionHandlers";
 import { registerTaskResourceHandlers } from "./taskResourceHandlers";
 import { registerTaskWorkspaceOpenHandlers } from "./taskWorkspaceOpenHandlers";
 import { registerTaskBranchHandlers } from "./taskBranchHandlers";
@@ -53,15 +53,24 @@ export function registerTaskHandlers() {
     return records;
   }
   ipcMain.handle(ipcChannels.tasksRename, (_event, id: string, title: string) => service.rename(id, title).then((records) => publishUpdated(id, records)));
-  ipcMain.handle(ipcChannels.tasksMove, (_event, id: string, status: TaskStatus, beforeId: string | null) => service.move(id, status, beforeId).then((records) => publishUpdated(id, records)));
+  function archive(id: string, confirmation: TaskDeletionConfirmation | undefined, ownerId: number, beforeId: string | null = null) {
+    const options = service.deletion.confirmationOptions(id, confirmation, ownerId, "archive");
+    return archiveTaskWithSessions(id, options.deleteWorktrees, () => service.archive(id, confirmation, ownerId, beforeId)).then((records) => publishUpdated(id, records));
+  }
+  ipcMain.handle(ipcChannels.tasksMove, (event, id: string, status: TaskStatus, beforeId: string | null) => status === "ARCHIVED"
+    ? archive(id, undefined, event.sender.id, beforeId) : service.move(id, status, beforeId).then((records) => publishUpdated(id, records)));
+  ipcMain.handle(ipcChannels.tasksArchive, (event, id: string, confirmation: TaskDeletionConfirmation) => {
+    if (!confirmation) throw new Error("TASK_ARCHIVE_CONFIRMATION");
+    return archive(id, confirmation, event.sender.id);
+  });
   ipcMain.handle(ipcChannels.tasksRestore, (_event, id: string) => service.restore(id).then((records) => publishUpdated(id, records)));
-  ipcMain.handle(ipcChannels.tasksInspectDeletion, (event, id: string, options: TaskDeletionOptions) => {
+  ipcMain.handle(ipcChannels.tasksInspectDeletion, (event, id: string, options: TaskDeletionOptions, action: TaskCleanupAction = "delete") => {
     if (!owners.has(event.sender.id)) {
       const ownerId = event.sender.id;
       owners.add(ownerId);
       event.sender.once("destroyed", () => { service.files.release(ownerId); service.deletion.forgetOwner(ownerId); owners.delete(ownerId); });
     }
-    return service.inspectDeletion(id, options, event.sender.id);
+    return service.inspectDeletion(id, options, event.sender.id, action);
   });
   ipcMain.handle(ipcChannels.tasksRemove, (event, id: string, confirmation?: TaskDeletionConfirmation) =>
     deleteTaskWithSessions(id, () => service.remove(id, confirmation, event.sender.id)));

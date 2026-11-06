@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Task } from "../../domain/tasks";
-import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview, TaskDeletionProgress } from "../../shared/taskDeletionTypes";
+import type { TaskCleanupAction, TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview, TaskDeletionProgress } from "../../shared/taskDeletionTypes";
 import { TaskRepository } from "./taskRepository";
 import { inspectDeletionItem, ownsWorkspace } from "./taskDeletionInspection";
 import { branchOid, deletionFingerprint, deletionGit, pathExists, worktreeList } from "./taskDeletionGit";
@@ -11,7 +11,7 @@ const CONFIRMATION_LIFETIME_MS = 5 * 60 * 1000;
 const KEEP_RESOURCES: TaskDeletionOptions = { deleteWorktrees: false, deleteBranches: false };
 
 export class TaskDeletionService {
-  private readonly confirmations = new Map<number, { taskId: string; token: string; expiresAt: number; options: TaskDeletionOptions; signature: string }>();
+  private readonly confirmations = new Map<number, { taskId: string; action: TaskCleanupAction; token: string; expiresAt: number; options: TaskDeletionOptions; signature: string }>();
 
   constructor(private readonly repository: TaskRepository) {}
 
@@ -27,34 +27,52 @@ export class TaskDeletionService {
       task, entries,
       canDeleteWorktrees: (task.resources ?? []).some((resource) => ownsWorkspace(resource, context)),
       blocked: entries.some(({ item }) => item.worktreeReason === "inspectionFailed"),
-      signature: deletionFingerprint({ task, options, entries: entries.map((entry) => entry.fingerprint) }),
+      // 归档／删除会主动停止初始化；仅状态变化不作废确认，脚本造成的文件变化仍由各工作区指纹核对。
+      signature: deletionFingerprint({ task: { ...task, initialization: undefined }, options, entries: entries.map((entry) => entry.fingerprint) }),
     };
   }
 
-  async preview(taskId: string, options: TaskDeletionOptions, ownerId: number): Promise<TaskDeletionPreview> {
+  async preview(taskId: string, options: TaskDeletionOptions, ownerId: number, action: TaskCleanupAction = "delete"): Promise<TaskDeletionPreview> {
+    if (action !== "delete" && action !== "archive") throw new Error("TASK_INVALID");
     if (!options || typeof options.deleteWorktrees !== "boolean" || typeof options.deleteBranches !== "boolean" || (options.deleteBranches && !options.deleteWorktrees)) throw new Error("TASK_INVALID");
     const checkedOptions = { deleteWorktrees: options.deleteWorktrees, deleteBranches: options.deleteBranches };
     this.confirmations.delete(ownerId);
     const inspection = await this.inspect(taskId, checkedOptions);
     const token = randomUUID();
-    this.confirmations.set(ownerId, { taskId, token, options: checkedOptions, signature: inspection.signature, expiresAt: Date.now() + CONFIRMATION_LIFETIME_MS });
+    this.confirmations.set(ownerId, { taskId, action, token, options: checkedOptions, signature: inspection.signature, expiresAt: Date.now() + CONFIRMATION_LIFETIME_MS });
     return { token, canDeleteWorktrees: inspection.canDeleteWorktrees, blocked: inspection.blocked, items: inspection.entries.map((entry) => entry.item) };
   }
 
   /** 所有路径来自已保存任务；客户端只能提交本窗口签发的确认凭据。 */
   async remove(taskId: string, confirmation: TaskDeletionConfirmation | undefined, ownerId: number, removeAttachments: () => Promise<void>): Promise<Task[]> {
-    let options = KEEP_RESOURCES;
+    return this.cleanup(taskId, confirmation, ownerId, "delete", async () => {
+      await removeAttachments();
+      return this.repository.completeDeletion(taskId);
+    });
+  }
+
+  archive(taskId: string, confirmation: TaskDeletionConfirmation | undefined, ownerId: number, beforeTaskId: string | null = null) {
+    return this.cleanup(taskId, confirmation, ownerId, "archive", () => this.repository.completeArchival(taskId, beforeTaskId));
+  }
+
+  /** 停止进程前只读核对确认范围；归档与删除的凭据不可互用。执行时仍会再次核对并消费。 */
+  confirmationOptions(taskId: string, confirmation: TaskDeletionConfirmation | undefined, ownerId: number, action: TaskCleanupAction): TaskDeletionOptions {
+    if (confirmation === undefined) return { ...KEEP_RESOURCES };
+    const issued = this.confirmations.get(ownerId);
+    if (!issued || !confirmation || confirmation.token !== issued.token || taskId !== issued.taskId || issued.action !== action || Date.now() > issued.expiresAt) throw new Error(action === "archive" ? "TASK_ARCHIVE_CONFIRMATION" : "TASK_DELETE_CONFIRMATION");
+    return { ...issued.options };
+  }
+
+  private async cleanup(taskId: string, confirmation: TaskDeletionConfirmation | undefined, ownerId: number, action: TaskCleanupAction, complete: () => Promise<Task[]>): Promise<Task[]> {
+    const options = this.confirmationOptions(taskId, confirmation, ownerId, action);
     let expectedSignature: string | undefined;
     if (confirmation !== undefined) {
-      const issued = this.confirmations.get(ownerId);
+      expectedSignature = this.confirmations.get(ownerId)?.signature;
       this.confirmations.delete(ownerId);
-      if (!issued || !confirmation || confirmation.token !== issued.token || taskId !== issued.taskId || Date.now() > issued.expiresAt) throw new Error("TASK_DELETE_CONFIRMATION");
-      options = issued.options;
-      expectedSignature = issued.signature;
     }
     const inspection = await this.inspect(taskId, options);
-    if (expectedSignature && inspection.signature !== expectedSignature) throw new Error("TASK_DELETE_CHANGED");
-    if (inspection.blocked) throw new Error("TASK_DELETE_INSPECTION");
+    if (expectedSignature && inspection.signature !== expectedSignature) throw new Error(action === "archive" ? "TASK_ARCHIVE_CHANGED" : "TASK_DELETE_CHANGED");
+    if (inspection.blocked) throw new Error(action === "archive" ? "TASK_ARCHIVE_INSPECTION" : "TASK_DELETE_INSPECTION");
     try {
       for (const entry of inspection.entries) {
         if (options.deleteWorktrees && entry.item.worktreeAction === "keep") {
@@ -67,7 +85,7 @@ export class TaskDeletionService {
         const current = await this.inspect(taskId, options);
         const latest = current.entries.find((item) => item.item.resourceId === entry.item.resourceId);
         if (!latest || latest.fingerprint !== entry.fingerprint) throw new Error("TASK_DELETE_CHANGED");
-        const progress: TaskDeletionProgress = { resourceId: entry.resource.resourceId, worktree: "pending", branchOid: entry.branchOid };
+        const progress: TaskDeletionProgress = { ...(action === "archive" ? { scope: "archive" as const } : {}), resourceId: entry.resource.resourceId, worktree: "pending", branchOid: entry.branchOid };
         if (entry.item.worktreeAction === "delete") {
           await this.repository.recordDeletion(taskId, progress);
           // 日志写入期间文件仍可能变化；再次检查后仅解开匹配的应用锁，不绕过外部锁。
@@ -99,12 +117,11 @@ export class TaskDeletionService {
           await this.repository.recordDeletion(taskId, progress);
         }
       }
-      await removeAttachments();
-      return await this.repository.completeDeletion(taskId);
+      return await complete();
     } catch (error) {
       void writeDiagnosticEvent("task.cleanup_retained", { taskId, error });
-      if (error instanceof Error && error.message === "TASK_DELETE_CHANGED") throw error;
-      throw new Error("TASK_DELETE_FAILED");
+      if (error instanceof Error && error.message === "TASK_DELETE_CHANGED") throw action === "archive" ? new Error("TASK_ARCHIVE_CHANGED") : error;
+      throw new Error(action === "archive" ? "TASK_ARCHIVE_FAILED" : "TASK_DELETE_FAILED");
     }
   }
 }

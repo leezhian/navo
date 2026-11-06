@@ -1,7 +1,7 @@
 export const DIAGNOSTIC_OPERATIONS = [
   "settings.load", "settings.save", "settings.migrate", "database.migrate", "database.open", "worktree.inspect",
   "resource.list", "resource.add", "resource.edit", "resource.remove", "resource.clone",
-  "task.load", "task.migrate", "task.create", "task.rename", "task.move", "task.restore", "task.delete", "task.resources.add", "task.note.create", "task.note.update", "task.note.delete",
+  "task.load", "task.migrate", "task.create", "task.rename", "task.move", "task.archive", "task.restore", "task.delete", "task.resources.add", "task.note.create", "task.note.update", "task.note.delete",
   "worktree.create", "worktree.rollback", "worktree.delete", "branch.create", "branch.delete",
   "attachment.select", "attachment.copy", "attachment.clear",
   "session.start", "session.stop",

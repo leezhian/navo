@@ -320,35 +320,32 @@ export class TaskSessionService {
       return this.publish();
     });
   }
-  restart(id: string, resume: boolean, owner: WebContents, automatic = false) {
+  restart(id: string, resumeOnly: boolean, owner: WebContents, automatic = false) {
     return this.serialize(async () => {
       await this.initialize();
       const session = this.owned(id, owner);
       const task = await this.loadTask(session.taskId);
       if (automatic && (this.closing || !canAutoResumeSession(session, task))) return this.sessions;
       if (automatic) { session.resumeOnOpen = false;await this.repository.save(session); }
-      if (this.closing || session.archivedAt || session.kind !== "agent" || (resume && ["starting", "running"].includes(session.status))) throw new Error("SESSION_BUSY");
-      if (resume && !session.resumable) throw new Error("SESSION_RESUME_UNSUPPORTED");
+      if (this.closing || session.archivedAt || session.kind !== "agent" || (resumeOnly && ["starting", "running"].includes(session.status))) throw new Error("SESSION_BUSY");
+      // 重启与恢复都必须连接原生对话；尚未识别时保留现场，绝不降级成新对话。
+      if (!session.resumable || !session.nativeSessionId) throw new Error("SESSION_RESUME_UNSUPPORTED");
       // 重启在同一串行操作内先停止旧进程，旧 PTY 的延迟回调不能覆盖新实例。
       if (task.status === "ARCHIVED") throw new Error("SESSION_BUSY");
       if (task.initialization?.some((step) => step.status !== "succeeded")) throw new Error("SESSION_INITIALIZATION_REQUIRED");
       if (session.workspace?.kind === "resource" && !task.resources?.some((resource) => session.workspace?.kind === "resource" && resource.resourceId === session.workspace.resourceId)) throw new Error("SESSION_DIRECTORY_MISSING");
       if (this.sessions.filter((item) => item.id !== session.id && ["starting", "running"].includes(item.status)).length >= MAX_SESSIONS) throw new Error("SESSION_LIMIT");
-      if (!resume) {
+      if (!resumeOnly) {
         session.status = "stopped";
+        session.resumeOnOpen = false;
         await this.releaseContext(session);
         destroyTerminal({ sessionId: session.terminalId }, owner.id);
         await this.save(session);
       }
-      if (!resume) {
-        if (session.agent?.agentId === "codex" || session.agent?.agentId === "antigravity") { delete session.nativeSessionId; session.nativeLaunchId = randomUUID();session.nativeLaunchAt = new Date().toISOString(); }
-        else session.nativeSessionId = randomUUID();
-        session.resumable = false; session.title = ""; delete session.titleSource;
-      }
       session.terminalId = "task-" + randomUUID(); session.status = "starting";
       this.bindOwner(id, owner);
       await this.save(session);
-      await this.launch(session, task, owner, resume);
+      await this.launch(session, task, owner, true);
       return this.publish();
     });
   }
@@ -466,6 +463,33 @@ export class TaskSessionService {
       }).catch(() => undefined);
     });
   }
+  /** 与会话启动共用队列；只归档任务，不将其会话逐条归档或删除。清理目录时同时关闭普通终端。 */
+  archiveTask<Result>(taskId: string, closeTerminals: boolean, operation: () => Promise<Result>) {
+    return this.serialize(async () => {
+      await this.initialize();
+      await this.loadTask(taskId);
+      let failure: unknown;
+      for (const session of this.sessions.filter((item) => item.taskId === taskId && (item.kind === "agent" || closeTerminals || item.initialization))) {
+        if (session.kind === "agent" && (session.archivedAt || (!["starting", "running"].includes(session.status) && !session.resumeOnOpen))) continue;
+        const terminalId = session.terminalId;
+        session.status = "stopped";
+        session.resumeOnOpen = false;
+        // 已停止进程的延迟输出或退出回调不能覆盖归档后的状态。
+        session.terminalId = "task-" + randomUUID();
+        try {
+          try { await this.releaseContext(session); }
+          finally { destroyTerminal({ sessionId: terminalId }); }
+          await this.repository.save(session);
+        } catch (error) { failure ??= error; }
+      }
+      if (closeTerminals) this.sessions = this.sessions.filter((session) => session.taskId !== taskId || session.kind === "agent");
+      try {
+        if (failure) throw failure;
+        return await operation();
+      } finally { this.publish(); }
+    });
+  }
+
   deleteTask<Result>(taskId: string, operation: () => Promise<Result>) {
     return this.serialize(async () => {
       await this.initialize();

@@ -27,15 +27,21 @@ test("删除弹窗：默认保留、选项联动、风险复核、失败重试�
       await i18n.changeLanguage('zh-CN');
       const worktree = { resourceId:'repo', mode:'worktree', name:'Navo', originalPath:'/repo', workingPath:'/worktree', targetBranch:'navo/task', sourceBranch:'main', ownership:{} };
       const base = { id:'task', title:'删除确认测试', status:'TODO', date:'2026-10-05', projectName:'Navo', resources:[worktree] };
-      window.checks = []; window.removals = []; window.failNext = false; window.holdRemoval = false;
+      window.checks = []; window.checkActions = []; window.removals = []; window.archivals = []; window.failNext = false; window.holdRemoval = false;
       window.navo = { settings: {}, tasks: {
-        inspectDeletion: async (id, options) => {
+        inspectDeletion: async (id, options, action) => {
           window.checks.push(options);
+          window.checkActions.push(action);
           await new Promise(resolve => setTimeout(resolve, 100));
           return { token: 'token-' + window.checks.length, canDeleteWorktrees: id !== 'current', blocked:false, items: !options.deleteWorktrees ? [] : [
             { resourceId:'repo', name:'Navo', path:'/worktree', branch:'navo/task', worktreeAction:'delete', branchAction:options.deleteBranches?'delete':'keep', sharedTasks:[], uncommittedFiles:2, ignoredFiles:1, detached:false, unpushedCommits:options.deleteBranches?1:null },
             { resourceId:'shared', name:'Shared repo', path:'/shared', branch:'main', worktreeAction:'keep', branchAction:'keep', worktreeReason:'shared', sharedTasks:['另一个任务'], uncommittedFiles:0, ignoredFiles:0, detached:false, unpushedCommits:null }
           ] };
+        },
+        archive: async (id, confirmation) => {
+          window.archivals.push({id, confirmation});
+          if (window.failNext) { window.failNext=false; throw new Error('TASK_ARCHIVE_CHANGED'); }
+          return [{...base,id,status:'ARCHIVED',archivedFrom:'TODO'}];
         },
         remove: async (id, confirmation) => {
           window.removals.push({id, confirmation});
@@ -46,12 +52,13 @@ test("删除弹窗：默认保留、选项联动、风险复核、失败重试�
       }};
       function Fixture() {
         const [task,setTask] = React.useState(null);
-        window.openDeletion = (current=false) => {
+        const [action,setAction] = React.useState('delete');
+        window.openDeletion = (current=false,nextAction='delete') => {
           const value = current ? {...base, id:'current', resources:[{...worktree, mode:'current-branch', ownership:undefined}]} : base;
           useTaskStore.setState({ tasks:[value], loaded:true, pending:false, error:null });
-          setTask(value);
+          setAction(nextAction);setTask(value);
         };
-        return task ? React.createElement(TaskDeleteDialog, {task, onClose:()=>setTask(null)}) : React.createElement('p', null, 'ready');
+        return task ? React.createElement(TaskDeleteDialog, {task, action, onClose:()=>setTask(null)}) : React.createElement('p', null, 'ready');
       }
       createRoot(document.getElementById('root')).render(React.createElement(Fixture));
     </script>`));
@@ -105,6 +112,17 @@ test("删除弹窗：默认保留、选项联动、风险复核、失败重试�
             window.holdRemoval=false; window.openDeletion(true); await wait(dialog,'Current branch dialog missing'); await ready();
             if(checks().length||!dialog().textContent.includes('现有工作目录和分支将保留'))throw new Error('Current branch must not offer cleanup');
             button('删除任务').click(); await wait(()=>!dialog(),'Task-only deletion failed');
+            window.openDeletion(false,'archive');await wait(dialog,'Archive dialog missing');
+            const archiveReady=async()=>{await new Promise(resolve=>setTimeout(resolve,0));await wait(()=>button('归档任务')&&!button('归档任务').disabled,'Archive inspection did not finish');};await archiveReady();
+            if(!dialog().textContent.includes('保留任务、会话历史、笔记和附件')||dialog().textContent.includes('此操作无法撤销'))throw Error('Default archive must describe preserved history, not task deletion');
+            if(checks()[0].getAttribute('data-state')!=='unchecked'||window.checkActions.at(-1)!=='archive'||button('归档任务').dataset.variant!=='default')throw Error('Archive must default to keeping directories with its own confirmation');
+            button('取消').click();await wait(()=>!dialog(),'Archive cancel failed');if(window.archivals.length)throw Error('Cancel archived task');
+            window.openDeletion(false,'archive');await wait(dialog,'Archive reopen failed');await archiveReady();checks()[0].click();await wait(()=>checks().length===2,'Archive branch checkbox missing');await archiveReady();checks()[1].click();await archiveReady();
+            if(!dialog().textContent.includes('无法通过恢复任务找回')||button('归档任务').dataset.variant!=='destructive')throw Error('Archive cleanup needs irreversible warning and destructive button');
+            window.failNext=true;button('归档任务').click();await wait(()=>dialog()?.querySelector('[role="alert"]'),'Archive failure missing');await archiveReady();
+            if(!dialog().textContent.includes('再次确认归档')||window.archivals.length!==1)throw Error('Archive failure must recheck without automatically repeating');
+            button('归档任务').click();await wait(()=>!dialog(),'Archive confirmation did not finish');
+            if(window.archivals.length!==2||!window.archivals.at(-1).confirmation.token)throw Error('Archive must use the latest preview token');
           })()\`);
           app.exit(0);
         }catch(error){console.error(error.stack);app.exit(1);}

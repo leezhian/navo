@@ -23,6 +23,11 @@ export async function deleteTaskWithSessions<Result>(taskId: string, operation: 
   await initialization?.cancel(taskId);
   return sessions ? sessions.deleteTask(taskId, operation) : operation();
 }
+export async function archiveTaskWithSessions<Result>(taskId: string, closeTerminals: boolean, operation: () => Promise<Result>) {
+  // 初始化等待发生在会话队列外，避免其退出回调被归档操作自身阻塞。
+  await initialization?.cancel(taskId);
+  return sessions ? sessions.archiveTask(taskId, closeTerminals, operation) : operation();
+}
 export function withIdleTaskWorkspace<Result>(taskId: string, resourceId: string, operation: () => Promise<Result>) {
   if (initialization?.isRunning(taskId)) throw new Error("TASK_WORKSPACE_BUSY");
   return sessions ? sessions.withIdleWorkspace(taskId, resourceId, operation) : operation();
@@ -85,9 +90,9 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
   ipcMain.handle(ipcChannels.taskSessionsRestore, (event, id: string) => service.restore(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsRename, (event, id: string, title: string) => service.rename(id, title, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsRemove, (event, id: string) => service.remove(id, owner(event)));
-  ipcMain.handle(ipcChannels.taskSessionsRestart, (event, id: string, resume: boolean) => {
-    if (typeof resume !== "boolean") throw new Error("TASK_INVALID");
-    return service.restart(id, resume, owner(event));
+  ipcMain.handle(ipcChannels.taskSessionsRestart, (event, id: string, resumeOnly: boolean) => {
+    if (typeof resumeOnly !== "boolean") throw new Error("TASK_INVALID");
+    return service.restart(id, resumeOnly, owner(event));
   });
   ipcMain.handle(ipcChannels.taskSessionsResumeVisible, (event, id: string) => service.restart(id, true, owner(event), true));
   ipcMain.handle(ipcChannels.taskSessionsOpenLink, async (event, taskId: string, id: string) => {

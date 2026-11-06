@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { LayoutGroup, MotionConfig, motion } from "motion/react";
 import { TaskCard } from "./TaskCard";
 import { TaskDetails } from "./TaskDetails";
+import { TaskDeleteDialog } from "./TaskDeleteDialog";
 import { TaskToolbar } from "./TaskToolbar";
 import { TaskList } from "./TaskList";
 import { TaskListRow } from "./TaskListRow";
@@ -83,6 +84,8 @@ export function TaskBoard() {
   const { tasks, move, pending, loaded, loading, error, recoveryWarnings, bootstrap, requestedTaskId, requestOpen } = useTasks();
   const view = useTaskView(tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [archiveTaskId, setArchiveTaskId] = useState<string | null>(null);
+  const archiveTask = tasks.find((task) => task.id === archiveTaskId && task.status !== "ARCHIVED");
   const [collapsedStatuses, setCollapsedStatuses] = useState<TaskStatus[]>([]);
   const { taskIds: openTaskIds, activateTask, openTask } = useTaskTabsStore();
   const selectTask = useCallback((taskId: string) => {
@@ -96,7 +99,7 @@ export function TaskBoard() {
   }, [requestedTaskId, requestedVisible, openTaskIds, selectTask, requestOpen]);
   const { dragPreview, dropTarget, dropDuration, pointerHandlers } = useTaskDrag({
     tasks: view.visibleTasks,
-    onMove: (taskId, target) => { void move(taskId, target.status, null); },
+    onMove: (taskId, target) => { if (target.status === "ARCHIVED") setArchiveTaskId(taskId); else void move(taskId, target.status, null); },
     onTaskClick: selectTask,
   });
   const taskColumns = columnDefinitions.map((column) => ({ ...column, tasks: view.visibleTasks.filter((task) => task.status === column.status) }));
@@ -145,6 +148,7 @@ export function TaskBoard() {
           </motion.div>, document.body,
         )}
       </LayoutGroup>
+      {archiveTask && <TaskDeleteDialog key={archiveTask.id} task={archiveTask} action="archive" onClose={() => setArchiveTaskId(null)} />}
     </MotionConfig>
   );
 }

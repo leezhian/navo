@@ -74,6 +74,18 @@
     "noMatches": "No matching files",
     "noChanges": "No file changes"
   },
+  "archival": {
+    "title": "Archive task?",
+    "description": "Stops agents for “{{title}}” and keeps the task, session history, notes and attachments. You can restore the task later.",
+    "cleanupWarning": "Task terminals will close before cleanup. Restoring the task will not recover deleted worktrees or branches.",
+    "checking": "Checking archive scope…",
+    "confirm": "Archive task",
+    "archiving": "Archiving…",
+    "changed": "Resources changed. Review the updated checklist and confirm archiving again.",
+    "confirmation": "Archive confirmation expired. Review the updated checklist and confirm again.",
+    "inspection": "Safety checks failed. Retry, or turn off cleanup to archive the task without removing files.",
+    "failed": "Archiving did not finish. The task and history were kept and agents were stopped. Check the cleanup scope and try again."
+  },
   "deletion": {
     "description": "Stops sessions and terminals for “{{title}}”, then removes the task, session records, associations and managed attachment copies.",
     "keepByDefault": "Worktrees and branches are kept unless selected below.",
@@ -250,7 +262,8 @@
     "start": "Start",
     "stop": "Stop session",
     "resume": "Resume conversation",
-    "restart": "Restart with a new conversation",
+    "restart": "Restart agent",
+    "restartUnavailable": "A resumable native conversation has not been identified yet. Start a new session for other work.",
     "showTerminal": "Show terminals",
     "hideTerminal": "Hide terminals",
     "closeTerminal": "Close {{name}}",

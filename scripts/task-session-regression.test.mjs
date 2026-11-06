@@ -77,7 +77,7 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const events = [];
   const nativeCalls = [];
   const runtime = createLoader({
-    "./agentLaunch": { prepareAgentLaunch: async (...args) => { if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); options.prompts?.push(args[3]); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); return { command: "/mock/cli", args: [], env: {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
+    "./agentLaunch": { prepareAgentLaunch: async (...args) => { options.launchCalls?.push(args); if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); options.prompts?.push(args[3]); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); return { command: "/mock/cli", args: [], env: {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
     "./taskContext": { prepareTaskContext: options.prepareTaskContext ?? (async () => ({ cwd: os.tmpdir(), prompt: "task context" })), taskPrompt: options.taskPrompt ?? (() => "task context") },
     "../terminal/terminalService": {
       resolveShell: () => "/bin/zsh",
@@ -94,7 +94,7 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
     assert.equal(processes.has(session.terminalId),false); nativeCalls.push(["remove",session.id]);
     if(options.failNative)throw new Error("SESSION_NATIVE_DELETE_FAILED");
   } };
-  const service = new TaskSessionService(repository, options.agents ?? {}, async () => options.task ?? task, () => ({ tasksDirectory: options.tasksDirectory ?? os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions, async () => options.resources ?? []);
+  const service = new TaskSessionService(repository, options.agents ?? {}, options.loadTask ?? (async () => options.task ?? task), () => ({ tasksDirectory: options.tasksDirectory ?? os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions, async () => options.resources ?? []);
   const owner = new EventEmitter(); owner.id = 1; owner.isDestroyed = () => false;
   const other = new EventEmitter(); other.id = 2; other.isDestroyed = () => false;
   return { service, saved, processes, owner, other, events, nativeCalls, launches: () => launches, fail: () => { failLaunch = true; } };
@@ -312,14 +312,17 @@ test("任务创建重试去重，挂载和 list 不重启，停止与恢复保�
   assert.equal(runtime.launches(), 2);
 });
 
-test("运行中的 Agent 可原子重启，旧退出事件不覆盖新进程，关闭保留记录", async () => {
-  const runtime = fixture();
+test("运行中的 Agent 重启仍恢复原对话，失败不更换身份，旧退出事件不覆盖新进程", async () => {
+  const launchCalls = [];
+  const runtime = fixture([], undefined, { launchCalls });
   try {
     await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
     await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
     const [session, other] = await runtime.service.list();
     const oldTerminalId = session.terminalId;
     const nativeId = session.nativeSessionId;
+    session.title = "Existing conversation"; session.titleSource = "cli"; session.nativeHistoryRoot = "/fixture/account-history";
+    const originalAgent = structuredClone(session.agent); const originalCwd = session.cwd;
     const oldLaunch = runtime.processes.get(oldTerminalId).launch;
     await assert.rejects(runtime.service.restart(session.id, false, runtime.other), /UNAVAILABLE/);
     assert.equal(runtime.processes.size, 2);
@@ -328,17 +331,72 @@ test("运行中的 Agent 可原子重启，旧退出事件不覆盖新进程，�
     assert.equal(runtime.processes.has(other.terminalId), true);
     assert.equal(runtime.processes.size, 2);
     assert.notEqual(session.terminalId, oldTerminalId);
-    assert.notEqual(session.nativeSessionId, nativeId);
+    assert.equal(session.nativeSessionId, nativeId);
+    assert.equal(session.title, "Existing conversation"); assert.equal(session.titleSource, "cli");
+    assert.deepEqual(session.agent, originalAgent); assert.equal(session.cwd, originalCwd);
+    assert.equal(launchCalls.at(-1)[2], nativeId); assert.equal(launchCalls.at(-1)[4], true); assert.equal(launchCalls.at(-1)[5], "/fixture/account-history");
     oldLaunch.onExit(1);oldLaunch.onFinish();
     await runtime.service.list();assert.equal(session.status, "running");
     await runtime.service.stop(session.id, runtime.owner);
     assert.equal((await runtime.service.list()).length, 2);
     assert.equal(session.status, "stopped");assert.equal(runtime.processes.size, 1);
     runtime.fail();
+    const otherNativeId = other.nativeSessionId;
     await runtime.service.restart(other.id, false, runtime.owner);
+    assert.equal(other.nativeSessionId, otherNativeId); assert.equal(other.resumable, true);
     assert.equal(other.status, "failed");assert.equal(runtime.processes.size, 0);
     assert.equal((await runtime.service.list()).length, 2);
   } finally { await runtime.service.shutdown(); }
+});
+
+test("原生对话未识别时拒绝重启，不停止现有进程或伪造新对话", async context => {
+  const runtime = fixture(); context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: "agent", agent: { ...selection, agentId: "codex" } }, runtime.owner);
+  const [session] = await runtime.service.list(); const original = structuredClone(session);
+  await assert.rejects(runtime.service.restart(session.id, false, runtime.owner), /SESSION_RESUME_UNSUPPORTED/);
+  assert.deepEqual(session, original); assert.ok(runtime.processes.has(session.terminalId)); assert.equal(runtime.launches(), 1);
+});
+
+test("归档任务停止其 Agent 并撤销上下文，保留历史和普通终端，不影响其他任务", async context => {
+  const current = { ...task }; const another = { ...task, id: "other-task" }; const connections = [];
+  const runtime = fixture([], undefined, { context: connections, loadTask: async id => id === current.id ? current : another });
+  context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  await runtime.service.start({ taskId: task.id, kind: "shell" }, runtime.owner);
+  await runtime.service.start({ taskId: another.id, kind: "agent" }, runtime.other);
+  const [first, second, terminal, other] = await runtime.service.list();
+  const nativeIds = [first.nativeSessionId, second.nativeSessionId]; const firstTerminal = first.terminalId;
+  const exit = runtime.processes.get(firstTerminal).launch.onExit;
+  await runtime.service.archiveTask(task.id, false, async () => {
+    assert.equal(runtime.processes.has(firstTerminal), false); assert.equal(first.status, "stopped"); assert.equal(second.status, "stopped");
+    assert.ok(runtime.processes.has(terminal.terminalId)); assert.ok(runtime.processes.has(other.terminalId)); current.status = "ARCHIVED";
+  });
+  assert.deepEqual([first.nativeSessionId, second.nativeSessionId], nativeIds);
+  assert.equal(first.archivedAt, undefined); assert.equal(second.archivedAt, undefined); assert.equal(first.resumeOnOpen, false);
+  assert.equal((await runtime.service.list()).length, 4); assert.equal(other.status, "running");
+  const response = await fetch(connections[0].url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${connections[0].token}` }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+  assert.equal(response.status, 401); exit(7); await runtime.service.list(); assert.equal(first.status, "stopped");
+  current.status = "TODO"; const launches = runtime.launches();
+  await runtime.service.restart(first.id, true, runtime.owner, true); assert.equal(runtime.launches(), launches);
+  await runtime.service.restart(first.id, true, runtime.owner); assert.equal(first.nativeSessionId, nativeIds[0]);
+});
+
+test("归档清理先关闭终端；清理或会话保存失败仍保留任务与对话身份", async context => {
+  const runtime = fixture(); context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  await runtime.service.start({ taskId: task.id, kind: "shell" }, runtime.owner);
+  const [session] = await runtime.service.list(); const nativeId = session.nativeSessionId;
+  await assert.rejects(runtime.service.archiveTask(task.id, true, async () => {
+    assert.equal(runtime.processes.size, 0); throw Error("TASK_DELETE_CHANGED");
+  }), /TASK_DELETE_CHANGED/);
+  const records = await runtime.service.list(); assert.equal(records.length, 1); assert.equal(records[0].nativeSessionId, nativeId); assert.equal(records[0].status, "stopped");
+  await runtime.service.restart(session.id, true, runtime.owner);
+  let completed = false; const save = runtime.service.repository.save.bind(runtime.service.repository);
+  runtime.service.repository.save = async () => { throw Error("save failed"); };
+  await assert.rejects(runtime.service.archiveTask(task.id, false, async () => { completed = true; }), /save failed/);
+  assert.equal(completed, false); assert.equal(runtime.processes.size, 0); assert.equal(session.nativeSessionId, nativeId);
+  runtime.service.repository.save = save;
 });
 
 test("启动失败保留任务会话、可重试；不同终端单调编号，全部关闭后为空", async () => {

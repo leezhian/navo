@@ -25,7 +25,7 @@ export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps
   const { t } = useTranslation(["common", "tasks"]);
   const store = useTaskStore();
   const openTask = useTaskTabsStore((state) => state.openTask);
-  const [action, setAction] = useState<"rename" | "delete" | "resources" | null>(null);
+  const [action, setAction] = useState<"rename" | "delete" | "archive" | "resources" | null>(null);
   const [title, setTitle] = useState(task.title);
   async function confirm() {
     const success = await store.rename(task.id, title);
@@ -40,11 +40,11 @@ export function TaskContextMenu({ children, task, onOpen }: TaskContextMenuProps
         <ContextMenuItem disabled={store.pending} onSelect={() => { setTitle(task.title); setAction("rename"); }}>{t("common:actions.rename")}</ContextMenuItem>
         {task.status !== "ARCHIVED" && <ContextMenuItem disabled={store.pending} onSelect={() => setAction("resources")}>{t("tasks:actions.addResource")}</ContextMenuItem>}
         <ContextMenuSeparator />
-        <ContextMenuItem disabled={store.pending} onSelect={() => { void (task.status === "ARCHIVED" ? store.restore(task.id) : store.move(task.id, "ARCHIVED", null)); }}>{t(task.status === "ARCHIVED" ? "common:actions.restore" : "common:actions.archive")}</ContextMenuItem>
+        <ContextMenuItem disabled={store.pending} onSelect={() => { if (task.status === "ARCHIVED") void store.restore(task.id); else setAction("archive"); }}>{t(task.status === "ARCHIVED" ? "common:actions.restore" : "common:actions.archive")}</ContextMenuItem>
         <ContextMenuItem disabled={store.pending} variant="destructive" onSelect={() => setAction("delete")}>{t("common:actions.delete")}</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-    {action === "delete" && <TaskDeleteDialog task={task} onClose={() => setAction(null)} />}
+    {(action === "delete" || action === "archive") && <TaskDeleteDialog task={task} action={action} onClose={() => setAction(null)} />}
     {action === "resources" && <TaskAddResourcesDialog task={task} initialCategory="repositories" onClose={() => setAction(null)} />}
     <Dialog open={action === "rename"} onOpenChange={(open) => { if (!open && !store.pending) setAction(null); }}>
       <DialogContent showCloseButton={!store.pending} onEscapeKeyDown={(event) => { if (store.pending) event.preventDefault(); }} onInteractOutside={(event) => { if (store.pending) event.preventDefault(); }}>

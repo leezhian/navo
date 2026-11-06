@@ -115,6 +115,8 @@ export interface TasksApi {
   rename(id: string, title: string): Promise<Task[]>;
   move(id: string, status: TaskStatus, beforeTaskId: string | null): Promise<Task[]>;
   restore(id: string): Promise<Task[]>;
-  inspectDeletion(id: string, options: TaskDeletionOptions): Promise<TaskDeletionPreview>;
+  /** 归档保留任务与会话；清理选项须使用归档专属预检查凭据。 */
+  archive(id: string, confirmation: TaskDeletionConfirmation): Promise<Task[]>;
+  inspectDeletion(id: string, options: TaskDeletionOptions, action?: import("./taskDeletionTypes").TaskCleanupAction): Promise<TaskDeletionPreview>;
   remove(id: string, confirmation?: TaskDeletionConfirmation): Promise<Task[]>;
 }

@@ -145,6 +145,36 @@ export class TaskRepository {
     });
   }
 
+  /** 清理完成后保留任务、资源路径和会话历史；撤销已删目录的归属，恢复任务不会重建目录。 */
+  completeArchival(taskId: string, beforeTaskId: string | null = null): Promise<Task[]> {
+    return this.access((database) => transaction(database, () => {
+      const tasks = this.readTasks(database);
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("TASK_NOT_FOUND");
+      if (beforeTaskId !== null && beforeTaskId !== taskId && !tasks.some((item) => item.id === beforeTaskId && item.status === "ARCHIVED")) throw new Error("TASK_INVALID");
+      const completed = database.prepare("SELECT resource_id,data FROM task_deletions WHERE namespace=? AND task_id=?").all(this.namespace, taskId);
+      const resources = database.prepare("SELECT position,data FROM task_resources WHERE namespace=? AND task_id=?").all(this.namespace, taskId);
+      for (const row of completed) {
+        if ((JSON.parse(String(row.data)) as TaskDeletionProgress).worktree !== "removed") continue;
+        const stored = resources.find((item) => (JSON.parse(String(item.data)) as TaskResource).resourceId === row.resource_id);
+        if (!stored) continue;
+        const resource: TaskResource = JSON.parse(String(stored.data));
+        delete resource.ownership;
+        database.prepare("UPDATE task_resources SET data=? WHERE namespace=? AND task_id=? AND position=?").run(JSON.stringify(resource), this.namespace, taskId, stored.position);
+        database.prepare("DELETE FROM managed_workspaces WHERE namespace=? AND task_id=? AND path=?").run(this.namespace, taskId, resource.workingPath);
+      }
+      database.prepare("DELETE FROM task_deletions WHERE namespace=? AND task_id=?").run(this.namespace, taskId);
+      const next = tasks.filter((item) => item.id !== taskId);
+      const before = beforeTaskId ? next.findIndex((item) => item.id === beforeTaskId) : -1;
+      const lastArchived = next.map((item) => item.status).lastIndexOf("ARCHIVED");
+      next.splice(before >= 0 ? before : lastArchived >= 0 ? lastArchived + 1 : next.length, 0, task);
+      next.forEach((item, position) => database.prepare("UPDATE tasks SET position=? WHERE namespace=? AND id=?").run(position, this.namespace, item.id));
+      database.prepare("UPDATE tasks SET archived_from=CASE WHEN status='ARCHIVED' THEN archived_from ELSE status END,status='ARCHIVED',updated_at=? WHERE namespace=? AND id=?")
+        .run(new Date().toISOString(), this.namespace, taskId);
+      return this.readTasks(database);
+    }));
+  }
+
   completeDeletion(taskId: string): Promise<Task[]> {
     return this.access((database) => transaction(database, () => {
       const completed = database.prepare("SELECT resource_id,data FROM task_deletions WHERE namespace = ? AND task_id = ?").all(this.namespace, taskId);
