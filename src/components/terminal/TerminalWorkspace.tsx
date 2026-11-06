@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
-import type { CSSProperties } from "react";
 import { useTerminalSession } from "./useTerminalSession";
 import type { TerminalSessionStatus } from "./terminalSessionManager";
+import "./terminal.css";
 
 interface TerminalWorkspaceProps {
   /** 命令快捷运行只展开输出，不抢走当前输入焦点。 */
@@ -25,35 +25,23 @@ interface TerminalWorkspaceProps {
 
 export function TerminalWorkspace({ title, sessionId, cwd, operationToken, compact, onStatusChange, attachOnly, autoFocus = true }: TerminalWorkspaceProps) {
   const { t: translate } = useTranslation(["common", "terminal"]);
-  const { html, handleKeyDown, handlePaste, paletteStyle, status, terminalRef } = useTerminalSession({
+  const { hasOutput, status, terminalRef } = useTerminalSession({
     cwd,
     sessionId,
     operationToken,
     attachOnly,
+    autoFocus,
+    label: title + " " + translate("terminal:title"),
   });
-  const shouldShowStartingMessage = !html && (status === "starting" || status === "ready");
   useEffect(() => { onStatusChange?.(status); }, [status, onStatusChange]);
-
-  useEffect(() => {
-    if (autoFocus) terminalRef.current?.focus();
-  }, [sessionId, terminalRef, autoFocus]);
 
   return (
     <section className={"flex h-full min-h-0 min-w-0 flex-col bg-background " + (compact ? "" : "pt-12")}>
-      <div
-        ref={terminalRef}
-        aria-label={title + " " + translate("terminal:title")}
-        className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-none bg-[#111318] px-3 py-2 font-mono text-[13px] leading-4 text-[#f4f4f5] outline-none"
-        role="textbox"
-        style={paletteStyle as CSSProperties}
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-      >
-        {shouldShowStartingMessage && <div>{translate("terminal:starting")}</div>}
-        {!html && status === "exited" && <div>{translate("terminal:exited")}</div>}
-        {!html && status === "error" && <div className="text-destructive">{translate("terminal:startError")}</div>}
-        {html && <div dangerouslySetInnerHTML={{ __html: html }} />}
+      <div className="navo-terminal-container" data-terminal-id={sessionId} data-status={status}>
+        <div ref={terminalRef} className="navo-terminal-host" />
+        {!hasOutput && status === "starting" && <div className="navo-terminal-status" role="status">{translate("terminal:starting")}</div>}
+        {!hasOutput && status === "exited" && <div className="navo-terminal-status">{translate("terminal:exited")}</div>}
+        {status === "error" && <div className="navo-terminal-status text-destructive" role="alert">{translate("terminal:startError")}</div>}
       </div>
     </section>
   );

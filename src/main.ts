@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, shell } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import started from "electron-squirrel-startup";
@@ -63,6 +63,17 @@ const createWindow = () => {
   bindWindowStateEvents(mainWindow);
   bindWindowDiagnostics(mainWindow);
   bindDevelopmentTools(mainWindow, Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL));
+
+  // 终端 URL/OSC 链接由系统浏览器打开，不创建带应用权限的子窗口。
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const target = new URL(url);
+      if (target.protocol === "https:" || target.protocol === "http:") {
+        void shell.openExternal(target.href).catch(() => undefined);
+      }
+    } catch { /* 非 URL 和终端输出中的其他协议不交给系统执行。 */ }
+    return { action: "deny" };
+  });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);

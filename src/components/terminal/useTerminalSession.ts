@@ -1,125 +1,57 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, ClipboardEvent } from "react";
-import { ghosttyVtClient } from "./ghostty-vt/ghosttyVtClient";
-import { createTerminalPaletteStyle } from "./terminalPalette";
-import { encodeTerminalKey } from "./terminalInput";
-import {
-  ensureManagedTerminalSession,
-  getManagedTerminalStatus,
-  subscribeManagedTerminalStatus,
-  writeManagedTerminalSession,
-} from "./terminalSessionManager";
-import { TERMINAL_CELL_HEIGHT_PX, TERMINAL_CELL_WIDTH_PX } from "./terminalConstants";
-
-const DEFAULT_COLUMNS = 80;
-const DEFAULT_ROWS = 24;
-const MIN_COLUMNS = 2;
-const MIN_ROWS = 1;
+import { useEffect, useRef, useState } from "react";
+import { ensureManagedTerminalSession, focusManagedTerminalSession, getManagedTerminalSnapshot, mountManagedTerminalSession,
+  subscribeManagedTerminalSession, unmountManagedTerminalSession } from "./terminalSessionManager";
 
 interface UseTerminalSessionParams {
-  /** 设置页操作凭据；同一会话只在首次创建 PTY 时消费。 */
+  /** 首次启动设置页 CLI 操作时消费，重新挂载不重复执行。 */
   operationToken?: string;
-  /** 任务服务负责进程生命周期，组件只附着。 */
+  /** 任务服务持有进程，组件只附着。 */
   attachOnly?: boolean;
-  /** 终端 Tab 的稳定 id，同时作为主进程 PTY 和 Ghostty 状态的关联键。 */
   sessionId: string;
-  /** 新建 PTY 的工作目录，通常是当前审查项目根目录。 */
   cwd?: string;
+  /** 命令终端展开时不抢走应用当前焦点。 */
+  autoFocus: boolean;
+  /** 提供给终端输入区域和 textarea 的本地化名称。 */
+  label: string;
 }
 
-export function useTerminalSession({ sessionId, cwd, operationToken, attachOnly }: UseTerminalSessionParams) {
+export function useTerminalSession({ sessionId, cwd, operationToken, attachOnly, autoFocus, label }: UseTerminalSessionParams) {
   const terminalRef = useRef<HTMLDivElement>(null);
-  const [html, setHtml] = useState("");
-  const [status, setStatus] = useState(() => getManagedTerminalStatus(sessionId));
-  const paletteStyle = useMemo(() => createTerminalPaletteStyle(), []);
-
-  useEffect(() => {
-    const unsubscribeFrame = ghosttyVtClient.subscribe(sessionId, setHtml);
-    const unsubscribeStatus = subscribeManagedTerminalStatus(sessionId, setStatus);
-
-    return () => {
-      unsubscribeFrame();
-      unsubscribeStatus();
-    };
-  }, [sessionId]);
-
+  const [snapshot, setSnapshot] = useState(() => getManagedTerminalSnapshot(sessionId));
+  const labelRef = useRef(label);
+  labelRef.current = label;
   useEffect(() => {
     const element = terminalRef.current;
-    if (!element) {
-      return undefined;
+    if (!element) return;
+    const owner = {};
+    let focused = !autoFocus;
+    let disposed = false;
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    function sync() {
+      if (disposed || !element) return;
+      if (!element.clientWidth || !element.clientHeight) { unmountManagedTerminalSession(sessionId, owner); return; }
+      ensureManagedTerminalSession(sessionId, cwd, 80, 24, operationToken, attachOnly);
+      if (mountManagedTerminalSession(sessionId, owner, element, labelRef.current) && !focused) {
+        // 异步 WASM 加载结束时，仅前台可见页面可以按原入口意图获取焦点。
+        if (document.visibilityState !== "hidden") { focusManagedTerminalSession(sessionId, owner); focused = true; }
+      }
     }
-
-    let lastSize: { cols: number; rows: number } | null = null;
-    let resizeTimer: number | null = null;
-    const resize = () => {
-      // display:none 或切换工作区期间尺寸为 0，此时保留 PTY 原尺寸。
-      if (element.clientWidth <= 0 || element.clientHeight <= 0) {
-        return;
-      }
-
-      const cols = getTerminalDimension(element.clientWidth, TERMINAL_CELL_WIDTH_PX, MIN_COLUMNS, DEFAULT_COLUMNS);
-      const rows = getTerminalDimension(element.clientHeight, TERMINAL_CELL_HEIGHT_PX, MIN_ROWS, DEFAULT_ROWS);
-      if (lastSize?.cols === cols && lastSize.rows === rows) {
-        return;
-      }
-
-      lastSize = { cols, rows };
-      ensureManagedTerminalSession(sessionId, cwd, cols, rows, operationToken, attachOnly);
-    };
-
-    const observer = new ResizeObserver(() => {
-      if (resizeTimer !== null) {
-        window.clearTimeout(resizeTimer);
-      }
-      resizeTimer = window.setTimeout(resize, 50);
-    });
-    observer.observe(element);
-    resize();
-
+    const unsubscribe = subscribeManagedTerminalSession(sessionId, () => { setSnapshot(getManagedTerminalSnapshot(sessionId)); sync(); });
+    const resize = new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(sync, 32); });
+    resize.observe(element);
+    const visibility = new IntersectionObserver(() => sync());
+    visibility.observe(element);
+    window.addEventListener("resize", sync);
+    document.addEventListener("visibilitychange", sync);
+    sync();
     return () => {
-      observer.disconnect();
-      if (resizeTimer !== null) {
-        window.clearTimeout(resizeTimer);
-      }
+      disposed = true; clearTimeout(resizeTimer); resize.disconnect(); visibility.disconnect(); unsubscribe();
+      window.removeEventListener("resize", sync); document.removeEventListener("visibilitychange", sync);
+      unmountManagedTerminalSession(sessionId, owner);
     };
-  }, [cwd, sessionId, operationToken, attachOnly]);
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const data = encodeTerminalKey(event);
-    if (!data) {
-      return;
-    }
-
-    event.preventDefault();
-    void writeManagedTerminalSession(sessionId, data).catch(() => undefined);
-  }
-
-  function handlePaste(event: ClipboardEvent<HTMLDivElement>) {
-    const data = event.clipboardData.getData("text");
-    if (!data) {
-      return;
-    }
-
-    event.preventDefault();
-    void writeManagedTerminalSession(sessionId, data).catch(() => undefined);
-  }
-
-  return {
-    html,
-    paletteStyle,
-    status,
-    terminalRef,
-    handleKeyDown,
-    handlePaste,
-  };
-}
-
-function getTerminalDimension(
-  availablePixels: number,
-  cellPixels: number,
-  minimum: number,
-  fallback: number,
-): number {
-  const measured = Math.floor(availablePixels / cellPixels);
-  return Number.isFinite(measured) && measured > 0 ? Math.max(minimum, measured) : fallback;
+  }, [sessionId, cwd, operationToken, attachOnly, autoFocus]);
+  useEffect(() => {
+    terminalRef.current?.querySelectorAll('[role="textbox"], textarea').forEach((element) => element.setAttribute("aria-label", label));
+  }, [label]);
+  return { terminalRef, ...snapshot };
 }

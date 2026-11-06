@@ -230,7 +230,7 @@ export function attachTerminal(params: CreateTerminalParams, ownerId: number) {
   if (record.flushTimer) clearTimeout(record.flushTimer);
   record.flushTimer = null;
   record.pendingOutput = "";
-  if (record.replay) record.owner.send(ipcChannels.terminalData, { sessionId: params.sessionId, data: record.replay });
+  record.owner.send(ipcChannels.terminalData, { sessionId: params.sessionId, data: record.replay, replay: true });
   if (record.exit) record.owner.send(ipcChannels.terminalExit, { sessionId: params.sessionId, ...record.exit });
   else resizeTerminal(params, ownerId);
 }

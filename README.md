@@ -46,7 +46,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - zustand：设置、资源记录及集成占位状态的渲染缓存，不重复持久化主进程配置。
 - node:sqlite：Electron 主进程内置 SQLite，无需额外原生依赖。
 - node-pty：创建和管理真实 Shell 伪终端。
-- libghostty-vt：解析终端 VT 序列并生成终端画面。
+- ghostty-web：使用 Ghostty WASM 解析终端 VT 序列，Canvas 2D 绘制画面并处理输入。
 
 ## 环境要求
 
@@ -208,7 +208,13 @@ ReviewWorkspace
 
 ## 内嵌终端
 
-任务工作台使用 Ghostty VT 与 node-pty 展示原生 CLI 和普通 Shell。任务服务负责进程创建、停止及 SQLite 会话记录，视图仅附着已有 PTY；关闭页面不结束进程，关闭普通终端会结束进程树。渲染重挂载保留缓冲，输出只在内存中保存有界重放内容，不记录到诊断日志。
+前端终端使用会话级 Canvas 实例，React 只承载容器、状态和布局。WASM 随应用本地打包，不依赖 CDN 或用户安装的 Ghostty，也不读取本机 Ghostty 配置。FitAddon 根据字体度量计算尺寸；隐藏页面保留解析状态，重新展示复用原实例，渲染失败不终止任务服务拥有的 Agent。首次附着使用回放标记衔接实时输出，避免初始化期间的广播重复进入终端。
+
+使用 `pnpm install` 安装，以应用 `pnpm-workspace.yaml` 中固定的 ghostty-web 补丁。补丁仅作用于浏览器 ESM 包，修正动态 DPI、隐藏 Canvas 绘制及关闭后的 document 监听释放；应用适配器负责历史阅读位置和焦点。升级依赖前需重新验证补丁，不能直接删除。
+
+`node --test scripts/ghostty-terminal-ui-regression.test.mjs scripts/terminal-session-regression.test.mjs scripts/task-terminal-pty-regression.test.mjs` 覆盖真实 WASM/Canvas、中文组合输入、复制、括号粘贴、缩放、重挂载、回放交接、进程隔离与释放；使用隔离样例，不启动真实 Agent 模型调用。
+
+任务工作台使用 ghostty-web 0.4.0 与 node-pty 展示原生 CLI 和普通 Shell。任务服务负责进程创建、停止及 SQLite 会话记录，视图仅附着已有 PTY；关闭页面不结束进程，关闭普通终端会结束进程树。渲染重挂载保留缓冲，输出只在内存中保存有界重放内容，不记录到诊断日志。
 
 任务侧栏和标签复用工作台，以实际容器宽度控制上下文折叠。资源分组为 CHANGES、PULL REQUESTS、ISSUES、LINKS、NOTES，无子项时隐藏；仓库条目打开实际工作目录的分支栏，支持文件筛选、暂存/未暂存统计和相对源分支的提交列表；完整 Diff 复用原有审查组件，以弹窗展示。NOTES 固定首项为可编辑的任务正文，其后为可编辑、删除的 Markdown 笔记。其他资源可通过右击二次确认解除关联，保留磁盘内容。任务标签页只保留标签关闭，侧栏保留关闭入口；会话面板和上下文的新建菜单在单目录时直接选 Agent，多目录时先选工作范围再选 Agent；模型、模式和思考等级采用真实能力默认值。关闭会话面板只隐藏模块，点击上下文恢复原实例；面板不重复展示配置/运行状态文案。四种 CLI 使用精确原生 ID 恢复，当前可见会话按条件自动恢复；Codex/Antigravity 的新会话在唯一关联核对后开放恢复。Codex 暂只支持 default 模式，不支持时明确报错。
 

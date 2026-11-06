@@ -17,7 +17,7 @@
     "import/no-unresolved": [
       "error",
       {
-        "ignore": ["^@/", "^@pierre/diffs", "^@tailwindcss/vite"]
+        "ignore": ["^@/", "^@pierre/diffs", "^@tailwindcss/vite", "\\.wasm\\?url$"]
       }
     ]
   }

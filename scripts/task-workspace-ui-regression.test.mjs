@@ -39,7 +39,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         remove:async id=>{window.removes.push(id);records=records.filter(record=>record.id!==id);return publish();},
         restart:async(id,resume)=>{window.restarts.push({id,resume});records=records.map(record=>record.id===id?{...record,status:'running'}:record);return publish();},openLink:async()=>{},revealAttachment:async()=>{}
       },terminal:{
-        create:async params=>{window.attached.push(params);for(const callback of data){callback({sessionId:params.sessionId,data:''});callback({sessionId:params.sessionId,data:'SAFE TEST OUTPUT\\r\\n'});}},
+        create:async params=>{window.attached.push(params);for(const callback of data){callback({sessionId:params.sessionId,data:'',replay:true});callback({sessionId:params.sessionId,data:'SAFE TEST OUTPUT\\r\\n'});}},
         write:async()=>{},resize:async()=>{},destroy:async params=>window.destroyed.push(params.sessionId),
         onData:callback=>{data.add(callback);return()=>data.delete(callback);},onExit:callback=>{exits.add(callback);return()=>exits.delete(callback);}
       }};
@@ -174,7 +174,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(document.querySelector('.task-context-container').getBoundingClientRect().width>320)throw new Error('Context escapes sidebar');
         button('收起任务上下文').click();button('显示终端').click();
         await wait(()=>button('关闭 zsh1'),'Terminal 1 missing');
-        await wait(()=>document.querySelector('.task-shell-pane [role="textbox"]')?.textContent.includes('SAFE TEST OUTPUT'),'Started terminal must render real VT output');
+        await wait(()=>document.querySelector('.task-shell-pane .navo-terminal-container[data-status="ready"] canvas')?.width > 0,'Started terminal must render real VT output');
         if(window.destroyed.length)throw new Error('Attaching a terminal must not terminate its process');
         if(document.querySelector('.task-terminal-badge').textContent!=='1')throw new Error('Badge missing');
         button('新建终端').click();await wait(()=>button('关闭 zsh2'),'Terminal 2 missing');

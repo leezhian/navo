@@ -33,6 +33,8 @@ export interface WriteTerminalParams extends TerminalSessionParams {
 export interface TerminalDataPayload {
   sessionId: string;
   data: string;
+  /** 首次附着的完整有界回放，空内容也发送，作为实时输出的交接边界。 */
+  replay?: boolean;
 }
 
 /** Shell 退出后发送给渲染进程的结果。 */
