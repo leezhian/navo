@@ -8,6 +8,7 @@ import { getExtensionsApi } from "@/services/extensionsApi";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ExtensionUpdateActions } from "./ExtensionUpdateActions";
 import { SettingsPageHeader, SettingsSectionHeader, SettingsList, SettingsRow } from "./settingsPrimitives";
 
 export function LabsSettingsPage() {
@@ -15,7 +16,12 @@ export function LabsSettingsPage() {
   const { status, error, pending, refresh, run } = useExtensions();
   const [confirm, setConfirm] = useState(false);
   const busy = pending || (status?.operation !== undefined && status.operation !== "idle");
-  const message = error || status?.error;
+  const installedLabel = t(
+    status?.operation === "updating" ? "settings:labs.updating" : status?.enabled ? "settings:labs.enabled" : "settings:labs.disabled",
+  );
+  // 回退未完成时已没有下载任务，保留卸载入口供用户清理后重装。
+  const transferring = (status?.operation === "installing" || status?.operation === "updating") && status?.error !== "UPDATE_ROLLBACK_FAILED";
+  const message = (error !== status?.updateError ? error : null) || status?.error;
   return (
     <>
       <SettingsPageHeader title={t("settings:pages.labs")} />
@@ -44,7 +50,7 @@ export function LabsSettingsPage() {
                 onCheckedChange={(enabled) => void run(() => getExtensionsApi().setEnabled(enabled))}
               />
             ) : (
-              <Button size="sm" disabled={busy} onClick={() => void run(() => getExtensionsApi().install("download"))}>
+              <Button size="sm" disabled={busy || status.checking} onClick={() => void run(() => getExtensionsApi().install("download"))}>
                 <Download className="size-3.5" />
                 {t(status.operation === "installing" ? "settings:labs.installing" : "settings:labs.install")}
               </Button>
@@ -53,37 +59,48 @@ export function LabsSettingsPage() {
           <div className="flex flex-wrap items-center gap-3 px-4 pb-4 text-xs text-muted-foreground">
             <span>
               {status.version
-                ? `${t(status.enabled ? "settings:labs.enabled" : "settings:labs.disabled")} · v${status.version}`
+                ? `${installedLabel} · v${status.version}`
                 : `${t("settings:labs.notInstalled")} · v${status.availableVersion}`}
             </span>
             <span>Claude Code · Codex</span>
             <span>{Math.ceil(status.downloadBytes / 1024)} KB</span>
             <div className="ml-auto flex flex-wrap gap-1">
               {!status.version && status.operation === "idle" && (
-                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void run(() => getExtensionsApi().install("file"))}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy || status.checking}
+                  onClick={() => void run(() => getExtensionsApi().install("file"))}
+                >
                   <FolderOpen className="size-3.5" />
                   {t("settings:labs.installFile")}
                 </Button>
               )}
               {(status.version || status.operation === "uninstalling") && (
-                <Button variant="ghost" size="sm" disabled={pending} onClick={() => setConfirm(true)}>
+                <Button variant="ghost" size="sm" disabled={pending || transferring} onClick={() => setConfirm(true)}>
                   <Trash2 className="size-3.5" />
                   {t("settings:labs.uninstall")}
                 </Button>
               )}
-              {status.operation === "installing" && (
+              {transferring && (
                 <Button variant="ghost" size="sm" onClick={() => void getExtensionsApi().cancelInstall()}>
                   {t("settings:labs.cancel")}
                 </Button>
               )}
             </div>
           </div>
-          {status.operation === "installing" && (
+          {transferring && (
             <div className="px-4 pb-4">
-              <progress className="h-1 w-full" max={100} value={status.progress} aria-label={t("settings:labs.installing")} />
+              <progress
+                className="h-1 w-full"
+                max={100}
+                value={status.progress}
+                aria-label={t(status.operation === "updating" ? "settings:labs.updating" : "settings:labs.installing")}
+              />
               <p className="mt-1 text-xs text-muted-foreground">{status.progress}%</p>
             </div>
           )}
+          <ExtensionUpdateActions status={status} busy={busy} run={run} />
         </SettingsList>
       )}
       {message && (

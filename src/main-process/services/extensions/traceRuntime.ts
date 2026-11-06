@@ -87,7 +87,13 @@ export class TraceRuntime {
     this.requireEnabled();
     let runtime = this.runtimes.get(fingerprint);
     if (!runtime) {
-      const cache = path.join(this.extension().directory, "cache", createHash("sha256").update(fingerprint).digest("hex") + ".sqlite");
+      const cache = path.join(
+        this.extension().directory,
+        "cache",
+        createHash("sha256")
+          .update(fingerprint + ":" + this.extension().status.version)
+          .digest("hex") + ".sqlite",
+      );
       const child = utilityProcess.fork(path.join(this.extension().installedDirectory, "runtime/index.cjs"), [], {
         stdio: "ignore",
         serviceName: "Navo Session Trace",

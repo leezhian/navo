@@ -1,12 +1,18 @@
 import { normalizeExtensionErrorCode } from "../../../shared/extensionErrors";
 import type { ExtensionErrorCode } from "../../../shared/extensionErrors";
-import { mkdir, readFile, rename, rm, lstat } from "node:fs/promises";
+import { mkdir, rm, lstat } from "node:fs/promises";
 import path from "node:path";
 import type { ExtensionStatus } from "../../../shared/extensionTypes";
 import type { ExtensionRepository, InstalledExtension } from "./extensionRepository";
-import { downloadExtension } from "./extensionDownload";
-import { MAX_PACKAGE_BYTES, unpackPackage, verifyInstallation } from "./extensionPackage";
+import { ExtensionUpdates } from "./extensionUpdates";
+import { compareVersions, installedRelease } from "./extensionCatalog";
+import { recoverInstallation, replaceInstallation } from "./extensionInstallation";
+import trust from "./sessionTraceTrust.json";
+import { verifyInstallation } from "./extensionPackage";
 import type { ExtensionRelease } from "./extensionPackage";
+
+const INITIAL_UPDATE_CHECK_DELAY = 30_000;
+const UPDATE_CHECK_INTERVAL = 4 * 60 * 60 * 1000;
 
 export function extensionError(error: unknown) {
   return normalizeExtensionErrorCode(error instanceof Error ? error.message : undefined);
@@ -20,6 +26,9 @@ export class ExtensionService {
   private abort: AbortController | null = null;
   private busy = false;
   private pending: Promise<void> | null = null;
+  private updates: ExtensionUpdates;
+  private initialCheck?: ReturnType<typeof setTimeout>;
+  private checkTimer?: ReturnType<typeof setInterval>;
   constructor(
     readonly directory: string,
     private repository: ExtensionRepository,
@@ -27,7 +36,10 @@ export class ExtensionService {
     private changed: (status: ExtensionStatus) => void,
     private deactivate: () => void | Promise<void>,
     private hostMajor = 1,
-  ) {}
+    private updateSource = trust,
+  ) {
+    this.updates = new ExtensionUpdates(directory, release, hostMajor, () => this.emit(), updateSource);
+  }
   get installedDirectory() {
     return path.join(this.directory, "installed");
   }
@@ -35,9 +47,13 @@ export class ExtensionService {
     return {
       id: "session-trace",
       version: this.record.version,
-      availableVersion: this.release.version,
-      downloadBytes: this.release.bytes,
-      enabled: this.record.enabled,
+      availableVersion: this.updates.candidate.release.version,
+      downloadBytes: this.updates.candidate.release.bytes,
+      updateAvailable: Boolean(this.record.version && compareVersions(this.updates.candidate.release.version, this.record.version) > 0),
+      checking: this.updates.checking,
+      checkedAt: this.updates.checkedAt,
+      updateError: this.updates.error,
+      enabled: this.record.enabled && this.record.operation === "idle",
       compatible: this.compatible,
       operation: this.record.operation,
       progress: this.progress,
@@ -51,12 +67,8 @@ export class ExtensionService {
     this.record = await this.repository.load();
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     if ((await lstat(this.directory)).isSymbolicLink()) throw Error("PACKAGE_INVALID");
-    if (this.record.operation === "installing") {
-      await rm(path.join(this.directory, "staging"), { recursive: true, force: true });
-      if (!this.record.version) await rm(this.installedDirectory, { recursive: true, force: true });
-      this.record = { ...this.record, operation: "idle", enabled: false };
-      await this.repository.save(this.record);
-    }
+    this.record = await recoverInstallation(this.directory, this.repository, this.record);
+    await this.updates.initialize();
     if (this.record.operation === "uninstalling") {
       this.record.enabled = false;
       this.error = "CLEANUP_REQUIRED";
@@ -73,8 +85,15 @@ export class ExtensionService {
     this.emit();
   }
   private async verify() {
-    if (this.record.version !== this.release.version || this.hostMajor !== 1) throw Error("INCOMPATIBLE");
-    await verifyInstallation(this.installedDirectory, this.release);
+    if (!this.record.version) throw Error("INCOMPATIBLE");
+    const release = await installedRelease(
+      this.installedDirectory,
+      this.record.version,
+      this.release,
+      this.hostMajor,
+      this.updateSource.publicKey,
+    );
+    await verifyInstallation(this.installedDirectory, release);
   }
   private operation(run: () => Promise<void>) {
     if (this.busy) return Promise.reject(Error("BUSY"));
@@ -93,53 +112,55 @@ export class ExtensionService {
     this.pending = pending;
     return pending;
   }
+  /** 检查只更新版本元数据，不中断正在运行的插件，不执行安装。 */
+  checkForUpdates() {
+    if (this.busy) return Promise.reject(Error("BUSY"));
+    return this.updates.check();
+  }
+  startUpdateChecks() {
+    if (this.checkTimer) return;
+    const check = () => {
+      if (this.record.version && !this.busy) void this.checkForUpdates().catch(() => undefined);
+    };
+    this.initialCheck = setTimeout(check, INITIAL_UPDATE_CHECK_DELAY);
+    this.checkTimer = setInterval(check, UPDATE_CHECK_INTERVAL);
+    this.initialCheck.unref();
+    this.checkTimer.unref();
+  }
   install(filename?: string) {
+    return this.replace(false, filename);
+  }
+  update() {
+    return this.replace(true);
+  }
+  private replace(updating: boolean, filename?: string) {
     return this.operation(async () => {
-      if (this.record.version || this.record.operation !== "idle") throw Error("BUSY");
+      if (this.record.operation !== "idle" || this.updates.checking || (updating ? !this.status.updateAvailable : this.record.version))
+        throw Error("BUSY");
+      const target = this.updates.candidate;
       this.abort = new AbortController();
       const signal = this.abort.signal;
-      const stage = path.join(this.directory, "staging");
-      const previous = this.record;
-      let recorded = false;
-      this.record = { version: null, enabled: false, operation: "installing" };
       this.progress = 0;
       const timeout = setTimeout(() => this.abort?.abort("timeout"), 120000);
       try {
-        await this.repository.save(this.record);
-        recorded = true;
-        this.emit();
-        if (filename && (!(await lstat(filename)).isFile() || (await lstat(filename)).size > MAX_PACKAGE_BYTES))
-          throw Error("PACKAGE_INVALID");
-        const bytes = filename
-          ? await readFile(filename)
-          : await downloadExtension(this.release, signal, (value) => {
-              this.progress = value;
-              this.emit();
-            });
-        signal.throwIfAborted();
-        await rm(stage, { recursive: true, force: true });
-        await unpackPackage(bytes, this.release, stage);
-        signal.throwIfAborted();
-        await rename(stage, this.installedDirectory);
-        this.record = { version: this.release.version, enabled: false, operation: "idle" };
-        await this.repository.save(this.record);
-        this.progress = 100;
-        this.compatible = true;
-      } catch (error) {
-        this.progress = 0;
-        // 初次写入失败时安装尚未开始，恢复内存即可；不要再次写入故障存储。
-        if (!recorded) {
-          this.record = previous;
-          throw error;
-        }
-        // 安装尚未提交时仅清理本功能自己的目录，不接触 Agent 历史。
-        this.record = { version: null, enabled: false, operation: "installing" };
-        await rm(stage, { recursive: true, force: true });
-        await rm(this.installedDirectory, { recursive: true, force: true });
-        this.record.operation = "idle";
-        await this.repository.save(this.record);
-        if (!signal.aborted) throw error;
-        if (signal.reason !== "cancelled") throw Error("DOWNLOAD_FAILED");
+        await replaceInstallation({
+          directory: this.directory,
+          repository: this.repository,
+          previous: this.record,
+          target,
+          filename,
+          signal,
+          progress: (value) => {
+            this.progress = value;
+            this.emit();
+          },
+          publish: (record) => {
+            this.record = record;
+            this.emit();
+          },
+          deactivate: this.deactivate,
+        });
+        if (this.record.version === target.release.version) this.compatible = true;
       } finally {
         clearTimeout(timeout);
         this.abort = null;
@@ -169,7 +190,8 @@ export class ExtensionService {
       this.emit();
       await this.repository.save(this.record);
       await this.deactivate();
-      for (const name of ["installed", "staging", "cache"]) await rm(path.join(this.directory, name), { recursive: true, force: true });
+      for (const name of ["installed", "staging", "backup", "cache"])
+        await rm(path.join(this.directory, name), { recursive: true, force: true });
       const empty: InstalledExtension = { version: null, enabled: false, operation: "idle" };
       await this.repository.save(empty);
       this.record = empty;
@@ -182,7 +204,10 @@ export class ExtensionService {
     this.emit();
   }
   async shutdown() {
+    clearTimeout(this.initialCheck);
+    clearInterval(this.checkTimer);
     this.cancel();
+    await this.updates.shutdown();
     await this.deactivate();
     await this.pending?.catch(() => undefined);
   }

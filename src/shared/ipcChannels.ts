@@ -1,4 +1,6 @@
 export const ipcChannels = {
+  extensionsCheckUpdates: "extensions:check-updates",
+  extensionsUpdate: "extensions:update",
   extensionsStatus: "extensions:status",
   extensionsInstall: "extensions:install",
   extensionsCancel: "extensions:cancel",

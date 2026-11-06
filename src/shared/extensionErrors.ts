@@ -1,5 +1,9 @@
 /** 宿主与渲染进程共用的错误协议；未知异常不直接作为翻译 key。 */
 export const extensionErrorCodes = [
+  "CATALOG_INVALID",
+  "UPDATE_CHECK_FAILED",
+  "NO_COMPATIBLE_RELEASE",
+  "UPDATE_ROLLBACK_FAILED",
   "PACKAGE_INVALID",
   "INCOMPATIBLE",
   "RELEASE_UNAVAILABLE",

@@ -3,7 +3,16 @@ import type { ExtensionRelease } from "./extensionPackage";
 
 /** 只请求目录中的官方 Release；GitHub 下载可重定向到官方资源域名。 */
 export async function downloadExtension(release: ExtensionRelease, signal: AbortSignal, progress: (value: number) => void) {
-  let url = release.url;
+  return downloadOfficialFile(release.url, Math.min(MAX_PACKAGE_BYTES, release.bytes), signal, progress);
+}
+
+/** 清单与安装包共用受限下载；每次跳转重新检查域名，流式读取严格限制大小。 */
+export async function downloadOfficialFile(
+  url: string,
+  maximum: number,
+  signal: AbortSignal,
+  progress: (value: number) => void = () => undefined,
+) {
   for (let redirect = 0; redirect < 5; redirect++) {
     const parsed = new URL(url);
     if (
@@ -28,9 +37,9 @@ export async function downloadExtension(release: ExtensionRelease, signal: Abort
         const next = await reader.read();
         if (next.done) break;
         size += next.value.length;
-        if (size > MAX_PACKAGE_BYTES || size > release.bytes) throw Error("PACKAGE_INVALID");
+        if (size > maximum) throw Error("PACKAGE_INVALID");
         chunks.push(next.value);
-        progress(Math.min(95, Math.floor((size / release.bytes) * 95)));
+        progress(Math.min(95, Math.floor((size / maximum) * 95)));
       }
     } finally {
       await reader.cancel().catch(() => undefined);

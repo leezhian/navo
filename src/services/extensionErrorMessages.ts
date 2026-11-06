@@ -2,6 +2,11 @@ import type { TranslationKey } from "@/i18n/types";
 import type { ExtensionErrorCode } from "@/shared/extensionErrors";
 
 export const extensionErrorKeys = {
+  CATALOG_INVALID: "settings:labs.errors.CATALOG_INVALID",
+  UPDATE_CHECK_FAILED: "settings:labs.errors.UPDATE_CHECK_FAILED",
+  NO_COMPATIBLE_RELEASE: "settings:labs.errors.NO_COMPATIBLE_RELEASE",
+  UPDATE_ROLLBACK_FAILED: "settings:labs.errors.UPDATE_ROLLBACK_FAILED",
+
   PACKAGE_INVALID: "settings:labs.errors.PACKAGE_INVALID",
   INCOMPATIBLE: "settings:labs.errors.INCOMPATIBLE",
   RELEASE_UNAVAILABLE: "settings:labs.errors.RELEASE_UNAVAILABLE",

@@ -41,6 +41,7 @@ export async function registerExtensionHandlers() {
   let initializationError = false;
   try {
     await service.initialize();
+    service.startUpdateChecks();
   } catch {
     initializationError = true;
   }
@@ -61,6 +62,14 @@ export async function registerExtensionHandlers() {
   ipcMain.handle(ipcChannels.extensionsStatus, (event) => {
     owner(event);
     return service.status;
+  });
+  ipcMain.handle(ipcChannels.extensionsCheckUpdates, (event) => {
+    owner(event);
+    return service.checkForUpdates();
+  });
+  ipcMain.handle(ipcChannels.extensionsUpdate, (event) => {
+    owner(event);
+    return service.update();
   });
   ipcMain.handle(ipcChannels.extensionsInstall, async (event, source) => {
     owner(event);
@@ -93,7 +102,14 @@ export async function registerExtensionHandlers() {
   ipcMain.handle(ipcChannels.traceClose, (event, id) => runtime.close(id, owner(event)));
   protocol.handle("navo-extension", async (request) => {
     try {
-      if (!extension?.status.enabled || initializationError || request.method !== "GET") return new Response(null, { status: 403 });
+      if (
+        !extension?.status.enabled ||
+        !extension.status.compatible ||
+        extension.status.operation !== "idle" ||
+        initializationError ||
+        request.method !== "GET"
+      )
+        return new Response(null, { status: 403 });
       const url = new URL(request.url),
         name = decodeURIComponent(url.pathname).slice(1);
       if (url.hostname !== "session-trace" || !/^ui\/[a-zA-Z0-9_./-]+$/.test(name) || name.split("/").includes(".."))

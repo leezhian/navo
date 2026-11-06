@@ -16,7 +16,7 @@ export interface ExtensionPackage {
 }
 const allowedPath = /^(ui|runtime)\/[a-zA-Z0-9_./-]+$/;
 
-/** 摘要来自宿主内固定的目录，不信任下载内容自报的 hash。文件仅为 UTF-8，避免归档链接和执行解包命令。 */
+/** 摘要来自宿主内固定目录或通过公钥验签的官方清单，不信任下载内容自报的 hash。文件仅为 UTF-8，避免归档链接和执行解包命令。 */
 export function decodePackage(bytes: Buffer, release: ExtensionRelease): ExtensionPackage {
   if (
     bytes.length > MAX_PACKAGE_BYTES ||

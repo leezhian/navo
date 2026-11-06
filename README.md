@@ -297,9 +297,25 @@ npm run test:session-trace                  # 隔离数据的安装、解析和 
 npx tsc -p extensions/session-trace/tsconfig.json
 ```
 
-独立产物为 `extension-dist/session-trace-0.1.0.navo-extension`，包含清单和 UTF-8 文件，不需要用户安装 Node 或执行 npm。宿主内固定包的 SHA-256、大小、接口版本与下载地址；开发测试也使用同一摘要校验。产物变化后需同步目录摘要并重新构建 Navo。发布到 `leezhian/navo` 的 `session-trace-v0.1.0` Release，上传同名产物；发布前在线安装会明确提示该版本不可用，可先使用「从安装包安装」。不上传任何用户会话文件。
+独立产物为 `extension-dist/session-trace-<版本>.navo-extension`，包含清单和 UTF-8 文件，不需要用户安装 Node 或执行 npm。宿主保留首版固定摘要作为安装回退；独立更新通过内置 Ed25519 公钥验证远程清单，清单包含插件版本、SHA-256、大小、接口版本、兼容宿主主版本和固定官方下载地址。已发布版本不可替换内容；以后发布插件无需改宿主摘要或重新发版 Navo。
 
-管理记录位于 `app.db` 的 `extensions` 表，数据库 schema v14；插件位于 `userData/extensions/<development|production>/session-trace/`，包含 `installed`、临时 `staging` 和 `cache`。首次只创建管理基础，不自动下载或解析。关闭撤销读取租约并等待辅助进程退出，卸载才删除插件专属目录。安装中断在启动时清理，卸载中断保留重试状态。
+插件包发布到 `leezhian/navo` 对应的 `session-trace-v<版本>` Release；签名清单作为 `catalog.json` 上传到固定的 `session-trace-catalog` Release。清单地址为 `https://github.com/leezhian/navo/releases/download/session-trace-catalog/catalog.json`。先上传新包，再更新清单。清单尚未发布时，检查更新会显示发布源不可用；首版仍可从经过同等校验的本地包安装。构建与签名脚本均不会自动发布。
+
+```bash
+# 初次配置公钥时使用；已有密钥与公钥时不要重复生成
+npm run sign:session-trace-catalog -- --init-key
+# 首次生成清单：先构建基线包，再签名
+npm run build:session-trace
+npm run sign:session-trace-catalog -- --release extension-dist/session-trace-0.1.0.release.json
+# 后续示例：递增版本，保留上一份已发布签名清单中的版本
+npm run build:session-trace -- --version=0.2.0
+npm run sign:session-trace-catalog -- --release extension-dist/session-trace-0.2.0.release.json --previous /path/to/previous-catalog.json
+```
+
+签名私钥默认位于 `~/.config/navo/release-keys/session-trace-ed25519.pem`，权限为 `0600`，需要由发布者备份。仓库仅提交 `sessionTraceTrust.json` 中的公钥，不包含私钥；CI 或其他发布机器用 `--key /secure/path/key.pem` 指定同一密钥。更换公钥需要重新发布 Navo；普通插件版本升级不需要。签名脚本会检查私钥匹配公钥，并拒绝覆盖上一份清单中同版本的不同内容。
+
+管理记录位于 `app.db` 的 `extensions` 表，数据库 schema v14；插件位于 `userData/extensions/<development|production>/session-trace/`，包含 `installed`、临时 `staging`、更新备份 `backup`、已验证清单缓存 `updates.json` 和解析 `cache`。首装不自动启用。已安装插件在启动约 30 秒后、此后每 4 小时检查版本元数据，未安装时跳过；检查失败不替换已有插件。更新保留旧目录直到数据库提交，失败或崩溃回退，成功保留原启用状态。安装目录内保存原始签名清单，离线重启也重新验签。解析缓存按插件版本隔离，可从原生日志重建。不上传任何用户会话文件。
+
 
 轨迹使用精确原生 ID 与工作目录定位 Claude Code、Codex 的 JSONL。Codex 优先按本地数据库记录定位，旧格式回退限制为创建日期附近的已知目录；不支持 `.zst` 压缩归档。解析器在 Electron utility process 中按块读取，以 SQLite 建立可重建索引；每秒检查可见会话的增量，不使用全局 hooks。尾行不完整时保留，文件截断或替换后重新验证身份并重建。单条记录上限 8 MiB，单会话索引上限约 128 MiB；闲置缓存按最近使用情况保留最多 8 份、总量约 256 MiB，正在使用的索引不被淘汰。
 

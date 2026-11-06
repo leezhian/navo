@@ -28,6 +28,8 @@ import type {
 
 const api: NavoApi = {
   extensions: {
+    checkForUpdates: () => ipcRenderer.invoke(ipcChannels.extensionsCheckUpdates),
+    update: () => ipcRenderer.invoke(ipcChannels.extensionsUpdate),
     status: () => ipcRenderer.invoke(ipcChannels.extensionsStatus),
     install: (source) => ipcRenderer.invoke(ipcChannels.extensionsInstall, source),
     cancelInstall: () => ipcRenderer.invoke(ipcChannels.extensionsCancel),

@@ -1,11 +1,16 @@
 import type { ExtensionErrorCode } from "./extensionErrors";
 
-export type ExtensionOperation = "idle" | "installing" | "uninstalling";
+export type ExtensionOperation = "idle" | "installing" | "updating" | "uninstalling";
 export interface ExtensionStatus {
   id: "session-trace";
   version: string | null;
   availableVersion: string;
   downloadBytes: number;
+  /** 仅提示比已安装版本更新、且通过签名与兼容性校验的版本。 */
+  updateAvailable: boolean;
+  checking: boolean;
+  checkedAt: string | null;
+  updateError: ExtensionErrorCode | null;
   enabled: boolean;
   compatible: boolean;
   operation: ExtensionOperation;
@@ -73,8 +78,11 @@ export interface TraceUpdate {
 }
 export interface ExtensionsApi {
   status(): Promise<ExtensionStatus>;
-  /** 仅下载官方目录固定版本；本地文件由原生选择器选择并校验同一摘要。 */
+  /** 仅下载宿主内置或经过签名验证的官方版本；本地文件由原生选择器选择并校验同一摘要。 */
   install(source: "download" | "file"): Promise<void>;
+  checkForUpdates(): Promise<void>;
+  update(): Promise<void>;
+  /** 取消安装或更新；已进入提交阶段时，以实际完成结果为准。 */
   cancelInstall(): Promise<void>;
   setEnabled(enabled: boolean): Promise<void>;
   uninstall(): Promise<void>;

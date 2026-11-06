@@ -3,7 +3,7 @@ import { openAppDatabase } from "../appDatabase";
 export interface InstalledExtension {
   version: string | null;
   enabled: boolean;
-  operation: "idle" | "installing" | "uninstalling";
+  operation: "idle" | "installing" | "updating" | "uninstalling";
 }
 export class ExtensionRepository {
   constructor(
@@ -19,7 +19,8 @@ export class ExtensionRepository {
       if (
         (value.version !== null && !/^\d+\.\d+\.\d+$/.test(value.version)) ||
         typeof value.enabled !== "boolean" ||
-        !["idle", "installing", "uninstalling"].includes(value.operation)
+        (value.operation === "updating" && value.version === null) ||
+        !["idle", "installing", "updating", "uninstalling"].includes(value.operation)
       )
         throw Error("INVALID_STORAGE");
       return value;

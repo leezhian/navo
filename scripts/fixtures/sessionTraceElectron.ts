@@ -26,6 +26,17 @@ void app.whenReady().then(async () => {
     await new SessionRepository(db, "development").save({ id: "trace-session", taskId: "trace-task", kind: "agent", title: "Trace fixture", cwd, nativeSessionId: id, nativeHistoryRoot: native, agent, status: "stopped", terminalId: "unused", resumable: true, createdAt: now, lastUpdateAt: now, lastActiveAt: now });
     // 只替换测试进程中的原生文件选择，始终使用本次构建的隔离安装包。
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [process.env.NAVO_TRACE_TEST_PACKAGE as string] });
+    let updateDownloads = 0;
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      if (url.endsWith("/session-trace-catalog/catalog.json")) return new Response(await readFile(path.join(directory, "catalog.json"), "utf8"));
+      if (url.endsWith("/session-trace-0.2.0.navo-extension")) {
+        updateDownloads++;
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return new Response(updateDownloads === 1 ? "corrupt package" : new Uint8Array(await readFile(path.join(directory, "updated.navo-extension"))));
+      }
+      throw Error("Unexpected fixture request");
+    };
     await registerExtensionHandlers();
     const win = new BrowserWindow({ show: false, width: 1100, height: 850, webPreferences: { preload: path.join(directory, "preload.cjs"), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
     win.webContents.on("console-message", event => { if (event.level === "error") console.error(event.message); });
@@ -41,6 +52,16 @@ void app.whenReady().then(async () => {
       if ((await api.status()).enabled) throw Error("Install enabled extension implicitly");
       (document.querySelector('[role="switch"]') as HTMLButtonElement).click();
       await wait(() => document.querySelector('[role="switch"]')?.getAttribute("aria-checked") === "true", "Enable did not persist");
+      const button = (text: string) => Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(item => item.textContent === text);
+      button("检查更新")?.click();
+      await wait(() => document.body.innerText.includes("有可用更新：v0.2.0"), "Update notice missing");
+      if ((await api.status()).version !== "0.1.0" || !(await api.status()).enabled) throw Error("Check changed installed state");
+      button("更新")?.click();
+      await wait(() => Boolean(document.querySelector('[role="alert"]')), "Update failure was hidden");
+      if ((await api.status()).version !== "0.1.0" || !(await api.status()).enabled) throw Error("Failed update lost old enabled package");
+      button("更新")?.click();
+      await wait(() => document.body.innerText.includes("v0.2.0") && document.body.innerText.includes("当前已是最新兼容版本"), "Update did not finish");
+      if ((await api.status()).version !== "0.2.0" || !(await api.status()).enabled) throw Error("Update lost enable preference");
       await (window as unknown as { setFixtureLanguage: (language: string) => Promise<unknown> }).setFixtureLanguage("en");
       (window as unknown as { showLabs: (value: boolean) => void }).showLabs(false);
       await wait(() => Boolean(document.querySelector("iframe")), "Plugin frame missing");
@@ -81,13 +102,13 @@ void app.whenReady().then(async () => {
           !document.querySelector('.event-row[aria-expanded="true"][title="fixture message 149"]')) throw Error("Timeline jump was reset by search");
       };
       searchFor("fixture message 239");
-      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event");
+      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 239"]')));
       jump(); await assertJump();
       searchFor("fixture message 23");
       await pause(); // 输入已进入 React 状态，但 180ms 防抖尚未触发。
       jump(); await assertJump();
       searchFor("fixture message 239");
-      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event");
+      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 239"]')));
       if (document.documentElement.lang !== "en" || !document.querySelector(".stats")?.textContent?.includes("240 turns")) throw Error("English locale was not applied");
       if (!document.querySelector(".stats")?.textContent?.includes("— model requests")) throw Error("Unknown requests were displayed as zero");
       return { virtualRows: count, text: document.body.innerText };
@@ -105,7 +126,14 @@ void app.whenReady().then(async () => {
       window.showLabs(true);
       const wait = async (predicate) => { for (let i=0;i<200;i++) { if(predicate())return; await new Promise(resolve=>setTimeout(resolve,40)); } throw Error('Labs uninstall UI timed out'); };
       const uninstall = () => Array.from(document.querySelectorAll('button')).find(button => button.textContent === '卸载');
-      await wait(uninstall); uninstall().click(); await wait(()=>document.querySelector('[role=dialog]'));
+      await wait(uninstall);
+      const installedStatus = await window.navo.extensions.status();
+      window.setFixtureExtensionStatus({...installedStatus, operation:'updating', error:'UPDATE_ROLLBACK_FAILED'});
+      await wait(()=>document.querySelector('[role=alert]'));
+      if(uninstall().disabled) throw Error('Failed rollback must allow uninstall recovery');
+      window.setFixtureExtensionStatus(installedStatus);
+      await wait(()=>!document.querySelector('[role=alert]'));
+      uninstall().click(); await wait(()=>document.querySelector('[role=dialog]'));
       if(document.activeElement.textContent !== '取消') throw Error('Uninstall must focus cancel');
       Array.from(document.querySelectorAll('[role=dialog] button')).find(button=>button.textContent==='取消').click();
       if(!(await window.navo.extensions.status()).version) throw Error('Cancel removed package');

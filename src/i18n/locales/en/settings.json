@@ -220,7 +220,20 @@
       "EXTENSION_UNAVAILABLE": "This feature requires the Navo desktop app.",
       "OPERATION_FAILED": "Operation failed. Check file permissions and retry.",
       "BUSY": "Another extension operation is in progress. Please retry shortly.",
-      "INVALID_QUERY": "This trace query is invalid. Reopen the trace and retry."
-    }
+      "INVALID_QUERY": "This trace query is invalid. Reopen the trace and retry.",
+      "CATALOG_INVALID": "Update catalog verification failed. Your current extension is kept.",
+      "UPDATE_CHECK_FAILED": "Could not check for updates. Check your connection and retry.",
+      "NO_COMPATIBLE_RELEASE": "No extension release is compatible with this Navo version.",
+      "UPDATE_ROLLBACK_FAILED": "Restoring the previous version is incomplete. Restart Navo to retry, or uninstall and reinstall if recovery still fails."
+    },
+    "checkUpdates": "Check for updates",
+    "checkingUpdates": "Checking for updates…",
+    "updateAvailable": "Update available: v{{version}}",
+    "upToDate": "You have the latest compatible version",
+    "lastChecked": "Last successful check: {{time}}",
+    "updateHint": "Updates are installed only when you choose Update.",
+    "update": "Update",
+    "updating": "Updating…",
+    "availableRelease": "Available version: v{{version}}"
   }
 }

@@ -218,7 +218,20 @@
       "EXTENSION_UNAVAILABLE": "此功能需要在 Navo 桌面应用中使用。",
       "OPERATION_FAILED": "操作失败，请检查文件权限后重试。",
       "BUSY": "另一个插件操作正在进行，请稍后重试。",
-      "INVALID_QUERY": "轨迹查询无效，请重新打开轨迹后重试。"
-    }
+      "INVALID_QUERY": "轨迹查询无效，请重新打开轨迹后重试。",
+      "CATALOG_INVALID": "更新清单校验失败，已保留当前插件。",
+      "UPDATE_CHECK_FAILED": "检查更新失败，请检查网络后重试。",
+      "NO_COMPATIBLE_RELEASE": "暂无兼容当前 Navo 的插件版本。",
+      "UPDATE_ROLLBACK_FAILED": "恢复旧版尚未完成，请重启 Navo 重试；仍失败时可卸载后重新安装。"
+    },
+    "checkUpdates": "检查更新",
+    "checkingUpdates": "正在检查更新…",
+    "updateAvailable": "有可用更新：v{{version}}",
+    "upToDate": "当前已是最新兼容版本",
+    "lastChecked": "上次成功检查：{{time}}",
+    "updateHint": "更新仅提示，点击更新后才会安装。",
+    "update": "更新",
+    "updating": "正在更新…",
+    "availableRelease": "可安装版本：v{{version}}"
   }
 }
