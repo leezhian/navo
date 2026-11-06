@@ -122,6 +122,7 @@ export interface CheckForUpdatesResult {
 export type WindowFullScreenListener = (isFullScreen: boolean) => void;
 
 export interface NavoApi {
+  extensions: import("./extensionTypes").ExtensionsApi;
   taskSessions: TaskSessionsApi;
   agents: AgentsApi;
   diagnostics: {

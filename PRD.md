@@ -23,6 +23,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），将任务、项�
 | 设置 → Agents | [Agents 设置](docs/prd/settings/agents.md) |
 | 设置 → 仓库与文件夹 | [仓库与文件夹](docs/prd/settings/resources.md) |
 | 设置 → 集成 | [集成设置](docs/prd/settings/integrations.md) |
+| 设置 → 实验室 | [实验室](docs/prd/settings/labs.md) |
 | 设置 → 关于 | [关于](docs/prd/settings/about.md) |
 | 代码审查弹窗 | [代码审查](docs/prd/review.md) |
 | 任务内终端 | [终端](docs/prd/terminal.md) |
@@ -46,7 +47,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），将任务、项�
 - 不做完整 Git 客户端：仅保留审查伴随的文件暂存、取消暂存、还原、提交与推送，不包含 stash、rebase、merge。
 - 不生成复杂 AI 审查结论或创建独立项目实体；带 Agent 配置的任务创建成功后独立启动首个 CLI，会话失败不回滚任务。切换/关闭标签不启动或停止 Agent，分支和 Worktree 仅在用户确认创建任务时按所选模式准备。
 - 任务会话可通过临时配置连接任务 MCP，读取最新正文、资源与笔记；Notes 可按独立版本新增、修改和删除，任务正文及其他资源保持只读，不写全局 CLI 配置。
-- 不向外部 Agent 写入、合并或注入 hooks；不安装采集器、监听会话起止，也不生成新的会话基线、事件或对话 patch。
+- 不向外部 Agent 写入、合并或注入 hooks，也不生成新的会话基线、采集事件或对话 patch。实验室允许用户单独安装并启用官方会话轨迹扩展，只读查看已绑定的原生历史；默认未安装、未启用，不扫描本机全部会话。
 - 已有审查记录和快照保留，不展示旧会话列表，不隐式转换为新任务。
 
 ## 5. 共用数据与隐私边界

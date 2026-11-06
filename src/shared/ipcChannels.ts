@@ -1,4 +1,15 @@
 export const ipcChannels = {
+  extensionsStatus: "extensions:status",
+  extensionsInstall: "extensions:install",
+  extensionsCancel: "extensions:cancel",
+  extensionsEnable: "extensions:enable",
+  extensionsUninstall: "extensions:uninstall",
+  extensionsChanged: "extensions:changed",
+  traceOpen: "trace:open",
+  traceQuery: "trace:query",
+  traceClose: "trace:close",
+  traceChanged: "trace:changed",
+
   resourcesDetectCommands: "resources:detect-commands",
   tasksLoadBranch: "tasks:load-branch",
   taskSessionsList: "task-sessions:list",

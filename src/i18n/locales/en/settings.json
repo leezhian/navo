@@ -146,7 +146,8 @@
     "appearance": "Appearance",
     "resources": "Repos & Folders",
     "integrations": "Integrations",
-    "about": "About"
+    "about": "About",
+    "labs": "Labs"
   },
   "errors": {
     "load": "Could not load settings. Your existing configuration has not been overwritten.",
@@ -173,5 +174,51 @@
     "disconnected": "Not connected",
     "connect": "Connect",
     "placeholder": "Integrations are not implemented yet. Statuses are placeholders; refresh only reloads local placeholder data."
+  },
+  "labs": {
+    "title": "Optional experiments",
+    "description": "Experiments are installed and enabled separately. Disabling or uninstalling preserves tasks and native sessions.",
+    "traceTitle": "Session trace",
+    "traceDescription": "Inspect native messages, context, tool calls and execution timelines. All trace data stays local.",
+    "loadFailed": "Could not load experiment status.",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "enable": "Enable session trace",
+    "installing": "Installing…",
+    "install": "Install",
+    "enabled": "Enabled",
+    "disabled": "Installed, disabled",
+    "notInstalled": "Not installed",
+    "installFile": "Install from file",
+    "uninstall": "Uninstall",
+    "cancel": "Cancel",
+    "uninstallTitle": "Uninstall session trace?",
+    "uninstallDescription": "Removes the extension, parsed cache and its preferences. Tasks, native logs and code files are kept. Running agents are not stopped.",
+    "view": "Session view",
+    "terminal": "Terminal",
+    "trace": "Trace",
+    "errors": {
+      "PACKAGE_INVALID": "Package verification failed. Use the official version supported by this Navo build.",
+      "INCOMPATIBLE": "This extension is incompatible. Uninstall it and install a compatible version.",
+      "RELEASE_UNAVAILABLE": "This release is not published yet. You can select a verified local package.",
+      "DOWNLOAD_FAILED": "Download failed. Check your connection and retry.",
+      "CLEANUP_REQUIRED": "The previous uninstall was interrupted. Retry to remove remaining files.",
+      "INVALID_STORAGE": "Extension settings could not be read. Existing data has not been reset.",
+      "RUNTIME_FAILED": "The trace process stopped. Your terminal is unaffected. Please retry.",
+      "RUNTIME_TIMEOUT": "Trace parsing timed out. Please retry.",
+      "EXTENSION_DISABLED": "Session trace is disabled.",
+      "IDENTITY_PENDING": "The native session identity is not bound yet. Retry after it becomes available.",
+      "UNSUPPORTED_PROVIDER": "This agent trace format is not supported yet.",
+      "SOURCE_INVALID": "History does not match this session. Reading has stopped.",
+      "SOURCE_MISSING": "The native history for this session was not found.",
+      "SOURCE_UNREADABLE": "History is unreadable or its format is unsupported. Please retry.",
+      "LINE_TOO_LARGE": "A log record exceeds the supported size limit. Parsing stopped.",
+      "CACHE_LIMIT": "The trace index reached its storage limit.",
+      "SESSION_MISSING": "The session was removed or its native identity changed.",
+      "LEASE_EXPIRED": "The trace view expired. Open it again.",
+      "EVENT_MISSING": "This event is no longer available. Refresh the trace.",
+      "EXTENSION_UNAVAILABLE": "This feature requires the Navo desktop app.",
+      "OPERATION_FAILED": "Operation failed. Check file permissions and retry."
+    }
   }
 }

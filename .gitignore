@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# Independently distributed optional extensions
+extension-dist/

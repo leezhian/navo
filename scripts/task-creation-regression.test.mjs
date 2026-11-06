@@ -86,7 +86,7 @@ test("数据库从设置 v1 升级，任务迁移一次且开发与正式数据�
   assert.deepEqual((await dev.load()).tasks, []);
   const upgraded = await openAppDatabase(path.join(directory, "app.db"));
   assert.equal(upgraded.prepare("SELECT value FROM settings WHERE key='theme'").get().value, '"dark"');
-  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 13);
+  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 14);
   upgraded.close();
 });
 
