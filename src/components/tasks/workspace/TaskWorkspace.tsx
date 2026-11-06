@@ -90,7 +90,8 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const visibleNote = visibleRight && rightContent.kind === "note";
   const showUpper = showAgentPane || (visibleRight && !rightOverlay);
   const terminalFillsSpace = !showUpper;
-  useVisibleSessionResume(task, active, showAgentPane && !(visibleRight && rightOverlay), rootRef);
+  const agentPaneVisible = showAgentPane && !(narrow && contextOpen) && !(visibleRight && rightOverlay);
+  useVisibleSessionResume(task, active, agentPaneVisible, rootRef);
 
   useEffect(() => {
     const element = rootRef.current;

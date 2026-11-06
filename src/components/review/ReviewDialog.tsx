@@ -59,7 +59,7 @@ function ReviewDialogContent({ session, settings, resolvedTheme, onSettingsChang
     <div className="min-h-0 flex-1">
       <ReviewWorkspace session={session} settings={viewSettings} resolvedTheme={resolvedTheme} initialFilePath={initialFilePath}
         collapsedFileIds={review.collapsedFileIds} compareMode={review.compareMode} compareModeFileCounts={review.compareModeFileCounts}
-        localBranches={review.localBranches} reviewError={review.reviewError} summary={review.reviewSummary}
+        branches={review.branches} reviewError={review.reviewError} summary={review.reviewSummary}
         selectedFileId={review.selectedFileId} scrollCacheKey={review.scrollCacheKey} untrackedFileCount={review.untrackedFileCount}
         onCompareModeChange={review.setCompareMode} onBatchFileAction={review.runBatchFileAction} onFileAction={review.runFileAction}
         onRefresh={review.refreshReview} onSelectedFileChange={review.setSelectedFileId} onSettingsChange={updatePreferences}

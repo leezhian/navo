@@ -32,8 +32,8 @@ interface ReviewToolbarProps {
   isAllCollapsed: boolean;
   /** 文件树面板是否显示，用于按钮图标和激活态。 */
   isFileTreeVisible: boolean;
-  /** 当前项目的本地分支候选项。 */
-  localBranches: string[];
+  /** 当前项目的本地及远端跟踪分支候选项。 */
+  branches: string[];
   /** 当前会话，用于展示源分支和兜底增删统计。 */
   session: ReviewSession;
   /** 本地展示设置，提供目标分支、视图模式和换行状态。 */
@@ -57,7 +57,7 @@ export function ReviewToolbar({
   compareModeFileCounts,
   isAllCollapsed,
   isFileTreeVisible,
-  localBranches,
+  branches,
   session,
   settings,
   summary,
@@ -71,7 +71,7 @@ export function ReviewToolbar({
   const { commentBodies, getExportableComments, copyExportTemplate } = useReviewComments();
   const [branchSearch, setBranchSearch] = useState("");
   const [copyState, setCopyState] = useState<"idle" | "copied" | "empty">("idle");
-  const branchOptions = localBranches.filter((branch) =>
+  const branchOptions = branches.filter((branch) =>
     branch.toLowerCase().includes(branchSearch.trim().toLowerCase()),
   );
   const additions = summary?.additions ?? session.additions;

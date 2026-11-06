@@ -165,8 +165,8 @@ const api: NavoApi = {
     getUntrackedFileCount(params: ProjectPathParams) {
       return ipcRenderer.invoke(ipcChannels.reviewGetUntrackedFileCount, params);
     },
-    loadLocalBranches(projectPath: string) {
-      return ipcRenderer.invoke(ipcChannels.reviewLoadLocalBranches, projectPath);
+    loadBranches(projectPath: string) {
+      return ipcRenderer.invoke(ipcChannels.reviewLoadBranches, projectPath);
     },
     onSessionsChanged(listener: ReviewSessionsChangedListener) {
       const handler = (_event: IpcRendererEvent, sessions: Parameters<ReviewSessionsChangedListener>[0]) => {

@@ -15,7 +15,7 @@ import { commitChanges, getCommitStatus, pushCommits } from "../services/gitComm
 import {
   getGitDiffSignature,
   getUntrackedFileCount,
-  loadLocalBranches,
+  loadBranches,
   openFileInVsCode,
   runGitDiff,
   runReviewBatchFileAction,
@@ -56,7 +56,7 @@ export function registerReviewHandlers() {
   ipcMain.handle(ipcChannels.reviewUnwatchProject, (_event, params: ProjectPathParams) => {
     unwatchProject(params.projectPath);
   });
-  ipcMain.handle(ipcChannels.reviewLoadLocalBranches, (_event, projectPath: string) => loadLocalBranches(projectPath));
+  ipcMain.handle(ipcChannels.reviewLoadBranches, (_event, projectPath: string) => loadBranches(projectPath));
   ipcMain.handle(ipcChannels.reviewOpenFileInVsCode, (_event, params: OpenFileInVsCodeParams) =>
     openFileInVsCode(params),
   );

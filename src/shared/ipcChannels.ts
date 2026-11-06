@@ -77,7 +77,7 @@ export const ipcChannels = {
   reviewRunGitDiff: "review:run-git-diff",
   reviewGetGitDiffSignature: "review:get-git-diff-signature",
   reviewGetUntrackedFileCount: "review:get-untracked-file-count",
-  reviewLoadLocalBranches: "review:load-local-branches",
+  reviewLoadBranches: "review:load-branches",
   reviewLoadSessions: "review:load-sessions",
   reviewMarkSessionRead: "review:mark-session-read",
   reviewOpenFileInVsCode: "review:open-file-in-vscode",

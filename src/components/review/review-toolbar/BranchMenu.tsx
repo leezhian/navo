@@ -15,7 +15,7 @@ import { updateTargetBranch } from "./settingsActions";
 import { useDropdownTooltip } from "./useDropdownTooltip";
 
 interface BranchMenuProps {
-  /** 经过搜索过滤后的本地分支候选项。 */
+  /** 经过搜索过滤后的本地及远端跟踪分支候选项。 */
   branchOptions: string[];
   /** 当前分支搜索关键词，由上层维护以便关闭菜单时清空。 */
   branchSearch: string;

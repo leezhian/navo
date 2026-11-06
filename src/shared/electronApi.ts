@@ -35,7 +35,8 @@ export interface OpenFileInVsCodeParams {
 
 export interface RunReviewFileActionParams {
   projectPath: string;
-  filePath: string;
+  /** 单个 diff 条目的全部路径；重命名需在同一 Git 调用中处理新旧路径。 */
+  filePaths: string[];
   action: ReviewFileAction;
 }
 
@@ -182,7 +183,8 @@ export interface NavoApi {
     getGitDiffSignature(params: LoadReviewDiffParams): Promise<string>;
     /** 统计未跟踪文件数（尊重 gitignore），供提示条使用。 */
     getUntrackedFileCount(params: ProjectPathParams): Promise<number>;
-    loadLocalBranches(projectPath: string): Promise<string[]>;
+    /** 读取本机已有的本地分支和远端跟踪分支，不联网刷新。 */
+    loadBranches(projectPath: string): Promise<string[]>;
     onSessionsChanged(listener: ReviewSessionsChangedListener): () => void;
     /** 监听项目工作区 / Git 元数据变化；返回取消监听函数。 */
     onProjectChanged(listener: ReviewProjectChangedListener): () => void;

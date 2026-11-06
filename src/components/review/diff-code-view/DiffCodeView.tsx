@@ -39,7 +39,7 @@ interface DiffCodeViewProps {
   /** 本地展示设置，包含 diff 布局、字号、主题和标记方式。 */
   settings: AppSettings;
   /** 执行文件头上的还原/暂存/取消暂存操作。 */
-  onFileAction: (filePath: string, action: ReviewFileAction) => void;
+  onFileAction: (filePaths: string[], action: ReviewFileAction) => void;
   /** 在文件块右键菜单中切换自动换行。 */
   onToggleWrap: () => void;
   /** 点击文件头时切换该文件折叠状态。 */

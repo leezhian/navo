@@ -15,7 +15,7 @@ test("可见会话首次恢复：隐藏标签、后台窗口、折叠和归档�
     response.end(await server.transformIndexHtml("/__auto", `<div id="root"></div><script type="module">
       import React from 'react';import {createRoot} from 'react-dom/client';
       import {useVisibleSessionResume} from '/src/hooks/useVisibleSessionResume.ts';import {useTaskSessionStore} from '/src/stores/taskSessionStore.ts';
-      window.calls=[];window.skips=0;window.foreground='hidden';Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>window.foreground});
+      window.calls=[];window.skips=0;window.focused=false;document.hasFocus=()=>window.focused;window.foreground='hidden';Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>window.foreground});
       useTaskSessionStore.setState({resumeVisible:async id=>{if(useTaskSessionStore.getState().pending){window.skips++;return false;}useTaskSessionStore.setState({pending:true});window.calls.push(id);await new Promise(resolve=>setTimeout(resolve,50));useTaskSessionStore.setState({pending:false});return true;}});
       const task={id:'task',status:'TODO'},base={id:'one',taskId:'task',kind:'agent',status:'stopped',resumable:true,nativeSessionId:'native-id',resumeOnOpen:true};
       function Pane({session,task,visible}){const root=React.useRef(null);useVisibleSessionResume(task,session,visible,root);return React.createElement('div',{ref:root,style:{height:100,width:300}},session.id);}
@@ -33,7 +33,8 @@ test("可见会话首次恢复：隐藏标签、后台窗口、折叠和归档�
         const pause=()=>new Promise(resolve=>setTimeout(resolve,120));const wait=async(check,label)=>{for(let i=0;i<100;i++){if(check())return;await new Promise(resolve=>setTimeout(resolve,30));}throw Error(label);};
         await wait(()=>window.patch,'Fixture missing');await pause();if(window.calls.length)throw Error('Hidden task started');
         window.patch({hidden:false});await pause();if(window.calls.length)throw Error('Background window started');
-        window.foreground='visible';document.dispatchEvent(new Event('visibilitychange'));await wait(()=>window.calls.length===2,'Split pane pending retry was lost');
+        window.foreground='visible';document.dispatchEvent(new Event('visibilitychange'));await pause();if(window.calls.length)throw Error('Visible but unfocused window started');
+        window.focused=true;window.dispatchEvent(new Event('focus'));await wait(()=>window.calls.length===2,'Split pane pending retry was lost');
         if(new Set(window.calls).size!==2)throw Error('Repeated restore');await pause();if(window.calls.length!==2)throw Error('Stopped response loops');
         window.patch({visible:false,second:false});window.session({id:'three'});await pause();if(window.calls.length!==2)throw Error('Collapsed pane restored');
         window.patch({visible:true});await wait(()=>window.calls.includes('three'),'Expanded pane not restored');
@@ -43,6 +44,8 @@ test("可见会话首次恢复：隐藏标签、后台窗口、折叠和归档�
         window.session({id:'failed',status:'failed',error:'SESSION_EXIT_FAILED'});await pause();if(window.calls.includes('failed'))throw Error('Failed session retried');
         window.session({id:'stopped-by-user',resumeOnOpen:false});await pause();if(window.calls.includes('stopped-by-user'))throw Error('User stop ignored');
         window.session({id:'unknown-id',resumable:false});await pause();if(window.calls.includes('unknown-id'))throw Error('Unbound native id restored');
+        window.focused=false;window.dispatchEvent(new Event('blur'));window.session({id:'blurred-window'});await pause();if(window.calls.includes('blurred-window'))throw Error('Blurred window restored');
+        window.focused=true;window.dispatchEvent(new Event('focus'));await wait(()=>window.calls.includes('blurred-window'),'Focused window did not restore');
         window.patch({hidden:true});window.session({id:'hidden-tab'});await pause();if(window.calls.includes('hidden-tab'))throw Error('Hidden tab restored');
         window.patch({hidden:false});await wait(()=>window.calls.includes('hidden-tab'),'Visible tab not restored');
       })()\`);console.log('AUTO_RESUME_UI_OK');app.exit(0);}catch(error){console.error(error);app.exit(1);}

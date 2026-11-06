@@ -25,10 +25,11 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
       const originalNow=Date.now;let timeOffset=0;Date.now=()=>originalNow()+timeOffset;window.expireWorkspaceOptions=()=>{timeOffset+=WORKSPACE_OPTIONS_CACHE_MS+1;window.dispatchEvent(new Event('focus'));};
       await i18n.changeLanguage('zh-CN');useSettingsStore.setState({loaded:true,settings:{...useSettingsStore.getState().settings,locale:'zh-CN'}});
       window.setCommandRecord=(id,commands=[{id:'build',name:'Build',script:'echo fixture',runOnWorktreeCreation:false}])=>useResourceStore.setState({loaded:true,records:[{id,name:'repo',kind:'repo',available:true,localPath:'/test',commands}]});window.setCommandRecord('repo');
-      const data=new Set(),exits=new Set(),changed=new Set();window.creates=[];window.stops=[];window.restarts=[];window.archives=[];window.renames=[];window.removes=[];window.attached=[];window.destroyed=[];window.workspaceOpens=[];window.remoteProvider="GitLab";
+      const data=new Set(),exits=new Set(),changed=new Set();window.creates=[];window.stops=[];window.restarts=[];window.autoResumes=[];window.archives=[];window.renames=[];window.removes=[];window.attached=[];window.destroyed=[];window.workspaceOpens=[];window.remoteProvider="GitLab";
       const task={id:'test-task',title:'任务工作台验证',description:'真实任务描述',date:'2026-10-07',projectName:'test',status:'TODO',resources:[],links:[],webLinks:[],attachments:[]};
       let records=[],number=0;window.scopeResources=[];const publish=()=>{for(const callback of changed)callback(structuredClone(records));return structuredClone(records);};
       window.navo={settings:{save:async settings=>{window.savedSettings=settings;return settings;}},resources:{onCloneProgress:()=>()=>{},inspectGit:async()=>({isRepository:true,remoteUrl:null})},tasks:{workspaceOpenOptions:async()=>{window.optionsReadCount=(window.optionsReadCount||0)+1;if(window.failWorkspaceOptions)throw new Error('fixture read failure');return {editors:window.noEditors?[]:[{id:'vscode',name:'VS Code'},{id:'xcode',name:'Xcode'}],remote:{provider:window.remoteProvider,url:'https://gitlab.com/fixture/repo'},externalTerminal:true};},openWorkspace:async(taskId,resourceId,target)=>window.workspaceOpens.push({taskId,resourceId,target})},agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
+        resumeVisible:async id=>{window.autoResumes.push(id);return publish();},
         list:async()=>structuredClone(records),onChanged:callback=>{changed.add(callback);return()=>changed.delete(callback);},
         start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,command:input.commandId?{id:input.commandId,resourceId:input.resourceId,name:'Build'}:undefined,title:input.commandId?'Build':input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',resumable:false});return publish();},
         stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id||record.kind==='agent').map(record=>record.id===id?{...record,status:'stopped'}:record);return publish();},
@@ -87,6 +88,19 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await wait(()=>document.querySelector('.task-workbench').dataset.narrow==='true','narrow container not detected');
         await wait(()=>!document.querySelector('.task-context-container'),'Narrow side rail must collapse');
         button('任务上下文').click();await wait(()=>document.querySelector('.task-context-container'),'Context toggle failed');
+        // 页面可见且聚焦时，左侧 Sheet 仍应阻止自动恢复；关闭后才启动同一个会话。
+        Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'visible'});document.hasFocus=()=>true;window.dispatchEvent(new Event('focus'));
+        window.setRecords([{id:'overlay-resume',taskId:'test-task',kind:'agent',agent:{agentId:'claude'},title:'Overlay test',cwd:'/test',workspace:{kind:'task'},status:'stopped',terminalId:'overlay-terminal',createdAt:'now',nativeSessionId:'overlay-native',resumable:true,resumeOnOpen:true}]);
+        await wait(()=>document.querySelector('.task-agent-pane [title="Overlay test"]'),'Overlay test session missing');await new Promise(resolve=>setTimeout(resolve,200));
+        if(window.autoResumes.length)throw new Error('Left context sheet must block automatic resume');
+        button('任务上下文').click();await wait(()=>window.autoResumes.length===1,'Closing left sheet must allow automatic resume');
+        if(window.autoResumes[0]!=='overlay-resume')throw new Error('Wrong session resumed');
+        window.setRecords([]);delete document.visibilityState;delete document.hasFocus;window.dispatchEvent(new Event('blur'));
+        await wait(()=>!document.querySelector('.task-agent-pane [title="Overlay test"]'),'Overlay test session not removed');
+        await wait(()=>window.destroyed.includes('overlay-terminal'),'Removed fixture session must release its terminal');
+        if(window.attached.length)throw new Error('Visibility fixture must not attach a stopped terminal');
+        window.destroyed=[];
+        button('任务上下文').click();await wait(()=>document.querySelector('.task-context-container'),'Context did not reopen');
         if(document.querySelector('.task-context-title'))throw new Error('Context title must be removed');
         const resourceButton=document.querySelector('.task-context-toolbar button');
         if(!resourceButton||resourceButton.disabled||resourceButton.textContent.trim()!=='添加资源')throw new Error('Add resource must open the unified resource dialog');

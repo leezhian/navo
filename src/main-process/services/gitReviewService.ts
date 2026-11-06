@@ -60,12 +60,14 @@ export async function getUntrackedFileCount(projectPath: string): Promise<number
   }
 }
 
-export async function loadLocalBranches(projectPath: string): Promise<string[]> {
-  const output = await runGit(projectPath, ["branch", "--format=%(refname:short)"]);
+export async function loadBranches(projectPath: string): Promise<string[]> {
+  const output = await runGit(projectPath, ["for-each-ref", "--format=%(refname:short)%00%(symref)", "refs/heads", "refs/remotes"]);
+  // 远端 HEAD 是符号引用，不作为重复的目标分支候选；只查询本机引用。
   return output.stdout
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+    .map((line) => line.split("\0"))
+    .filter(([name, symbolicTarget]) => name && !symbolicTarget)
+    .map(([name]) => name);
 }
 
 export async function openFileInVsCode({ projectPath, filePath }: OpenFileInVsCodeParams): Promise<void> {
@@ -82,8 +84,9 @@ export async function openFileInVsCode({ projectPath, filePath }: OpenFileInVsCo
   throw new Error("VS Code command failed");
 }
 
-export async function runReviewFileAction({ action, filePath, projectPath }: RunReviewFileActionParams): Promise<void> {
-  await runGit(projectPath, createFileActionArgs(action, filePath));
+export async function runReviewFileAction({ action, filePaths, projectPath }: RunReviewFileActionParams): Promise<void> {
+  if (filePaths.length === 0) return;
+  await runGit(projectPath, createFileActionArgs(action, filePaths));
 }
 
 export async function runReviewBatchFileAction({
@@ -112,12 +115,12 @@ function createDiffArgs(mode: CompareMode, targetBranch?: string): string[] {
   return [...argsByMode[mode], "--"];
 }
 
-function createFileActionArgs(action: RunReviewFileActionParams["action"], filePath: string): string[] {
+function createFileActionArgs(action: RunReviewFileActionParams["action"], filePaths: string[]): string[] {
   const argsByAction: Record<RunReviewFileActionParams["action"], string[]> = {
-    "restore-worktree": ["restore", "--worktree", "--", filePath],
-    "restore-file": ["restore", "--staged", "--worktree", "--", filePath],
-    stage: ["add", "--", filePath],
-    unstage: ["restore", "--staged", "--", filePath],
+    "restore-worktree": ["restore", "--worktree", "--", ...filePaths],
+    "restore-file": ["restore", "--staged", "--worktree", "--", ...filePaths],
+    stage: ["add", "--", ...filePaths],
+    unstage: ["restore", "--staged", "--", ...filePaths],
   };
 
   return argsByAction[action];

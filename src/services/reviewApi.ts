@@ -242,9 +242,9 @@ export function onProjectChanged(listener: (projectPath: string) => void) {
   }
 }
 
-export async function loadLocalBranches(projectPath: string): Promise<string[]> {
+export async function loadBranches(projectPath: string): Promise<string[]> {
   try {
-    const branches = await window.navo.review.loadLocalBranches(projectPath);
+    const branches = await window.navo.review.loadBranches(projectPath);
     return branches.length > 0 ? branches : ["main", "master"];
   } catch (error) {
     if (isElectronApiUnavailable(error)) {
@@ -258,13 +258,13 @@ export async function loadLocalBranches(projectPath: string): Promise<string[]> 
 
 export async function runReviewFileAction(
   projectPath: string,
-  filePath: string,
+  filePaths: string[],
   action: ReviewFileAction,
 ): Promise<void> {
   try {
     await window.navo.review.runFileAction({
       action,
-      filePath,
+      filePaths,
       projectPath,
     });
   } catch (error) {

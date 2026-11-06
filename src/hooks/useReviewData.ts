@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getReviewFilePaths } from "@/utils/reviewFilePaths";
 import type {
   CompareMode,
   CompareModeFileCounts,
-  DiffFile,
   ReviewBatchFileAction,
   ReviewFileAction,
   ReviewSession,
   ReviewSummary,
 } from "@/domain/types";
 import {
-  loadLocalBranches,
+  loadBranches,
   loadReviewDiff,
   loadUntrackedFileCount,
   runReviewBatchFileAction,
@@ -54,7 +54,7 @@ export function useReviewData({ selectedSession, targetBranch, initialCompareMod
   /** summary 所属对比方式；仅当与 compareMode 一致时对外展示。 */
   const [summaryCompareMode, setSummaryCompareMode] = useState<CompareMode | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [localBranches, setLocalBranches] = useState<string[]>(["main", "master"]);
+  const [branches, setBranches] = useState<string[]>(["main", "master"]);
   const [compareModeFileCounts, setCompareModeFileCounts] = useState<CompareModeFileCounts>({});
   const [untrackedFileCount, setUntrackedFileCount] = useState(0);
 
@@ -361,9 +361,9 @@ export function useReviewData({ selectedSession, targetBranch, initialCompareMod
       return;
     }
 
-    loadLocalBranches(selectedSessionProjectPath)
-      .then(setLocalBranches)
-      .catch(() => setLocalBranches(["main", "master"]));
+    loadBranches(selectedSessionProjectPath)
+      .then(setBranches)
+      .catch(() => setBranches(["main", "master"]));
   }, [selectedSessionId, selectedSessionProjectPath]);
 
   const toggleFileCollapsed = useCallback((fileId: string) => {
@@ -374,7 +374,7 @@ export function useReviewData({ selectedSession, targetBranch, initialCompareMod
     setCollapsedFileIds((current) => toggleAllFiles(current, reviewSummary));
   }, [reviewSummary]);
 
-  const runFileAction = useCallback((filePath: string, action: ReviewFileAction) => {
+  const runFileAction = useCallback((filePaths: string[], action: ReviewFileAction) => {
     const session = selectedSessionRef.current;
     if (!session) {
       return;
@@ -382,7 +382,7 @@ export function useReviewData({ selectedSession, targetBranch, initialCompareMod
 
     setReviewError(null);
 
-    runReviewFileAction(session.projectPath, filePath, action)
+    runReviewFileAction(session.projectPath, filePaths, action)
       .then(() => {
         const current = selectedSessionRef.current;
         if (!current) {
@@ -405,7 +405,7 @@ export function useReviewData({ selectedSession, targetBranch, initialCompareMod
 
       setReviewError(null);
 
-      runReviewBatchFileAction(session.projectPath, getActionFilePaths(reviewSummary.files), action)
+      runReviewBatchFileAction(session.projectPath, getReviewFilePaths(reviewSummary.files), action)
         .then(() => {
           const current = selectedSessionRef.current;
           if (!current) {
@@ -437,7 +437,7 @@ export function useReviewData({ selectedSession, targetBranch, initialCompareMod
     collapsedFileIds,
     compareMode,
     compareModeFileCounts,
-    localBranches,
+    branches,
     reviewError,
     reviewSummary: visibleSummary,
     scrollCacheKey,
@@ -471,10 +471,6 @@ function toggleAllFiles(current: Set<string>, summary: ReviewSummary | null) {
   const allFileIds = summary.files.map((file) => file.id);
   const allCollapsed = allFileIds.length > 0 && allFileIds.every((fileId) => current.has(fileId));
   return allCollapsed ? new Set<string>() : new Set(allFileIds);
-}
-
-function getActionFilePaths(files: DiffFile[]) {
-  return files.map((file) => file.newPath || file.oldPath || file.displayPath);
 }
 
 async function loadCompareModeFileCounts(session: ReviewSession, targetBranch: string): Promise<CompareModeFileCounts> {

@@ -87,6 +87,26 @@ test("初始会话达到容量上限时保留可诊断的错误码", async (cont
   assert.equal(entry.level, "ERROR");
 });
 
+test("笔记版本冲突及会话保护失败保留稳定错误码，不泄露附加数据", async (context) => {
+  const { load, logger, entries } = await fixture(context);
+  const { TaskNoteVersionConflict } = load("src/main-process/services/taskNoteRepository.ts");
+  const failures = [
+    ["task.note.update", new TaskNoteVersionConflict(3)],
+    ["session.start", new Error("SESSION_BUSY")],
+    ["session.start", new Error("SESSION_INITIALIZATION_REQUIRED")],
+    ["task.note.update", new Error("SESSION_CONTEXT_UNAVAILABLE")],
+    ["session.start", new Error("SESSION_CONTEXT_FILE_CHANGED")],
+    ["session.start", new Error("AGENT_SECURE_STORAGE")],
+  ];
+  for (const [operation, error] of failures) {
+    error.secret = "PRIVATE_NOTE_BODY";
+    await assert.rejects(logger.diagnosticOperation(operation, {}, async () => { throw error; }), { message: error.message });
+  }
+  const records = await entries();
+  assert.deepEqual(records.map((entry) => entry.error.code), failures.map(([, error]) => error.message));
+  assert.doesNotMatch(JSON.stringify(records), /PRIVATE_NOTE_BODY|currentVersion/);
+});
+
 test("可恢复保护为 WARN，取消为 INFO；同一异常堆栈只记录一次", async (context) => {
   const { logger, entries } = await fixture(context);
   const error = new Error("TASK_DELETE_CHANGED");

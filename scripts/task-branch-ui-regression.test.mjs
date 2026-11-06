@@ -29,7 +29,7 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           if(window.holdBranch===id)await new Promise(resolve=>window.releaseBranch=resolve);return snapshot;
         }
       },review:{watchProject:async()=>{window.watchCount++;},unwatchProject:async()=>{window.watchCount--;},onProjectChanged:callback=>{listeners.add(callback);return()=>listeners.delete(callback);},
-        loadLocalBranches:async()=>['main'],getUntrackedFileCount:async()=>2,getGitDiffSignature:async()=>'fixture',
+        loadBranches:async()=>['main'],getUntrackedFileCount:async()=>2,getGitDiffSignature:async()=>'fixture',
         getCommitStatus:async()=>({branchName:'feature',isDetached:false,hasUpstream:false,aheadCount:0,stagedFileCount:0,unstagedFileCount:0,stagedAdditions:0,stagedDeletions:0,unstagedAdditions:0,unstagedDeletions:0}),
         runGitDiff:async params=>{window.diffRequests.push(params);return {stdout:${JSON.stringify(patch)},stderr:'',signature:'fixture',file_snapshots:[]};}
       }};

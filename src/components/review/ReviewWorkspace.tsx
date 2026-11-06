@@ -46,8 +46,8 @@ interface ReviewWorkspaceProps {
   compareMode: CompareMode;
   /** 各对比方式的文件数量角标，只展示未暂存和已暂存的非零数量。 */
   compareModeFileCounts: CompareModeFileCounts;
-  /** 当前项目的本地分支列表，供分支对比选择器使用。 */
-  localBranches: string[];
+  /** 当前项目的本地及远端跟踪分支，供分支对比选择器使用。 */
+  branches: string[];
   /** Git 或解析失败信息，存在时优先展示错误状态。 */
   reviewError: string | null;
   /** 应用主题解析后的实际浅深色模式，用于驱动 Pierre themeType。 */
@@ -69,7 +69,7 @@ interface ReviewWorkspaceProps {
   /** 点击 diff 悬浮条批量操作按钮时执行当前 diff 文件集合的 Git 操作。 */
   onBatchFileAction: (action: ReviewBatchFileAction) => void;
   /** 点击文件头还原/暂存/取消暂存按钮时执行对应 Git 文件操作。 */
-  onFileAction: (filePath: string, action: ReviewFileAction) => void;
+  onFileAction: (filePaths: string[], action: ReviewFileAction) => void;
   /** 重新执行当前对比方式的 Git diff 加载。 */
   onRefresh: () => void;
   /** 文件树选择文件时更新选中项。 */
@@ -87,7 +87,7 @@ export function ReviewWorkspace({
   collapsedFileIds,
   compareMode,
   compareModeFileCounts,
-  localBranches,
+  branches,
   reviewError,
   resolvedTheme,
   scrollCacheKey,
@@ -151,7 +151,7 @@ export function ReviewWorkspace({
           compareModeFileCounts={compareModeFileCounts}
           isFileTreeVisible={isFileTreeVisible}
           isAllCollapsed={isAllCollapsed}
-          localBranches={localBranches}
+          branches={branches}
           session={session}
           settings={settings}
           summary={summary}
@@ -315,7 +315,7 @@ interface ReviewContentProps {
   /** 执行当前 diff 文件集合的批量 Git 操作。 */
   onBatchFileAction: (action: ReviewBatchFileAction) => void;
   /** 执行 diff 文件头上的文件级 Git 操作。 */
-  onFileAction: (filePath: string, action: ReviewFileAction) => void;
+  onFileAction: (filePaths: string[], action: ReviewFileAction) => void;
   /** 错误状态中点击刷新时重新加载 diff。 */
   onRefresh: () => void;
   /** 从 diff 右键菜单中更新本地展示设置。 */

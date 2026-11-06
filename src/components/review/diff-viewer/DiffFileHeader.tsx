@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import type { CompareMode, DiffFile, ReviewFileAction } from "@/domain/types";
+import { getReviewFilePaths } from "@/utils/reviewFilePaths";
 import classNames from "classnames";
 import { ChevronDown, Minus, Plus, Undo2 } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -13,7 +14,7 @@ interface DiffFileHeaderProps {
   /** 文件级 diff 摘要，用于路径和增删数量展示。 */
   file: DiffFile;
   /** 点击文件级操作按钮时执行 Git 文件操作。 */
-  onFileAction: (filePath: string, action: ReviewFileAction) => void;
+  onFileAction: (filePaths: string[], action: ReviewFileAction) => void;
   /** 点击文件头整行时切换折叠状态。 */
   onToggle: () => void;
 }
@@ -56,10 +57,10 @@ export function DiffFileHeader({ collapsed, compareMode, file, onFileAction, onT
 interface FileHeaderActionsProps {
   /** 仅未暂存和已暂存模式展示文件级 Git 操作。 */
   compareMode: CompareMode;
-  /** 当前文件信息，用于选择 Git 操作使用的新路径或旧路径。 */
+  /** 当前文件信息；重命名时 Git 操作同时包含新旧路径。 */
   file: DiffFile;
   /** 执行文件级 Git 操作。 */
-  onFileAction: (filePath: string, action: ReviewFileAction) => void;
+  onFileAction: (filePaths: string[], action: ReviewFileAction) => void;
 }
 
 function FileHeaderActions({ compareMode, file, onFileAction }: FileHeaderActionsProps) {
@@ -72,11 +73,11 @@ function FileHeaderActions({ compareMode, file, onFileAction }: FileHeaderAction
   const SecondaryIcon = compareMode === "staged" ? Minus : Plus;
   const restoreAction: ReviewFileAction = compareMode === "staged" ? "restore-file" : "restore-worktree";
   const secondaryAction: ReviewFileAction = compareMode === "staged" ? "unstage" : "stage";
-  const actionPath = file.newPath || file.oldPath || file.displayPath;
+  const actionPaths = getReviewFilePaths([file]);
 
   function handleFileAction(event: MouseEvent<HTMLButtonElement>, action: ReviewFileAction) {
     event.stopPropagation();
-    onFileAction(actionPath, action);
+    onFileAction(actionPaths, action);
   }
 
   return (

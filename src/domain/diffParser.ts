@@ -149,7 +149,8 @@ function toDiffFile(pierreFile: FileDiffMetadata, binaryFilePaths: Set<string>):
   const status = isBinary ? "binary" : getFileStatus(pierreFile.type);
 
   return {
-    id: normalizeFileId(displayPath),
+    // 完整路径同时用于文件定位、操作和评论关联，不能用字符替换生成有碰撞的 ID。
+    id: displayPath,
     oldPath: pierreFile.prevName ?? displayPath,
     newPath: displayPath,
     displayPath,
@@ -194,8 +195,4 @@ function getFileStatus(changeType: ChangeTypes): FileStatus {
     default:
       return "modified";
   }
-}
-
-function normalizeFileId(path: string) {
-  return path.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "");
 }
