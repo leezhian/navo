@@ -210,9 +210,9 @@ ReviewWorkspace
 
 前端终端使用会话级 Canvas 实例，React 只承载容器、状态和布局。WASM 随应用本地打包，不依赖 CDN 或用户安装的 Ghostty，也不读取本机 Ghostty 配置。FitAddon 根据字体度量计算尺寸；隐藏页面保留解析状态，重新展示复用原实例，渲染失败不终止任务服务拥有的 Agent。首次附着使用回放标记衔接实时输出，避免初始化期间的广播重复进入终端。
 
-使用 `pnpm install` 安装，以应用 `pnpm-workspace.yaml` 中固定的 ghostty-web 补丁。补丁仅作用于浏览器 ESM 包，修正动态 DPI、隐藏 Canvas 绘制及关闭后的 document 监听释放；应用适配器负责历史阅读位置和焦点。升级依赖前需重新验证补丁，不能直接删除。
+使用 `pnpm install` 安装，以应用 `pnpm-workspace.yaml` 中固定的 ghostty-web 补丁。补丁仅作用于浏览器 ESM 包，修正动态 DPI、隐藏 Canvas 绘制及关闭后的 document 监听释放；应用适配器负责历史阅读位置、焦点、输入法光标定位和滚轮协议。滚轮根据 CLI 请求的鼠标模式发送事件，避免全屏 CLI 将滚动误识别成方向键；普通 Shell 沿用历史滚动。升级依赖前需重新验证补丁和适配器，不能直接删除。
 
-`node --test scripts/ghostty-terminal-ui-regression.test.mjs scripts/terminal-session-regression.test.mjs scripts/task-terminal-pty-regression.test.mjs` 覆盖真实 WASM/Canvas、中文组合输入、复制、括号粘贴、缩放、重挂载、回放交接、进程隔离与释放；使用隔离样例，不启动真实 Agent 模型调用。
+`node --test scripts/ghostty-terminal-ui-regression.test.mjs scripts/terminal-session-regression.test.mjs scripts/task-terminal-pty-regression.test.mjs` 覆盖真实 WASM/Canvas、鼠标滚轮协议与触控板位移、Chromium 原生中文组合输入及光标定位、复制、括号粘贴、缩放、重挂载、回放交接、进程隔离与释放；使用隔离样例，不启动真实 Agent 模型调用。
 
 任务工作台使用 ghostty-web 0.4.0 与 node-pty 展示原生 CLI 和普通 Shell。任务服务负责进程创建、停止及 SQLite 会话记录，视图仅附着已有 PTY；关闭页面不结束进程，关闭普通终端会结束进程树。渲染重挂载保留缓冲，输出只在内存中保存有界重放内容，不记录到诊断日志。
 

@@ -6,8 +6,10 @@ import path from 'node:path';
 import os from 'node:os';
 import electron from 'electron';
 import { createServer } from 'vite';
+import { assertTerminalWheel } from './helpers/assert-terminal-wheel.mjs';
+import { assertTerminalIme } from './helpers/assert-terminal-ime.mjs';
 
-async function assertions() {
+async function assertions(checkWheel) {
   const pause = () => new Promise(resolve => setTimeout(resolve, 35));
   const wait = async (check, label) => { for (let i=0;i<150;i++) { if (check()) return; await pause(); } throw Error(label); };
   const failures=[];
@@ -49,6 +51,7 @@ async function assertions() {
   document.addEventListener=(type,listener,...rest)=>{if(type==='mouseup')mouseup.add(listener);return add(type,listener,...rest);};
   document.removeEventListener=(type,listener,...rest)=>{if(type==='mouseup')mouseup.delete(listener);return remove(type,listener,...rest);};
   const surface=await window.newSurface();document.querySelector('#direct').append(surface.element);surface.fit();
+  checkWheel(surface, check);
   surface.write(Array.from({length:200},(_,i)=>'line-'+i+'\r\n').join(''));surface.terminal.scrollLines(-25);const before=surface.terminal.getViewportY();
   surface.write('new output\r\n');check(surface.terminal.getViewportY()>=before,'Output snapped a scrolled viewport to bottom');
   const nativeDpr=window.devicePixelRatio;Object.defineProperty(window,'devicePixelRatio',{configurable:true,get:()=>3});
@@ -65,7 +68,7 @@ async function assertions() {
   return preview;
 }
 
-test('ghostty-web: real Canvas, VT, IME, paste, resize, remount and cleanup', {timeout:30000}, async()=>{
+test('ghostty-web: real Canvas, VT, wheel protocols, IME, paste, resize, remount and cleanup', {timeout:30000}, async()=>{
   const directory=await mkdtemp(path.join(os.tmpdir(),'navo-ghostty-ui-'));
   const {default:tailwindcss}=await import('@tailwindcss/vite');
   const server=await createServer({configFile:false,appType:'custom',root:process.cwd(),cacheDir:path.join(directory,'cache'),logLevel:'error',plugins:[tailwindcss()],esbuild:{jsx:'automatic'},resolve:{alias:{'@':path.resolve('src')}},server:{host:'127.0.0.1',port:0}});
@@ -85,7 +88,7 @@ test('ghostty-web: real Canvas, VT, IME, paste, resize, remount and cleanup', {t
   let child;try{
     await server.listen();const runner=path.join(directory,'runner.cjs');await writeFile(runner,`const{app,BrowserWindow}=require('electron');app.setPath('userData',${JSON.stringify(path.join(directory,'data'))});app.commandLine.appendSwitch('force-device-scale-factor','2');app.whenReady().then(async()=>{
       app.dock?.hide();const win=new BrowserWindow({show:false,width:1000,height:800,webPreferences:{backgroundThrottling:false}});win.webContents.on('console-message',e=>{if(e.level==='error')console.error(e.message);});
-      try{await win.loadURL(${JSON.stringify('http://127.0.0.1:'+server.httpServer.address().port+'/__terminal')});const preview=await win.webContents.executeJavaScript(${JSON.stringify(`(${assertions.toString()})()`)});if(process.env.NAVO_TERMINAL_PREVIEW_PATH)require('fs').writeFileSync(process.env.NAVO_TERMINAL_PREVIEW_PATH,Buffer.from(preview.split(',')[1],'base64'));console.log('GHOSTTY_UI_OK');app.exit(0);}catch(e){console.error(e);app.exit(1);}});`);
+      try{await win.loadURL(${JSON.stringify('http://127.0.0.1:'+server.httpServer.address().port+'/__terminal')});await (${assertTerminalIme.toString()})(win.webContents);const preview=await win.webContents.executeJavaScript(${JSON.stringify(`(${assertions.toString()})(${assertTerminalWheel.toString()})`)});if(process.env.NAVO_TERMINAL_PREVIEW_PATH)require('fs').writeFileSync(process.env.NAVO_TERMINAL_PREVIEW_PATH,Buffer.from(preview.split(',')[1],'base64'));console.log('GHOSTTY_UI_OK');app.exit(0);}catch(e){console.error(e);app.exit(1);}});`);
     let output='';child=spawn(electron,[runner],{env:{...process.env,ELECTRON_RUN_AS_NODE:''},stdio:['ignore','pipe','pipe']});child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
     const code=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('exit',resolve);});assert.equal(code,0,output);assert.match(output,/GHOSTTY_UI_OK/);
   }finally{child?.kill('SIGKILL');await server.close();await rm(directory,{recursive:true,force:true});}
