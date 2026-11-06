@@ -1,0 +1,49 @@
+{
+  "inspector": "侧栏详情",
+  "all": "全部",
+  "search": "搜索消息、命令或文件",
+  "loading": "正在读取…",
+  "empty": "没有匹配的轨迹事件",
+  "error": "读取失败，请重试",
+  "retry": "重试",
+  "previous": "上一页",
+  "next": "下一页",
+  "content": "内容",
+  "raw": "原始 JSON",
+  "result": "执行结果",
+  "input": "输入",
+  "model": "模型",
+  "tools": "工具",
+  "missing": "未记录",
+  "injected": "自动注入",
+  "clipped": "内容较长，仅展示部分",
+  "timelineClipped": "时间线仅展示前 1000 条带时间事件",
+  "timelineMissing": "原始日志未提供时间信息",
+  "following": "跟随新事件",
+  "requestUnknown": "日志未提供可靠的模型请求边界",
+  "kinds": {
+    "user": "用户",
+    "assistant": "助手",
+    "reasoning": "推理",
+    "context": "上下文",
+    "system": "系统",
+    "tool": "工具",
+    "error": "错误",
+    "compaction": "压缩",
+    "unknown": "未知"
+  },
+  "group": "轮 {{round}}",
+  "requestGroup": "轮 {{round}} · 模型请求 {{request}}",
+  "counts": {
+    "turns_other": "{{count}} 轮对话",
+    "requests_other": "{{count}} 次模型请求",
+    "tools_other": "{{count}} 个工具",
+    "events_other": "{{count}} 条事件",
+    "errors_other": "{{count}} 次错误"
+  },
+  "unknown": {
+    "turns": "— 轮对话",
+    "requests": "— 次模型请求",
+    "tools": "— 个工具"
+  }
+}

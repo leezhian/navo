@@ -1,6 +1,7 @@
+import { LabsSettingsPage } from "./LabsSettingsPage";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { Bot, Folder, Info, Palette, Plug, Search, Settings } from "lucide-react";
+import { Bot, Folder, Info, Palette, Plug, Search, Settings, FlaskConical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,13 +16,14 @@ import { SettingsPageHeader } from "./settingsPrimitives";
 import type { AppSettings, ResolvedTheme } from "@/domain/types";
 import "./settings.css";
 
-type SettingsPage = "general" | "appearance" | "agents" | "resources" | "integrations" | "about";
+type SettingsPage = "general" | "appearance" | "agents" | "resources" | "integrations" | "labs" | "about";
 const settingsNavigation = [
   { id: "general" as const, title: "settings:pages.general" as const, icon: Settings },
   { id: "appearance" as const, title: "settings:pages.appearance" as const, icon: Palette },
   { id: "agents" as const, title: "agents:title" as const, icon: Bot },
   { id: "resources" as const, title: "settings:pages.resources" as const, icon: Folder },
   { id: "integrations" as const, title: "settings:pages.integrations" as const, icon: Plug },
+  { id: "labs" as const, title: "settings:pages.labs" as const, icon: FlaskConical },
   { id: "about" as const, title: "settings:pages.about" as const, icon: Info },
 ];
 
@@ -72,6 +74,7 @@ export function SettingsPanel({ resolvedTheme, settings, updateSettings }: Setti
             <AppearanceThemeSettings settings={settings} updateSettings={updateSettings} />
             <DiffAppearanceSettings resolvedTheme={resolvedTheme} settings={settings} updateSettings={updateSettings} />
           </>}
+          {activePage === "labs" && <LabsSettingsPage />}
           {activePage === "about" && <AboutSettingsPage />}
         </div>
       </section>

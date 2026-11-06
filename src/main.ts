@@ -1,3 +1,4 @@
+import { registerExtensionScheme, registerExtensionHandlers, shutdownExtensions } from "./main-process/ipc/extensionHandlers";
 import { app, BrowserWindow, shell } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -35,6 +36,7 @@ const appIconPath = app.isPackaged
   ? path.join(process.resourcesPath, "icon.png")
   : path.join(app.getAppPath(), "assets/icons/icon.png");
 
+registerExtensionScheme();
 bindProcessDiagnostics();
 startApplication();
 
@@ -97,6 +99,7 @@ function startApplication() {
     registerSettingsHandlers();
     registerAgentHandlers();
     registerTaskHandlers();
+    await registerExtensionHandlers();
     void writeDiagnosticEvent("app.started", { version: app.getVersion(), platform: process.platform });
     registerAppHandlers();
     registerReviewHandlers();
@@ -120,10 +123,13 @@ function startApplication() {
     stopAllProjectWatchers();
     // 等待设置与日志队列完成再退出；磁盘异常不阻塞无限等待。
     const finishShutdown = async () => {
+      // 插件退出失败或超时不能阻断原有 PTY、任务和设置清理。
+      const stoppedExtensions = shutdownExtensions();
+      void stoppedExtensions.catch(() => undefined);
       await shutdownTaskSessions();
       destroyAllTerminals();
       await shutdownTaskSessions();
-      await Promise.allSettled([stoppedResources, flushSettings(), flushTasks(), flushAgentSettings()]);
+      await Promise.allSettled([stoppedExtensions, stoppedResources, flushSettings(), flushTasks(), flushAgentSettings()]);
       await writeDiagnosticEvent("app.stopped");
       await flushDiagnosticLog();
     };

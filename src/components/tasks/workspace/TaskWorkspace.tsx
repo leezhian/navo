@@ -1,3 +1,4 @@
+import { useExtensions } from "@/hooks/useExtensions";
 import { useEffect, useRef, useState } from "react";
 import { useVisibleSessionResume } from "@/hooks/useVisibleSessionResume";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SquareArrowOutUpRight, Terminal, X } from "lucide-react";
@@ -90,8 +91,16 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const visibleNote = visibleRight && rightContent.kind === "note";
   const showUpper = showAgentPane || (visibleRight && !rightOverlay);
   const terminalFillsSpace = !showUpper;
+  const extension = useExtensions();
+  const traceAvailable = Boolean(extension.status?.enabled && extension.status.compatible && ["claude", "codex"].includes(active?.agent?.agentId ?? ""));
+  const [sessionView, setSessionView] = useState<{ id?: string; trace: boolean; suppressResume: boolean }>({ trace: false, suppressResume: false });
+  const traceSelected = sessionView.id === active?.id && sessionView.trace && traceAvailable;
+  const resumeSuppressed = sessionView.id === active?.id && (sessionView.trace || sessionView.suppressResume);
+  useEffect(() => {
+    if (!traceAvailable) setSessionView(current => current.trace ? { ...current, trace: false, suppressResume: true } : current);
+  }, [traceAvailable]);
   const agentPaneVisible = showAgentPane && !(narrow && contextOpen) && !(visibleRight && rightOverlay);
-  useVisibleSessionResume(task, active, agentPaneVisible, rootRef);
+  useVisibleSessionResume(task, active, agentPaneVisible && !resumeSuppressed, rootRef);
 
   useEffect(() => {
     const element = rootRef.current;
@@ -218,6 +227,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
       <div className="task-workbench-content" ref={contentRef}>
         {showUpper && <div className="task-workbench-upper">
         {showAgentPane && <div className="task-agent-container"><AgentSessionPane task={task} session={active} newSessionControl={newSessionControl}
+          traceAvailable={traceAvailable} traceSelected={traceSelected} visible={agentPaneVisible} onViewChange={trace => setSessionView({ id: active?.id, trace, suppressResume: false })}
           emptySessionControl={<NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} withLabel />}
           onClosePane={() => { invalidateSelection("agent"); setAgentPaneOpen(false); }} /></div>}
         {visibleRight && !rightOverlay && <>

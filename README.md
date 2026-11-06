@@ -10,6 +10,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - [docs/i18n.md](docs/i18n.md)：语义翻译 key、语言资源、类型约束及新增语言流程。
 - [docs/diagnostics.md](docs/diagnostics.md)：诊断日志入口、字段白名单、兼容、限流与异常上报。
 - [docs/backlog.md](docs/backlog.md)：未实现能力、已有基础及当前非目标的核对清单。
+- [docs/session-trace-labs.md](docs/session-trace-labs.md)：实验室与可安装会话轨迹扩展的架构方案；页面规则见实验室与任务工作台 PRD。
 
 ## 功能概览
 
@@ -22,7 +23,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - 点击未打开标签的任务或 Issue 展开独立右侧详情，通过 8px 分隔条拖动调整宽度；任务侧栏可提升为标签页，已有标签的任务点击后直接激活对应页面。
 - 顶部提供模块历史后退与前进及真实任务标签，支持去重、切换、关闭、关闭其他和横向拖拽排序，标题与内容随任务数据同步；标签仅保留在当前窗口。左侧底部为设置，不再提供旧会话列表。
 - 任务标签支持非嵌套的双页组合、选页、左右/上下排列、拖动调整比例、反转和取消拆分；独立标签可与激活组合的任意一侧互换，被换出的页面回到其原独立位置。组合整体排序，关闭一侧后另一侧恢复独立显示。
-- 设置提供常规、外观、Agents、仓库与文件夹、集成和关于，保留主题与 diff 预览；关于的版本与更新合为一行。
+- 设置提供常规、外观、Agents、仓库与文件夹、集成、实验室和关于，保留主题与 diff 预览；关于的版本与更新合为一行。实验室支持独立安装、启用、关闭和卸载会话轨迹，默认未安装、未启用。
 - 创建任务底栏的 Agent 入口位于创建按钮左侧，两者独立；图标和配置回显整体可点击，通过锚定浮层选择模型、模式及分档思考滑条，选项保留 CLI 原始文案。已启用的 CLI 仅在明确未安装或未登录时排除，未知和检测失败状态仍可尝试查询。Claude 使用只读初始化握手和本机帮助，Codex 使用本地 app-server 的 `model/list`、`collaborationMode/list`；Grok 使用 `agent --no-leader stdio` 初始化结果和本机帮助，Antigravity 使用 `models` 与 `--help`，不填充预设模型。配置浮层不展示查询失败、旧接口或要求重启等错误文案，内部校验仍阻止无效配置提交。配置随任务保存，保存成功后独立启动首个原生 CLI 会话。开发时新增 IPC 后需完整重启主进程。
 - Agent 设置管理本机 Claude Code、Codex、Grok Build、Antigravity CLI：安装/版本检测、可验证的登录状态、默认选择、启用及自定义可执行文件路径。首次检测保持卡片显示，重复扫描保留已有内容；高级设置仅编辑路径。安装/登录命令经用户确认后在现有 PTY 终端执行，更新按队列进行；不支持富聊天、多账号或全局 hooks/MCP 注入。
 - 全局英文/简体中文切换立即生效，首次默认英文；设置由主进程 SQLite 持久化，Zustand 仅作为渲染缓存。
@@ -284,3 +285,38 @@ src/components/ui/icon-tooltip.tsx
 - [Antigravity CLI](https://antigravity.google/docs/cli/reference)：`agy --conversation <id>`。
 
 Codex/Antigravity 的新会话带唯一关联标识，只读核对本机原生元数据/用户输入与工作目录后绑定真实 ID；不使用 `--last`、`--continue`，不根据最近时间选会话。原生存储格式不支持或旧会话没有关联标识时不伪造恢复，仍可重新启动新对话。恢复不重发原任务，Antigravity 当前无法在恢复参数中安全重新交付动态文件约定时标为快照模式。
+
+## 实验室与会话轨迹扩展
+
+会话轨迹的 UI 和解析器位于 `extensions/session-trace/`，使用独立构建入口。主应用仅提供实验室管理、受限消息桥和辅助进程宿主；Forge 的 Vite 打包规则仅包含主应用构建产物，不包含扩展源码或 `extension-dist/`。
+
+```bash
+npm run build:session-trace                 # 构建并核对宿主固定摘要
+npm run build:session-trace -- --update-catalog # 修改插件后审核并更新宿主目录摘要
+npm run test:session-trace                  # 隔离数据的安装、解析和 Electron 集成验证
+npx tsc -p extensions/session-trace/tsconfig.json
+```
+
+独立产物为 `extension-dist/session-trace-<版本>.navo-extension`，包含清单和 UTF-8 文件，不需要用户安装 Node 或执行 npm。宿主保留首版固定摘要作为安装回退；独立更新通过内置 Ed25519 公钥验证远程清单，清单包含插件版本、SHA-256、大小、接口版本、兼容宿主主版本和固定官方下载地址。已发布版本不可替换内容；以后发布插件无需改宿主摘要或重新发版 Navo。
+
+插件包发布到 `leezhian/navo` 对应的 `session-trace-v<版本>` Release；签名清单作为 `catalog.json` 上传到固定的 `session-trace-catalog` Release。清单地址为 `https://github.com/leezhian/navo/releases/download/session-trace-catalog/catalog.json`。先上传新包，再更新清单。清单尚未发布时，检查更新会显示发布源不可用；首版仍可从经过同等校验的本地包安装。构建与签名脚本均不会自动发布。
+
+```bash
+# 初次配置公钥时使用；已有密钥与公钥时不要重复生成
+npm run sign:session-trace-catalog -- --init-key
+# 首次生成清单：先构建基线包，再签名
+npm run build:session-trace
+npm run sign:session-trace-catalog -- --release extension-dist/session-trace-0.1.0.release.json
+# 后续示例：递增版本，保留上一份已发布签名清单中的版本
+npm run build:session-trace -- --version=0.2.0
+npm run sign:session-trace-catalog -- --release extension-dist/session-trace-0.2.0.release.json --previous /path/to/previous-catalog.json
+```
+
+签名私钥默认位于 `~/.config/navo/release-keys/session-trace-ed25519.pem`，权限为 `0600`，需要由发布者备份。仓库仅提交 `sessionTraceTrust.json` 中的公钥，不包含私钥；CI 或其他发布机器用 `--key /secure/path/key.pem` 指定同一密钥。更换公钥需要重新发布 Navo；普通插件版本升级不需要。签名脚本会检查私钥匹配公钥，并拒绝覆盖上一份清单中同版本的不同内容。
+
+管理记录位于 `app.db` 的 `extensions` 表，数据库 schema v14；插件位于 `userData/extensions/<development|production>/session-trace/`，包含 `installed`、临时 `staging`、更新备份 `backup`、已验证清单缓存 `updates.json` 和解析 `cache`。首装不自动启用。已安装插件在启动约 30 秒后、此后每 4 小时检查版本元数据，未安装时跳过；检查失败不替换已有插件。更新保留旧目录直到数据库提交，失败或崩溃回退，成功保留原启用状态。安装目录内保存原始签名清单，离线重启也重新验签。解析缓存按插件版本隔离，可从原生日志重建。不上传任何用户会话文件。
+
+
+轨迹使用精确原生 ID 与工作目录定位 Claude Code、Codex 的 JSONL。Codex 优先按本地数据库记录定位，旧格式回退限制为创建日期附近的已知目录；不支持 `.zst` 压缩归档。解析器在 Electron utility process 中按块读取，以 SQLite 建立可重建索引；每秒检查可见会话的增量，不使用全局 hooks。尾行不完整时保留，文件截断或替换后重新验证身份并重建。单条记录上限 8 MiB，单会话索引上限约 128 MiB；闲置缓存按最近使用情况保留最多 8 份、总量约 256 MiB，正在使用的索引不被淘汰。
+
+插件页面通过 `navo-extension://session-trace/` 加载在隔离 iframe 中，没有 Node 或完整 `window.navo`，只能查询绑定当前窗口的会话租约。默认行内详情，可切换侧栏；列表分页与虚拟化，详情和原始记录按需读取。测试使用隔离夹具，不启动真实 Agent，也不读取用户日志。

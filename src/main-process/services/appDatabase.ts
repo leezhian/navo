@@ -7,7 +7,7 @@ import { addTaskActivityTimestamps } from "./migrations/addTaskActivityTimestamp
 import { addTaskContext } from "./migrations/addTaskContext";
 import { addTaskNoteMetadata } from "./migrations/addTaskNoteMetadata";
 
-export const APP_SCHEMA_VERSION = 13;
+export const APP_SCHEMA_VERSION = 14;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -26,6 +26,7 @@ export async function openAppDatabase(filePath: string) {
         try {
           database.exec(`
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS extensions (namespace TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(namespace,id));
             CREATE TABLE IF NOT EXISTS agent_configurations (id TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS agent_preferences (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS agent_capability_cache (

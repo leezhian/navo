@@ -12,7 +12,10 @@
     "publish": "electron-forge publish",
     "build": "electron-forge package",
     "lint": "eslint --ext .ts,.tsx .",
-    "test:i18n": "node --test scripts/i18n-regression.test.mjs"
+    "test:i18n": "node --test scripts/i18n-regression.test.mjs",
+    "build:session-trace": "node scripts/build-session-trace.mjs",
+    "test:session-trace": "node --test scripts/session-trace-regression.test.mjs scripts/extensions-regression.test.mjs scripts/session-trace-ui-regression.test.mjs scripts/session-trace-i18n-regression.test.mjs scripts/extension-updates-regression.test.mjs",
+    "sign:session-trace-catalog": "node scripts/sign-session-trace-catalog.mjs"
   },
   "keywords": [],
   "author": {

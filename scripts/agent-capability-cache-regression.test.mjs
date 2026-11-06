@@ -46,7 +46,7 @@ test("SQLite 升级保留配置；缓存跨重启，读快照和创建校验不�
   }
   assert.equal(runtime.detections, 1); assert.equal(runtime.probes, 1);
   const database = new DatabaseSync(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 13);
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 14);
   const data = database.prepare("SELECT data FROM agent_capability_cache").get().data;
   assert.ok(!data.includes(runtime.identity));
   assert.ok(!database.prepare("SELECT data FROM agent_capability_state").get().data.includes(runtime.identity));
@@ -62,7 +62,7 @@ test("v7 数据库新增缓存表，不改动已有设置和任务 Agent 配置"
   database.close();
   assert.equal((await service.capabilityCache.snapshot()).settings.defaultAgent, "claude");
   const upgraded = new DatabaseSync(filename);
-  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 13);
+  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 14);
   assert.equal(upgraded.prepare("SELECT value FROM settings WHERE key='theme'").get().value, '"dark"');
   assert.equal(upgraded.prepare("SELECT count(*) AS count FROM agent_capability_cache").get().count, 0);
   upgraded.close();

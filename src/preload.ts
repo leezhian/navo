@@ -27,6 +27,28 @@ import type {
 } from "./shared/terminalTypes";
 
 const api: NavoApi = {
+  extensions: {
+    checkForUpdates: () => ipcRenderer.invoke(ipcChannels.extensionsCheckUpdates),
+    update: () => ipcRenderer.invoke(ipcChannels.extensionsUpdate),
+    status: () => ipcRenderer.invoke(ipcChannels.extensionsStatus),
+    install: (source) => ipcRenderer.invoke(ipcChannels.extensionsInstall, source),
+    cancelInstall: () => ipcRenderer.invoke(ipcChannels.extensionsCancel),
+    setEnabled: (enabled) => ipcRenderer.invoke(ipcChannels.extensionsEnable, enabled),
+    uninstall: () => ipcRenderer.invoke(ipcChannels.extensionsUninstall),
+    openTrace: (id) => ipcRenderer.invoke(ipcChannels.traceOpen, id),
+    queryTrace: (id, query) => ipcRenderer.invoke(ipcChannels.traceQuery, id, query),
+    closeTrace: (id) => ipcRenderer.invoke(ipcChannels.traceClose, id),
+    onChanged: (listener) => {
+      const handler = (_event: IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
+      ipcRenderer.on(ipcChannels.extensionsChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.extensionsChanged, handler);
+    },
+    onTraceChanged: (listener) => {
+      const handler = (_event: IpcRendererEvent, update: Parameters<typeof listener>[0]) => listener(update);
+      ipcRenderer.on(ipcChannels.traceChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.traceChanged, handler);
+    },
+  },
   taskSessions: {
     list: () => ipcRenderer.invoke(ipcChannels.taskSessionsList),
     start: (input) => ipcRenderer.invoke(ipcChannels.taskSessionsStart, input),
