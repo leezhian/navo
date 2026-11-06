@@ -10,6 +10,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），使用 Electron F
 - [docs/i18n.md](docs/i18n.md)：语义翻译 key、语言资源、类型约束及新增语言流程。
 - [docs/diagnostics.md](docs/diagnostics.md)：诊断日志入口、字段白名单、兼容、限流与异常上报。
 - [docs/backlog.md](docs/backlog.md)：未实现能力、已有基础及当前非目标的核对清单。
+- [docs/session-trace-labs.md](docs/session-trace-labs.md)：实验室与可安装会话轨迹扩展的接入方案（待实现）。
 
 ## 功能概览
 
