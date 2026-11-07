@@ -140,7 +140,14 @@
     "openPage": "打开任务页面",
     "view": "查看任务",
     "viewLabel": "查看任务：{{title}}",
-    "openInTab": "以标签页打开"
+    "openInTab": "以标签页打开",
+    "taskMenu": "任务操作",
+    "changeStatus": "更改状态",
+    "markTodo": "改为 TODO",
+    "markDone": "改为 DONE",
+    "closeAllAgents": "关闭全部 Agent",
+    "refreshWorkspace": "刷新工作区状态",
+    "refreshWorkspaceFailed": "部分工作目录刷新失败"
   },
   "dialogs": {
     "renameTitle": "重命名任务",

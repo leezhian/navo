@@ -147,7 +147,14 @@
     "openPage": "Open task page",
     "view": "View task",
     "viewLabel": "View task: {{title}}",
-    "openInTab": "Open in tab"
+    "openInTab": "Open in tab",
+    "taskMenu": "Task actions",
+    "changeStatus": "Change status",
+    "markTodo": "Mark as TODO",
+    "markDone": "Mark as DONE",
+    "closeAllAgents": "Close all Agents",
+    "refreshWorkspace": "Refresh workspace status",
+    "refreshWorkspaceFailed": "Some working directories failed to refresh"
   },
   "dialogs": {
     "renameTitle": "Rename task",

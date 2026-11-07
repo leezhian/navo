@@ -82,6 +82,12 @@
     "shortcutsResizeDescription": "分隔条聚焦时使用",
     "shortcutsSelect": "选择控件选项",
     "shortcutsSelectDescription": "控件聚焦时使用",
+    "shortcutsRenameTask": "重命名当前任务",
+    "shortcutsRenameTaskDescription": "任务工作台内，且焦点不在输入框时",
+    "shortcutsToggleContext": "显隐任务上下文",
+    "shortcutsToggleTerminal": "显隐终端",
+    "shortcutsMaximizeTerminal": "最大化终端",
+    "shortcutsMaximizeTerminalDescription": "若已收起则先展开再最大化",
     "shortcutsDevTools": "开发者工具（仅开发模式）"
   },
   "logs": {

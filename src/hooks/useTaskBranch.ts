@@ -35,9 +35,15 @@ export function useTaskBranch(taskId: string, resource: TaskResource) {
     const watch = watchProject(workingPath).then(() => true, () => false);
     const unsubscribe = onProjectChanged((changed) => { if (changed.replace(/\/+$/, "") === workingPath.replace(/\/+$/, "")) schedule(); });
     window.addEventListener("focus", schedule);
+    function onWorkspaceRefresh(event: Event) {
+      const detail = (event as CustomEvent<{ taskId?: string }>).detail;
+      if (detail?.taskId === taskId) schedule();
+    }
+    window.addEventListener("navo:task-workspace-refresh", onWorkspaceRefresh);
     const poll = setInterval(schedule, 10000);
     return () => {
       disposed = true; clearTimeout(timer); clearInterval(poll); unsubscribe(); window.removeEventListener("focus", schedule);
+      window.removeEventListener("navo:task-workspace-refresh", onWorkspaceRefresh);
       void watch.then((owned) => { if (owned) return unwatchProject(workingPath); }).catch(() => undefined);
     };
   }, [taskId, resourceId, workingPath, sourceBranch]);

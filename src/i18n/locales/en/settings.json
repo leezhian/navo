@@ -84,6 +84,12 @@
     "shortcutsResizeDescription": "When the separator is focused",
     "shortcutsSelect": "Select control options",
     "shortcutsSelectDescription": "When the control is focused",
+    "shortcutsRenameTask": "Rename current task",
+    "shortcutsRenameTaskDescription": "In the task workbench, when focus is not in an input",
+    "shortcutsToggleContext": "Show or hide task context",
+    "shortcutsToggleTerminal": "Show or hide terminal",
+    "shortcutsMaximizeTerminal": "Maximize terminal",
+    "shortcutsMaximizeTerminalDescription": "Expands first if the terminal is collapsed",
     "shortcutsDevTools": "Developer tools (development only)"
   },
   "logs": {

@@ -1,5 +1,5 @@
 import { useExtensions } from "@/hooks/useExtensions";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useVisibleSessionResume } from "@/hooks/useVisibleSessionResume";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SquareArrowOutUpRight, Terminal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,8 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ReviewDialog } from "@/components/review/ReviewDialog";
 import { useLocalSettings } from "@/hooks/useLocalSettings";
+import { useTaskWorkspaceLayout } from "@/hooks/useTaskWorkspaceLayout";
+import { isApplePlatform } from "@/utils/platform";
 import { TaskResourceRail } from "./TaskResourceRail";
 import { TaskContextPanel } from "./TaskContextPanel";
 import { TaskPanelSheet } from "./TaskPanelSheet";
@@ -32,6 +34,8 @@ import { WorkspaceSeparator } from "./WorkspaceSeparator";
 import { TaskBranchPane } from "./TaskBranchPane";
 import { TaskNotePane } from "./TaskNotePane";
 import { TaskNoteDialogs } from "./TaskNoteDialogs";
+import { TaskTitleEditor } from "./TaskTitleEditor";
+import { TaskWorkbenchMenu } from "./TaskWorkbenchMenu";
 import { useTaskNoteEditor } from "@/hooks/useTaskNoteEditor";
 import "./task-workspace.css";
 
@@ -59,15 +63,31 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const [selectedTerminal, setSelectedTerminal] = useState<string>();
   const active = agents.find((session) => session.id === selectedAgent) ?? agents[agents.length - 1];
   const activeTerminal = terminals.find((session) => session.id === selectedTerminal) ?? terminals[0];
-  const [contextOpen, setContextOpen] = useState(true);
-  const [terminalOpen, setTerminalOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [railWidth, setRailWidth] = useState(216);
-  const [terminalHeight, setTerminalHeight] = useState(192);
+  const { layout, update: updateLayout, hasSaved } = useTaskWorkspaceLayout(task.id);
+  const { railWidth, rightWidth, terminalHeight, contextOpen, rightOpen, terminalOpen, expanded } = layout;
+  const setContextOpen = useCallback((value: boolean | ((current: boolean) => boolean)) => {
+    updateLayout((current) => ({ ...current, contextOpen: typeof value === "function" ? value(current.contextOpen) : value }));
+  }, [updateLayout]);
+  const setTerminalOpen = useCallback((value: boolean | ((current: boolean) => boolean)) => {
+    updateLayout((current) => ({ ...current, terminalOpen: typeof value === "function" ? value(current.terminalOpen) : value }));
+  }, [updateLayout]);
+  const setExpanded = useCallback((value: boolean | ((current: boolean) => boolean)) => {
+    updateLayout((current) => ({ ...current, expanded: typeof value === "function" ? value(current.expanded) : value }));
+  }, [updateLayout]);
+  const setRightOpen = useCallback((value: boolean | ((current: boolean) => boolean)) => {
+    updateLayout((current) => ({ ...current, rightOpen: typeof value === "function" ? value(current.rightOpen) : value }));
+  }, [updateLayout]);
+  const setRailWidth = useCallback((value: number | ((current: number) => number)) => {
+    updateLayout((current) => ({ ...current, railWidth: typeof value === "function" ? value(current.railWidth) : value }));
+  }, [updateLayout]);
+  const setRightWidth = useCallback((value: number | ((current: number) => number)) => {
+    updateLayout((current) => ({ ...current, rightWidth: typeof value === "function" ? value(current.rightWidth) : value }));
+  }, [updateLayout]);
+  const setTerminalHeight = useCallback((value: number | ((current: number) => number)) => {
+    updateLayout((current) => ({ ...current, terminalHeight: typeof value === "function" ? value(current.terminalHeight) : value }));
+  }, [updateLayout]);
   const [narrow, setNarrow] = useState(false);
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
-  const [rightOpen, setRightOpen] = useState<boolean>();
-  const [rightWidth, setRightWidth] = useState(326);
   const [rightContent, setRightContent] = useState<{ kind: "branch" } | { kind: "note"; id: string }>({ kind: "branch" });
   const [selectedResource, setSelectedResource] = useState<string>();
   const repositories = task.resources?.filter((resource) => resource.mode !== "folder") ?? [];
@@ -76,17 +96,19 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const [preview, setPreview] = useState<{ title: string; body: string } | null>(null);
   const [review, setReview] = useState<{ session: ReviewSession; mode: CompareMode; targetBranch: string; filePath?: string } | null>(null);
   const [addCategory, setAddCategory] = useState<TaskResourceCategory | null>(null);
+  const [renameRequest, setRenameRequest] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const contextTriggerRef = useRef<HTMLButtonElement>(null);
   const branchTriggerRef = useRef<HTMLButtonElement>(null);
   const noteTriggerRef = useRef<HTMLButtonElement>(null);
   const [layoutContainer, setLayoutContainer] = useState<HTMLDivElement | null>(null);
+  const defaultedNarrow = useRef(hasSaved);
   const visibleTerminal = terminalOpen && terminals.length > 0;
   const showAgentPane = agentPaneOpen && (!expanded || !visibleTerminal);
   const contentWidth = workspaceWidth - (contextOpen && !narrow ? railWidth + 8 : 0);
   const rightOverlay = contentWidth < 640 && (agentPaneOpen || rightContent.kind === "note");
-  const visibleRight = Boolean((rightContent.kind === "branch" ? branchResource : noteEditor.note) && (rightOpen ?? contentWidth >= 640) && (!expanded || !visibleTerminal));
+  const visibleRight = Boolean((rightContent.kind === "branch" ? branchResource : noteEditor.note) && rightOpen && (!expanded || !visibleTerminal));
   const visibleBranch = visibleRight && rightContent.kind === "branch";
   const visibleNote = visibleRight && rightContent.kind === "note";
   const showUpper = showAgentPane || (visibleRight && !rightOverlay);
@@ -105,21 +127,25 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   useEffect(() => {
     const element = rootRef.current;
     if (!element) return;
-    let previousNarrow = false;
     const observer = new ResizeObserver(() => {
       if (element.clientWidth <= 0) return;
       const nextNarrow = element.clientWidth < 620;
       setNarrow(nextNarrow);
       setWorkspaceWidth(element.clientWidth);
-      if (previousNarrow !== nextNarrow) {
-        setContextOpen(!nextNarrow);
-        previousNarrow = nextNarrow;
+      // 无布局记录时按窄屏默认收起上下文；有记忆后不再用宽度覆盖用户显隐。
+      if (!defaultedNarrow.current) {
+        defaultedNarrow.current = true;
+        if (!hasSaved) {
+          setContextOpen(!nextNarrow);
+          if (nextNarrow) setRightOpen(false);
+        }
       }
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
-  useEffect(() => { if (!terminals.length) setExpanded(false); }, [terminals.length]);
+  }, [hasSaved, setContextOpen, setRightOpen]);
+  useEffect(() => { if (!terminals.length) setExpanded(false); }, [terminals.length, setExpanded]);
+
 
   async function addTerminal(resourceId?: string, commandId?: string) {
     const created = await startSession({ kind: "shell", resourceId, commandId });
@@ -173,6 +199,51 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
     const toggle = () => { setContextOpen(!contextOpen); if (narrow) setRightOpen(false); };
     if (narrow) noteEditor.leave(toggle); else toggle();
   }
+  const shortcutState = useRef({
+    toggleContext,
+    toggleTerminal,
+    terminalsLength: terminals.length,
+    visibleTerminal,
+    setTerminalOpen,
+    setExpanded,
+  });
+  shortcutState.current = {
+    toggleContext,
+    toggleTerminal,
+    terminalsLength: terminals.length,
+    visibleTerminal,
+    setTerminalOpen,
+    setExpanded,
+  };
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      // 多标签保持挂载：仅当前可见且聚焦的工作台响应，避免多个实例同时改布局。
+      if (!isActiveWorkbenchRoot(rootRef.current)) return;
+      if (shouldIgnoreWorkbenchShortcut(event)) return;
+      const state = shortcutState.current;
+      const mod = isApplePlatform() ? event.metaKey : event.ctrlKey;
+      if (event.key === "F2" && !mod && !event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        setRenameRequest((count) => count + 1);
+        return;
+      }
+      if (mod && !event.altKey && event.key.toLowerCase() === "b" && !event.shiftKey) {
+        event.preventDefault();
+        state.toggleContext();
+        return;
+      }
+      if (mod && !event.altKey && event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          if (!state.terminalsLength) return;
+          if (!state.visibleTerminal) { state.setTerminalOpen(true); state.setExpanded(true); }
+          else state.setExpanded((current) => !current);
+        } else state.toggleTerminal();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   function showReview(mode: CompareMode, filePath?: string, branchName?: string) {
     const resource = branchResource;
     if (!resource) return;
@@ -191,10 +262,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   return <div ref={rootRef} className="task-workbench" data-narrow={narrow} data-context-open={contextOpen}>
     <header className="task-workbench-heading">
       <IconTooltip ref={contextTriggerRef} label={t("tasks:runtime.context")} aria-expanded={contextOpen} size="icon-sm" onClick={toggleContext}>{contextOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</IconTooltip>
-      <div className="task-workbench-title">
-        <h2 id={headingId} title={task.title}>{task.title}</h2>
-        <span className="task-workbench-task-status">{task.status}</span>
-      </div>
+      <TaskTitleEditor
+        task={task}
+        headingId={headingId}
+        editRequest={renameRequest}
+        menu={<TaskWorkbenchMenu task={task} onRename={() => setRenameRequest((count) => count + 1)} onNotice={(title, body) => setPreview({ title, body })} />}
+      />
       <div className="task-workbench-actions">
         <ButtonGroup>
           {multipleTerminalDirectories && !terminals.length ? <NewTerminalMenu {...terminalMenuProps} trigger={terminalButton} /> : terminalButton}
@@ -256,4 +329,23 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
     <TaskNoteDialogs editor={noteEditor} />
     {addCategory && <TaskAddResourcesDialog task={task} initialCategory={addCategory} onClose={() => setAddCategory(null)} />}
   </div>;
+}
+
+/** 多标签保持挂载时，仅当前可见且聚焦的工作台处理页面快捷键。 */
+function isActiveWorkbenchRoot(root: HTMLElement | null) {
+  if (!root) return false;
+  if (root.closest("[hidden]")) return false;
+  const bounds = root.getBoundingClientRect();
+  if (bounds.width <= 0 || bounds.height <= 0) return false;
+  const panel = root.closest<HTMLElement>("[role=tabpanel][data-focused]");
+  if (panel && panel.getAttribute("data-focused") !== "true") return false;
+  return true;
+}
+
+/** 输入框、原生终端、对话框内不抢占系统或组件默认快捷键。 */
+function shouldIgnoreWorkbenchShortcut(event: KeyboardEvent) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.closest("input, textarea, select, [contenteditable=true], [role=textbox], .xterm, [data-slot=dialog-content]")) return true;
+  return false;
 }
