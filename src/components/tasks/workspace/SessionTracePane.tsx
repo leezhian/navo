@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 interface SessionTracePaneProps {
   /** 只读查看已绑定的原生会话；不执行恢复或终端写入。 */
   session: TaskSession;
-  /** 当前视图真正可见时才持有解析租约。 */
+  /** 会话面板真正可见时才持有解析租约；终端↔轨迹切换应保持挂载，由父级控制显隐。 */
   visible: boolean;
 }
 export function SessionTracePane({ session, visible }: SessionTracePaneProps) {

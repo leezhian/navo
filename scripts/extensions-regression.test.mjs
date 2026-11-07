@@ -84,6 +84,42 @@ test('runtime leases share a process, bind windows and revoke access before tear
  for(const query of [{kind:'delete'}, {kind:'page',limit:100000}, {kind:'detail',eventId:-1}, {kind:'page',search:'x'.repeat(501)}])assert.throws(()=>validateTraceQuery(query),/INVALID_QUERY/);
 });
 
+
+test('closing the last lease stops the parser, and reopening the same session starts a fresh shared process', async () => {
+  const children = [];
+  const loadRuntime = createLoader({ electron: { utilityProcess: { fork: () => {
+    const child = new EventEmitter();
+    child.postMessage = data => queueMicrotask(() => child.emit('message', { id: data.id, result: data.type === 'open' ? true : { events: [], total: 0 } }));
+    child.kill = () => { child.killed = true; queueMicrotask(() => child.emit('exit', 0)); return true; };
+    children.push(child);
+    return child;
+  } } } });
+  const { TraceRuntime } = loadRuntime('src/main-process/services/extensions/traceRuntime.ts');
+  const extension = {
+    status: { enabled: true, compatible: true, operation: 'idle' },
+    directory: '/isolated/trace-test', installedDirectory: '/isolated/trace-test/installed', reportRuntimeFailure() { throw Error('intentional stop must not report RUNTIME_FAILED'); },
+  };
+  const session = {
+    id: 'session', kind: 'agent', nativeSessionId: '12345678-1234-1234-1234-123456789abc', nativeHistoryRoot: '/isolated/native',
+    cwd: '/isolated/work', agent: { agentId: 'claude' }, createdAt: '2026-11-06T00:00:00Z',
+  };
+  const notifications = [];
+  const runtime = new TraceRuntime(() => extension, async () => session, (owner, update) => notifications.push({ owner, update }));
+  const firstId = randomUUID();
+  const first = await runtime.open('session', 1, firstId);
+  assert.equal(children.length, 1);
+  runtime.close(first.id, 1);
+  // stop() 同步 kill，exit 以 microtask 发出；等两拍确保 stopping Promise 落地后再 reopen。
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(children[0].killed, true, 'Last lease must stop the parser');
+  assert.equal(notifications.some(item => item.update.error === 'RUNTIME_FAILED'), false, 'Intentional close must not notify RUNTIME_FAILED');
+  const second = await runtime.open('session', 1, randomUUID());
+  assert.equal(children.length, 2, 'Reopen after last close must start a new parser process');
+  assert.equal((await runtime.query(second.id, { kind: 'page' }, 1)).total, 0);
+  await runtime.closeAll();
+});
+
 test('pending trace opens can be cancelled before metadata resolves or initial indexing finishes', async () => {
   const children = [];
   const loadRuntime = createLoader({ electron: { utilityProcess: { fork: () => {

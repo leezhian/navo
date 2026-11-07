@@ -98,14 +98,23 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(window.autoResumes[0]!=='overlay-resume')throw new Error('Wrong session resumed');
         window.setTraceEnabled(true);document.hasFocus=()=>false;window.dispatchEvent(new Event('blur'));
         window.setRecords([{id:'trace-resume',taskId:'test-task',kind:'agent',agent:{agentId:'claude'},title:'Trace resume test',cwd:'/test',status:'stopped',terminalId:'trace-terminal',createdAt:'now',nativeSessionId:'trace-native',resumable:true,resumeOnOpen:true}]);
-        const viewTab=label=>Array.from(document.querySelectorAll('.task-agent-pane [role=tab]')).find(tab=>tab.textContent===label);
-        await wait(()=>viewTab('轨迹'),'Trace tab missing');window.deferTraceOpen=true;viewTab('轨迹').click();await wait(()=>window.traceOpens.includes('trace-resume'),'Trace reader missing');
+        const viewTab=label=>Array.from(document.querySelectorAll('.task-workbench-panel-heading [role=group] button')).find(button=>button.getAttribute('aria-label')===label);if(document.querySelector('.task-agent-pane [role=tab]'))throw Error('Session view tab row must be removed');
+        await wait(()=>viewTab('轨迹'),'Trace header switch missing');window.deferTraceOpen=true;viewTab('轨迹').click();await wait(()=>window.traceOpens.includes('trace-resume'),'Trace reader missing');
         document.hasFocus=()=>true;window.dispatchEvent(new Event('focus'));await new Promise(resolve=>setTimeout(resolve,200));
         if(window.autoResumes.includes('trace-resume'))throw Error('Historical trace started Agent');
-        window.setTraceEnabled(false);await wait(()=>!viewTab('轨迹'),'Disabled plugin tab remained');await wait(()=>window.traceCloses.includes(window.traceLeaseIds.at(-1)),'Disable did not release pending reader');
+        window.setTraceEnabled(false);await wait(()=>!viewTab('轨迹'),'Disabled plugin switch remained');await wait(()=>window.traceCloses.includes(window.traceLeaseIds.at(-1)),'Disable did not release pending reader');
         window.deferTraceOpen=false;window.resolveTraceOpen();await pause();if(document.querySelector('.task-agent-pane iframe'))throw Error('Late open response remounted a closed trace view');
         await new Promise(resolve=>setTimeout(resolve,200));if(window.autoResumes.includes('trace-resume'))throw Error('Disable fallback started Agent');
-        window.setTraceEnabled(true);await wait(()=>viewTab('终端'),'Terminal tab missing');viewTab('终端').click();await wait(()=>window.autoResumes.includes('trace-resume'),'Explicit terminal selection did not restore');
+        window.setTraceEnabled(true);await wait(()=>viewTab('终端'),'Terminal header switch missing');viewTab('终端').click();await wait(()=>window.autoResumes.includes('trace-resume'),'Explicit terminal selection did not restore');
+        // 同一会话内反复切换终端↔轨迹不得关闭解析租约或再次 open（避免杀进程后重开触发 RUNTIME_FAILED）。
+        window.traceOpens=[];window.traceCloses=[];window.traceLeaseIds=[];
+        viewTab('轨迹').click();await wait(()=>window.traceOpens.length===1,'Trace reopen missing after terminal');
+        const keptLease=window.traceLeaseIds[0];
+        viewTab('终端').click();await pause();
+        if(window.traceCloses.includes(keptLease))throw Error('Terminal↔trace switch must keep the parser lease alive');
+        viewTab('轨迹').click();await pause();
+        if(window.traceOpens.length!==1||window.traceCloses.includes(keptLease))throw Error('Switching back to trace must reuse the existing parser lease');
+        if([...document.querySelectorAll('.task-agent-pane [role=alert]')].some(node=>/轨迹解析进程已退出|RUNTIME_FAILED/.test(node.textContent||'')))throw Error('View switch must not surface parser failure');
         window.setTraceEnabled(false);
         window.setRecords([]);delete document.visibilityState;delete document.hasFocus;window.dispatchEvent(new Event('blur'));
         await wait(()=>!document.querySelector('.task-agent-pane [title="Overlay test"]'),'Overlay test session not removed');

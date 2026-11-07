@@ -1,6 +1,6 @@
 import { SessionTracePane } from "./SessionTracePane";
 import { useEffect, useRef, useState } from "react";
-import { Play, RotateCcw, X } from "lucide-react";
+import { ListTree, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
@@ -45,20 +45,18 @@ export function AgentSessionPane({ task, session, newSessionControl, emptySessio
   const pending = useTaskSessionStore((state) => state.pending);
   const running = session?.status === "running" || session?.status === "starting";
   const sessionName = session?.title || t("tasks:runtime.untitledSession");
+  const traceLeaseVisible = visible && onScreen;
   return <section ref={paneRef} className="task-workbench-panel task-agent-pane">
     <header className="task-workbench-panel-heading">
       <div className="flex min-w-0 items-center gap-2"><SessionStatusIcon status={session?.status} />{session && <AgentProviderIcon agentId={session.agent?.agentId} />}<span className="truncate text-xs" title={session ? sessionName : undefined}>{session ? sessionName : t("tasks:runtime.sessions")}</span></div>
       <div className="flex shrink-0 items-center gap-1">
+        {traceAvailable && <SessionViewSwitch traceSelected={traceSelected} onViewChange={onViewChange} />}
         {session && <TaskSessionContextAction key={session.id + session.terminalId} session={session} archived={task.status === "ARCHIVED"} />}
         {newSessionControl}
         {session && <><SessionActionMenu key={session.id} session={session} taskArchived={task.status === "ARCHIVED"} /><IconTooltip label={t("tasks:runtime.closePane")} size="icon-xs" onClick={onClosePane}><X className="size-3.5" /></IconTooltip></>}
       </div>
     </header>
-    {traceAvailable && <div className="flex shrink-0 gap-3 border-b border-border px-3" role="tablist" aria-label={t("settings:labs.view")}>
-      <button role="tab" aria-selected={!traceSelected} className="border-b-2 px-1 py-2 text-xs data-[selected=true]:border-foreground data-[selected=false]:border-transparent" data-selected={!traceSelected} onClick={() => onViewChange?.(false)}>{t("settings:labs.terminal")}</button>
-      <button role="tab" aria-selected={traceSelected} className="border-b-2 px-1 py-2 text-xs data-[selected=true]:border-foreground data-[selected=false]:border-transparent" data-selected={traceSelected} onClick={() => onViewChange?.(true)}>{t("settings:labs.trace")}</button>
-    </div>}
-    {traceSelected && session && <SessionTracePane session={session} visible={visible && onScreen} />}
+    {session && traceAvailable && <TraceKeepAlive key={session.id} session={session} selected={traceSelected} visible={traceLeaseVisible} />}
     <div className="min-h-0 flex-1 flex-col" style={{ display: traceSelected ? "none" : "flex" }}>
     {session?.error && <p role="alert" className="px-3 py-2 text-xs text-destructive">{t(session.error === "SESSION_MODE_UNSUPPORTED" ? "tasks:runtime.modeUnsupported" : session.error === "SESSION_OPTION_UNSUPPORTED" ? "tasks:runtime.optionUnsupported" : "tasks:runtime.startFailed")}</p>}
     {session && !running && <div className="flex shrink-0 gap-2 px-3 py-2">
@@ -69,4 +67,38 @@ export function AgentSessionPane({ task, session, newSessionControl, emptySessio
       <div className="task-session-empty">{!session && <><p className="whitespace-pre-wrap break-words">{task.description || task.title}</p>{emptySessionControl}</>}</div>}
     </div>
   </section>;
+}
+
+interface SessionViewSwitchProps {
+  /** 当前是否在看轨迹；false 表示 Agent CLI 终端视图。 */
+  traceSelected: boolean;
+  /** 切换视图，trace=false 代表用户主动选择终端（会解除自动回退的恢复抑制）。 */
+  onViewChange?: (trace: boolean) => void;
+}
+
+/** 标题栏内的终端/轨迹图标分段切换，替代原先标题栏下方的一行 tab。 */
+function SessionViewSwitch({ traceSelected, onViewChange }: SessionViewSwitchProps) {
+  const { t } = useTranslation(["settings"]);
+  const itemClass = (selected: boolean) => selected ? "bg-accent text-foreground" : "";
+  return <div role="group" aria-label={t("settings:labs.view")} className="flex items-center gap-0.5 rounded-md">
+    <IconTooltip label={t("settings:labs.terminal")} size="icon-xs" aria-pressed={!traceSelected} data-selected={!traceSelected} className={itemClass(!traceSelected)} onClick={() => onViewChange?.(false)}><SquareTerminal className="size-3.5" /></IconTooltip>
+    <IconTooltip label={t("settings:labs.trace")} size="icon-xs" aria-pressed={traceSelected} data-selected={traceSelected} className={itemClass(traceSelected)} onClick={() => onViewChange?.(true)}><ListTree className="size-3.5" /></IconTooltip>
+  </div>;
+}
+
+interface TraceKeepAliveProps {
+  session: TaskSession;
+  /** 当前是否选中轨迹视图；未选中时只隐藏不卸载。 */
+  selected: boolean;
+  /** 面板真正可见时才持有轨迹租约。 */
+  visible: boolean;
+}
+/** 首次打开轨迹后保持挂载：终端↔轨迹只切换显示，避免释放租约、结束解析进程。换会话（key）或关闭插件（父级不渲染）时自然卸载。 */
+function TraceKeepAlive({ session, selected, visible }: TraceKeepAliveProps) {
+  const [mounted, setMounted] = useState(selected);
+  if (selected && !mounted) setMounted(true);
+  if (!mounted) return null;
+  return <div className="min-h-0 flex-1 flex-col" style={{ display: selected ? "flex" : "none" }} aria-hidden={!selected}>
+    <SessionTracePane session={session} visible={visible} />
+  </div>;
 }
