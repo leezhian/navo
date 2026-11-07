@@ -53,7 +53,7 @@ test("Tasks 卡片和列表按状态分组，单个不显示数字，空会话�
             if(Math.abs(title.top+title.height/2-summary.top-summary.height/2)>1)throw Error('Session indicators must be vertically centered with task titles');
           }
           for(const item of summaries())if(!item.getAttribute('aria-label').includes('5 个未归档会话')||!item.getAttribute('aria-label').includes('2 个运行中会话'))throw Error('Accessible summary must include total and individual tallies');
-          if(document.querySelector('#tab .task-session-status').dataset.status!=='running')throw Error('Single tab icon must prioritize active sessions over errors');
+          if(document.querySelector('#tab .task-session-status').dataset.status!=='failed')throw Error('Single tab icon must prioritize failed over active and unread');
           const summary=summaries()[0];summary.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerType:'mouse'}));
           await wait(()=>document.querySelector('[role="tooltip"]'),'Grouped tooltip missing');
           const tooltip=document.querySelector('[role="tooltip"]');

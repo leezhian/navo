@@ -14,6 +14,7 @@ import { SessionActionMenu } from "./SessionActionMenu";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { hasManagedTerminalSession } from "@/components/terminal/terminalSessionManager";
 import { TaskSessionContextAction } from "./TaskSessionContextAction";
+import { useSessionUnread } from "@/hooks/useSessionUnread";
 
 interface AgentSessionPaneProps {
   /** 当前选中的 Agent 会话；普通 Shell 在下方独立展示。 */
@@ -46,6 +47,11 @@ export function AgentSessionPane({ task, session, newSessionControl, emptySessio
   const running = session?.status === "running" || session?.status === "starting";
   const sessionName = session?.title || t("tasks:runtime.untitledSession");
   const traceLeaseVisible = visible && onScreen;
+  const { unread, markRead } = useSessionUnread();
+  useEffect(() => {
+    if (!session || !traceLeaseVisible || !unread(session)) return;
+    markRead(session);
+  }, [session, session?.lastReplyAt, traceLeaseVisible, unread, markRead]);
   return <section ref={paneRef} className="task-workbench-panel task-agent-pane">
     <header className="task-workbench-panel-heading">
       <div className="flex min-w-0 items-center gap-2"><SessionStatusIcon status={session?.status} />{session && <AgentProviderIcon agentId={session.agent?.agentId} />}<span className="truncate text-xs" title={session ? sessionName : undefined}>{session ? sessionName : t("tasks:runtime.sessions")}</span></div>

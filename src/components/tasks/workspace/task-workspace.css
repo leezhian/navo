@@ -68,3 +68,8 @@
 .task-workbench[data-narrow="true"] .task-workbench-heading { flex-wrap: wrap; gap: 4px; padding: 4px; }
 .task-workbench-error { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px; font-size: 11px; color: var(--destructive); }
 @media (prefers-reduced-motion: reduce) { .task-session-status[data-status="starting"] svg { animation: none; } }
+
+.task-context-session-unread { flex-shrink: 0; width: 6px; height: 6px; border-radius: 999px; background: #3b82f6; }
+.dark .task-context-session-unread { background: #60a5fa; }
+.task-session-status[data-status="unread"] { color: #3b82f6; }
+.dark .task-session-status[data-status="unread"] { color: #60a5fa; }

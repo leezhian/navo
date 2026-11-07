@@ -8,3 +8,6 @@
 .task-session-group-icon[data-status="starting"] { animation: task-session-group-spin 1s linear infinite; }
 @keyframes task-session-group-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .task-session-group-icon[data-status="starting"] { animation: none; } }
+
+.task-session-group-icon[data-status="unread"] { color: #3b82f6; fill: none; }
+.dark .task-session-group-icon[data-status="unread"] { color: #60a5fa; }

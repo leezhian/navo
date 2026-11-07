@@ -2,6 +2,8 @@ import type { TaskAgentSelection } from "./agentCapabilities";
 import type { AgentId } from "./agentTypes";
 
 export type TaskSessionStatus = "starting" | "running" | "stopped" | "failed";
+/** 进程运行中时，按 Agent 能力矩阵从原生结构化记录确认的运行相位；不替代进程四态。 */
+export type TaskSessionPhase = "answering" | "idle" | "waitingPermission";
 export type TaskSessionWorkspace = { kind: "all" } | { kind: "resource"; resourceId: string; name: string; branch: string };
 export interface TaskSession {
   id: string;
@@ -44,6 +46,12 @@ export interface TaskSession {
   lastUpdateAt: string;
   /** 最近一次成功启动或实际 PTY 输入、输出的时间。 */
   lastActiveAt: string;
+  /** CLI 原生记录中最近一次“回合完成”的时间；终端重绘不计入，作为未读依据。 */
+  lastReplyAt?: string;
+  /** 运行相位只在内存中维护，不落库；无能力或进程未运行时为空。 */
+  phase?: TaskSessionPhase;
+  /** 等待权限时事件给出的工具名；无原因字段时为空，不写占位。 */
+  waitingReason?: string;
   error?: string;
 }
 

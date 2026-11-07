@@ -228,7 +228,14 @@
   "resources": {
     "title": "添加资源",
     "categories": "资源类别",
-    "category": { "repositories": "仓库与文件夹", "issues": "Issues", "pullRequests": "Pull requests", "notes": "笔记", "links": "链接", "files": "文件" },
+    "category": {
+      "repositories": "仓库与文件夹",
+      "issues": "Issues",
+      "pullRequests": "Pull requests",
+      "notes": "笔记",
+      "links": "链接",
+      "files": "文件"
+    },
     "noteTitle": "标题（选填）",
     "noteContent": "Markdown 内容…",
     "untitledNote": "未命名笔记",
@@ -283,7 +290,8 @@
       "starting": "正在启动",
       "running": "运行中",
       "stopped": "已停止",
-      "failed": "失败"
+      "failed": "失败",
+      "unread": "有未读回复"
     },
     "closePane": "关闭面板",
     "sessionActions": "会话操作",
@@ -294,6 +302,21 @@
     "renameNativeDescription": "将先停止会话，再修改 CLI 保存的真实名称。不会重新发送任务指令；修改后可恢复会话。",
     "deleteNativeDescription": "将停止并永久删除「{{name}}」的 CLI 原生会话历史及 Navo 会话记录。不会删除任务、仓库或工作目录，操作无法撤销。",
     "nativeActionsUnavailable": "此 Agent 暂无可靠的原生会话管理能力。",
-    "nativeActionFailed": "CLI 会话记录操作失败，Navo 记录已保留。请检查 CLI、文件权限或稍后重试。"
+    "nativeActionFailed": "CLI 会话记录操作失败，Navo 记录已保留。请检查 CLI、文件权限或稍后重试。",
+    "markRead": "标为已读",
+    "phase": {
+      "answering": "回答中",
+      "idle": "空闲",
+      "waitingPermission": "等待权限",
+      "waitingPermissionWithReason": "等待权限（{{reason}}）"
+    },
+    "hover": {
+      "lastActive": "最近活动",
+      "workspace": "工作范围",
+      "status": "进程状态",
+      "phase": "运行相位",
+      "waitingReason": "等待原因",
+      "unread": "未读"
+    }
   }
 }

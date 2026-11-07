@@ -20,6 +20,8 @@ import { TaskChangeMenu } from "./TaskChangeMenu";
 import { TaskSessionMenu } from "./TaskSessionMenu";
 import { ArchivedSessions } from "./ArchivedSessions";
 import { TaskInitializationPanel } from "./TaskInitializationPanel";
+import { SessionHoverDetails } from "./SessionHoverDetails";
+import { useSessionUnread } from "@/hooks/useSessionUnread";
 
 interface TaskResourceRailProps {
   /** 只展示真实关联资源，不填充 demo 条目。 */
@@ -94,6 +96,7 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
 }
 export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
+  const { unread } = useSessionUnread();
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
   const archived = sessions.filter((session) => session.kind === "agent" && session.archivedAt);
   const terminals = sessions.filter((session) => session.kind === "shell");
@@ -110,18 +113,26 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
         const workspaceLabel = sessionWorkspaceLabel(session, task.resources ?? [], t("tasks:runtime.allWorktrees"), t("tasks:runtime.unknownWorkspace"));
         const workspace = session.workspace;
         const canCreate = task.status !== "ARCHIVED" && Boolean(workspace && (workspace.kind === "all" || task.resources?.some((resource) => resource.resourceId === workspace.resourceId)));
+        const hasUnread = unread(session);
+        const statusLabel = session.status === "running" && session.phase
+          ? (session.phase === "waitingPermission" && session.waitingReason
+            ? t("tasks:runtime.phase.waitingPermissionWithReason", { reason: session.waitingReason })
+            : t(`tasks:runtime.phase.${session.phase}`))
+          : t(`tasks:runtime.status.${session.status}`);
         return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={archivePending} onOpen={() => onSelect(session, true)} onArchive={() => onArchive(session.id)} onNewSession={onNewSessionFrom}>
-        <div className="task-context-session" data-active={session.id === activeId}>
-        <button className="task-context-session-select" aria-pressed={session.id === activeId} onClick={() => onSelect(session)} title={session.title || t("tasks:runtime.untitledSession")}>
+        <div className="task-context-session" data-active={session.id === activeId} data-unread={hasUnread || undefined}>
+        <SessionHoverDetails session={session} workspaceLabel={workspaceLabel} unread={hasUnread}>
+        <button className="task-context-session-select" aria-pressed={session.id === activeId} onClick={() => onSelect(session)}>
           <ContextItemIcon><AgentProviderIcon agentId={session.agent?.agentId} /></ContextItemIcon>
-          <span className="min-w-0 flex-1"><span className="block truncate">{session.title || t("tasks:runtime.untitledSession")}</span>
+          <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1"><span className="block min-w-0 truncate">{session.title || t("tasks:runtime.untitledSession")}</span>{hasUnread && <span className="task-context-session-unread" aria-label={t("tasks:runtime.status.unread")} />}</span>
             <span className="task-context-session-metadata">
-              <span className="task-context-session-status" data-status={session.status}>{t(`tasks:runtime.status.${session.status}`)}</span>
+              <span className="task-context-session-status" data-status={session.status} data-phase={session.phase || undefined}>{statusLabel}</span>
               <span className="shrink-0" aria-hidden="true">·</span>
-              <span className="task-context-session-workspace min-w-0 truncate" title={workspaceLabel}>{workspaceLabel}</span>
+              <span className="task-context-session-workspace min-w-0 truncate">{workspaceLabel}</span>
             </span>
           </span>
         </button>
+        </SessionHoverDetails>
         <IconTooltip label={t("tasks:runtime.archiveSession")} className="task-context-session-archive size-5" size="icon-xs" disabled={archivePending} onClick={() => onArchive(session.id)}><Archive className="size-3" /></IconTooltip>
       </div></TaskSessionMenu>; })}
     </ResourceGroup>

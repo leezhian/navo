@@ -236,7 +236,14 @@
   "resources": {
     "title": "Add resources",
     "categories": "Resource categories",
-    "category": { "repositories": "Repos & Folders", "issues": "Issues", "pullRequests": "Pull requests", "notes": "Notes", "links": "Links", "files": "Files" },
+    "category": {
+      "repositories": "Repos & Folders",
+      "issues": "Issues",
+      "pullRequests": "Pull requests",
+      "notes": "Notes",
+      "links": "Links",
+      "files": "Files"
+    },
     "noteTitle": "Title (optional)",
     "noteContent": "Markdown content…",
     "untitledNote": "Untitled note",
@@ -289,7 +296,8 @@
       "starting": "Starting",
       "running": "Running",
       "stopped": "Stopped",
-      "failed": "Failed"
+      "failed": "Failed",
+      "unread": "Unread reply"
     },
     "closePane": "Close pane",
     "sessionActions": "Session actions",
@@ -302,6 +310,21 @@
     "renameNativeDescription": "The session will stop before its native CLI name is updated. No task prompt is resent; you can resume it afterwards.",
     "deleteNativeDescription": "Stop and permanently delete the native CLI history and Navo record for “{{name}}”. The task, repositories and working directories are kept. This cannot be undone.",
     "nativeActionsUnavailable": "Reliable native session management is not available for this agent yet.",
-    "nativeActionFailed": "The native CLI operation failed. The Navo record is kept. Check the CLI, file permissions, or retry later."
+    "nativeActionFailed": "The native CLI operation failed. The Navo record is kept. Check the CLI, file permissions, or retry later.",
+    "markRead": "Mark as read",
+    "phase": {
+      "answering": "Answering",
+      "idle": "Idle",
+      "waitingPermission": "Waiting for permission",
+      "waitingPermissionWithReason": "Waiting for permission ({{reason}})"
+    },
+    "hover": {
+      "lastActive": "Last active",
+      "workspace": "Workspace",
+      "status": "Process status",
+      "phase": "Phase",
+      "waitingReason": "Waiting for",
+      "unread": "Unread"
+    }
   }
 }

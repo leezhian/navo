@@ -94,7 +94,7 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
     assert.equal(processes.has(session.terminalId),false); nativeCalls.push(["remove",session.id]);
     if(options.failNative)throw new Error("SESSION_NATIVE_DELETE_FAILED");
   } };
-  const service = new TaskSessionService(repository, options.agents ?? {}, options.loadTask ?? (async () => options.task ?? task), () => ({ tasksDirectory: options.tasksDirectory ?? os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions, async () => options.resources ?? []);
+  const service = new TaskSessionService(repository, options.agents ?? {}, options.loadTask ?? (async () => options.task ?? task), () => ({ tasksDirectory: options.tasksDirectory ?? os.tmpdir() }), (sessions) => events.push(structuredClone(sessions)), undefined, readTitle, nativeActions, async () => options.resources ?? [], undefined, options.readActivity ?? (async () => null));
   const owner = new EventEmitter(); owner.id = 1; owner.isDestroyed = () => false;
   const other = new EventEmitter(); other.id = 2; other.isDestroyed = () => false;
   return { service, saved, processes, owner, other, events, nativeCalls, launches: () => launches, fail: () => { failLaunch = true; } };
@@ -580,4 +580,21 @@ test("Rename/Delete 校验窗口、停止进程并同步原生记录，原生失
   await assert.rejects(failed.service.remove(failedSession.id,failed.owner),/NATIVE_DELETE_FAILED/);
   assert.equal((await failed.service.list()).length,1);assert.ok(failed.saved.has(failedSession.id));assert.equal(failedSession.status,"stopped");
   await runtime.service.shutdown();await failed.service.shutdown();
+});
+
+test("退出或停止前补读回复时间，只前进不回退，避免轮询间隙丢未读", async context => {
+  let reply = "2026-11-07T01:00:00.000Z";
+  const runtime = fixture([], undefined, { readActivity: async () => ({ phase: "idle", lastReplyAt: reply }) });context.after(() => runtime.service.shutdown());
+  const [first] = await runtime.service.start({ taskId: task.id, kind: "agent", agent: selection }, runtime.owner);
+  await runtime.service.stop(first.id, runtime.owner);
+  assert.equal(runtime.saved.get(first.id).lastReplyAt, reply);assert.equal(runtime.saved.get(first.id).phase, undefined);
+  const [, second] = await runtime.service.start({ taskId: task.id, kind: "agent", agent: selection }, runtime.owner);
+  reply = "2026-11-07T02:00:00.000Z";
+  runtime.processes.get(second.terminalId).launch.onExit(0);
+  await runtime.service.list();
+  assert.equal(runtime.saved.get(second.id).lastReplyAt, reply);
+  reply = "2026-11-07T00:00:00.000Z";
+  await runtime.service.restart(second.id, true, runtime.owner);
+  await runtime.service.stop(second.id, runtime.owner);
+  assert.equal(runtime.saved.get(second.id).lastReplyAt, "2026-11-07T02:00:00.000Z");
 });

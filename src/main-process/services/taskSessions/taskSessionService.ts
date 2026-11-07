@@ -21,6 +21,7 @@ import { SessionRepository } from "./sessionRepository";
 import { prepareTaskContext, taskPrompt } from "./taskContext";
 import { prepareAgentLaunch } from "./agentLaunch";
 import { writeDiagnosticEvent } from "../../diagnostics/diagnosticLogger";
+import { readNativeSessionActivity } from "./nativeSessionActivity";
 import { readNativeSessionTitle } from "./nativeSessionTitle";
 import { readNativeSessionBinding } from "./nativeSessionBinding";
 import { canManageNativeSession, nativeActionEnvironment, removeNativeSession, renameNativeSession, requireSessionName } from "./nativeSessionActions";
@@ -51,7 +52,8 @@ export class TaskSessionService {
     private readonly readTitle = readNativeSessionTitle,
     private readonly nativeActions = { environment: nativeActionEnvironment, rename: renameNativeSession, remove: removeNativeSession },
     private readonly loadResources: () => Promise<ResourceRecord[]> = async () => [],
-    noteActions?: TaskContextNoteActions) {
+    noteActions?: TaskContextNoteActions,
+    private readonly readActivity = readNativeSessionActivity) {
     this.contextServer = new TaskContextServer(loadTask, attachmentPaths, noteActions);
   }
 
@@ -94,6 +96,7 @@ export class TaskSessionService {
         session.nativeSessionId = native.id; session.resumable = true;
         await this.repository.save(session);changed = true;
       }
+      if (await this.refreshActivity(session)) changed = true;
       const title = native?.title || await this.readTitle(session, this.titleEnvironments.get(session.id));
       if (!title || (title === session.title && session.titleSource === "cli")) continue;
       const updated = { ...session, title, titleSource: "cli" as const };
@@ -105,6 +108,33 @@ export class TaskSessionService {
     }
     if (changed) this.publish();
   }
+  /** 只读原生结构化记录：相位仅在进程运行中保留；回复时间只前进，写库但不更新元数据时间。 */
+  private async refreshActivity(session: TaskSession) {
+    if (session.status !== "running") return false;
+    const activity = await this.readActivity(session, this.titleEnvironments.get(session.id));
+    if (!activity || session.status !== "running") return false;
+    let changed = false;
+    if (activity.phase !== session.phase || activity.waitingReason !== session.waitingReason) {
+      session.phase = activity.phase; session.waitingReason = activity.waitingReason; changed = true;
+    }
+    if (this.advanceReply(session, activity.lastReplyAt)) {
+      await this.repository.save(session, { preserveUpdateTime: true });
+      changed = true;
+    }
+    return changed;
+  }
+  /** 回复时间只前进；返回是否推进。 */
+  private advanceReply(session: TaskSession, lastReplyAt?: string) {
+    if (!lastReplyAt || (session.lastReplyAt && Date.parse(lastReplyAt) <= Date.parse(session.lastReplyAt))) return false;
+    session.lastReplyAt = lastReplyAt;
+    return true;
+  }
+  /** 进程结束前补读一次，避免回合完成后、下次轮询前退出导致未读丢失；只推进回复时间，由调用方随状态一起保存。 */
+  private async captureFinalReply(session: TaskSession) {
+    if (session.kind !== "agent") return;
+    try { this.advanceReply(session, (await this.readActivity(session, this.titleEnvironments.get(session.id)))?.lastReplyAt); }
+    catch { /* 读取失败保留上次回复时间，不阻断停止流程。 */ }
+  }
   private scheduleTitles() {
     if (this.closing || this.titleTimer) return;
     this.titleTimer = setTimeout(() => {
@@ -114,7 +144,10 @@ export class TaskSessionService {
     this.titleTimer.unref();
   }
   list() { return this.serialize(async () => { await this.initialize(); return this.sessions; }); }
-  private publish() { this.changed(this.sessions); return this.sessions; }
+  private publish() {
+    for (const session of this.sessions) if (session.status !== "running") { delete session.phase; delete session.waitingReason; }
+    this.changed(this.sessions); return this.sessions;
+  }
   private async save(session: TaskSession) { await this.repository.save(session); this.publish(); }
 
   /** 只同步提交后的任务数据，不向 PTY 写入文本，也不推断 CLI 正处于哪种输入状态。 */
@@ -267,6 +300,7 @@ export class TaskSessionService {
             if (this.closing || owner.isDestroyed()) return;
             await this.contextFiles.release(session.id);
             if (!["running", "starting"].includes(session.status)) return;
+            await this.captureFinalReply(session);
             session.status = "stopped";
             session.resumeOnOpen = false;
             await this.save(session);
@@ -278,6 +312,7 @@ export class TaskSessionService {
             if (!this.sessions.includes(session) || session.archivedAt || session.terminalId !== terminalId) return;
             if (this.closing || owner.isDestroyed()) return;
             await this.releaseContext(session);
+            await this.captureFinalReply(session);
             session.status = code === 0 ? "stopped" : "failed";
             session.resumeOnOpen = false;
             if (session.command) session.commandExitCode = code;
@@ -310,6 +345,7 @@ export class TaskSessionService {
     return this.serialize(async () => {
       await this.initialize();
       const session = this.owned(id, owner);
+      await this.captureFinalReply(session);
       session.status = "stopped";
       session.resumeOnOpen = false;
       await this.releaseContext(session);
