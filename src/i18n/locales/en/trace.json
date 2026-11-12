@@ -8,6 +8,7 @@
   "errors": {
     "INVALID_QUERY": "Invalid query",
     "SOURCE_INVALID": "History does not match this session",
+    "SOURCE_ROOT_MISSING": "The log directory could not be located",
     "SOURCE_MISSING": "History was not found",
     "SOURCE_UNREADABLE": "History is temporarily unreadable",
     "LINE_TOO_LARGE": "A record is too large; parsing stopped",
@@ -30,10 +31,11 @@
   "model": "Model",
   "tools": "Tools",
   "missing": "Not recorded",
+  "running": "Running",
   "injected": "Injected",
   "clipped": "Long content is partially displayed",
   "timelineClipped": "Timeline shows the first 1,000 timestamped events",
-  "timelineMissing": "No timestamps recorded in this log",
+  "timelineMissing": "No times were recorded for this session, so the timeline and range selection are unavailable",
   "following": "Follow new events",
   "showAll": "Show all",
   "showAllHint": "Show hidden bookkeeping records",
@@ -62,14 +64,12 @@
     "events_one": "{{count}} event",
     "events_other": "{{count}} events",
     "errors_one": "{{count}} error",
-    "errors_other": "{{count}} errors",
-    "tokens": "{{value}} tokens"
+    "errors_other": "{{count}} errors"
   },
   "unknown": {
     "turns": "— turns",
     "requests": "— model requests",
-    "tools": "— tools",
-    "tokens": "— tokens"
+    "tools": "— tools"
   },
   "filter": "Filter by type",
   "resizeDetail": "Resize event detail"

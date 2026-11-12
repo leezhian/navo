@@ -28,9 +28,20 @@ void app.whenReady().then(async () => {
   app.dock?.hide();
   try {
     await mkdir(logs, { recursive: true }); await mkdir(cwd, { recursive: true }); await writeFile(source, rows);
+    const grokId = "00000000-0000-4000-8000-00000000000a", grokRoot = path.join(directory, "grok-native");
+    const grokDir = path.join(grokRoot, "sessions", encodeURIComponent(cwd), grokId);
+    await mkdir(grokDir, { recursive: true });
+    await writeFile(path.join(grokDir, "chat_history.jsonl"), [
+      JSON.stringify({ type: "system", content: "fixture system prompt" }),
+      JSON.stringify({ type: "user", content: [{ type: "text", text: "fixture untimed prompt" }], prompt_index: 1 }),
+      JSON.stringify({ type: "assistant", content: "fixture untimed reply", model_id: "grok-model" }),
+    ].join("\n") + "\n");
+    await writeFile(path.join(grokDir, "summary.json"), JSON.stringify({ info: { id: grokId, cwd }, generated_title: "untimed" }));
     const db = path.join(app.getPath("userData"), "app.db");
     await new TaskRepository(db, "development").importLegacy([{ id: "trace-task", title: "Trace fixture", date: now, projectName: "fixture", status: "TODO", resources: [] }]);
-    await new SessionRepository(db, "development").save({ id: "trace-session", taskId: "trace-task", kind: "agent", title: "Trace fixture", cwd, nativeSessionId: id, nativeHistoryRoot: native, agent, status: "stopped", terminalId: "unused", resumable: true, createdAt: now, lastUpdateAt: now, lastActiveAt: now });
+    const sessions = new SessionRepository(db, "development");
+    await sessions.save({ id: "trace-session", taskId: "trace-task", kind: "agent", title: "Trace fixture", cwd, nativeSessionId: id, nativeHistoryRoot: native, agent, status: "stopped", terminalId: "unused", resumable: true, createdAt: now, lastUpdateAt: now, lastActiveAt: now });
+    await sessions.save({ id: "trace-untimed", taskId: "trace-task", kind: "agent", title: "Untimed fixture", cwd, nativeSessionId: grokId, nativeHistoryRoot: grokRoot, agent: { ...agent, agentId: "grok" }, status: "stopped", terminalId: "unused-grok", resumable: true, createdAt: now, lastUpdateAt: now, lastActiveAt: now });
     // 只替换测试进程中的原生文件选择，始终使用本次构建的隔离安装包。
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [process.env.NAVO_TRACE_TEST_PACKAGE as string] });
     let updateDownloads = 0;
@@ -249,6 +260,11 @@ void app.whenReady().then(async () => {
       searchFor("fixture message 219");
       await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]')));
       if (document.documentElement.lang !== "en" || !document.querySelector(".stats")?.textContent?.includes("219 turns")) throw Error("English locale was not applied");
+      // 顶部统计只保留轮次、模型请求、工具和错误；时间线不画刻度和两端时间。
+      const statsBar = document.querySelector(".stats");
+      if (statsBar?.querySelector("svg") || /tokens|3m 39s|Not recorded/i.test(statsBar?.textContent ?? "")) throw Error("Duration and tokens must not be shown: " + statsBar?.textContent);
+      const timelineText = document.querySelector(".timeline")?.textContent ?? "";
+      if (!timelineText.includes("Input") || /[0-9][smhd]/.test(timelineText)) throw Error("Timeline must keep lane labels and drop time ticks: " + timelineText);
       if (!document.querySelector(".stats")?.textContent?.includes("— model requests")) throw Error("Unknown requests were displayed as zero");
       return { virtualRows: count, text: document.body.innerText };
     };
@@ -283,6 +299,16 @@ void app.whenReady().then(async () => {
     await verifyTraceReading(win, () => appendFile(source, JSON.stringify({
       sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message follow appended" },
     }) + "\n"));
+    await win.webContents.executeJavaScript(`(async () => {
+      const wait = async (predicate, message) => { for (let i = 0; i < 250; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 40)); } throw Error(message + ": " + document.body.innerText); };
+      window.setFixtureSession({ id: "trace-untimed", nativeSessionId: "00000000-0000-4000-8000-00000000000a" });
+      await wait(() => document.body.innerText.includes("该会话未记录时间，无法使用时间线和框选"), "Untimed hint missing");
+      if (document.querySelector(".timeline")) throw Error("Timeline must be hidden when the session has no times");
+      if (/未记录|Token/.test(document.querySelector(".stats")?.textContent ?? "")) throw Error("Untimed session must not show duration or tokens");
+      const rows = Array.from(document.querySelectorAll(".event-row")).map(row => row.getAttribute("title"));
+      if (rows.length !== 3 || !rows.includes("fixture untimed prompt") || !rows.includes("fixture untimed reply"))
+        throw Error("Untimed list should still show every event: " + rows.join(","));
+    })()`);
     const screenshot = await win.webContents.capturePage(); await writeFile(path.join(directory, "trace.png"), screenshot.toPNG());
     await win.webContents.executeJavaScript("window.navo.extensions.setEnabled(false)");
     await assert.rejects(win.webContents.executeJavaScript("window.navo.extensions.openTrace('trace-session', crypto.randomUUID())"), /EXTENSION_DISABLED/);

@@ -216,6 +216,7 @@
       "IDENTITY_PENDING": "The native session identity is not bound yet. Retry after it becomes available.",
       "UNSUPPORTED_PROVIDER": "This agent trace format is not supported yet.",
       "SOURCE_INVALID": "History does not match this session. Reading has stopped.",
+      "SOURCE_ROOT_MISSING": "The log directory for this agent could not be located. Check that the agent's history folder exists, then retry.",
       "SOURCE_MISSING": "The native history for this session was not found.",
       "SOURCE_UNREADABLE": "History is unreadable or its format is unsupported. Please retry.",
       "LINE_TOO_LARGE": "A log record exceeds the supported size limit. Parsing stopped.",

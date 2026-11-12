@@ -214,6 +214,7 @@
       "IDENTITY_PENDING": "尚未绑定原生会话标识，绑定完成后可查看轨迹。",
       "UNSUPPORTED_PROVIDER": "此 Agent 的轨迹格式暂不支持。",
       "SOURCE_INVALID": "历史记录与当前会话不匹配，已停止读取。",
+      "SOURCE_ROOT_MISSING": "无法定位该 Agent 的日志目录，请确认历史目录存在后重试。",
       "SOURCE_MISSING": "未找到对应的原生历史记录。",
       "SOURCE_UNREADABLE": "历史记录暂不可读或格式不支持，请检查后重试。",
       "LINE_TOO_LARGE": "日志包含过大的单条记录，已停止解析。",

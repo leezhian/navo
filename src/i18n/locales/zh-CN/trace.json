@@ -8,6 +8,7 @@
   "errors": {
     "INVALID_QUERY": "查询无效",
     "SOURCE_INVALID": "记录与当前会话不匹配",
+    "SOURCE_ROOT_MISSING": "无法定位日志目录",
     "SOURCE_MISSING": "未找到对应记录",
     "SOURCE_UNREADABLE": "记录暂不可读",
     "LINE_TOO_LARGE": "单条记录过大，已停止解析",
@@ -30,10 +31,11 @@
   "model": "模型",
   "tools": "工具",
   "missing": "未记录",
+  "running": "运行中",
   "injected": "自动注入",
   "clipped": "内容较长，仅展示部分",
   "timelineClipped": "时间线仅展示前 1000 条带时间事件",
-  "timelineMissing": "原始日志未提供时间信息",
+  "timelineMissing": "该会话未记录时间，无法使用时间线和框选",
   "following": "跟随新事件",
   "showAll": "显示全部",
   "showAllHint": "显示默认隐藏的记账记录",
@@ -57,14 +59,12 @@
     "requests_other": "{{count}} 次模型请求",
     "tools_other": "{{count}} 个工具",
     "events_other": "{{count}} 条事件",
-    "errors_other": "{{count}} 次错误",
-    "tokens": "{{value}} Token"
+    "errors_other": "{{count}} 次错误"
   },
   "unknown": {
     "turns": "— 轮对话",
     "requests": "— 次模型请求",
-    "tools": "— 个工具",
-    "tokens": "— Token"
+    "tools": "— 个工具"
   },
   "filter": "按类型筛选",
   "resizeDetail": "调整详情宽度"

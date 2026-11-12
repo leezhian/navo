@@ -22,7 +22,7 @@ let index: TraceIndex | undefined,
   filename = "",
   timer: ReturnType<typeof setInterval> | undefined;
 let queue = Promise.resolve();
-const knownErrors = new Set(["SOURCE_INVALID", "SOURCE_MISSING", "LINE_TOO_LARGE", "CACHE_LIMIT", "EVENT_MISSING"]);
+const knownErrors = new Set(["SOURCE_INVALID", "SOURCE_ROOT_MISSING", "SOURCE_MISSING", "LINE_TOO_LARGE", "CACHE_LIMIT", "EVENT_MISSING"]);
 function errorCode(error: unknown) {
   return error instanceof Error && knownErrors.has(error.message) ? error.message : "SOURCE_UNREADABLE";
 }

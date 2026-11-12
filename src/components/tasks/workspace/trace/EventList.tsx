@@ -65,6 +65,15 @@ export function EventList({
   onClearRange,
 }: EventListProps) {
   const { t, i18n } = useTranslation(["trace"]);
+  /** 右侧列：有耗时显示耗时，运行中的工具标注运行中，否则显示时刻；日志没有时间时显示未记录。 */
+  const eventTimeLabel = (event: TraceEvent) =>
+    event.durationMs !== undefined
+      ? formatTraceDuration(event.durationMs)
+      : event.running
+        ? t("trace:running")
+        : event.timestamp
+          ? new Date(event.timestamp).toLocaleTimeString(i18n.resolvedLanguage, { hour12: false })
+          : t("trace:missing");
   const scroller = useRef<HTMLDivElement>(null);
   const locatedSelection = useRef<number | null>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 500 });
@@ -217,11 +226,7 @@ export function EventList({
                     {row.event.preview || t(`trace:kinds.${row.event.kind}`)}
                   </span>
                   <span className="text-[11px] text-muted-foreground tabular-nums max-[480px]:hidden">
-                    {row.event.durationMs !== undefined
-                      ? formatTraceDuration(row.event.durationMs)
-                      : row.event.timestamp
-                        ? new Date(row.event.timestamp).toLocaleTimeString(i18n.resolvedLanguage, { hour12: false })
-                        : "—"}
+                    {eventTimeLabel(row.event)}
                   </span>
                 </button>
               ) : null}

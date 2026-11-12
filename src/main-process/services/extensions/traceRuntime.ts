@@ -5,7 +5,8 @@ import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { TaskSession } from "../../../shared/taskSessionTypes";
-import type { TraceQuery, TraceResult, TraceUpdate } from "../../../shared/extensionTypes";
+import { TRACE_PROVIDERS } from "../../../shared/extensionTypes";
+import type { TraceProvider, TraceQuery, TraceResult, TraceUpdate } from "../../../shared/extensionTypes";
 import type { ExtensionService } from "./extensionService";
 import { writeDiagnosticEvent } from "../../diagnostics/diagnosticLogger";
 import type { DiagnosticEvent, DiagnosticMetadata } from "../../../shared/diagnosticTypes";
@@ -41,6 +42,13 @@ interface PendingOpen {
   /** 打开失败时诊断日志需要的任务 ID。 */
   context: { taskId?: string };
 }
+/** 未记录原生历史目录时各 Agent 的默认位置，与启动和会话名称读取保持一致。 */
+function defaultTraceRoot(provider: TraceProvider) {
+  if (provider === "grok") return process.env.GROK_HOME || path.join(os.homedir(), ".grok");
+  if (provider === "antigravity") return path.join(os.homedir(), ".gemini", "antigravity-cli");
+  return path.join(os.homedir(), provider === "claude" ? ".claude" : ".codex");
+}
+const isTraceProvider = (value: unknown): value is TraceProvider => TRACE_PROVIDERS.some((provider) => provider === value);
 const filters = ["all", "user", "assistant", "reasoning", "context", "system", "tool", "error", "compaction", "unknown"];
 export function validateTraceQuery(value: TraceQuery) {
   if (
@@ -98,8 +106,8 @@ export class TraceRuntime {
   private describe(session: TaskSession) {
     if (!session.nativeSessionId) throw Error("IDENTITY_PENDING");
     const provider = session.agent?.agentId;
-    if (provider !== "claude" && provider !== "codex") throw Error("UNSUPPORTED_PROVIDER");
-    const root = session.nativeHistoryRoot || path.join(os.homedir(), provider === "claude" ? ".claude" : ".codex");
+    if (!isTraceProvider(provider)) throw Error("UNSUPPORTED_PROVIDER");
+    const root = session.nativeHistoryRoot || defaultTraceRoot(provider);
     return { id: session.nativeSessionId, provider, root, cwd: session.cwd, createdAt: session.nativeLaunchAt ?? session.createdAt };
   }
   private send(runtime: Runtime, message: Record<string, unknown>): Promise<TraceResult> {
@@ -121,6 +129,8 @@ export class TraceRuntime {
     try {
       return await this.openChecked(sessionId, owner, id, context);
     } catch (error) {
+      // 打开过程中被关闭是正常取消，按结果返回，避免 IPC reject 打出 handler 错误。
+      if (error instanceof Error && error.message === "LEASE_EXPIRED") return { cancelled: true as const };
       this.report("trace.open_failed", error, { sessionId, taskId: context.taskId });
       throw error;
     }

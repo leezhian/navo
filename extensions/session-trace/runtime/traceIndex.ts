@@ -1,21 +1,33 @@
 import { open, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import type { TraceDetail, TraceEvent, TracePage, TraceQuery, TraceStats } from "../../../src/shared/extensionTypes";
+import path from "node:path";
+import type { TraceDetail, TraceEvent, TracePage, TraceProvider, TraceQuery, TraceStats } from "../../../src/shared/extensionTypes";
 import { parseRecord } from "./adapters";
 import type { Parsed, ParserState } from "./adapters";
+import { parseAntigravityRecord } from "./antigravityAdapter";
+import { parseGrokRecord } from "./grokAdapter";
+import { GrokTiming } from "./grokTiming";
+import { MAX_LINE, NEWLINE, READ_CHUNK } from "./limits";
 
 const PREVIEW_LIMIT = 220,
   CONTENT_LIMIT = 128 * 1024,
-  RAW_LIMIT = 512 * 1024;
-const MAX_LINE = 8 * 1024 * 1024,
+  RAW_LIMIT = 512 * 1024,
   MAX_CACHE = 128 * 1024 * 1024;
 interface Checkpoint {
   offset: number;
   identity: string;
   tail: string;
   modified?: number;
+  /** 上次读取时的文件大小；整文件替换型日志据此判断是否需要重建（尾行未写完时 offset 会小于 size）。 */
+  size?: number;
   parser: ParserState;
+}
+/** 按 Agent 选择解析器；Grok 额外读取同目录 events.jsonl 补全时间。 */
+function parse(raw: unknown, offset: number, state: ParserState, timing?: GrokTiming): Parsed[] {
+  if (state.provider === "grok") return parseGrokRecord(raw, offset, state, timing);
+  if (state.provider === "antigravity") return parseAntigravityRecord(raw, offset, state);
+  return parseRecord(raw, offset, state);
 }
 interface EventRow {
   seq: number;
@@ -32,17 +44,21 @@ interface EventRow {
 export class TraceIndex {
   private db: DatabaseSync;
   private checkpoint: Checkpoint;
+  /** Grok 的时间来源；时间只保存在内存里，进程内首次刷新总是重建一次。 */
+  private timing?: GrokTiming;
+  private fresh = true;
   constructor(
     private filename: string,
     cache: string,
-    provider: "claude" | "codex",
+    provider: TraceProvider,
     private validateSource?: () => Promise<unknown>,
   ) {
+    if (provider === "grok") this.timing = new GrokTiming(path.dirname(filename));
     this.db = new DatabaseSync(cache);
     this.db.exec(`PRAGMA journal_mode=DELETE;
       CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY, key TEXT UNIQUE, kind TEXT, request TEXT, call_id TEXT, data TEXT, content TEXT, result TEXT, search TEXT, loc INTEGER, len INTEGER, result_loc INTEGER, result_len INTEGER, truncated INTEGER);
       CREATE INDEX IF NOT EXISTS calls ON events(call_id);
-      CREATE TABLE IF NOT EXISTS usage(key TEXT PRIMARY KEY, tokens INTEGER);
+      DROP TABLE IF EXISTS usage;
       CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT);`);
     const saved = this.db.prepare("SELECT value FROM metadata WHERE key='checkpoint-v3'").get();
     this.checkpoint = saved ? JSON.parse(String(saved.value)) : { offset: 0, identity: "", tail: "", parser: { provider, round: 0 } };
@@ -62,14 +78,19 @@ export class TraceIndex {
       identity = `${info.dev}:${info.ino}`;
     if (!info.isFile()) throw Error("SOURCE_INVALID");
     const checkpoint = this.checkpoint;
+    const timingChanged = (await this.timing?.refresh()) ?? false;
+    // Grok 的 chat_history.jsonl 以整文件替换保存，内容变化或时间来源变化都必须重建，不能按偏移追加。
+    const replaced = Boolean(this.timing) && (this.fresh || timingChanged || info.size !== checkpoint.size || info.mtimeMs !== checkpoint.modified);
+    this.fresh = false;
     if (
+      replaced ||
       checkpoint.identity !== identity ||
       info.size < checkpoint.offset ||
       (info.size === checkpoint.offset && checkpoint.modified !== info.mtimeMs) ||
       (checkpoint.offset > 0 && (await this.fingerprint(checkpoint.offset)) !== checkpoint.tail)
     ) {
       await this.validateSource?.();
-      this.db.exec("DELETE FROM events; DELETE FROM usage; DELETE FROM metadata;");
+      this.db.exec("DELETE FROM events; DELETE FROM metadata;");
       checkpoint.offset = 0;
       checkpoint.parser = { provider: checkpoint.parser.provider, round: 0 };
     }
@@ -81,7 +102,7 @@ export class TraceIndex {
       position = checkpoint.offset;
     try {
       while (position < info.size) {
-        const chunk = Buffer.alloc(Math.min(64 * 1024, info.size - position));
+        const chunk = Buffer.alloc(Math.min(READ_CHUNK, info.size - position));
         const read = await file.read(chunk, 0, chunk.length, position);
         if (!read.bytesRead) break;
         position += read.bytesRead;
@@ -89,17 +110,23 @@ export class TraceIndex {
         let end: number;
         this.db.exec("BEGIN");
         try {
-          while ((end = pending.indexOf(10)) >= 0) {
+          while ((end = pending.indexOf(NEWLINE)) >= 0) {
             if (end > MAX_LINE) throw Error("LINE_TOO_LARGE");
             const bytes = pending.subarray(0, end),
               length = end + 1;
+            // 空行不是记录，跳过且不计入 Grok 的消息行号。
+            if (!bytes.toString("utf8").trim()) {
+              checkpoint.offset += length;
+              pending = pending.subarray(length);
+              continue;
+            }
             let raw: unknown;
             try {
               raw = JSON.parse(bytes.toString("utf8"));
             } catch {
               raw = { type: "invalid_json", content: bytes.toString("utf8") };
             }
-            for (const event of parseRecord(raw, checkpoint.offset, checkpoint.parser)) this.insert(event, checkpoint.offset, length);
+            for (const event of parse(raw, checkpoint.offset, checkpoint.parser, this.timing)) this.insert(event, checkpoint.offset, length);
             checkpoint.offset += length;
             pending = pending.subarray(length);
           }
@@ -115,6 +142,7 @@ export class TraceIndex {
       // 留下未完成尾行，下次从最后一个完整换行继续，避免半个 UTF-8 字符或半条 JSON 被丢弃。
       checkpoint.tail = await this.fingerprint(checkpoint.offset);
       checkpoint.modified = info.mtimeMs;
+      checkpoint.size = info.size;
       this.db.prepare("INSERT OR REPLACE INTO metadata VALUES('checkpoint-v3',?)").run(JSON.stringify(checkpoint));
       return checkpoint.offset !== before;
     } finally {
@@ -122,10 +150,6 @@ export class TraceIndex {
     }
   }
   private insert(event: Parsed, offset: number, length: number) {
-    if (event.usage)
-      this.db
-        .prepare("INSERT INTO usage VALUES(?,?) ON CONFLICT(key) DO UPDATE SET tokens=MAX(tokens,excluded.tokens)")
-        .run(event.usage.key, event.usage.tokens);
     const clipped = event.content.slice(0, CONTENT_LIMIT),
       truncated = Number(event.content.length > CONTENT_LIMIT);
     if (event.resultFor) {
@@ -135,7 +159,8 @@ export class TraceIndex {
       if (original) {
         const data = JSON.parse(String(original.data)) as TraceEvent;
         if (event.kind === "error") data.kind = "error";
-        if (event.timestamp && data.timestamp) data.durationMs = Math.max(0, Date.parse(event.timestamp) - Date.parse(data.timestamp));
+        if (event.running) data.running = true;
+        else if (data.durationMs === undefined && event.timestamp && data.timestamp) data.durationMs = Math.max(0, Date.parse(event.timestamp) - Date.parse(data.timestamp));
         this.db
           .prepare("UPDATE events SET data=?,kind=?,result=?,result_loc=?,result_len=?,search=?,truncated=MAX(truncated,?) WHERE seq=?")
           .run(
@@ -158,6 +183,7 @@ export class TraceIndex {
       round: event.round,
       request: event.request,
       timestamp: event.timestamp,
+      durationMs: event.durationMs,
       preview: event.content.replace(/\s+/g, " ").slice(0, PREVIEW_LIMIT),
       tool: event.tool,
       callId: event.callId,
@@ -212,22 +238,16 @@ export class TraceIndex {
     const counts =
       this.db
         .prepare(
-          `SELECT COUNT(*) events, COUNT(DISTINCT request) requests, SUM(call_id IS NOT NULL) tools, SUM(kind='error') errors FROM events WHERE 1=1 ${hidden}`,
+          `SELECT COUNT(*) events, COUNT(DISTINCT request) requests, SUM(call_id IS NOT NULL) tools, SUM(kind='error') errors
+           FROM events WHERE 1=1 ${hidden}`,
         )
         .get() ?? {};
-    const timing =
-      this.db.prepare("SELECT MIN(json_extract(data,'$.timestamp')) start, MAX(json_extract(data,'$.timestamp')) end FROM events").get() ??
-      {};
-    const tokens = this.db.prepare("SELECT SUM(tokens) tokens FROM usage").get()?.tokens;
     return {
       events: Number(counts.events),
       requests: Number(counts.requests) || null,
       rounds: this.checkpoint.parser.round,
       tools: Number(counts.tools),
       errors: Number(counts.errors),
-      tokens: tokens == null ? null : Number(tokens),
-      start: timing.start ? String(timing.start) : undefined,
-      end: timing.end ? String(timing.end) : undefined,
     };
   }
   page(query: TraceQuery): TracePage {

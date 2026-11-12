@@ -25,6 +25,9 @@ export interface ExtensionManifest {
   hostMajor: number;
   runtime: "runtime/index.cjs";
 }
+/** 已支持轨迹解析的 Agent；标题栏入口、主进程描述与插件解析共用这一份列表。 */
+export const TRACE_PROVIDERS = ["claude", "codex", "grok", "antigravity"] as const;
+export type TraceProvider = (typeof TRACE_PROVIDERS)[number];
 export type TraceKind = "user" | "assistant" | "reasoning" | "context" | "system" | "tool" | "error" | "compaction" | "unknown";
 export interface TraceEvent {
   id: number;
@@ -37,6 +40,8 @@ export interface TraceEvent {
   tool?: string;
   callId?: string;
   synthetic?: boolean;
+  /** 日志标记工具仍在运行（如 Antigravity 的 RUNNING 结果），耗时未定，不按结果时间推算。 */
+  running?: boolean;
   /** 纯记账记录；默认时间线隐藏，可通过「显示全部」查看原文。 */
   bookkeeping?: boolean;
 }
@@ -66,9 +71,6 @@ export interface TraceStats {
   requests: number | null;
   tools: number;
   errors: number;
-  tokens: number | null;
-  start?: string;
-  end?: string;
 }
 export interface TracePage {
   events: TraceEvent[];
@@ -80,9 +82,7 @@ export interface TracePage {
   rangeFirstIndex?: number | null;
 }
 export type TraceResult = TracePage | TraceDetail | { events: TraceEvent[]; truncated: boolean };
-export interface TraceLease {
-  id: string;
-}
+export type TraceLease = { id: string; cancelled?: false } | { cancelled: true };
 export interface TraceUpdate {
   leaseId: string;
   error?: string;

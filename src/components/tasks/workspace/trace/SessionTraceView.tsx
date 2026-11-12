@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Clock3, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,7 +11,6 @@ import { EventDetail } from "./EventDetail";
 import { EventList } from "./EventList";
 import { Timeline } from "./Timeline";
 import { TraceError } from "./TraceError";
-import { formatTraceDuration } from "./formatTraceDuration";
 import { useTraceData } from "./useTraceData";
 import type { TraceQueryFn } from "./useSessionTrace";
 
@@ -88,7 +87,8 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
     update();
     return () => observer.disconnect();
   }, [open, stacked]);
-  const duration = stats?.start && stats.end ? Date.parse(stats.end) - Date.parse(stats.start) : null;
+  // 整段会话没有任何带时间的事件时隐藏时间线并提示；部分有时间时时间线只画这些事件。
+  const untimed = Boolean(stats) && !loading && timeline.events.length === 0;
   return (
     <div
       className="session-trace flex min-h-0 min-w-0 flex-1 flex-col bg-background text-xs text-foreground"
@@ -100,27 +100,26 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
       }}
     >
       <div className="stats trace-stats flex flex-wrap items-center gap-3 px-3 py-2 text-muted-foreground tabular-nums">
-        <span className="flex items-center gap-1.5">
-          <Clock3 className="size-3.5" />
-          {duration === null ? "—" : formatTraceDuration(duration)}
-        </span>
         <span>{stats ? t("trace:counts.turns", { count: stats.rounds }) : t("trace:unknown.turns")}</span>
         <span title={stats?.requests === null ? t("trace:requestUnknown") : undefined}>
           {stats?.requests == null ? t("trace:unknown.requests") : t("trace:counts.requests", { count: stats.requests })}
         </span>
         <span>{stats ? t("trace:counts.tools", { count: stats.tools }) : t("trace:unknown.tools")}</span>
-        <span>{stats?.tokens == null ? t("trace:unknown.tokens") : t("trace:counts.tokens", { value: `${(stats.tokens / 1000).toFixed(1)}k` })}</span>
         {!!stats?.errors && <span className="text-destructive">{t("trace:counts.errors", { count: stats.errors })}</span>}
       </div>
-      <Timeline
-        events={timeline.events}
-        truncated={timeline.truncated}
-        selectedId={selected}
-        range={range}
-        onSelect={jump}
-        onRangeSelect={setRange}
-        onRangeClear={clearRange}
-      />
+      {untimed ? (
+        <p className="px-3 pb-3 text-xs text-muted-foreground">{t("trace:timelineMissing")}</p>
+      ) : (
+        <Timeline
+          events={timeline.events}
+          truncated={timeline.truncated}
+          selectedId={selected}
+          range={range}
+          onSelect={jump}
+          onRangeSelect={setRange}
+          onRangeClear={clearRange}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-2 border-y px-3 py-2">
         <div role="group" aria-label={t("trace:filter")} className="flex flex-wrap items-center gap-1">
           {filters.map((filter) => (

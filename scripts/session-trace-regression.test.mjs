@@ -19,9 +19,9 @@ const rows=[
 const jsonl=rows=>rows.map(row=>JSON.stringify(row)).join('\n')+'\n';
 async function fixture(run){const root=await mkdtemp(path.join(os.tmpdir(),'navo-trace-'));try{await run(root);}finally{await rm(root,{recursive:true,force:true});}}
 
-test('Claude: deduplicates final responses and cumulative usage, pairs errors without new turns',()=>fixture(async root=>{
+test('Claude: deduplicates final responses, pairs errors without new turns',()=>fixture(async root=>{
  const source=path.join(root,'log.jsonl'),cache=path.join(root,'cache.sqlite');await writeFile(source,jsonl(rows));const index=new TraceIndex(source,cache,'claude');
- try {await index.refresh();const page=index.page({kind:'page'});assert.equal(page.stats.rounds,1);assert.equal(page.stats.requests,1);assert.equal(page.stats.tokens,120);assert.equal(page.stats.tools,1);assert.equal(page.stats.errors,1);
+ try {await index.refresh();const page=index.page({kind:'page'});assert.equal(page.stats.rounds,1);assert.equal(page.stats.requests,1);assert.equal(page.stats.tools,1);assert.equal(page.stats.errors,1);
  const tool=index.page({kind:'page',filter:'tool'});assert.equal(tool.total,1);const detail=await index.detail(tool.events[0].id);assert.equal(detail.kind,'error');assert.equal(detail.durationMs,2000);assert.equal(detail.result,'test failed');assert.match(detail.raw,/tool_use/);assert.match(detail.raw,/tool_result/);
  assert.equal(index.page({kind:'page',search:'test failed'}).total,1);assert.equal(index.page({kind:'page',filter:'unknown'}).total,1);assert.equal(index.page({kind:'page',filter:'context'}).total,1);
  }finally{index.close();}
@@ -34,7 +34,7 @@ test('incremental UTF-8 tail, checkpoint reuse and truncation rebuild',()=>fixtu
  }finally{index.close();}
 }));
 
-test('Codex: response items are authoritative; usage is cumulative and requests remain unknown',()=>fixture(async root=>{
+test('Codex: response items are authoritative and requests remain unknown',()=>fixture(async root=>{
  const source=path.join(root,'log.jsonl');await writeFile(source,jsonl([
  {type:'response_item',payload:{type:'message',role:'user',content:[{type:'input_text',text:'do work'}]}},
  {type:'event_msg',payload:{type:'user_message',message:'do work'}},
@@ -42,7 +42,7 @@ test('Codex: response items are authoritative; usage is cumulative and requests 
  {type:'response_item',payload:{type:'function_call_output',call_id:'c1',output:'workspace'}},
  {type:'event_msg',payload:{type:'token_count',info:{total_token_usage:{total_tokens:100}}}},
  {type:'event_msg',payload:{type:'token_count',info:{total_token_usage:{total_tokens:140}}}},
- ]));const index=new TraceIndex(source,path.join(root,'index.sqlite'),'codex');try{await index.refresh();assert.equal(index.stats().events,2);assert.equal(index.stats().tokens,140);assert.equal(index.stats().rounds,1);assert.equal(index.stats().requests,null);assert.equal(index.page({kind:'page',search:'workspace'}).total,1);}finally{index.close();}
+ ]));const index=new TraceIndex(source,path.join(root,'index.sqlite'),'codex');try{await index.refresh();assert.equal(index.stats().events,2);assert.equal(index.stats().rounds,1);assert.equal(index.stats().requests,null);assert.equal(index.page({kind:'page',search:'workspace'}).total,1);}finally{index.close();}
 }));
 
 test('source resolution requires exact native identity and rejects escaping symlinks',()=>fixture(async root=>{
@@ -65,7 +65,7 @@ test('Claude: one request keeps independent UUID blocks and pairs parallel tool 
  ]));
  let index=new TraceIndex(source,cache,'claude');
  try {
-  await index.refresh();const stats=index.stats();assert.equal(stats.events,5);assert.equal(stats.requests,1);assert.equal(stats.tools,2);assert.equal(stats.errors,1);assert.equal(stats.tokens,120);
+  await index.refresh();const stats=index.stats();assert.equal(stats.events,5);assert.equal(stats.requests,1);assert.equal(stats.tools,2);assert.equal(stats.errors,1);
   assert.equal(index.page({kind:'page',filter:'reasoning'}).total,1);assert.equal(index.page({kind:'page',search:'Inspecting both files'}).total,1);
   const tools=index.page({kind:'page',filter:'tool'}).events;const a=await index.detail(tools.find(event=>event.callId==='call-a').id),b=await index.detail(tools.find(event=>event.callId==='call-b').id);
   assert.equal(a.result,'contents a');assert.equal(b.result,'missing b');assert.equal(b.kind,'error');assert.equal(a.durationMs,2000);assert.match(a.raw,/call-a/);assert.match(b.raw,/call-b/);
@@ -93,7 +93,7 @@ test('Claude: missing UUID keeps separate records and replay metadata matches SQ
  }finally{index.close();}
 }));
 
-test('PRD 2.5: attachments split, bookkeeping stays hidden, tokens do not double-count',()=>fixture(async root=>{
+test('PRD 2.5: attachments split and bookkeeping stays hidden',()=>fixture(async root=>{
  const source=path.join(root,'log.jsonl'),cache=path.join(root,'cache.sqlite');
  await writeFile(source,jsonl([
   {type:'user',timestamp:stamp,message:{content:[{type:'text',text:'start'}]}},
@@ -120,7 +120,6 @@ test('PRD 2.5: attachments split, bookkeeping stays hidden, tokens do not double
  try {
   await index.refresh();
   const visible=index.page({kind:'page'});
-  assert.equal(visible.stats.tokens,null);
   assert.equal(visible.stats.events,12);
   assert.equal(visible.total,12);
   const contexts=index.page({kind:'page',filter:'context'});
@@ -146,7 +145,7 @@ test('PRD 2.5: attachments split, bookkeeping stays hidden, tokens do not double
  } finally {index.close();}
 }));
 
-test('PRD 2.5: Codex token records share one cumulative total and stay off the default timeline',()=>fixture(async root=>{
+test('PRD 2.5: Codex token records are hidden bookkeeping rows, visible with show all',()=>fixture(async root=>{
  const source=path.join(root,'log.jsonl');
  await writeFile(source,jsonl([
   {type:'response_item',payload:{type:'message',role:'user',content:[{type:'input_text',text:'do work'}]}},
@@ -165,13 +164,13 @@ test('PRD 2.5: Codex token records share one cumulative total and stay off the d
   const visible=index.page({kind:'page'});
   assert.equal(visible.total,3);
   assert.equal(visible.stats.events,3);
-  assert.equal(visible.stats.tokens,200);
   assert.equal(visible.stats.rounds,1);
   assert.equal(visible.events.filter(event=>event.kind==='system').length,2);
   const hidden=index.page({kind:'page',showBookkeeping:true});
   assert.equal(hidden.total,9);
-  assert.equal(hidden.stats.tokens,200);
   assert.equal(hidden.events.filter(event=>event.bookkeeping).length,6);
+  assert.equal(hidden.events.filter(event=>event.bookkeeping&&/token_count|token_usage_record/.test(event.preview)).length,4);
+  assert.deepEqual(Object.keys(hidden.stats).sort(),['errors','events','requests','rounds','tools']);
   assert.ok(hidden.events.some(event=>event.preview.includes('world_state')||event.preview.includes('gpt-test')));
  } finally {index.close();}
 }));
@@ -193,6 +192,7 @@ test('PRD 2.5: locating an event ignores hidden bookkeeping ids when paging',()=
   assert.equal(revealed.events[0].preview,'visible after bookkeeping');
  } finally {index.close();}
 }));
+
 
 test('timeline duration uses d h m s and caps at days', () => {
   const { formatTraceDuration } = load('src/components/tasks/workspace/trace/formatTraceDuration.ts');
@@ -288,7 +288,7 @@ test('trace range helpers expand a short drag, merge windows and distinguish ove
   assert.ok(Date.parse(expanded.to)<=axisEnd);
   const nearStart=expandTimelineRange(axisStart,axisStart+1,axisStart,axisEnd,200);
   assert.equal(Date.parse(nearStart.from),axisStart);
-  const stats={events:3,rounds:1,requests:null,tools:0,errors:0,tokens:null};
+  const stats={events:3,rounds:1,requests:null,tools:0,errors:0};
   const first=mergeTraceWindows(null,{events:[{id:1},{id:2}],total:4,stats,offset:0},0);
   const merged=mergeTraceWindows(first,{events:[{id:3},{id:4}],total:4,stats,offset:2},2);
   assert.deepEqual(merged.events.map(event=>event.id),[1,2,3,4]);

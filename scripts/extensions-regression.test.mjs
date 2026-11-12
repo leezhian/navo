@@ -199,16 +199,16 @@ test('pending trace opens can be cancelled before metadata resolves or initial i
     for (const cancel of [id => runtime.close(id, 1), () => runtime.closeOwner(1), () => runtime.closeAll()]) {
       metadata = new Promise(resolve => { resolveSession = resolve; });
       const id = randomUUID();
-      const cancelled = assert.rejects(runtime.open('session', 1, id), /LEASE_EXPIRED/);
+      const cancelled = runtime.open('session', 1, id);
       await cancel(id);
       resolveSession(session);
-      await cancelled;
+      assert.deepEqual(await cancelled, { cancelled: true });
       assert.equal(children.length, 0, 'Cancelling metadata lookup must prevent a later process launch');
     }
     metadata = Promise.resolve(session);
     const firstId = randomUUID(), secondId = randomUUID();
     const first = runtime.open('session', 1, firstId), second = runtime.open('session', 2, secondId);
-    const firstCancelled = assert.rejects(first, /LEASE_EXPIRED/);
+    const firstCancelled = first.then(result => assert.deepEqual(result, { cancelled: true }));
     await tick();
     assert.equal(children.length, 1);
     await assert.rejects(runtime.open('session', 2, firstId), /INVALID_QUERY/);
@@ -223,7 +223,7 @@ test('pending trace opens can be cancelled before metadata resolves or initial i
     await runtime.closeAll();
 
     const lastId = randomUUID();
-    const lastCancelled = assert.rejects(runtime.open('session', 1, lastId), /LEASE_EXPIRED/);
+    const lastCancelled = runtime.open('session', 1, lastId).then(result => assert.deepEqual(result, { cancelled: true }));
     await tick();
     runtime.close(lastId, 1);
     assert.equal(children[1].killed, true, 'The last view must stop indexing without waiting for its first response');

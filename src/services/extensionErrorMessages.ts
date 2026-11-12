@@ -19,6 +19,7 @@ export const extensionErrorKeys = {
   IDENTITY_PENDING: "settings:labs.errors.IDENTITY_PENDING",
   UNSUPPORTED_PROVIDER: "settings:labs.errors.UNSUPPORTED_PROVIDER",
   SOURCE_INVALID: "settings:labs.errors.SOURCE_INVALID",
+  SOURCE_ROOT_MISSING: "settings:labs.errors.SOURCE_ROOT_MISSING",
   SOURCE_MISSING: "settings:labs.errors.SOURCE_MISSING",
   SOURCE_UNREADABLE: "settings:labs.errors.SOURCE_UNREADABLE",
   LINE_TOO_LARGE: "settings:labs.errors.LINE_TOO_LARGE",

@@ -1,12 +1,16 @@
-import type { TraceKind } from "../../../src/shared/extensionTypes";
+import type { TraceKind, TraceProvider } from "../../../src/shared/extensionTypes";
 
 export type Json = Record<string, unknown>;
 export const object = (value: unknown): Json => (value && typeof value === "object" && !Array.isArray(value) ? (value as Json) : {});
-const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
-const text = (value: unknown): string => (typeof value === "string" ? value : value === undefined ? "" : JSON.stringify(value));
+export const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+export const text = (value: unknown): string => (typeof value === "string" ? value : value === undefined ? "" : JSON.stringify(value));
 export interface ParserState {
   round: number;
-  provider: "claude" | "codex";
+  provider: TraceProvider;
+  /** Grok：已解析的 chat_history 行号，用于和 turn_started.conversation_message_count 对齐。 */
+  line?: number;
+  /** Antigravity：上一条模型回复中尚未配对结果的工具调用，按顺序消费。 */
+  pendingCalls?: string[];
   /** 最近一次已记录的模式、权限模式与线程设置，只在值变化时生成可见系统行。 */
   settings?: Record<string, string>;
 }
@@ -16,26 +20,21 @@ export interface Parsed {
   content: string;
   round: number;
   timestamp?: string;
+  /** 日志直接给出的耗时（如 Grok tool_completed.duration_ms）；没有时由配对结果的时间差推算。 */
+  durationMs?: number;
+  /** 结果仍在运行，不推算耗时。 */
+  running?: boolean;
   request?: string;
   tool?: string;
   callId?: string;
   synthetic?: boolean;
   resultFor?: string;
-  usage?: { key: string; tokens: number };
   bookkeeping?: boolean;
 }
 const FILE_ATTACHMENTS = new Set(["file", "edited_text_file"]);
 const CONTEXT_ATTACHMENTS = new Set(["session_context", "environment", "prompt_snapshot", ...FILE_ATTACHMENTS]);
 const HIDDEN_TYPES = new Set(["last-prompt", "atis-latch", "file-history-snapshot"]);
 
-function usage(value: unknown) {
-  const data = object(value);
-  if (typeof data.total_tokens === "number") return data.total_tokens;
-  const fields = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"];
-  return fields.some((key) => typeof data[key] === "number")
-    ? fields.reduce((sum, key) => sum + (typeof data[key] === "number" ? (data[key] as number) : 0), 0)
-    : null;
-}
 function content(value: unknown) {
   return Array.isArray(value)
     ? value
@@ -69,7 +68,7 @@ function hidden(event: Parsed): Parsed {
   return { ...event, bookkeeping: true };
 }
 
-/** 只以日志中的消息身份和标记归一化，不读取当前 AGENTS.md 回填历史。 */
+/** Claude Code 与 Codex 解析；只以日志中的消息身份和标记归一化，不读取当前 AGENTS.md 回填历史。 */
 export function parseRecord(raw: unknown, offset: number, state: ParserState): Parsed[] {
   const row = object(raw),
     message = object(row.message),
@@ -120,8 +119,6 @@ export function parseRecord(raw: unknown, offset: number, state: ParserState): P
           if (event.callId) event.key = `call:${event.callId}`;
         }
         if (type === "tool_result") event.resultFor = text(block.tool_use_id);
-        const tokens = usage(message.usage);
-        if (event.request && tokens !== null) event.usage = { key: event.request, tokens };
         return event;
       });
     }
@@ -151,17 +148,13 @@ export function parseRecord(raw: unknown, offset: number, state: ParserState): P
   if (row.type === "turn_context") return [base("context", text(payload))];
   if (row.type === "compacted") return [base("compaction", content(payload.message ?? payload))];
   if (row.type === "token_usage_record") {
-    // 与 event_msg.token_count 共用累计键，按 MAX 覆盖，避免同一线程总量被加两次。
-    const tokens = usage(object(payload.thread_token_usage));
-    return [{ ...hidden(base("system", text(row))), usage: tokens === null ? undefined : { key: "codex-total", tokens } }];
+    // Token 记账记录默认隐藏，「显示全部」时作为原始行查看。
+    return [hidden(base("system", text(row)))];
   }
   if (row.type === "world_state") return [hidden(base("system", text(payload)))];
   if (row.type === "event_msg") {
-    // Codex 的 event_msg 常是 response_item 的流式副本，Token 单独按累计值覆盖。
-    if (payload.type === "token_count") {
-      const tokens = usage(object(payload.info).total_token_usage);
-      return [{ ...hidden(base("system", text(payload))), usage: tokens === null ? undefined : { key: "codex-total", tokens } }];
-    }
+    // Codex 的 event_msg 常是 response_item 的流式副本；token_count 只作为隐藏的记账行。
+    if (payload.type === "token_count") return [hidden(base("system", text(payload)))];
     if (payload.type === "thread_settings_applied") {
       const value = text(payload.thread_settings ?? payload);
       return [changeEvent(state, "thread_settings", value, base("system", value))];

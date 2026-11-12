@@ -4,7 +4,7 @@ import type en from "@/i18n/locales/en/trace.json";
 /** 宿主返回的错误码；不在轨迹文案里的统一显示通用提示。 */
 export type TraceErrorCode = keyof typeof en.errors | "UNKNOWN";
 const known: ReadonlySet<string> = new Set<TraceErrorCode>([
-  "INVALID_QUERY", "SOURCE_INVALID", "SOURCE_MISSING", "SOURCE_UNREADABLE", "LINE_TOO_LARGE", "CACHE_LIMIT",
+  "INVALID_QUERY", "SOURCE_INVALID", "SOURCE_ROOT_MISSING", "SOURCE_MISSING", "SOURCE_UNREADABLE", "LINE_TOO_LARGE", "CACHE_LIMIT",
   "SESSION_MISSING", "LEASE_EXPIRED", "EVENT_MISSING", "RUNTIME_FAILED", "RUNTIME_TIMEOUT",
   "EXTENSION_DISABLED", "IDENTITY_PENDING", "UNSUPPORTED_PROVIDER",
 ]);

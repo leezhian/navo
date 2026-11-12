@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TraceEvent, TraceKind } from "@/shared/extensionTypes";
-import { formatTraceDuration } from "./formatTraceDuration";
 import { eventOverlapsRange, expandTimelineRange } from "./traceRange";
 import { traceKindTone } from "./traceKind";
 import { cn } from "@/lib/utils";
@@ -82,7 +81,8 @@ export function Timeline({ events, truncated, selectedId, range, onSelect, onRan
     if (markRect.top < rect.top) container.scrollTop += markRect.top - rect.top;
     else if (markRect.bottom > rect.bottom) container.scrollTop += markRect.bottom - rect.bottom;
   }, [selectedId, events]);
-  if (!dates.length) return <p className="px-3 pb-3 text-xs text-muted-foreground">{t("trace:timelineMissing")}</p>;
+  // 整段无时间的提示由外层给出；部分有时间或仍在读取时不另做空状态。
+  if (!dates.length) return null;
   const start = Math.min(...dates),
     end = Math.max(...dates),
     total = Math.max(1, end - start);
@@ -140,7 +140,6 @@ export function Timeline({ events, truncated, selectedId, range, onSelect, onRan
     >
       <div className="flex gap-2">
         <div className="flex w-9 shrink-0 flex-col">
-          <div className="h-4" />
           {lanes.map((lane) => (
             <div className="flex h-6 items-center" key={lane.label}>
               <span className="truncate">{lane.label}</span>
@@ -148,11 +147,6 @@ export function Timeline({ events, truncated, selectedId, range, onSelect, onRan
           ))}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex h-4 justify-between tabular-nums">
-            <span>0s</span>
-            <span>{formatTraceDuration(total / 2)}</span>
-            <span>{formatTraceDuration(total)}</span>
-          </div>
           <div
             ref={axisRef}
             className="relative cursor-crosshair select-none"
@@ -181,7 +175,7 @@ export function Timeline({ events, truncated, selectedId, range, onSelect, onRan
             {highlight && <div className="pointer-events-none absolute inset-y-0 z-[1] bg-ring/20" style={rangeStyle(highlight.from, highlight.to, start, total)} />}
             {lanes.map((lane) => (
               <div
-                className="relative h-6 bg-[repeating-linear-gradient(to_right,var(--border)_0,var(--border)_1px,transparent_1px,transparent_25%)]"
+                className="relative h-6"
                 key={lane.label}
               >
                 {events

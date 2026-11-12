@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import type { TaskResource } from "@/shared/taskTypes";
 import type { TaskSession } from "@/shared/taskSessionTypes";
+import { TRACE_PROVIDERS } from "@/shared/extensionTypes";
 import type { CompareMode, ReviewSession } from "@/domain/types";
 import { useTaskSessionStore } from "@/stores/taskSessionStore";
 import { getTaskSessionsApi } from "@/services/taskSessionApi";
@@ -114,7 +115,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const showUpper = showAgentPane || (visibleRight && !rightOverlay);
   const terminalFillsSpace = !showUpper;
   const extension = useExtensions();
-  const traceAvailable = Boolean(extension.status?.enabled && extension.status.compatible && ["claude", "codex"].includes(active?.agent?.agentId ?? ""));
+  const traceAvailable = Boolean(extension.status?.enabled && extension.status.compatible && TRACE_PROVIDERS.some(provider => provider === active?.agent?.agentId));
   const [sessionView, setSessionView] = useState<{ id?: string; trace: boolean; suppressResume: boolean }>({ trace: false, suppressResume: false });
   const traceSelected = sessionView.id === active?.id && sessionView.trace && traceAvailable;
   const resumeSuppressed = sessionView.id === active?.id && (sessionView.trace || sessionView.suppressResume);
