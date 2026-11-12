@@ -2,12 +2,11 @@ import { app, BrowserWindow, dialog } from "electron";
 import { mkdir, writeFile, appendFile, readFile, access } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { registerExtensionScheme, registerExtensionHandlers, shutdownExtensions } from "../../src/main-process/ipc/extensionHandlers";
+import { registerExtensionHandlers, shutdownExtensions } from "../../src/main-process/ipc/extensionHandlers";
 import { TaskRepository } from "../../src/main-process/services/taskRepository";
 import { SessionRepository } from "../../src/main-process/services/taskSessions/sessionRepository";
 import { verifyTraceReading } from "./sessionTraceReading";
 
-registerExtensionScheme();
 const directory = process.env.NAVO_TRACE_TEST_DIRECTORY as string;
 app.setPath("userData", path.join(directory, "user"));
 Object.defineProperty(app, "getVersion", { value: () => "1.0.0" });
@@ -65,19 +64,16 @@ void app.whenReady().then(async () => {
       if ((await api.status()).version !== "0.2.0" || !(await api.status()).enabled) throw Error("Update lost enable preference");
       await (window as unknown as { setFixtureLanguage: (language: string) => Promise<unknown> }).setFixtureLanguage("en");
       (window as unknown as { showLabs: (value: boolean) => void }).showLabs(false);
-      await wait(() => Boolean(document.querySelector("iframe")), "Plugin frame missing");
+      await wait(() => Boolean(document.querySelector(".session-trace")) && !document.querySelector("iframe"), "Host trace view missing");
       return true;
     };
     await win.webContents.executeJavaScript(`(${checks.toString()})()`);
-    // 与正式嵌入相同的跨来源 iframe，检查其 DOM 与主进程通道隔离。
-    let frame = win.webContents.mainFrame.frames.find(frame => frame.url.startsWith("navo-extension:"));
-    for (let attempt = 0; !frame && attempt < 100; attempt++) { await new Promise(resolve => setTimeout(resolve, 50)); frame = win.webContents.mainFrame.frames.find(frame => frame.url.startsWith("navo-extension:")); }
-    if (!frame) throw Error("Custom protocol frame missing");
     const uiChecks = async () => {
       const pause = () => new Promise(resolve => setTimeout(resolve, 40));
       const wait = async (predicate: () => boolean) => { for (let i = 0; i < 250; i++) { if (predicate()) return; await pause(); } throw Error(document.body.innerText); };
       await wait(() => document.body.innerText.includes("220"));
-      if ("navo" in window || "require" in window) throw Error("Host capabilities leaked into iframe");
+      if (document.querySelector("iframe")) throw Error("Official trace UI must not use an iframe");
+      if (!("navo" in window)) throw Error("Host trace UI must run in the application page");
       const count = document.querySelectorAll(".event-row").length;
       if (count >= 80 || count < 1) throw Error("List was not virtualized");
       (document.querySelector(".event-row") as HTMLButtonElement).click();
@@ -114,12 +110,12 @@ void app.whenReady().then(async () => {
       if (!document.querySelector(".stats")?.textContent?.includes("— model requests")) throw Error("Unknown requests were displayed as zero");
       return { virtualRows: count, text: document.body.innerText };
     };
-    const result = await frame.executeJavaScript(`(${uiChecks.toString()})()`);
+    const result = await win.webContents.executeJavaScript(`(${uiChecks.toString()})()`);
     assert.match(result.text, /fixture message 219/);
     await appendFile(source, JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message 219 appended" } }) + "\n");
-    for (let attempt = 0; attempt < 100; attempt++) { const count = await frame.executeJavaScript("document.querySelectorAll('.event-row').length"); if (count === 2) break; if (attempt === 99) throw Error("Incremental update missing"); await new Promise(resolve => setTimeout(resolve, 50)); }
-    assert.equal(await frame.executeJavaScript(`document.querySelector('[role="status"]').textContent`), "2 events");
-    await verifyTraceReading(win, frame, () => appendFile(source, JSON.stringify({
+    for (let attempt = 0; attempt < 100; attempt++) { const count = await win.webContents.executeJavaScript("document.querySelectorAll('.event-row').length"); if (count === 2) break; if (attempt === 99) throw Error("Incremental update missing"); await new Promise(resolve => setTimeout(resolve, 50)); }
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('[role="status"]').textContent`), "2 events");
+    await verifyTraceReading(win, () => appendFile(source, JSON.stringify({
       sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message follow appended" },
     }) + "\n"));
     const screenshot = await win.webContents.capturePage(); await writeFile(path.join(directory, "trace.png"), screenshot.toPNG());

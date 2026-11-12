@@ -7,12 +7,14 @@ const explicitVersion=process.argv.find(arg=>arg.startsWith('--version='))?.slic
 const version=explicitVersion??'0.1.0', destination=path.resolve('extension-dist'), staging=path.join(destination,'build');
 if(!/^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/.test(version))throw Error('Use a stable major.minor.patch version');
 await rm(staging,{recursive:true,force:true});await mkdir(staging,{recursive:true});
-await build({configFile:false,root:path.resolve('extensions/session-trace/ui'),base:'./',esbuild:{jsx:'automatic'},build:{outDir:path.join(staging,'ui'),emptyOutDir:true,minify:'esbuild',rollupOptions:{output:{entryFileNames:'app.js',assetFileNames:'[name][extname]'}}}});
 await build({configFile:false,build:{outDir:path.join(staging,'runtime'),emptyOutDir:true,target:'node22',minify:false,lib:{entry:path.resolve('extensions/session-trace/runtime/index.ts'),formats:['cjs'],fileName:()=> 'index.cjs'},rollupOptions:{external:/^node:/}}});
 const files={};
 async function collect(directory,prefix='') {for(const entry of (await readdir(directory,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){const name=prefix+entry.name;if(entry.isDirectory())await collect(path.join(directory,entry.name),name+'/');else files[name]=await readFile(path.join(directory,entry.name),'utf8');}}
-await collect(staging);
-const manifest={id:'session-trace',version,apiVersion:1,hostMajor:1,ui:'ui/index.html',runtime:'runtime/index.cjs'};
+await collect(path.join(staging,'runtime'),'runtime/');
+// 插件包只含解析运行时，界面已迁到宿主，避免把 UI 再次打进安装包。
+if(Object.keys(files).some(name=>!name.startsWith('runtime/')||name.split('/').some(part=>!part||part==='.'||part==='..')))throw Error('Package must contain only the parser runtime');
+const manifest={id:'session-trace',version,apiVersion:1,hostMajor:1,runtime:'runtime/index.cjs'};
+if(!files[manifest.runtime])throw Error('Missing parser runtime');
 const bytes=Buffer.from(JSON.stringify({manifest,files}));
 const filename=`session-trace-${version}.navo-extension`;
 await writeFile(path.join(destination,filename),bytes);

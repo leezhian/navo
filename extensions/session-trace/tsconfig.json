@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["ui", "runtime", "../../src/shared/extensionTypes.ts"],
+  "include": ["runtime", "../../src/shared/extensionTypes.ts"],
   "compilerOptions": { "noEmit": true }
 }

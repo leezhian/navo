@@ -7,6 +7,9 @@ import os from "node:os";
 import type { TaskSession } from "../../../shared/taskSessionTypes";
 import type { TraceQuery, TraceResult, TraceUpdate } from "../../../shared/extensionTypes";
 import type { ExtensionService } from "./extensionService";
+import { writeDiagnosticEvent } from "../../diagnostics/diagnosticLogger";
+import type { DiagnosticEvent, DiagnosticMetadata } from "../../../shared/diagnosticTypes";
+import { normalizeExtensionErrorCode } from "../../../shared/extensionErrors";
 
 interface Pending {
   resolve: (value: TraceResult) => void;
@@ -22,26 +25,35 @@ interface Runtime {
   dead: boolean;
   fingerprint: string;
   cache: string;
+  /** 首个打开者的任务与会话，只用于诊断日志。 */
+  taskId: string;
+  sessionId: string;
 }
 interface Lease {
   owner: number;
   sessionId: string;
+  taskId: string;
   runtime: Runtime;
 }
 interface PendingOpen {
   owner: number;
   cancelled: boolean;
+  /** 打开失败时诊断日志需要的任务 ID。 */
+  context: { taskId?: string };
 }
 const filters = ["all", "user", "assistant", "reasoning", "context", "system", "tool", "error", "compaction", "unknown"];
 export function validateTraceQuery(value: TraceQuery) {
   if (
     !value ||
     !["page", "detail", "timeline"].includes(value.kind) ||
-    (value.filter !== undefined && !filters.includes(value.filter)) ||
-    (value.search !== undefined && (typeof value.search !== "string" || value.search.length > 500)) ||
-    (value.offset !== undefined && (!Number.isSafeInteger(value.offset) || value.offset < 0 || value.offset > 10000000)) ||
-    (value.limit !== undefined && (!Number.isInteger(value.limit) || value.limit < 1 || value.limit > 200)) ||
-    (value.kind === "detail" && (!Number.isSafeInteger(value.eventId) || Number(value.eventId) < 1))
+    // contextBridge 会把未设置的可选字段变成 null，统一按缺省处理。
+    (value.filter != null && !filters.includes(value.filter)) ||
+    (value.search != null && (typeof value.search !== "string" || value.search.length > 500)) ||
+    (value.offset != null && (!Number.isSafeInteger(value.offset) || value.offset < 0 || value.offset > 10000000)) ||
+    (value.limit != null && (!Number.isInteger(value.limit) || value.limit < 1 || value.limit > 200)) ||
+    (value.showBookkeeping != null && typeof value.showBookkeeping !== "boolean") ||
+    (value.eventId != null && (!Number.isSafeInteger(value.eventId) || Number(value.eventId) < 1)) ||
+    (value.kind === "detail" && value.eventId == null)
   )
     throw Error("INVALID_QUERY");
 }
@@ -56,6 +68,20 @@ export class TraceRuntime {
     private session: (id: string) => Promise<TaskSession | undefined>,
     private notify: (owner: number, update: TraceUpdate) => void,
   ) {}
+  /** 宿主统一记录轨迹失败：只写错误码与 ID，不写轨迹正文、查询词或路径。 */
+  private report(event: DiagnosticEvent, error: unknown, metadata: DiagnosticMetadata = {}) {
+    const code = normalizeExtensionErrorCode(error instanceof Error ? error.message : error);
+    // 关闭面板时的竞态取消属于正常流程，不写日志。
+    if (code === "LEASE_EXPIRED") return;
+    const logged = Error(code);
+    if (error instanceof Error && error.stack) logged.stack = error.stack;
+    void writeDiagnosticEvent(event, {
+      extensionId: "session-trace",
+      version: this.extension().status.version ?? undefined,
+      ...metadata,
+      error: logged,
+    });
+  }
   private requireEnabled() {
     const status = this.extension().status;
     if (!status.enabled || !status.compatible || status.operation !== "idle") throw Error("EXTENSION_DISABLED");
@@ -74,6 +100,7 @@ export class TraceRuntime {
       const timer = setTimeout(() => {
         runtime.pending.delete(id);
         reject(Error("RUNTIME_TIMEOUT"));
+        this.report("trace.runtime_exited", "RUNTIME_TIMEOUT", { taskId: runtime.taskId, sessionId: runtime.sessionId });
         void this.stop(runtime, "RUNTIME_TIMEOUT").catch(() => undefined);
       }, 120000);
       runtime.pending.set(id, { resolve, reject, timer });
@@ -81,6 +108,15 @@ export class TraceRuntime {
     });
   }
   async open(sessionId: string, owner: number, id: string) {
+    const context: { taskId?: string } = {};
+    try {
+      return await this.openChecked(sessionId, owner, id, context);
+    } catch (error) {
+      this.report("trace.open_failed", error, { sessionId, taskId: context.taskId });
+      throw error;
+    }
+  }
+  private async openChecked(sessionId: string, owner: number, id: string, context: { taskId?: string }) {
     this.requireEnabled();
     const leaseCount = new Set([...this.leases.keys(), ...this.opening.keys()]).size;
     if (
@@ -88,7 +124,7 @@ export class TraceRuntime {
       typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id) ||
       this.leases.has(id) || this.opening.has(id)
     ) throw Error("INVALID_QUERY");
-    const opening: PendingOpen = { owner, cancelled: false };
+    const opening: PendingOpen = { owner, cancelled: false, context };
     // 先登记请求，元数据读取、等待旧进程退出和首次索引期间均允许取消。
     this.opening.set(id, opening);
     try {
@@ -105,6 +141,7 @@ export class TraceRuntime {
     const session = await this.session(sessionId);
     requireActive();
     if (!session || session.kind !== "agent") throw Error("SESSION_MISSING");
+    opening.context.taskId = session.taskId;
     const source = this.describe(session),
       fingerprint = JSON.stringify(source);
     await this.stopping.get(fingerprint);
@@ -132,6 +169,8 @@ export class TraceRuntime {
         dead: false,
         fingerprint,
         cache,
+        taskId: session.taskId,
+        sessionId,
       };
       this.runtimes.set(fingerprint, runtime);
       const instance = runtime;
@@ -144,15 +183,19 @@ export class TraceRuntime {
           instance.pending.delete(message.id);
           if (message.error) pending.reject(Error(message.error));
           else pending.resolve(message.result as TraceResult);
-        } else if (message.type === "failed") void this.stop(instance, message.error ?? "RUNTIME_FAILED").catch(() => undefined);
+        } else if (message.type === "failed") {
+          this.report("trace.runtime_exited", message.error ?? "RUNTIME_FAILED", { taskId: instance.taskId, sessionId: instance.sessionId });
+          void this.stop(instance, message.error ?? "RUNTIME_FAILED").catch(() => undefined);
+        }
         else if (message.type === "changed")
           for (const id of instance.leases) {
             const lease = this.leases.get(id);
             if (lease) this.notify(lease.owner, { leaseId: id });
           }
       });
-      child.on("exit", () => {
+      child.on("exit", (exitCode) => {
         if (!instance.dead) {
+          this.report("trace.runtime_exited", "RUNTIME_FAILED", { taskId: instance.taskId, sessionId: instance.sessionId, exitCode });
           this.extension().reportRuntimeFailure();
           void this.stop(instance, "RUNTIME_FAILED").catch(() => undefined);
         }
@@ -160,18 +203,28 @@ export class TraceRuntime {
       runtime.ready = this.send(runtime, { type: "open", session: source, cache });
     }
     runtime.leases.add(id);
-    this.leases.set(id, { owner, sessionId, runtime });
+    this.leases.set(id, { owner, sessionId, taskId: session.taskId, runtime });
     try {
       await runtime.ready;
       requireActive();
       if (!this.leases.has(id)) throw Error("EXTENSION_DISABLED");
-      return { id, uiUrl: "navo-extension://session-trace/ui/index.html" };
+      return { id };
     } catch (error) {
       this.close(id, owner);
       throw error;
     }
   }
   async query(id: string, query: TraceQuery, owner: number) {
+    const lease = this.leases.get(id);
+    try {
+      return await this.queryChecked(id, query, owner);
+    } catch (error) {
+      const queryKind = typeof query?.kind === "string" ? query.kind : undefined;
+      this.report("trace.query_failed", error, lease?.owner === owner ? { taskId: lease.taskId, sessionId: lease.sessionId, queryKind } : { queryKind });
+      throw error;
+    }
+  }
+  private async queryChecked(id: string, query: TraceQuery, owner: number) {
     this.requireEnabled();
     validateTraceQuery(query);
     const lease = this.leases.get(id);
@@ -182,7 +235,9 @@ export class TraceRuntime {
       throw Error("SESSION_MISSING");
     }
     this.requireEnabled();
-    const result = await this.send(lease.runtime, { type: "query", query });
+    // 去掉 contextBridge 产生的 null，解析进程只看到缺省或有效值。
+    const normalized = Object.fromEntries(Object.entries(query).filter(([, value]) => value != null)) as TraceQuery;
+    const result = await this.send(lease.runtime, { type: "query", query: normalized });
     this.requireEnabled();
     if (!this.leases.has(id)) throw Error("LEASE_EXPIRED");
     return result;

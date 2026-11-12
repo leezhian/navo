@@ -1,8 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronDown } from "lucide-react";
-import type { TraceDetail, TraceEvent } from "../../../src/shared/extensionTypes";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TraceDetail, TraceEvent } from "@/shared/extensionTypes";
+import { cn } from "@/lib/utils";
 import { EventDetail } from "./EventDetail";
+import type { TraceErrorCode } from "./TraceError";
+import { formatTraceDuration } from "./formatTraceDuration";
+import { traceKindTone } from "./traceKind";
 
 interface EventListProps {
   /** 当前分页的事件摘要，正文在选择后单独读取。 */
@@ -11,8 +15,8 @@ interface EventListProps {
   selected: number | null;
   /** 异步读取的正文，由详情组件核对其事件 ID。 */
   detail: TraceDetail | null;
-  /** 当前详情读取失败时显示重试提示。 */
-  detailError: boolean;
+  /** 当前详情读取失败时显示原因。 */
+  detailError: TraceErrorCode | null;
   /** 侧栏模式只选中行，详情由并列面板承载。 */
   inspector: boolean;
   /** 主动跟随时，在页面加载、追加和视口变化后保持最后一条事件可见。 */
@@ -80,42 +84,47 @@ export function EventList({ events, selected, detail, detailError, inspector, fo
   }, [following, height, viewport.height]);
   return (
     <div
-      className="events"
+      className="events trace-events min-h-[100px] flex-1 overflow-auto px-2 [overflow-anchor:none]"
       ref={scroller}
       onScroll={(event) => setViewport({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight })}
     >
-      {!events.length && <p className="empty">{t("trace:empty")}</p>}
+      {!events.length && <p className="p-6 text-center text-xs text-muted-foreground">{t("trace:empty")}</p>}
       <div style={{ height, position: "relative" }}>
         {rows
           .filter((row) => row.top + row.height >= viewport.top - 180 && row.top <= viewport.top + viewport.height + 180)
           .map((row) => (
             <div key={row.key} style={{ position: "absolute", left: 0, right: 0, top: row.top, height: row.height }}>
               {row.heading ? (
-                <div className="group-heading">{row.heading}</div>
+                <div className="flex h-[30px] items-center border-b px-2 text-[11px] text-muted-foreground">{row.heading}</div>
               ) : row.event ? (
                 <button
-                  className="event-row"
+                  type="button"
+                  className="event-row trace-event-row grid h-[38px] w-full grid-cols-[12px_52px_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 text-left text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:bg-muted max-[480px]:grid-cols-[12px_48px_minmax(0,1fr)]"
                   data-kind={row.event.kind}
+                  data-bookkeeping={row.event.bookkeeping || undefined}
                   aria-expanded={selected === row.event.id}
                   title={row.event.preview}
                   onClick={() => row.event && onSelect(row.event.id)}
                 >
-                  {selected === row.event.id ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  <span className="kind">{t(`trace:kinds.${row.event.kind}`)}</span>
-                  <span className="event-preview">
-                    {row.event.tool && <b>{row.event.tool} · </b>}
+                  {selected === row.event.id ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
+                  <span className={cn("truncate rounded px-1 py-0.5 text-center text-[11px]", traceKindTone(row.event.kind).badge)}>
+                    {t(`trace:kinds.${row.event.kind}`)}
+                  </span>
+                  <span className="truncate">
+                    {row.event.bookkeeping && <span className="font-medium">{t("trace:bookkeeping")} · </span>}
+                    {row.event.tool && <span className="font-medium">{row.event.tool} · </span>}
                     {row.event.preview || t(`trace:kinds.${row.event.kind}`)}
                   </span>
-                  <span className="time">
+                  <span className="text-[11px] text-muted-foreground tabular-nums max-[480px]:hidden">
                     {row.event.durationMs !== undefined
-                      ? `${(row.event.durationMs / 1000).toFixed(1)}s`
+                      ? formatTraceDuration(row.event.durationMs)
                       : row.event.timestamp
                         ? new Date(row.event.timestamp).toLocaleTimeString(i18n.resolvedLanguage, { hour12: false })
                         : "—"}
                   </span>
                 </button>
               ) : (
-                <div className="detail">
+                <div className="detail trace-detail mr-2 mb-2 ml-6 h-[292px] overflow-auto border-l-2 bg-muted px-3 py-2 max-[480px]:ml-3">
                   <EventDetail selected={selected} detail={detail} failed={detailError} />
                 </div>
               )}

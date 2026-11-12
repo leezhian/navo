@@ -11,14 +11,19 @@ const load=createLoader();
 const {ExtensionRepository}=load('src/main-process/services/extensions/extensionRepository.ts');
 const {ExtensionService}=load('src/main-process/services/extensions/extensionService.ts');
 const {decodePackage}=load('src/main-process/services/extensions/extensionPackage.ts');
-const manifest={id:'session-trace',version:'0.1.0',apiVersion:1,hostMajor:1,ui:'ui/index.html',runtime:'runtime/index.cjs'};
-function bundle(files={'ui/index.html':'<p>trace</p>','runtime/index.cjs':'module.exports={}'}) {const bytes=Buffer.from(JSON.stringify({manifest,files}));return {bytes,release:{version:manifest.version,sha256:createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length,url:'https://github.com/leezhian/navo/releases/download/test/test'}};}
+const manifest={id:'session-trace',version:'0.1.0',apiVersion:1,hostMajor:1,runtime:'runtime/index.cjs'};
+function bundle(files={'runtime/index.cjs':'module.exports={}'}) {const bytes=Buffer.from(JSON.stringify({manifest,files}));return {bytes,release:{version:manifest.version,sha256:createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length,url:'https://github.com/leezhian/navo/releases/download/test/test'}};}
 async function fixture(run){const root=await mkdtemp(path.join(os.tmpdir(),'navo-extensions-'));try{await run(root);}finally{await rm(root,{recursive:true,force:true});}}
 
 test('package requires a host-pinned digest, expected manifest and contained UTF-8 entries',()=>{
  const {bytes,release}=bundle();assert.equal(decodePackage(bytes,release).manifest.id,'session-trace');
- assert.throws(()=>decodePackage(Buffer.from(bytes.toString().replace('trace</p>','other</p>')),release),/PACKAGE_INVALID/);
- for(const name of ['ui/../escape.js','ui//bad.js','/ui/file.js','runtime/../../file','ui/./x','ui/\\x']){const bad=bundle({'ui/index.html':'ok','runtime/index.cjs':'ok',[name]:'bad'});assert.throws(()=>decodePackage(bad.bytes,bad.release),/PACKAGE_INVALID/);}
+ assert.throws(()=>decodePackage(Buffer.from(bytes.toString().replace('module.exports={}','module.exports={tampered:1}')),release),/PACKAGE_INVALID/);
+ for(const name of ['runtime/../escape.js','runtime//bad.js','/runtime/file.js','runtime/../../file','runtime/./x','runtime/\\x','ui/index.html']){const bad=bundle({'runtime/index.cjs':'ok',[name]:'bad'});assert.throws(()=>decodePackage(bad.bytes,bad.release),/PACKAGE_INVALID/);}
+ const uiPkg=bundle({'runtime/index.cjs':'ok','ui/index.html':'<p>no</p>'});
+ assert.throws(()=>decodePackage(uiPkg.bytes,uiPkg.release),/PACKAGE_INVALID/);
+ const oldManifest={...manifest,ui:'ui/index.html'}; const oldBytes=Buffer.from(JSON.stringify({manifest:oldManifest,files:{'ui/index.html':'<p>trace</p>','runtime/index.cjs':'module.exports={}'}}));
+ const oldRelease={version:manifest.version,sha256:createHash('sha256').update(oldBytes).digest('hex'),bytes:oldBytes.length,url:'https://github.com/leezhian/navo/releases/download/test/test'};
+ assert.throws(()=>decodePackage(oldBytes,oldRelease),/INCOMPATIBLE/);
 });
 
 test('install, enable, disable, restart and uninstall preserve source history',()=>fixture(async root=>{
@@ -81,9 +86,56 @@ test('runtime leases share a process, bind windows and revoke access before tear
  status.enabled=false;await runtime.closeAll();assert.equal(children[0].killed,true);assert.equal(notifications.at(-1).owner,2);
  await assert.rejects(runtime.query(second.id,{kind:'page'},2),/EXTENSION_DISABLED/);
  status.enabled=true;const third=await runtime.open('session',1,randomUUID());exists=false;await assert.rejects(runtime.query(third.id,{kind:'page'},1),/SESSION_MISSING/);await runtime.closeAll();
- for(const query of [{kind:'delete'}, {kind:'page',limit:100000}, {kind:'detail',eventId:-1}, {kind:'page',search:'x'.repeat(501)}])assert.throws(()=>validateTraceQuery(query),/INVALID_QUERY/);
+ for(const query of [{kind:'delete'}, {kind:'page',limit:100000}, {kind:'detail',eventId:-1}, {kind:'page',search:'x'.repeat(501)}, {kind:'timeline',showBookkeeping:'yes'}])assert.throws(()=>validateTraceQuery(query),/INVALID_QUERY/);
+ // contextBridge 会把未设置的布尔字段变成 null，默认关闭「显示全部」时必须仍能查询。
+ for(const query of [{kind:'timeline'}, {kind:'timeline',showBookkeeping:undefined}, {kind:'timeline',showBookkeeping:null}, {kind:'timeline',showBookkeeping:false}, {kind:'page',limit:80,offset:0,filter:'all',search:'',showBookkeeping:null}, {kind:'page',limit:80,offset:80,filter:'tool',search:'',eventId:null,showBookkeeping:null}, {kind:'page',filter:null,search:null,offset:null,limit:null}])validateTraceQuery(query);
+ assert.throws(()=>validateTraceQuery({kind:'detail',eventId:null}),/INVALID_QUERY/);
 });
 
+
+test('trace open, query and parser failures are written to the diagnostic log without trace content', async () => {
+  const children = [], logged = [];
+  const { makeDiagnosticEntry } = createLoader()('src/main-process/diagnostics/diagnosticSanitizer.ts');
+  const loadRuntime = createLoader({
+    electron: { utilityProcess: { fork: () => {
+      const child = new EventEmitter();
+      child.postMessage = data => queueMicrotask(() => child.emit('message', { id: data.id, result: data.type === 'open' ? true : { events: [], total: 0 } }));
+      child.kill = () => { child.killed = true; queueMicrotask(() => child.emit('exit', 0)); return true; };
+      children.push(child);
+      return child;
+    } } },
+    '../../diagnostics/diagnosticLogger': { writeDiagnosticEvent: (event, metadata) => { logged.push(makeDiagnosticEntry(event, metadata)); return Promise.resolve(); } },
+  });
+  const { TraceRuntime } = loadRuntime('src/main-process/services/extensions/traceRuntime.ts');
+  const extension = { status: { enabled: true, compatible: true, operation: 'idle', version: '0.1.0' }, directory: '/isolated/trace-log', installedDirectory: '/isolated/trace-log/installed', reportRuntimeFailure() {} };
+  const sessionId = randomUUID(), taskId = randomUUID(), secret = 'DO_NOT_LOG_TRACE_SECRET';
+  const session = { id: sessionId, taskId, kind: 'agent', nativeSessionId: '12345678-1234-1234-1234-123456789abc', nativeHistoryRoot: '/isolated/' + secret, cwd: '/isolated/work', agent: { agentId: 'claude' }, createdAt: '2026-11-06T00:00:00Z' };
+  let current = { ...session, nativeSessionId: undefined };
+  const runtime = new TraceRuntime(() => extension, async () => current, () => {});
+  await assert.rejects(runtime.open(sessionId, 1, randomUUID()), /IDENTITY_PENDING/);
+  let entry = logged.at(-1);
+  assert.equal(entry.event, 'trace.open_failed'); assert.equal(entry.level, 'WARN'); assert.equal(entry.error.code, 'IDENTITY_PENDING');
+  assert.deepEqual([entry.data.extensionId, entry.data.version, entry.data.taskId, entry.data.sessionId], ['session-trace', '0.1.0', taskId, sessionId]);
+  current = session;
+  const lease = await runtime.open(sessionId, 1, randomUUID());
+  await assert.rejects(runtime.query(lease.id, { kind: 'page', search: secret, showBookkeeping: 'yes' }, 1), /INVALID_QUERY/);
+  entry = logged.at(-1);
+  assert.equal(entry.event, 'trace.query_failed'); assert.equal(entry.level, 'ERROR'); assert.equal(entry.error.code, 'INVALID_QUERY');
+  assert.deepEqual([entry.data.queryKind, entry.data.taskId, entry.data.sessionId], ['page', taskId, sessionId]);
+  const before = logged.length;
+  await assert.rejects(runtime.query(lease.id, { kind: 'page' }, 2), /LEASE_EXPIRED/);
+  assert.equal(logged.length, before, 'Expired leases are a normal close race and must not be logged');
+  children[0].emit('message', { type: 'failed', error: 'SOURCE_UNREADABLE' });
+  entry = logged.at(-1);
+  assert.equal(entry.event, 'trace.runtime_exited'); assert.equal(entry.error.code, 'SOURCE_UNREADABLE'); assert.equal(entry.data.taskId, taskId);
+  await new Promise(resolve => setImmediate(resolve));
+  await runtime.open(sessionId, 1, randomUUID());
+  children[1].emit('exit', 9);
+  entry = logged.at(-1);
+  assert.equal(entry.event, 'trace.runtime_exited'); assert.equal(entry.error.code, 'RUNTIME_FAILED'); assert.equal(entry.data.exitCode, 9);
+  assert.doesNotMatch(JSON.stringify(logged), new RegExp(secret + '|/isolated/'));
+  await runtime.closeAll();
+});
 
 test('closing the last lease stops the parser, and reopening the same session starts a fresh shared process', async () => {
   const children = [];

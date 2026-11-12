@@ -44,7 +44,7 @@ export class TraceIndex {
       CREATE INDEX IF NOT EXISTS calls ON events(call_id);
       CREATE TABLE IF NOT EXISTS usage(key TEXT PRIMARY KEY, tokens INTEGER);
       CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT);`);
-    const saved = this.db.prepare("SELECT value FROM metadata WHERE key='checkpoint-v2'").get();
+    const saved = this.db.prepare("SELECT value FROM metadata WHERE key='checkpoint-v3'").get();
     this.checkpoint = saved ? JSON.parse(String(saved.value)) : { offset: 0, identity: "", tail: "", parser: { provider, round: 0 } };
   }
   private async fingerprint(offset: number) {
@@ -71,7 +71,7 @@ export class TraceIndex {
       await this.validateSource?.();
       this.db.exec("DELETE FROM events; DELETE FROM usage; DELETE FROM metadata;");
       checkpoint.offset = 0;
-      checkpoint.parser.round = 0;
+      checkpoint.parser = { provider: checkpoint.parser.provider, round: 0 };
     }
     checkpoint.identity = identity;
     if (info.size === checkpoint.offset) return false;
@@ -115,7 +115,7 @@ export class TraceIndex {
       // 留下未完成尾行，下次从最后一个完整换行继续，避免半个 UTF-8 字符或半条 JSON 被丢弃。
       checkpoint.tail = await this.fingerprint(checkpoint.offset);
       checkpoint.modified = info.mtimeMs;
-      this.db.prepare("INSERT OR REPLACE INTO metadata VALUES('checkpoint-v2',?)").run(JSON.stringify(checkpoint));
+      this.db.prepare("INSERT OR REPLACE INTO metadata VALUES('checkpoint-v3',?)").run(JSON.stringify(checkpoint));
       return checkpoint.offset !== before;
     } finally {
       await file.close();
@@ -126,7 +126,6 @@ export class TraceIndex {
       this.db
         .prepare("INSERT INTO usage VALUES(?,?) ON CONFLICT(key) DO UPDATE SET tokens=MAX(tokens,excluded.tokens)")
         .run(event.usage.key, event.usage.tokens);
-    if (event.usage?.key === "codex-total") return;
     const clipped = event.content.slice(0, CONTENT_LIMIT),
       truncated = Number(event.content.length > CONTENT_LIMIT);
     if (event.resultFor) {
@@ -163,6 +162,7 @@ export class TraceIndex {
       tool: event.tool,
       callId: event.callId,
       synthetic: event.synthetic,
+      bookkeeping: event.bookkeeping,
     };
     this.db
       .prepare(
@@ -185,11 +185,21 @@ export class TraceIndex {
   private summary(row: { seq?: unknown; data?: unknown }): TraceEvent {
     return { ...JSON.parse(String(row.data)), id: Number(row.seq) };
   }
+  private visible(showBookkeeping?: boolean) {
+    return showBookkeeping ? "" : "AND ifnull(json_extract(data,'$.bookkeeping'),0)=0";
+  }
+  private scope(query: Pick<TraceQuery, "filter" | "search" | "showBookkeeping">) {
+    const filter = query.filter ?? "all",
+      search = query.search ?? "";
+    const where = `WHERE (?='all' OR kind=? OR (?='tool' AND call_id IS NOT NULL)) AND instr(lower(search),lower(?))>0 ${this.visible(query.showBookkeeping)}`;
+    return { where, args: [filter, filter, filter, search] };
+  }
   stats(): TraceStats {
+    const hidden = this.visible();
     const counts =
       this.db
         .prepare(
-          "SELECT COUNT(*) events, COUNT(DISTINCT request) requests, SUM(call_id IS NOT NULL) tools, SUM(kind='error') errors FROM events",
+          `SELECT COUNT(*) events, COUNT(DISTINCT request) requests, SUM(call_id IS NOT NULL) tools, SUM(kind='error') errors FROM events WHERE 1=1 ${hidden}`,
         )
         .get() ?? {};
     const timing =
@@ -208,19 +218,23 @@ export class TraceIndex {
     };
   }
   page(query: TraceQuery): TracePage {
-    const filter = query.filter ?? "all",
-      search = query.search ?? "";
-    const where = "WHERE (?='all' OR kind=? OR (?='tool' AND call_id IS NOT NULL)) AND instr(lower(search),lower(?))>0";
-    const args = [filter, filter, filter, search];
-    const rows = this.db
-      .prepare(`SELECT seq,data FROM events ${where} ORDER BY seq LIMIT ? OFFSET ?`)
-      .all(...args, query.limit ?? 80, query.offset ?? 0);
+    const { where, args } = this.scope(query);
+    const limit = query.limit ?? 80;
+    let offset = query.offset ?? 0;
+    // 事件序号包含隐藏记账行，定位时按当前筛选计算其所在页，避免按 id 直接换算翻到空页。
+    if (query.eventId != null) {
+      const before = this.db.prepare(`SELECT COUNT(*) total FROM events ${where} AND seq<?`).get(...args, query.eventId)?.total;
+      offset = Math.floor(Number(before) / limit) * limit;
+    }
+    const rows = this.db.prepare(`SELECT seq,data FROM events ${where} ORDER BY seq LIMIT ? OFFSET ?`).all(...args, limit, offset);
     const total = Number(this.db.prepare(`SELECT COUNT(*) total FROM events ${where}`).get(...args)?.total);
-    return { events: rows.map((row) => this.summary(row)), total, stats: this.stats() };
+    return { events: rows.map((row) => this.summary(row)), total, stats: this.stats(), offset };
   }
-  timeline() {
+  timeline(query: TraceQuery = { kind: "timeline" }) {
     const rows = this.db
-      .prepare("SELECT seq,data FROM events WHERE json_extract(data,'$.timestamp') IS NOT NULL ORDER BY seq LIMIT 1001")
+      .prepare(
+        `SELECT seq,data FROM events WHERE json_extract(data,'$.timestamp') IS NOT NULL ${this.visible(query.showBookkeeping)} ORDER BY seq LIMIT 1001`,
+      )
       .all();
     return { events: rows.slice(0, 1000).map((row) => this.summary(row)), truncated: rows.length > 1000 };
   }

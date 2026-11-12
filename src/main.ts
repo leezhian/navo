@@ -1,4 +1,4 @@
-import { registerExtensionScheme, registerExtensionHandlers, shutdownExtensions } from "./main-process/ipc/extensionHandlers";
+import { registerExtensionHandlers, shutdownExtensions } from "./main-process/ipc/extensionHandlers";
 import { app, BrowserWindow, shell } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -36,7 +36,6 @@ const appIconPath = app.isPackaged
   ? path.join(process.resourcesPath, "icon.png")
   : path.join(app.getAppPath(), "assets/icons/icon.png");
 
-registerExtensionScheme();
 bindProcessDiagnostics();
 startApplication();
 

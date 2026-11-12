@@ -29,10 +29,10 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
       const task={id:'test-task',title:'任务工作台验证',description:'真实任务描述',date:'2026-10-07',projectName:'test',status:'TODO',resources:[],links:[],webLinks:[],attachments:[]};
       let records=[],number=0;window.scopeResources=[];const publish=()=>{for(const callback of changed)callback(structuredClone(records));return structuredClone(records);};
       const extensionListeners=new Set();let extensionStatus={id:'session-trace',version:'0.1.0',availableVersion:'0.1.0',enabled:false,compatible:true,operation:'idle',progress:0,error:null,downloadBytes:100};window.traceOpens=[];window.traceCloses=[];window.traceLeaseIds=[];window.setTraceEnabled=enabled=>{extensionStatus={...extensionStatus,enabled};for(const callback of extensionListeners)callback(extensionStatus);};
-      window.navo={extensions:{status:async()=>extensionStatus,onChanged:callback=>{extensionListeners.add(callback);return()=>extensionListeners.delete(callback);},openTrace:async(id,leaseId)=>{window.traceOpens.push(id);window.traceLeaseIds.push(leaseId);if(window.deferTraceOpen)await new Promise(resolve=>{window.resolveTraceOpen=resolve;});return{id:leaseId,uiUrl:'about:blank'};},closeTrace:async id=>window.traceCloses.push(id),onTraceChanged:()=>()=>{}},settings:{save:async settings=>{window.savedSettings=settings;return settings;}},resources:{onCloneProgress:()=>()=>{},inspectGit:async()=>({isRepository:true,remoteUrl:null})},tasks:{workspaceOpenOptions:async()=>{window.optionsReadCount=(window.optionsReadCount||0)+1;if(window.failWorkspaceOptions)throw new Error('fixture read failure');return {editors:window.noEditors?[]:[{id:'vscode',name:'VS Code'},{id:'xcode',name:'Xcode'}],remote:{provider:window.remoteProvider,url:'https://gitlab.com/fixture/repo'},externalTerminal:true};},openWorkspace:async(taskId,resourceId,target)=>window.workspaceOpens.push({taskId,resourceId,target})},agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
+      window.navo={extensions:{status:async()=>extensionStatus,onChanged:callback=>{extensionListeners.add(callback);return()=>extensionListeners.delete(callback);},openTrace:async(id,leaseId)=>{window.traceOpens.push(id);window.traceLeaseIds.push(leaseId);if(window.deferTraceOpen)await new Promise(resolve=>{window.resolveTraceOpen=resolve;});return{id:leaseId};},closeTrace:async id=>window.traceCloses.push(id),queryTrace:async(_leaseId,query)=>query.kind==='timeline'?{events:[],truncated:false}:query.kind==='detail'?{id:query.eventId??0,kind:'user',round:0,preview:'',content:'',raw:'',truncated:false}:{events:[],total:0,stats:{events:0,rounds:0,requests:null,tools:0,errors:0,tokens:null}},onTraceChanged:()=>()=>{}},settings:{save:async settings=>{window.savedSettings=settings;return settings;}},resources:{onCloneProgress:()=>()=>{},inspectGit:async()=>({isRepository:true,remoteUrl:null})},tasks:{workspaceOpenOptions:async()=>{window.optionsReadCount=(window.optionsReadCount||0)+1;if(window.failWorkspaceOptions)throw new Error('fixture read failure');return {editors:window.noEditors?[]:[{id:'vscode',name:'VS Code'},{id:'xcode',name:'Xcode'}],remote:{provider:window.remoteProvider,url:'https://gitlab.com/fixture/repo'},externalTerminal:true};},openWorkspace:async(taskId,resourceId,target)=>window.workspaceOpens.push({taskId,resourceId,target})},agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
         resumeVisible:async id=>{window.autoResumes.push(id);return publish();},
         list:async()=>structuredClone(records),onChanged:callback=>{changed.add(callback);return()=>changed.delete(callback);},
-        start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,command:input.commandId?{id:input.commandId,resourceId:input.resourceId,name:'Build'}:undefined,title:input.commandId?'Build':input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',resumable:input.kind==='agent'});return publish();},
+        start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,command:input.commandId?{id:input.commandId,resourceId:input.resourceId,name:'Build'}:undefined,title:input.commandId?'Build':input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',lastActiveAt:'2026-10-07T00:00:00.000Z',resumable:input.kind==='agent'});return publish();},
         stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id||record.kind==='agent').map(record=>record.id===id?{...record,status:'stopped'}:record);return publish();},
         archive:async id=>{window.archives.push(id);records=records.map(record=>record.id===id?{...record,status:'stopped',archivedAt:new Date().toISOString()}:record);return publish();},
         restore:async id=>{records=records.map(record=>record.id===id?{...record,archivedAt:undefined,status:'stopped'}:record);return publish();},
@@ -80,7 +80,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const assertMetadataActions=(item,metadataSelector,actionsSelector)=>{
           const metadata=item.querySelector(metadataSelector).getBoundingClientRect();
           const actions=item.querySelector(actionsSelector).getBoundingClientRect();
-          const title=item.querySelector('.block.truncate').getBoundingClientRect();
+          const titleNode=item.querySelector('.block.truncate');
+          const title=(titleNode.parentElement??titleNode).getBoundingClientRect();
           if(actions.height!==20||metadata.height!==20||Math.abs(metadata.top-title.bottom-2)>1)throw new Error('Context actions and metadata must be 20px high with a 2px title gap');
           if(Math.abs(metadata.top+metadata.height/2-actions.top-actions.height/2)>1||actions.top<title.bottom)throw new Error('Item actions must align with metadata, not the title');
           if(Math.abs(title.right-actions.right)>1)throw new Error('Title must retain full width above actions');
@@ -91,13 +92,13 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         button('任务上下文').click();await wait(()=>document.querySelector('.task-context-container'),'Context toggle failed');
         // 页面可见且聚焦时，左侧 Sheet 仍应阻止自动恢复；关闭后才启动同一个会话。
         Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'visible'});document.hasFocus=()=>true;window.dispatchEvent(new Event('focus'));
-        window.setRecords([{id:'overlay-resume',taskId:'test-task',kind:'agent',agent:{agentId:'claude'},title:'Overlay test',cwd:'/test',workspace:{kind:'task'},status:'stopped',terminalId:'overlay-terminal',createdAt:'now',nativeSessionId:'overlay-native',resumable:true,resumeOnOpen:true}]);
+        window.setRecords([{id:'overlay-resume',taskId:'test-task',kind:'agent',agent:{agentId:'claude'},title:'Overlay test',cwd:'/test',workspace:{kind:'task'},status:'stopped',terminalId:'overlay-terminal',createdAt:'now',lastActiveAt:'2026-10-07T00:00:00.000Z',nativeSessionId:'overlay-native',resumable:true,resumeOnOpen:true}]);
         await wait(()=>document.querySelector('.task-agent-pane [title="Overlay test"]'),'Overlay test session missing');await new Promise(resolve=>setTimeout(resolve,200));
         if(window.autoResumes.length)throw new Error('Left context sheet must block automatic resume');
         button('任务上下文').click();await wait(()=>window.autoResumes.length===1,'Closing left sheet must allow automatic resume');
         if(window.autoResumes[0]!=='overlay-resume')throw new Error('Wrong session resumed');
         window.setTraceEnabled(true);document.hasFocus=()=>false;window.dispatchEvent(new Event('blur'));
-        window.setRecords([{id:'trace-resume',taskId:'test-task',kind:'agent',agent:{agentId:'claude'},title:'Trace resume test',cwd:'/test',status:'stopped',terminalId:'trace-terminal',createdAt:'now',nativeSessionId:'trace-native',resumable:true,resumeOnOpen:true}]);
+        window.setRecords([{id:'trace-resume',taskId:'test-task',kind:'agent',agent:{agentId:'claude'},title:'Trace resume test',cwd:'/test',status:'stopped',terminalId:'trace-terminal',createdAt:'now',lastActiveAt:'2026-10-07T00:00:00.000Z',nativeSessionId:'trace-native',resumable:true,resumeOnOpen:true}]);
         const viewTab=label=>Array.from(document.querySelectorAll('.task-workbench-panel-heading [role=group] button')).find(button=>button.getAttribute('aria-label')===label);if(document.querySelector('.task-agent-pane [role=tab]'))throw Error('Session view tab row must be removed');
         await wait(()=>viewTab('轨迹'),'Trace header switch missing');window.deferTraceOpen=true;viewTab('轨迹').click();await wait(()=>window.traceOpens.includes('trace-resume'),'Trace reader missing');
         document.hasFocus=()=>true;window.dispatchEvent(new Event('focus'));await new Promise(resolve=>setTimeout(resolve,200));
@@ -128,9 +129,12 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         const resourceBounds=resourceButton.getBoundingClientRect();
         const toolbarBounds=resourceButton.parentElement.getBoundingClientRect();
         if(resourceButton.dataset.variant!=='outline'||resourceBounds.height!==28||Math.abs(resourceBounds.width-toolbarBounds.width)>1||Math.abs(resourceBounds.left-toolbarBounds.left)>1)throw new Error('Add resource must be a full-width 28px outline button');
-        const titleBounds=document.querySelector('.task-workbench-heading h2').getBoundingClientRect();
-        const statusBounds=document.querySelector('.task-workbench-task-status').getBoundingClientRect();
-        if(statusBounds.width===0||Math.abs(statusBounds.left-titleBounds.right-8)>1)throw new Error('Task status must sit directly beside the title even in a narrow pane');
+        const titleCluster=document.querySelector('.task-workbench-title');
+        const titleBounds=titleCluster.querySelector('h2').getBoundingClientRect();
+        const menuBounds=titleCluster.querySelector('button[aria-label="任务操作"]').getBoundingClientRect();
+        const statusBounds=titleCluster.querySelector('.task-workbench-task-status').getBoundingClientRect();
+        if(statusBounds.width===0||Math.abs(titleBounds.top+titleBounds.height/2-statusBounds.top-statusBounds.height/2)>1)throw new Error('Task status must stay on the title row even in a narrow pane');
+        if(Math.abs(menuBounds.left-titleBounds.right-4)>1||Math.abs(statusBounds.left-menuBounds.right-4)>1)throw new Error('Title menu and status must sit beside the title with a 4px gap');
         if(document.querySelectorAll('.task-context-group').length!==1||!document.querySelector('.task-context-rail').textContent.includes('任务正文'))throw new Error('Prompt must remain when other groups are empty');
         if(document.querySelector('.task-workbench-heading button[aria-label="新建会话"]'))throw new Error('Header must not offer new session');
         if(![...document.querySelectorAll('.task-session-empty button')].some(item=>item.textContent.includes('新建会话')))throw new Error('Empty task must still offer new session');
@@ -207,7 +211,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         button('收起任务上下文').click();
         window.showFixture(false);await pause();window.showFixture(true);await wait(()=>button('显示终端'),'Remount failed');
         if(window.creates.length!==2||window.attached.length!==2)throw new Error('View remount restarted terminals');
-        button('显示终端').click();await wait(()=>button('关闭 zsh1'),'Existing terminal lost');
+        // 任务会记住终端抽屉是否打开；重挂后若已展开，再点「显示终端」会把它收起。
+        if(!button('关闭 zsh1')){button('显示终端').click();await wait(()=>button('关闭 zsh1'),'Existing terminal lost');}
         button('关闭 zsh1').click();await wait(()=>!button('关闭 zsh1'),'Close failed');
         button('关闭 zsh2').click();await wait(()=>!document.querySelector('.task-terminal-badge'),'Zero badge should hide');
         button('任务上下文').click();await pause();
@@ -215,7 +220,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(headings.some(text=>text.includes('终端')))throw new Error('Empty terminal group must hide');
         button('收起任务上下文').click();button('显示终端').click();await wait(()=>button('关闭 zsh3'),'Number reused');
         window.resizeFixture(1020);await wait(()=>document.querySelector('.task-workbench').dataset.narrow==='false','Desktop not detected');
-        await wait(()=>document.querySelector('.task-context-container'),'Desktop context missing');
+        if(document.querySelector('.task-context-container'))throw new Error('Widening must not reopen a closed context rail');
+        button('任务上下文').click();await wait(()=>document.querySelector('.task-context-container'),'Desktop context missing');
         for(const divider of document.querySelectorAll('.task-workbench-separator')){
           if(!divider.classList.contains('panel-resize-handle'))throw new Error('Workspace dividers must use the shared resize handle');
           const line=getComputedStyle(divider,'::after');
@@ -234,8 +240,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
           probe.remove();
         }
         await window.setLocale('en');await wait(()=>button('Show terminals'),'English translation missing');
-        window.setRecords([{id:'agent',taskId:'test-task',kind:'agent',title:'CLI generated name',agent:{agentId:'grok'},status:'failed',terminalId:'failed',cwd:'/test',resumable:false},
-          {id:'second-agent',taskId:'test-task',kind:'agent',title:'Second CLI name',agent:{agentId:'claude'},status:'stopped',terminalId:'second-terminal',cwd:'/test',resumable:false}]);
+        window.setRecords([{id:'agent',taskId:'test-task',kind:'agent',title:'CLI generated name',agent:{agentId:'grok'},status:'failed',lastActiveAt:'2026-10-07T00:00:00.000Z',terminalId:'failed',cwd:'/test',resumable:false},
+          {id:'second-agent',taskId:'test-task',kind:'agent',title:'Second CLI name',agent:{agentId:'claude'},status:'stopped',lastActiveAt:'2026-10-07T00:00:00.000Z',terminalId:'second-terminal',cwd:'/test',resumable:false}]);
         await wait(()=>document.querySelector('#status [aria-label="Failed"]'),'Tab status is not driven by sessions');
         await wait(()=>document.querySelectorAll('.task-context-session').length===2,'Session rows missing');
         const rows=()=>[...document.querySelectorAll('.task-context-session')];

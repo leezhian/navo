@@ -6,6 +6,22 @@
   "empty": "No matching trace events",
   "error": "Could not read the trace. Please retry.",
   "retry": "Retry",
+  "errors": {
+    "INVALID_QUERY": "Invalid query",
+    "SOURCE_INVALID": "History does not match this session",
+    "SOURCE_MISSING": "History was not found",
+    "SOURCE_UNREADABLE": "History is temporarily unreadable",
+    "LINE_TOO_LARGE": "A record is too large; parsing stopped",
+    "CACHE_LIMIT": "The trace index reached its storage limit",
+    "SESSION_MISSING": "The session was removed or its identity changed",
+    "LEASE_EXPIRED": "The trace view expired. Open it again",
+    "EVENT_MISSING": "This event is no longer available. Refresh the trace",
+    "RUNTIME_FAILED": "The parser process exited",
+    "RUNTIME_TIMEOUT": "Parsing timed out",
+    "EXTENSION_DISABLED": "Session trace is disabled",
+    "IDENTITY_PENDING": "The native session identity is not bound yet",
+    "UNSUPPORTED_PROVIDER": "This agent trace format is not supported yet"
+  },
   "previous": "Previous",
   "next": "Next",
   "content": "Content",
@@ -20,6 +36,9 @@
   "timelineClipped": "Timeline shows the first 1,000 timestamped events",
   "timelineMissing": "No timestamps recorded in this log",
   "following": "Follow new events",
+  "showAll": "Show all",
+  "showAllHint": "Show hidden bookkeeping records",
+  "bookkeeping": "Bookkeeping",
   "requestUnknown": "Reliable model request boundaries are not recorded",
   "kinds": {
     "user": "User",
@@ -44,11 +63,15 @@
     "events_one": "{{count}} event",
     "events_other": "{{count}} events",
     "errors_one": "{{count}} error",
-    "errors_other": "{{count}} errors"
+    "errors_other": "{{count}} errors",
+    "tokens": "{{value}} tokens"
   },
   "unknown": {
     "turns": "— turns",
     "requests": "— model requests",
-    "tools": "— tools"
-  }
+    "tools": "— tools",
+    "tokens": "— tokens"
+  },
+  "inspectorEmpty": "Select an event to inspect",
+  "filter": "Filter by type"
 }

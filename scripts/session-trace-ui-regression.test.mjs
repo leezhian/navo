@@ -8,7 +8,7 @@ import os from 'node:os';
 import electron from 'electron';
 import { build, createServer } from 'vite';
 
-test('real package: isolated iframe, utility process, virtualization, search, live tail and uninstall',{timeout:60000},async()=>{
+test('real package: host UI, utility process, virtualization, search, live tail and uninstall',{timeout:60000},async()=>{
  const directory=await mkdtemp(path.join(os.tmpdir(),'navo-trace-electron-'));
  // 测试进程使用临时密钥和签名清单，不接触正式发布私钥或真实网络。
  const {privateKey,publicKey}=generateKeyPairSync('ed25519');
@@ -28,10 +28,10 @@ test('real package: isolated iframe, utility process, virtualization, search, li
  server.middlewares.use('/__trace',async(_request,response)=>{
   response.setHeader('Content-Type','text/html');response.end(await server.transformIndexHtml('/__trace',`<div id="root"></div><script type="module">
    import React from 'react';import{createRoot}from'react-dom/client';import'/src/App.css';import i18n from'/src/i18n/index.ts';await i18n.changeLanguage('zh-CN');window.setFixtureLanguage=language=>i18n.changeLanguage(language);
-   import{SessionTracePane}from'/src/components/tasks/workspace/SessionTracePane.tsx';import{LabsSettingsPage}from'/src/components/settings/LabsSettingsPage.tsx';import{useExtensions}from'/src/hooks/useExtensions.ts';
+   import{SessionTracePane}from'/src/components/tasks/workspace/SessionTracePane.tsx';import{LabsSettingsPage}from'/src/components/settings/LabsSettingsPage.tsx';import{TooltipProvider}from'/src/components/ui/tooltip.tsx';import{useExtensions}from'/src/hooks/useExtensions.ts';
    import{useExtensionStore}from'/src/stores/extensionStore.ts';window.setFixtureExtensionStatus=status=>useExtensionStore.setState({status});
    function Fixture(){const {status}=useExtensions();const[labs,setLabs]=React.useState(true);window.showLabs=setLabs;return React.createElement('div',{style:{height:'800px',display:'flex',flexDirection:'column',padding:16}},labs?React.createElement(LabsSettingsPage):status?.enabled?React.createElement(SessionTracePane,{session:{id:'trace-session',nativeSessionId:'12345678-1234-1234-1234-123456789abc'},visible:true}):React.createElement('p',null,'Trace disabled'));}
-   createRoot(document.querySelector('#root')).render(React.createElement(Fixture));
+   createRoot(document.querySelector('#root')).render(React.createElement(TooltipProvider,{delayDuration:250},React.createElement(Fixture)));
   </script>`));
  });
  let child;

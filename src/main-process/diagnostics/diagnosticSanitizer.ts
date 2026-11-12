@@ -1,6 +1,7 @@
 import { defaultSettings } from "../../domain/settings";
 import type { DiagnosticEntry, DiagnosticEvent, DiagnosticMetadata } from "../../shared/diagnosticTypes";
 import { isDiagnosticEvent } from "../../shared/diagnosticTypes";
+import { extensionErrorCodes } from "../../shared/extensionErrors";
 
 const errorCodes = new Set([
   "EACCES", "EPERM", "ENOENT", "ENOSPC", "EROFS", "EIO", "EEXIST", "EISDIR", "EMFILE", "ETIMEDOUT", "ECONNRESET",
@@ -22,11 +23,14 @@ const errorCodes = new Set([
   "SESSION_INVALID_NAME", "SESSION_NATIVE_UNSUPPORTED", "SESSION_NATIVE_MISSING", "SESSION_NATIVE_CHANGED", "SESSION_NATIVE_DELETE_FAILED",
   "AGENT_BUSY", "AGENT_CAPABILITIES_FAILED", "AGENT_CAPABILITIES_PENDING", "AGENT_EXPIRED_PLAN",
   "AGENT_INVALID", "AGENT_INVALID_PATH", "AGENT_SECURE_STORAGE", "AGENT_START_FAILED", "AGENT_STORAGE_FAILED",
+  ...extensionErrorCodes,
 ]);
 const warningCodes = new Set([
   "TASK_DELETE_CHANGED", "TASK_DELETE_CONFIRMATION", "TASK_DELETE_INSPECTION", "TASK_CREATE_RETAINED",
   "TASK_RESOURCE_CHANGED", "TASK_DIRTY_REPOSITORY", "TASK_BRANCH_EXISTS", "TASK_ATTACHMENT_MISSING",
   "TASK_BUSY", "CLONE_CANCELLED", "DUPLICATE_RESOURCE", "DIRECTORY_EXISTS",
+  // 轨迹的可预期状态：尚未绑定、未支持或已关闭，不算解析故障。
+  "IDENTITY_PENDING", "UNSUPPORTED_PROVIDER", "EXTENSION_DISABLED", "BUSY",
 ]);
 const names = new Set(["Error", "TypeError", "RangeError", "ReferenceError", "SyntaxError", "URIError", "EvalError", "AggregateError"]);
 const reasons = new Set(["existing", "unowned", "shared", "changed", "main", "locked", "missing", "protected", "inUse", "inspectionFailed",
@@ -58,7 +62,7 @@ export function makeDiagnosticEntry(event: DiagnosticEvent, metadata: Diagnostic
   try {
     if (!isDiagnosticEvent(event)) return null;
     const data: DiagnosticEntry["data"] = {};
-    for (const field of ["operationId", "taskId", "resourceId"] as const) {
+    for (const field of ["operationId", "taskId", "resourceId", "sessionId"] as const) {
       const value = metadata[field];
       if (typeof value === "string" && uuid.test(value)) data[field] = value;
     }
@@ -70,6 +74,8 @@ export function makeDiagnosticEntry(event: DiagnosticEvent, metadata: Diagnostic
     if (["darwin", "win32", "linux"].includes(metadata.platform ?? "")) data.platform = metadata.platform;
     if (["TODO", "DONE", "ARCHIVED"].includes(metadata.status ?? "")) data.status = metadata.status;
     if (reasons.has(metadata.reason ?? "")) data.reason = metadata.reason;
+    if (metadata.extensionId === "session-trace") data.extensionId = metadata.extensionId;
+    if (["page", "detail", "timeline"].includes(metadata.queryKind ?? "")) data.queryKind = metadata.queryKind;
     if (Array.isArray(metadata.changedFields)) data.changedFields = [...new Set(metadata.changedFields.filter((key) => Object.prototype.hasOwnProperty.call(defaultSettings, key)))].slice(0, 32);
     const code = diagnosticErrorCode(metadata.error);
     const warning = warningCodes.has(code) || ["worktree.kept", "branch.kept", "task.cleanup_retained", "session.records_invalid", "renderer.unresponsive", "log.repeated", "log.dropped"].includes(event);

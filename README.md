@@ -288,7 +288,7 @@ Codex/Antigravity 的新会话带唯一关联标识，只读核对本机原生�
 
 ## 实验室与会话轨迹扩展
 
-会话轨迹的 UI 和解析器位于 `extensions/session-trace/`，使用独立构建入口。主应用仅提供实验室管理、受限消息桥和辅助进程宿主；Forge 的 Vite 打包规则仅包含主应用构建产物，不包含扩展源码或 `extension-dist/`。
+官方轨迹界面由宿主直接渲染，位于任务工作台会话面板中，随 Navo 发版；解析器位于 `extensions/session-trace/`，使用独立构建入口。主应用提供实验室管理、受限查询通道和辅助进程宿主。Forge 打包只包含主应用构建产物：官方界面会进入安装包，解析器源码和 `extension-dist/` 不会。
 
 ```bash
 npm run build:session-trace                 # 构建并核对宿主固定摘要
@@ -319,4 +319,4 @@ npm run sign:session-trace-catalog -- --release extension-dist/session-trace-0.2
 
 轨迹使用精确原生 ID 与工作目录定位 Claude Code、Codex 的 JSONL。Codex 优先按本地数据库记录定位，旧格式回退限制为创建日期附近的已知目录；不支持 `.zst` 压缩归档。解析器在 Electron utility process 中按块读取，以 SQLite 建立可重建索引；每秒检查可见会话的增量，不使用全局 hooks。尾行不完整时保留，文件截断或替换后重新验证身份并重建。单条记录上限 8 MiB，单会话索引上限约 128 MiB；闲置缓存按最近使用情况保留最多 8 份、总量约 256 MiB，正在使用的索引不被淘汰。
 
-插件页面通过 `navo-extension://session-trace/` 加载在隔离 iframe 中，没有 Node 或完整 `window.navo`，只能查询绑定当前窗口的会话租约。默认行内详情，可切换侧栏；列表分页与虚拟化，详情和原始记录按需读取。测试使用隔离夹具，不启动真实 Agent，也不读取用户日志。
+官方轨迹界面由宿主组件渲染在会话面板中，通过受限查询通道向插件解析进程取数据；隔离 iframe 仅留给以后的第三方插件，首版不开放。默认行内详情，可切换侧栏；列表分页与虚拟化，详情和原始记录按需读取。插件未启用或未打开轨迹时不加载这段界面、也不发起查询。测试使用隔离夹具，不启动真实 Agent，也不读取用户日志。

@@ -124,7 +124,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
         <SessionHoverDetails session={session} workspaceLabel={workspaceLabel} unread={hasUnread}>
         <button className="task-context-session-select" aria-pressed={session.id === activeId} onClick={() => onSelect(session)}>
           <ContextItemIcon><AgentProviderIcon agentId={session.agent?.agentId} /></ContextItemIcon>
-          <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1"><span className="block min-w-0 truncate">{session.title || t("tasks:runtime.untitledSession")}</span>{hasUnread && <span className="task-context-session-unread" aria-label={t("tasks:runtime.status.unread")} />}</span>
+          <span className="min-w-0 flex-1"><span className="flex min-w-0 w-full items-center gap-1"><span className="block min-w-0 truncate">{session.title || t("tasks:runtime.untitledSession")}</span>{hasUnread && <span className="task-context-session-unread" aria-label={t("tasks:runtime.status.unread")} />}</span>
             <span className="task-context-session-metadata">
               <span className="task-context-session-status" data-status={session.status} data-phase={session.phase || undefined}>{statusLabel}</span>
               <span className="shrink-0" aria-hidden="true">·</span>

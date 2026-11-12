@@ -19,8 +19,8 @@ const source = {
 function bundle(version, hostMajor = 1, apiVersion = 1) {
   const bytes = Buffer.from(
     JSON.stringify({
-      manifest: { id: "session-trace", version, hostMajor, apiVersion, ui: "ui/index.html", runtime: "runtime/index.cjs" },
-      files: { "ui/index.html": "<p>" + version + "</p>", "runtime/index.cjs": "module.exports={}" },
+      manifest: { id: "session-trace", version, hostMajor, apiVersion, runtime: "runtime/index.cjs" },
+      files: { "runtime/index.cjs": "module.exports={ version: \"" + version + "\" }" },
     }),
   );
   return {

@@ -20,9 +20,9 @@ export interface ExtensionStatus {
 export interface ExtensionManifest {
   id: "session-trace";
   version: string;
+  /** 宿主接口版本，同时表示轨迹查询协议版本；首版均为 1，不兼容时拒绝安装。 */
   apiVersion: 1;
   hostMajor: number;
-  ui: "ui/index.html";
   runtime: "runtime/index.cjs";
 }
 export type TraceKind = "user" | "assistant" | "reasoning" | "context" | "system" | "tool" | "error" | "compaction" | "unknown";
@@ -37,6 +37,8 @@ export interface TraceEvent {
   tool?: string;
   callId?: string;
   synthetic?: boolean;
+  /** 纯记账记录；默认时间线隐藏，可通过「显示全部」查看原文。 */
+  bookkeeping?: boolean;
 }
 export interface TraceDetail extends TraceEvent {
   content: string;
@@ -51,6 +53,8 @@ export interface TraceQuery {
   filter?: TraceKind | "all";
   search?: string;
   eventId?: number;
+  /** 为 true 时包含默认隐藏的记账记录。 */
+  showBookkeeping?: boolean;
 }
 export interface TraceStats {
   events: number;
@@ -66,11 +70,12 @@ export interface TracePage {
   events: TraceEvent[];
   total: number;
   stats: TraceStats;
+  /** 实际分页起点；按事件定位时可能与请求的 offset 不同。 */
+  offset?: number;
 }
 export type TraceResult = TracePage | TraceDetail | { events: TraceEvent[]; truncated: boolean };
 export interface TraceLease {
   id: string;
-  uiUrl: string;
 }
 export interface TraceUpdate {
   leaseId: string;

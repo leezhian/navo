@@ -14,7 +14,7 @@ export interface ExtensionPackage {
   manifest: ExtensionManifest;
   files: Record<string, string>;
 }
-const allowedPath = /^(ui|runtime)\/[a-zA-Z0-9_./-]+$/;
+const allowedPath = /^runtime\/[a-zA-Z0-9_./-]+$/;
 
 /** 摘要来自宿主内固定目录或通过公钥验签的官方清单，不信任下载内容自报的 hash。文件仅为 UTF-8，避免归档链接和执行解包命令。 */
 export function decodePackage(bytes: Buffer, release: ExtensionRelease): ExtensionPackage {
@@ -32,13 +32,13 @@ export function decodePackage(bytes: Buffer, release: ExtensionRelease): Extensi
     m.version !== release.version ||
     m.apiVersion !== 1 ||
     m.hostMajor !== 1 ||
-    m.ui !== "ui/index.html" ||
-    m.runtime !== "runtime/index.cjs"
+    m.runtime !== "runtime/index.cjs" ||
+    "ui" in m
   )
     throw Error("INCOMPATIBLE");
   if (!value.files || typeof value.files !== "object" || Array.isArray(value.files)) throw Error("PACKAGE_INVALID");
   const entries = Object.entries(value.files);
-  if (entries.length > 40 || !entries.length || !value.files[m.ui] || !value.files[m.runtime]) throw Error("PACKAGE_INVALID");
+  if (entries.length > 40 || !entries.length || !value.files[m.runtime]) throw Error("PACKAGE_INVALID");
   for (const [name, contents] of entries) {
     if (!allowedPath.test(name) || name.split("/").some((part) => !part || part === "." || part === "..") || typeof contents !== "string")
       throw Error("PACKAGE_INVALID");

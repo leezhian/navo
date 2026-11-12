@@ -1,5 +1,4 @@
-import { SessionTracePane } from "./SessionTracePane";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ListTree, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +14,9 @@ import { AgentProviderIcon } from "./AgentProviderIcon";
 import { hasManagedTerminalSession } from "@/components/terminal/terminalSessionManager";
 import { TaskSessionContextAction } from "./TaskSessionContextAction";
 import { useSessionUnread } from "@/hooks/useSessionUnread";
+
+/** 首次打开轨迹时再加载界面代码，插件未启用时不会下载或执行这段模块。 */
+const SessionTracePane = lazy(() => import("./SessionTracePane").then((module) => ({ default: module.SessionTracePane })));
 
 interface AgentSessionPaneProps {
   /** 当前选中的 Agent 会话；普通 Shell 在下方独立展示。 */
@@ -105,6 +107,8 @@ function TraceKeepAlive({ session, selected, visible }: TraceKeepAliveProps) {
   if (selected && !mounted) setMounted(true);
   if (!mounted) return null;
   return <div className="min-h-0 flex-1 flex-col" style={{ display: selected ? "flex" : "none" }} aria-hidden={!selected}>
-    <SessionTracePane session={session} visible={visible} />
+    <Suspense fallback={<div className="task-session-empty" />}>
+      <SessionTracePane session={session} visible={visible} />
+    </Suspense>
   </div>;
 }

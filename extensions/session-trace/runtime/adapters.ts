@@ -7,6 +7,8 @@ const text = (value: unknown): string => (typeof value === "string" ? value : va
 export interface ParserState {
   round: number;
   provider: "claude" | "codex";
+  /** 最近一次已记录的模式、权限模式与线程设置，只在值变化时生成可见系统行。 */
+  settings?: Record<string, string>;
 }
 export interface Parsed {
   key: string;
@@ -20,7 +22,12 @@ export interface Parsed {
   synthetic?: boolean;
   resultFor?: string;
   usage?: { key: string; tokens: number };
+  bookkeeping?: boolean;
 }
+const FILE_ATTACHMENTS = new Set(["file", "edited_text_file"]);
+const CONTEXT_ATTACHMENTS = new Set(["session_context", "environment", "prompt_snapshot", ...FILE_ATTACHMENTS]);
+const HIDDEN_TYPES = new Set(["last-prompt", "atis-latch", "file-history-snapshot"]);
+
 function usage(value: unknown) {
   const data = object(value);
   if (typeof data.total_tokens === "number") return data.total_tokens;
@@ -38,6 +45,28 @@ function content(value: unknown) {
         })
         .join("\n")
     : text(value);
+}
+function rendered(row: Json) {
+  return list(row.rendered)
+    .map((item) => text(object(item).content))
+    .filter(Boolean)
+    .join("\n");
+}
+/** 附件正文优先用已渲染文本；没有时再按子类型取对阅读有用的字段，避免整包原始对象。 */
+function attachmentContent(row: Json, attachment: Json) {
+  return (
+    rendered(row) ||
+    text(attachment.filename ? `${text(attachment.filename)}\n${text(attachment.snippet || attachment.content || "")}` : attachment.snapshot ?? attachment.context ?? attachment.text ?? attachment)
+  );
+}
+/** 将模式类记录记为系统行；值未变化时保留原文但标为记账，避免默认时间线重复刷屏。 */
+function changeEvent(state: ParserState, key: string, value: string, event: Parsed): Parsed {
+  const previous = state.settings?.[key];
+  state.settings = { ...state.settings, [key]: value };
+  return previous === value ? { ...event, bookkeeping: true } : event;
+}
+function hidden(event: Parsed): Parsed {
+  return { ...event, bookkeeping: true };
 }
 
 /** 只以日志中的消息身份和标记归一化，不读取当前 AGENTS.md 回填历史。 */
@@ -98,16 +127,44 @@ export function parseRecord(raw: unknown, offset: number, state: ParserState): P
     }
     if (row.type === "system")
       return [base(row.subtype === "compact_boundary" ? "compaction" : "system", content(row.content ?? row.message ?? row))];
+    if (row.type === "attachment") {
+      const attachment = object(row.attachment),
+        type = text(attachment.type);
+      // total_tokens_reminder 是剩余额度提示，不能当作已消耗 Token 写入统计。
+      if (type === "total_tokens_reminder") return [hidden(base("system", attachmentContent(row, attachment)))];
+      if (CONTEXT_ATTACHMENTS.has(type)) return [base("context", attachmentContent(row, attachment))];
+      return [base("unknown", text(row))];
+    }
+    if (row.type === "mode") return [changeEvent(state, "mode", text(row.mode), base("system", `mode: ${text(row.mode)}`))];
+    if (row.type === "permission-mode")
+      return [changeEvent(state, "permission-mode", text(row.permissionMode), base("system", `permission-mode: ${text(row.permissionMode)}`))];
+    if (row.type === "queue-operation") {
+      const body = [text(row.operation), text(row.content ?? row.reason)].filter(Boolean).join(": ");
+      return [base("system", body || text(row))];
+    }
+    // 会话标题由宿主既有的 nativeSessionTitle 管道读取 customTitle，这里只保留原文且默认隐藏。
+    if (row.type === "custom-title") return [hidden(base("system", text(row.customTitle ?? row.title ?? row)))];
+    if (HIDDEN_TYPES.has(text(row.type))) return [hidden(base("system", text(row)))];
     return [base("unknown", text(row))];
   }
   if (row.type === "session_meta") return [base("system", text(payload))];
   if (row.type === "turn_context") return [base("context", text(payload))];
   if (row.type === "compacted") return [base("compaction", content(payload.message ?? payload))];
+  if (row.type === "token_usage_record") {
+    // 与 event_msg.token_count 共用累计键，按 MAX 覆盖，避免同一线程总量被加两次。
+    const tokens = usage(object(payload.thread_token_usage));
+    return [{ ...hidden(base("system", text(row))), usage: tokens === null ? undefined : { key: "codex-total", tokens } }];
+  }
+  if (row.type === "world_state") return [hidden(base("system", text(payload)))];
   if (row.type === "event_msg") {
     // Codex 的 event_msg 常是 response_item 的流式副本，Token 单独按累计值覆盖。
     if (payload.type === "token_count") {
       const tokens = usage(object(payload.info).total_token_usage);
-      return tokens === null ? [] : [{ ...base("system", ""), usage: { key: "codex-total", tokens } }];
+      return [{ ...hidden(base("system", text(payload))), usage: tokens === null ? undefined : { key: "codex-total", tokens } }];
+    }
+    if (payload.type === "thread_settings_applied") {
+      const value = text(payload.thread_settings ?? payload);
+      return [changeEvent(state, "thread_settings", value, base("system", value))];
     }
     if (
       ["agent_message", "agent_reasoning", "user_message", "task_started", "task_complete", "item_completed"].includes(text(payload.type))

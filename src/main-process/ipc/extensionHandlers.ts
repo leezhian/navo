@@ -1,6 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
-import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { ipcChannels } from "../../shared/ipcChannels";
 import { ExtensionRepository } from "../services/extensions/extensionRepository";
@@ -10,9 +9,6 @@ import { SessionRepository } from "../services/taskSessions/sessionRepository";
 import release from "../services/extensions/sessionTraceRelease.json";
 
 let extension: ExtensionService | undefined;
-export function registerExtensionScheme() {
-  protocol.registerSchemesAsPrivileged([{ scheme: "navo-extension", privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-}
 export async function registerExtensionHandlers() {
   const namespace = app.isPackaged ? "production" : "development",
     data = app.getPath("userData");
@@ -100,43 +96,6 @@ export async function registerExtensionHandlers() {
   ipcMain.handle(ipcChannels.traceOpen, (event, id, leaseId) => runtime.open(id, owner(event), leaseId));
   ipcMain.handle(ipcChannels.traceQuery, (event, id, query) => runtime.query(id, query, owner(event)));
   ipcMain.handle(ipcChannels.traceClose, (event, id) => runtime.close(id, owner(event)));
-  protocol.handle("navo-extension", async (request) => {
-    try {
-      if (
-        !extension?.status.enabled ||
-        !extension.status.compatible ||
-        extension.status.operation !== "idle" ||
-        initializationError ||
-        request.method !== "GET"
-      )
-        return new Response(null, { status: 403 });
-      const url = new URL(request.url),
-        name = decodeURIComponent(url.pathname).slice(1);
-      if (url.hostname !== "session-trace" || !/^ui\/[a-zA-Z0-9_./-]+$/.test(name) || name.split("/").includes(".."))
-        return new Response(null, { status: 404 });
-      const root = await realpath(extension.installedDirectory),
-        filename = await realpath(path.join(root, name));
-      if (!filename.startsWith(root + path.sep)) return new Response(null, { status: 403 });
-      const body = await readFile(filename);
-      const mime = name.endsWith(".html")
-        ? "text/html"
-        : name.endsWith(".js")
-          ? "text/javascript"
-          : name.endsWith(".css")
-            ? "text/css"
-            : "application/octet-stream";
-      return new Response(new Uint8Array(body), {
-        headers: {
-          "Content-Type": mime + "; charset=utf-8",
-          "Content-Security-Policy":
-            "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'",
-          "Cache-Control": "no-store",
-        },
-      });
-    } catch {
-      return new Response(null, { status: 404 });
-    }
-  });
 }
 export async function shutdownExtensions() {
   await extension?.shutdown();

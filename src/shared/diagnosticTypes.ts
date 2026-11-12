@@ -12,6 +12,7 @@ export const DIAGNOSTIC_STANDALONE_EVENTS = [
   "app.started", "app.stopped", "app.uncaught", "app.unhandled_rejection", "app.watcher_failed",
   "database.open_failed", "database.transaction_failed", "worktree.kept", "branch.kept", "task.cleanup_retained",
   "session.activity.failed", "session.context.sync_failed", "session.records_invalid",
+  "trace.open_failed", "trace.query_failed", "trace.runtime_exited",
   "renderer.error", "renderer.unhandled_rejection", "renderer.react_error", "renderer.gone",
   "renderer.unresponsive", "renderer.responsive", "log.repeated", "log.dropped",
 ] as const;
@@ -26,6 +27,12 @@ export const MAX_REPORTED_STACK_LENGTH = 16000;
 export interface DiagnosticMetadata {
   operationId?: string;
   taskId?: string;
+  /** Navo 会话 ID（UUID），不是原生会话 ID。 */
+  sessionId?: string;
+  /** 插件 ID，仅允许已知插件。 */
+  extensionId?: string;
+  /** 轨迹查询类型：page / detail / timeline。 */
+  queryKind?: string;
   resourceId?: string;
   windowId?: number;
   durationMs?: number;

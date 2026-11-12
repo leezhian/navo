@@ -19,8 +19,10 @@ import enTerminal from "./locales/en/terminal.json";
 import zhTerminal from "./locales/zh-CN/terminal.json";
 import enNativeMenu from "./locales/en/nativeMenu.json";
 import zhNativeMenu from "./locales/zh-CN/nativeMenu.json";
+import enTrace from "./locales/en/trace.json";
+import zhTrace from "./locales/zh-CN/trace.json";
 
-export const namespaces = ["common", "taskCreate", "settings", "tasks", "workspace", "issues", "review", "terminal", "nativeMenu", "agents"] as const;
+export const namespaces = ["common", "taskCreate", "settings", "tasks", "workspace", "issues", "review", "terminal", "nativeMenu", "agents", "trace"] as const;
 export const defaultNS = "common";
 
 const english = {
@@ -34,6 +36,7 @@ const english = {
   review: enReview,
   terminal: enTerminal,
   nativeMenu: enNativeMenu,
+  trace: enTrace,
 };
 
 export const resources = {
@@ -49,6 +52,7 @@ export const resources = {
     review: zhReview,
     terminal: zhTerminal,
     nativeMenu: zhNativeMenu,
+    trace: zhTrace,
   },
 } satisfies Record<AppLocale, Record<(typeof namespaces)[number], object>>;
 

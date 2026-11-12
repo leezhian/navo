@@ -56,7 +56,7 @@ port.on("message", ({ data }) => {
           query.kind === "page"
             ? index.page(query)
             : query.kind === "timeline"
-              ? index.timeline()
+              ? index.timeline(query)
               : await index.detail(query.eventId ?? -1);
         port.postMessage({ id: data.id, result });
       } else throw Error("SOURCE_INVALID");

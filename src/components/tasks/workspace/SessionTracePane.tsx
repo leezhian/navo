@@ -1,8 +1,9 @@
-import { extensionErrorKeys } from "@/services/extensionErrorMessages";
 import { useTranslation } from "react-i18next";
-import { useSessionTraceBridge } from "@/hooks/useSessionTraceBridge";
 import type { TaskSession } from "@/shared/taskSessionTypes";
 import { Button } from "@/components/ui/button";
+import { SessionTraceView } from "./trace/SessionTraceView";
+import { TraceError } from "./trace/TraceError";
+import { useSessionTrace } from "./trace/useSessionTrace";
 
 interface SessionTracePaneProps {
   /** 只读查看已绑定的原生会话；不执行恢复或终端写入。 */
@@ -11,26 +12,20 @@ interface SessionTracePaneProps {
   visible: boolean;
 }
 export function SessionTracePane({ session, visible }: SessionTracePaneProps) {
-  const { t } = useTranslation(["common", "settings"]);
-  const { frameRef, url, error, retry } = useSessionTraceBridge(session, visible);
+  const { t } = useTranslation(["common", "settings", "trace"]);
+  const { query, revision, error, retry } = useSessionTrace(session, visible);
   if (!visible) return null;
   if (error)
     return (
-      <div className="task-session-empty">
-        <p role="alert">{t(extensionErrorKeys[error])}</p>
+      <div className="task-session-empty" role="alert">
+        <TraceError code={error} />
         <Button variant="outline" size="sm" onClick={retry}>
-          {t("settings:labs.retry")}
+          {t("trace:retry")}
         </Button>
       </div>
     );
-  return url ? (
-    <iframe
-      ref={frameRef}
-      title={t("settings:labs.traceTitle")}
-      src={url}
-      sandbox="allow-scripts allow-same-origin"
-      className="min-h-0 w-full flex-1 border-0"
-    />
+  return query ? (
+    <SessionTraceView query={query} revision={revision} />
   ) : (
     <div className="task-session-empty">{t("settings:labs.loading")}</div>
   );
