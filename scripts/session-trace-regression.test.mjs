@@ -205,3 +205,108 @@ test('timeline duration uses d h m s and caps at days', () => {
   assert.equal(formatTraceDuration(90000000), '1d 1h');
   assert.equal(formatTraceDuration(172800000), '2d');
 });
+
+test('range queries keep every row and return the first in-range index of the filtered list',()=>fixture(async root=>{
+  const t0='2026-11-06T08:00:00.000Z',t5='2026-11-06T08:00:05.000Z',t10='2026-11-06T08:00:10.000Z',t15='2026-11-06T08:00:15.000Z';
+  const source=path.join(root,'log.jsonl'),cache=path.join(root,'cache.sqlite');
+  await writeFile(source,jsonl([
+    {type:'user',timestamp:t0,message:{content:'alpha at start'}},
+    {type:'assistant',uuid:'tool-record',timestamp:t0,message:{id:'req1',content:[{type:'tool_use',id:'call1',name:'Bash',input:{command:'npm test'}}]}},
+    {type:'user',timestamp:t5,message:{content:[{type:'tool_result',tool_use_id:'call1',content:'ok'}]}},
+    {type:'user',timestamp:t10,message:{content:'bravo mid'}},
+    {type:'user',timestamp:t15,message:{content:'charlie later'}},
+    {type:'user',message:{content:'untimed note'}},
+    {type:'last-prompt',timestamp:t10,lastPrompt:'hidden bookkeeping'},
+  ]));
+  const index=new TraceIndex(source,cache,'claude');
+  try {
+    await index.refresh();
+    const all=index.page({kind:'page'});
+    assert.equal(all.rangeFirstIndex,undefined);
+    const tool=index.page({kind:'page',filter:'tool'}).events[0];
+    assert.equal(tool.durationMs,5000);
+    // 工具从 08:00:00 持续到 08:00:05，起点在选区之前也算命中；框选不再收窄列表。
+    const inside=index.page({kind:'page',from:'2026-11-06T08:00:03.000Z',to:'2026-11-06T08:00:08.000Z'});
+    assert.equal(inside.total,all.total);
+    assert.deepEqual(inside.events.map(event=>event.id),all.events.map(event=>event.id));
+    assert.equal(inside.events[inside.rangeFirstIndex].callId,'call1');
+    const points=index.page({kind:'page',from:t10,to:t15});
+    assert.equal(points.events[points.rangeFirstIndex].preview,'bravo mid');
+    // 叠加筛选和搜索后，下标指向过滤结果中的位置。
+    const stacked=index.page({kind:'page',from:t0,to:t15,filter:'user',search:'charlie'});
+    assert.equal(stacked.total,1);
+    assert.equal(stacked.rangeFirstIndex,0);
+    assert.equal(index.page({kind:'page',from:t10,to:t15,showBookkeeping:true}).rangeFirstIndex,points.rangeFirstIndex);
+    const empty=index.page({kind:'page',from:'2026-11-06T08:00:30.000Z',to:'2026-11-06T08:00:40.000Z'});
+    assert.equal(empty.rangeFirstIndex,null);
+    assert.equal(empty.total,all.total);
+    assert.equal(index.page({kind:'page',search:'untimed',from:t0,to:t15}).rangeFirstIndex,null);
+    // 未指定 offset 时返回第一条命中所在的窗口；显式 offset 保持不变。
+    const windowed=index.page({kind:'page',limit:2,from:t10,to:t15});
+    assert.equal(windowed.offset,Math.floor(windowed.rangeFirstIndex/2)*2);
+    assert.ok(windowed.events.some(event=>event.preview==='bravo mid'));
+    assert.equal(index.page({kind:'page',limit:2,offset:0,from:t10,to:t15}).offset,0);
+    assert.ok(index.timeline({kind:'timeline',from:t10,to:t15}).events.some(event=>event.preview.includes('alpha at start')));
+  } finally {index.close();}
+}));
+
+test('range first index follows list order even when in-range rows are not contiguous',()=>fixture(async root=>{
+  const at=second=>`2026-11-06T08:00:${String(second).padStart(2,'0')}.000Z`;
+  const source=path.join(root,'log.jsonl');
+  const many=Array.from({length:200},(_,index)=>({type:'user',timestamp:at(index<100?1:30),message:{content:`row ${index}`}}));
+  // 长工具调用在第 150 条之后开始、跨进选区；更早的点事件不在选区内。
+  await writeFile(source,jsonl([
+    ...many.slice(0,150),
+    {type:'assistant',uuid:'long-record',timestamp:at(2),message:{id:'long',content:[{type:'tool_use',id:'long-call',name:'Bash',input:{command:'sleep'}}]}},
+    {type:'user',timestamp:at(20),message:{content:[{type:'tool_result',tool_use_id:'long-call',content:'done'}]}},
+    ...many.slice(150),
+  ]));
+  const index=new TraceIndex(source,path.join(root,'cache.sqlite'),'claude');
+  try {
+    await index.refresh();
+    const page=index.page({kind:'page',limit:80,from:at(10),to:at(15)});
+    assert.equal(page.rangeFirstIndex,150);
+    assert.equal(page.offset,80);
+    assert.equal(page.events[page.rangeFirstIndex-page.offset].callId,'long-call');
+  } finally {index.close();}
+}));
+
+test('trace range helpers expand a short drag, merge windows and distinguish overlap rules',()=>{
+  const {eventOverlapsRange,expandTimelineRange,mergeTraceWindows}=load('src/components/tasks/workspace/trace/traceRange.ts');
+  const start='2026-11-06T08:00:00.000Z', mid='2026-11-06T08:00:05.000Z', end='2026-11-06T08:00:10.000Z';
+  assert.equal(eventOverlapsRange({timestamp:start},start,end),true);
+  assert.equal(eventOverlapsRange({timestamp:end},start,end),true);
+  assert.equal(eventOverlapsRange({timestamp:'2026-11-06T07:59:59.000Z'},start,end),false);
+  assert.equal(eventOverlapsRange({timestamp:start,durationMs:5000},mid,end),true);
+  assert.equal(eventOverlapsRange({timestamp:start,durationMs:10000},end,'2026-11-06T08:00:20.000Z'),true);
+  assert.equal(eventOverlapsRange({timestamp:start,durationMs:4000},end,'2026-11-06T08:00:20.000Z'),false);
+  assert.equal(eventOverlapsRange({},start,end),false);
+  const axisStart=Date.parse('2026-11-06T08:00:00.000Z'), axisEnd=Date.parse('2026-11-06T08:01:40.000Z');
+  const expanded=expandTimelineRange(axisStart+1000,axisStart+1001,axisStart,axisEnd,200);
+  assert.ok(Date.parse(expanded.to)-Date.parse(expanded.from)>=Math.max(3/200,0.005)*(axisEnd-axisStart)-1);
+  assert.ok(Date.parse(expanded.from)>=axisStart);
+  assert.ok(Date.parse(expanded.to)<=axisEnd);
+  const nearStart=expandTimelineRange(axisStart,axisStart+1,axisStart,axisEnd,200);
+  assert.equal(Date.parse(nearStart.from),axisStart);
+  const stats={events:3,rounds:1,requests:null,tools:0,errors:0,tokens:null};
+  const first=mergeTraceWindows(null,{events:[{id:1},{id:2}],total:4,stats,offset:0},0);
+  const merged=mergeTraceWindows(first,{events:[{id:3},{id:4}],total:4,stats,offset:2},2);
+  assert.deepEqual(merged.events.map(event=>event.id),[1,2,3,4]);
+  assert.equal(merged.offset,0);
+  const jumped=mergeTraceWindows(first,{events:[{id:9}],total:4,stats,offset:3},3);
+  assert.deepEqual(jumped.events.map(event=>event.id),[9]);
+  assert.equal(jumped.offset,3);
+});
+
+test('window helpers pick visible neighbours and the newest windows',()=>{
+  const {visibleWindowOffsets,tailWindowOffsets}=load('src/components/tasks/workspace/trace/traceRange.ts');
+  assert.deepEqual(visibleWindowOffsets(800,200,215,80),[80,160,240]);
+  assert.deepEqual(visibleWindowOffsets(800,0,10,80),[0,80]);
+  assert.deepEqual(visibleWindowOffsets(250,240,249,80),[160,240]);
+  assert.deepEqual(visibleWindowOffsets(250,240,249,80,0),[240]);
+  assert.deepEqual(visibleWindowOffsets(0,0,0,80),[0]);
+  assert.deepEqual(tailWindowOffsets(250,80),[160,240]);
+  assert.deepEqual(tailWindowOffsets(80,80),[0]);
+  assert.deepEqual(tailWindowOffsets(81,80),[0,80]);
+  assert.deepEqual(tailWindowOffsets(0,80),[0]);
+});

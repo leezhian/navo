@@ -188,6 +188,19 @@ export class TraceIndex {
   private visible(showBookkeeping?: boolean) {
     return showBookkeeping ? "" : "AND ifnull(json_extract(data,'$.bookkeeping'),0)=0";
   }
+  /** 框选命中规则：有持续时间按闭区间重叠，仅有时间戳则时刻需落在闭区间内；无时间戳不算命中。 */
+  private rangeClause(query: Pick<TraceQuery, "from" | "to">) {
+    if (query.from == null || query.to == null) return { sql: "", args: [] as number[] };
+    const fromMs = Date.parse(query.from),
+      toMs = Date.parse(query.to);
+    const start = "CAST(round(unixepoch(json_extract(data,'$.timestamp'), 'subsec') * 1000) AS INTEGER)";
+    const duration = "json_extract(data,'$.durationMs')";
+    const sql = `AND json_extract(data,'$.timestamp') IS NOT NULL AND (
+      CASE WHEN ${duration} IS NOT NULL THEN ${start} <= ? AND ${start} + ${duration} >= ?
+      ELSE ${start} >= ? AND ${start} <= ? END
+    )`;
+    return { sql, args: [toMs, fromMs, fromMs, toMs] };
+  }
   private scope(query: Pick<TraceQuery, "filter" | "search" | "showBookkeeping">) {
     const filter = query.filter ?? "all",
       search = query.search ?? "";
@@ -226,9 +239,21 @@ export class TraceIndex {
       const before = this.db.prepare(`SELECT COUNT(*) total FROM events ${where} AND seq<?`).get(...args, query.eventId)?.total;
       offset = Math.floor(Number(before) / limit) * limit;
     }
+    // 框选只用于高亮，不收窄列表：这里只算出当前结果中第一条命中的位置。
+    let rangeFirstIndex: number | null | undefined;
+    if (query.from != null && query.to != null) {
+      const range = this.rangeClause(query);
+      const first = this.db.prepare(`SELECT MIN(seq) seq FROM events ${where} ${range.sql}`).get(...args, ...range.args)?.seq;
+      rangeFirstIndex =
+        first == null ? null : Number(this.db.prepare(`SELECT COUNT(*) total FROM events ${where} AND seq<?`).get(...args, Number(first))?.total);
+      // 未指定起点时直接返回命中所在的窗口，宿主一次查询即可滚过去。
+      if (rangeFirstIndex != null && query.offset == null && query.eventId == null) offset = Math.floor(rangeFirstIndex / limit) * limit;
+    }
     const rows = this.db.prepare(`SELECT seq,data FROM events ${where} ORDER BY seq LIMIT ? OFFSET ?`).all(...args, limit, offset);
     const total = Number(this.db.prepare(`SELECT COUNT(*) total FROM events ${where}`).get(...args)?.total);
-    return { events: rows.map((row) => this.summary(row)), total, stats: this.stats(), offset };
+    const page: TracePage = { events: rows.map((row) => this.summary(row)), total, stats: this.stats(), offset };
+    if (rangeFirstIndex !== undefined) page.rangeFirstIndex = rangeFirstIndex;
+    return page;
   }
   timeline(query: TraceQuery = { kind: "timeline" }) {
     const rows = this.db

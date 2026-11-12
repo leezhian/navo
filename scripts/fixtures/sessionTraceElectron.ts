@@ -15,7 +15,14 @@ const logs = path.join(native, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"));
 const source = path.join(logs, id + ".jsonl");
 const now = "2026-11-06T08:00:00Z";
 const agent = { agentId: "claude" as const, modelId: "model", modelName: "Model", modeId: "default", modeName: "default", effort: null };
-const rows = Array.from({ length: 220 }, (_, index) => JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: [{ type: "text", text: `fixture message ${index}` }] } })).join("\n") + "\n";
+const at = (seconds: number) => new Date(Date.parse(now) + seconds * 1000).toISOString();
+// 第 i 条消息在第 i 秒；第 10 条换成从 10s 持续到 150s 的长工具调用，用来验证框选命中起点在选区之前的事件。
+const rows = Array.from({ length: 220 }, (_, index) => index === 10
+  ? [
+    JSON.stringify({ sessionId: id, cwd, type: "assistant", uuid: "long-tool", timestamp: at(10), message: { content: [{ type: "tool_use", id: "long-call", name: "Bash", input: { command: "fixture long tool" } }] } }),
+    JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: at(150), message: { content: [{ type: "tool_result", tool_use_id: "long-call", content: "done" }] } }),
+  ].join("\n")
+  : JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: at(index), message: { content: [{ type: "text", text: `fixture message ${index}` }] } })).join("\n") + "\n";
 
 void app.whenReady().then(async () => {
   app.dock?.hide();
@@ -76,8 +83,161 @@ void app.whenReady().then(async () => {
       if (!("navo" in window)) throw Error("Host trace UI must run in the application page");
       const count = document.querySelectorAll(".event-row").length;
       if (count >= 80 || count < 1) throw Error("List was not virtualized");
+      // 首次打开停在最新事件；滚到顶部时按需取回更早的窗口。
+      const scroller = document.querySelector(".events") as HTMLElement;
+      if (!document.querySelector('.event-row[title="fixture message 219"]') || scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > 1)
+        throw Error("Trace must open at the newest event");
+      if (document.querySelector('.event-row[title="fixture message 0"]')) throw Error("Earliest window should load on demand");
+      scroller.scrollTop = 0;
+      scroller.dispatchEvent(new Event("scroll"));
+      await wait(() => Boolean(document.querySelector('.event-row[title="fixture message 0"]')) && scroller.scrollTop < 400);
+      if (document.querySelector('[aria-label="Inspector"]') || document.body.innerText.includes("Inspector"))
+        throw Error("Inspector toggle must be removed");
+      if (document.querySelector(".detail.trace-detail") || document.querySelector(".events .detail"))
+        throw Error("Detail pane must stay closed until an event is selected");
+      return { virtualRows: count, text: document.body.innerText };
+    };
+    const opened = await win.webContents.executeJavaScript(`(${uiChecks.toString()})()`);
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const pointOf = (selector: string) => win.webContents.executeJavaScript(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) throw Error(${JSON.stringify(selector)} + " missing");
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    })()`);
+    const clickPoint = async (x: number, y: number) => {
+      win.webContents.sendInputEvent({ type: "mouseMove", x, y });
+      await delay(40);
+      win.webContents.sendInputEvent({ type: "mouseDown", x, y, button: "left", clickCount: 1 });
+      await delay(40);
+      win.webContents.sendInputEvent({ type: "mouseUp", x, y, button: "left", clickCount: 1 });
+      await delay(80);
+    };
+    const clickSelector = async (selector: string) => {
+      const point = await pointOf(selector);
+      await clickPoint(point.x, point.y);
+    };
+    const dragRange = async () => {
+      const axis = await win.webContents.executeJavaScript(`(() => {
+        const axis = document.querySelector(".timeline .cursor-crosshair");
+        if (!axis) throw Error("Timeline axis missing");
+        const rect = axis.getBoundingClientRect();
+        const x = (seconds) => Math.round(rect.left + rect.width * seconds / 219);
+        return { from: x(120), to: x(125), y: Math.round(rect.top + 6) };
+      })()`);
+      const pointer = async (type: "mouseDown" | "mouseMove" | "mouseUp", x: number) => {
+        win.webContents.sendInputEvent({ type, x, y: axis.y, button: "left", clickCount: 1 });
+        await delay(60);
+      };
+      await pointer("mouseMove", axis.from);
+      await pointer("mouseDown", axis.from);
+      await pointer("mouseMove", Math.round((axis.from + axis.to) / 2));
+      await pointer("mouseMove", axis.to);
+      await pointer("mouseUp", axis.to);
+    };
+    const waitInPage = (predicate: string, message: string) => win.webContents.executeJavaScript(`(async () => {
+      const pause = () => new Promise(resolve => setTimeout(resolve, 40));
+      for (let i = 0; i < 250; i++) { if ((${predicate})()) return; await pause(); }
+      throw Error(${JSON.stringify(message)} + ": " + document.body.innerText);
+    })()`);
+    // 真实鼠标点时间线块，列表应定位并展开；不用 element.click()，以覆盖指针捕获路径。
+    await clickSelector('.timeline button[aria-label="User · fixture message 12"]');
+    await waitInPage(`() => {
+      const pane = document.querySelector(".detail.trace-detail");
+      return Boolean(document.querySelector('.event-row[aria-current="true"][title="fixture message 12"]')) &&
+        Boolean(pane) && !document.querySelector(".events .detail") &&
+        Boolean(pane?.querySelector("pre")?.textContent?.includes("fixture message"));
+    }`, "Timeline click did not open the right-hand detail");
+    // 真实鼠标按下、移动、松开分隔条后，详情宽度应变化；并断言热区可被命中且有高度。
+    const beforeSplit = await win.webContents.executeJavaScript(`(() => {
+      const handle = document.querySelector(".session-trace [role=separator]");
+      const pane = document.querySelector(".detail.trace-detail");
+      if (!handle || !pane) throw Error("Detail separator missing");
+      const rect = handle.getBoundingClientRect();
+      if (rect.height < 40) throw Error("Separator hit area has no height");
+      const x = Math.round(rect.left + rect.width / 2), y = Math.round(rect.top + rect.height / 2);
+      const hit = document.elementFromPoint(x, y);
+      if (hit !== handle && !handle.contains(hit)) throw Error("Separator is not hittable at " + x + "," + y + ": " + ((hit && hit.className) || hit?.nodeName || "null"));
+      return { x, y, width: Math.round(pane.getBoundingClientRect().width), value: Number(handle.getAttribute("aria-valuenow")) };
+    })()`);
+    win.webContents.sendInputEvent({ type: "mouseMove", x: beforeSplit.x, y: beforeSplit.y });
+    await delay(40);
+    win.webContents.sendInputEvent({ type: "mouseDown", x: beforeSplit.x, y: beforeSplit.y, button: "left", clickCount: 1 });
+    await delay(40);
+    for (let step = 1; step <= 12; step++) {
+      win.webContents.sendInputEvent({ type: "mouseMove", x: Math.round(beforeSplit.x + 80 * step / 12), y: beforeSplit.y, button: "left", modifiers: ["leftButtonDown"] });
+      await delay(16);
+    }
+    win.webContents.sendInputEvent({ type: "mouseUp", x: beforeSplit.x + 80, y: beforeSplit.y, button: "left", clickCount: 1 });
+    await delay(80);
+    await waitInPage(`() => {
+      const handle = document.querySelector(".session-trace [role=separator]");
+      const pane = document.querySelector(".detail.trace-detail");
+      const width = pane?.getBoundingClientRect().width ?? 0;
+      const value = Number(handle?.getAttribute("aria-valuenow"));
+      return width < ${beforeSplit.width} - 20 && value < ${beforeSplit.value} - 20;
+    }`, "Dragging the separator did not resize the detail pane");
+    await dragRange();
+    const rangeChecks = async () => {
+      const pause = () => new Promise(resolve => setTimeout(resolve, 40));
+      const wait = async (predicate: () => boolean, message: string) => { for (let i = 0; i < 250; i++) { if (predicate()) return; await pause(); } throw Error(message + ": " + document.body.innerText); };
+      const scroller = document.querySelector(".events") as HTMLElement;
+      const tool = () => document.querySelector<HTMLElement>('.event-row[data-kind="tool"]');
+      await wait(() => Boolean(document.querySelector(".event-row[data-dimmed]")), "Range did not dim rows");
+      // 框选不再过滤：总数不变，列表滚到当前结果里第一条命中的长工具调用。
+      if (document.querySelector('[role="status"]')?.textContent !== "220 events") throw Error("Range must not filter the list");
+      await wait(() => {
+        const row = tool();
+        if (!row || row.dataset.dimmed) return false;
+        const rowRect = row.getBoundingClientRect(), listRect = scroller.getBoundingClientRect();
+        return rowRect.top >= listRect.top - 1 && rowRect.bottom <= listRect.bottom + 1;
+      }, "Range must scroll to the first in-range event");
+      const selected = document.querySelector<HTMLElement>('.event-row[aria-current="true"]');
+      if (selected?.title !== "fixture message 12" || !selected.dataset.dimmed) throw Error("Selected event outside the range must stay selected and dimmed");
+      const pane = document.querySelector(".detail.trace-detail");
+      if (!pane || document.querySelector(".events .detail") || !pane.querySelector("pre")?.textContent?.includes("fixture message"))
+        throw Error("Selected detail must stay open in the right-hand pane");
+      const mark = (label: string) => document.querySelector<HTMLElement>(`.timeline button[aria-label="${label}"]`);
+      if (!mark("User · fixture message 0")?.dataset.dimmed || mark("User · fixture message 122")?.dataset.dimmed) throw Error("Timeline marks outside the range must be dimmed");
+      if (Array.from(document.querySelectorAll(".trace-events .event-row")).some(row => !row.hasAttribute("data-dimmed") && /fixture message (1[0-1]?[0-9]|[0-9])$/.test(row.getAttribute("title") ?? "")))
+        throw Error("Out-of-range rows must be dimmed");
+      if (document.body.innerText.includes("Selected range") || document.body.innerText.includes("Clear range")) throw Error("Range badge must be removed");
+      const marks = Array.from(document.querySelectorAll<HTMLElement>(".timeline [data-event-id]"));
+      if (!marks.some(item => item.dataset.dimmed) || marks.find(item => item.getAttribute("aria-current"))?.dataset.dimmed) throw Error("Selected mark must stay bright while others fade");
+      return true;
+    };
+    await win.webContents.executeJavaScript(`(${rangeChecks.toString()})()`);
+    const assertRangeClearedKeeping = (title: string, opened: string, message: string) => waitInPage(`() => {
+      const selected = document.querySelector('.event-row[aria-current="true"]');
+      return !document.querySelector(".event-row[data-dimmed]") &&
+        selected?.getAttribute("title") === ${JSON.stringify(title)} &&
+        !document.querySelector(${JSON.stringify('.event-row[aria-current="true"][title="' + opened + '"]')});
+    }`, message);
+    // 点置灰列表行：只取消框选，不改选中、不展开被点的行。
+    await clickSelector('.event-row[data-dimmed][title="fixture message 11"]');
+    await assertRangeClearedKeeping("fixture message 12", "fixture message 11", "Dimmed list row should only clear the range");
+    await dragRange();
+    await waitInPage('() => Boolean(document.querySelector(".event-row[data-dimmed]"))', "Range was not reapplied");
+    // 点框选外的时间线块：同样只取消框选。
+    await clickSelector('.timeline button[aria-label="User · fixture message 0"]');
+    await assertRangeClearedKeeping("fixture message 12", "fixture message 0", "Dimmed timeline mark should only clear the range");
+    await dragRange();
+    await waitInPage('() => Boolean(document.querySelector(".event-row[data-dimmed]"))', "Range was not reapplied");
+    // 点选区内的时间线块：仍应定位并展开。
+    await clickSelector('.timeline button[aria-label="User · fixture message 122"]');
+    await waitInPage(`() => Boolean(document.querySelector('.event-row[aria-current="true"][title="fixture message 122"]:not([data-dimmed])')) && Boolean(document.querySelector(".detail.trace-detail")) && !document.querySelector(".events .detail")`, "In-range timeline click did not locate");
+    await clickSelector('.event-row[title="fixture message 123"]:not([data-dimmed])');
+    await waitInPage(`() => Boolean(document.querySelector('.event-row[aria-current="true"][title="fixture message 123"]:not([data-dimmed])')) && Boolean(document.querySelector(".detail.trace-detail"))`, "In-range list row click did not select");
+    await win.webContents.executeJavaScript(`document.querySelector(".timeline")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`);
+    await waitInPage('() => !document.querySelector(".event-row[data-dimmed]")', "Escape did not clear the range");
+    await clickSelector('.event-row[aria-current="true"][title="fixture message 123"]');
+    await waitInPage(`() => !document.querySelector('.event-row[aria-current="true"]') && !document.querySelector(".detail.trace-detail") && !document.querySelector("[data-dimmed]")`, "Deselect must hide the detail pane");
+    const readingChecks = async () => {
+      const pause = () => new Promise(resolve => setTimeout(resolve, 40));
+      const wait = async (predicate: () => boolean) => { for (let i = 0; i < 250; i++) { if (predicate()) return; await pause(); } throw Error(document.body.innerText); };
+      const count = document.querySelectorAll(".event-row").length;
       (document.querySelector(".event-row") as HTMLButtonElement).click();
-      await wait(() => Boolean(document.querySelector(".detail pre")?.textContent?.includes("fixture message")));
+      await wait(() => Boolean(document.querySelector(".detail.trace-detail pre")?.textContent?.includes("fixture message")) && !document.querySelector(".events .detail"));
       const raw = Array.from(document.querySelectorAll<HTMLButtonElement>(".detail-toolbar button")).find(button => /JSON/.test(button.textContent ?? "")); raw?.click();
       await wait(() => Boolean(document.querySelector(".detail pre")?.textContent?.includes("sessionId")));
       const search = document.querySelector<HTMLInputElement>("input[type=search]");
@@ -86,31 +246,36 @@ void app.whenReady().then(async () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, value);
         search.dispatchEvent(new Event("input", { bubbles: true }));
       };
-      const jump = () => {
-        const marker = document.querySelector<HTMLButtonElement>('.timeline button[aria-label="User · fixture message 149"]');
-        if (!marker) throw Error("Timeline target missing");
-        marker.click();
-      };
-      const assertJump = async () => {
-        await wait(() => Boolean(document.querySelector('.event-row[aria-expanded="true"][title="fixture message 149"]')));
-        // 等防抖窗口过去，确认目标页不会被后来的搜索回调覆盖。
-        await new Promise(resolve => setTimeout(resolve, 400));
-        if (search.value || !document.querySelector("footer")?.textContent?.includes("2 / 3") ||
-          !document.querySelector('.event-row[aria-expanded="true"][title="fixture message 149"]')) throw Error("Timeline jump was reset by search");
-      };
       searchFor("fixture message 219");
       await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]')));
-      jump(); await assertJump();
-      searchFor("fixture message 23");
-      await pause(); // 输入已进入 React 状态，但 180ms 防抖尚未触发。
-      jump(); await assertJump();
-      searchFor("fixture message 219");
-      await wait(() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]')));
-      if (document.documentElement.lang !== "en" || !document.querySelector(".stats")?.textContent?.includes("220 turns")) throw Error("English locale was not applied");
+      if (document.documentElement.lang !== "en" || !document.querySelector(".stats")?.textContent?.includes("219 turns")) throw Error("English locale was not applied");
       if (!document.querySelector(".stats")?.textContent?.includes("— model requests")) throw Error("Unknown requests were displayed as zero");
       return { virtualRows: count, text: document.body.innerText };
     };
-    const result = await win.webContents.executeJavaScript(`(${uiChecks.toString()})()`);
+    const result = await win.webContents.executeJavaScript(`(${readingChecks.toString()})()`);
+    const searchInPage = (value: string) => win.webContents.executeJavaScript(`(() => {
+      const search = document.querySelector("input[type=search]");
+      if (!search) throw Error("Search missing");
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, ${JSON.stringify(value)});
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    })()`);
+    const assertJump = (title: string) => waitInPage(`() => {
+      const search = document.querySelector("input[type=search]");
+      return !search?.value && Boolean(document.querySelector(${JSON.stringify('.event-row[aria-current="true"][title="' + title + '"]')}));
+    }`, "Timeline jump was reset by search");
+    await searchInPage("fixture message 219");
+    await waitInPage(`() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]'))`, "Search for 219 failed");
+    await clickSelector('.timeline button[aria-label="User · fixture message 149"]');
+    await delay(400);
+    await assertJump("fixture message 149");
+    await searchInPage("fixture message 23");
+    await delay(40); // 输入已进入 React 状态，但 180ms 防抖尚未触发。再次点同一块会取消选中，所以改点另一块。
+    await clickSelector('.timeline button[aria-label="User · fixture message 148"]');
+    await delay(400);
+    await assertJump("fixture message 148");
+    await searchInPage("fixture message 219");
+    await waitInPage(`() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]'))`, "Search for 219 failed");
+    assert.ok(opened.virtualRows < 80);
     assert.match(result.text, /fixture message 219/);
     await appendFile(source, JSON.stringify({ sessionId: id, cwd, type: "user", timestamp: now, message: { content: "fixture message 219 appended" } }) + "\n");
     for (let attempt = 0; attempt < 100; attempt++) { const count = await win.webContents.executeJavaScript("document.querySelectorAll('.event-row').length"); if (count === 2) break; if (attempt === 99) throw Error("Incremental update missing"); await new Promise(resolve => setTimeout(resolve, 50)); }

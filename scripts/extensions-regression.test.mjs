@@ -88,8 +88,9 @@ test('runtime leases share a process, bind windows and revoke access before tear
  status.enabled=true;const third=await runtime.open('session',1,randomUUID());exists=false;await assert.rejects(runtime.query(third.id,{kind:'page'},1),/SESSION_MISSING/);await runtime.closeAll();
  for(const query of [{kind:'delete'}, {kind:'page',limit:100000}, {kind:'detail',eventId:-1}, {kind:'page',search:'x'.repeat(501)}, {kind:'timeline',showBookkeeping:'yes'}])assert.throws(()=>validateTraceQuery(query),/INVALID_QUERY/);
  // contextBridge 会把未设置的布尔字段变成 null，默认关闭「显示全部」时必须仍能查询。
- for(const query of [{kind:'timeline'}, {kind:'timeline',showBookkeeping:undefined}, {kind:'timeline',showBookkeeping:null}, {kind:'timeline',showBookkeeping:false}, {kind:'page',limit:80,offset:0,filter:'all',search:'',showBookkeeping:null}, {kind:'page',limit:80,offset:80,filter:'tool',search:'',eventId:null,showBookkeeping:null}, {kind:'page',filter:null,search:null,offset:null,limit:null}])validateTraceQuery(query);
+ for(const query of [{kind:'timeline'}, {kind:'timeline',showBookkeeping:undefined}, {kind:'timeline',showBookkeeping:null}, {kind:'timeline',showBookkeeping:false}, {kind:'page',limit:80,offset:0,filter:'all',search:'',showBookkeeping:null}, {kind:'page',limit:80,offset:80,filter:'tool',search:'',eventId:null,showBookkeeping:null}, {kind:'page',filter:null,search:null,offset:null,limit:null}, {kind:'page',from:null,to:null}, {kind:'page',from:'2026-11-06T08:00:00.000Z',to:'2026-11-06T08:00:05.000Z'}])validateTraceQuery(query);
  assert.throws(()=>validateTraceQuery({kind:'detail',eventId:null}),/INVALID_QUERY/);
+ for(const query of [{kind:'page',from:'2026-11-06T08:00:00.000Z'}, {kind:'page',to:'2026-11-06T08:00:05.000Z'}, {kind:'page',from:'not-a-date',to:'2026-11-06T08:00:05.000Z'}, {kind:'page',from:'2026-11-06T08:00:05.000Z',to:'2026-11-06T08:00:00.000Z'}, {kind:'page',from:'2026-11-06T08:00:00.000Z',to:'2026-11-06T08:00:00.000Z'}])assert.throws(()=>validateTraceQuery(query),/INVALID_QUERY/);
 });
 
 

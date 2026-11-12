@@ -53,9 +53,18 @@ export function validateTraceQuery(value: TraceQuery) {
     (value.limit != null && (!Number.isInteger(value.limit) || value.limit < 1 || value.limit > 200)) ||
     (value.showBookkeeping != null && typeof value.showBookkeeping !== "boolean") ||
     (value.eventId != null && (!Number.isSafeInteger(value.eventId) || Number(value.eventId) < 1)) ||
-    (value.kind === "detail" && value.eventId == null)
+    (value.kind === "detail" && value.eventId == null) ||
+    !validTraceRange(value.from, value.to)
   )
     throw Error("INVALID_QUERY");
+}
+/** 起止时间必须同时缺省或同时为可解析的 ISO 时间，且 from 早于 to。 */
+function validTraceRange(from?: string | null, to?: string | null) {
+  if (from == null && to == null) return true;
+  if (from == null || to == null || typeof from !== "string" || typeof to !== "string") return false;
+  const start = Date.parse(from),
+    end = Date.parse(to);
+  return Number.isFinite(start) && Number.isFinite(end) && start < end;
 }
 export class TraceRuntime {
   private runtimes = new Map<string, Runtime>();

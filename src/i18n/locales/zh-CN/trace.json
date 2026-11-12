@@ -1,5 +1,4 @@
 {
-  "inspector": "侧栏详情",
   "all": "全部",
   "search": "搜索消息、命令或文件",
   "loading": "正在读取…",
@@ -67,6 +66,6 @@
     "tools": "— 个工具",
     "tokens": "— Token"
   },
-  "inspectorEmpty": "选择一条事件查看详情",
-  "filter": "按类型筛选"
+  "filter": "按类型筛选",
+  "resizeDetail": "调整详情宽度"
 }

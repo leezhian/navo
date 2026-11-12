@@ -1,5 +1,4 @@
 {
-  "inspector": "Inspector",
   "all": "All",
   "search": "Search messages, commands or files",
   "loading": "Loading…",
@@ -72,6 +71,6 @@
     "tools": "— tools",
     "tokens": "— tokens"
   },
-  "inspectorEmpty": "Select an event to inspect",
-  "filter": "Filter by type"
+  "filter": "Filter by type",
+  "resizeDetail": "Resize event detail"
 }

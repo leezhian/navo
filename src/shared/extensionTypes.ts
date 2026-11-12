@@ -55,6 +55,10 @@ export interface TraceQuery {
   eventId?: number;
   /** 为 true 时包含默认隐藏的记账记录。 */
   showBookkeeping?: boolean;
+  /** 可选的 ISO-8601 起点；与 to 一起时分页结果返回时间段内第一条事件的位置，不过滤列表。时间线查询忽略该字段。 */
+  from?: string;
+  /** 可选的 ISO-8601 终点，必须晚于 from。 */
+  to?: string;
 }
 export interface TraceStats {
   events: number;
@@ -72,6 +76,8 @@ export interface TracePage {
   stats: TraceStats;
   /** 实际分页起点；按事件定位时可能与请求的 offset 不同。 */
   offset?: number;
+  /** 带 from/to 查询时，当前筛选结果中第一条落在时间段内的事件下标；没有命中为 null。 */
+  rangeFirstIndex?: number | null;
 }
 export type TraceResult = TracePage | TraceDetail | { events: TraceEvent[]; truncated: boolean };
 export interface TraceLease {

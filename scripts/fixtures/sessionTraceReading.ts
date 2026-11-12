@@ -20,7 +20,7 @@ export async function verifyTraceReading(window: BrowserWindow, appendEvent: () 
     await wait(() => Boolean(document.querySelector('.event-row[title="fixture message 219 appended"]')));
     const scroller = document.querySelector(".events") as HTMLElement;
     if (scroller.scrollHeight <= scroller.clientHeight || scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > 1)
-      throw Error("Follow must scroll within the last page");
+      throw Error("Follow must scroll to the last event");
   };
   await window.webContents.executeJavaScript(`(${followLastPage.toString()})()`);
   await appendEvent();
@@ -39,23 +39,31 @@ export async function verifyTraceReading(window: BrowserWindow, appendEvent: () 
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "fixture message");
     search.dispatchEvent(new Event("input", { bubbles: true }));
     const checkbox = (label: string) => Array.from(document.querySelectorAll("footer label")).find(item => item.textContent?.includes(label))?.querySelector<HTMLButtonElement>("[role=checkbox]");
-    await wait(() => checkbox("Follow new events")?.getAttribute("aria-checked") !== "true" &&
-      Boolean(document.querySelector("footer")?.textContent?.includes("1 / 3")) &&
-      document.querySelector('[role="status"]')?.textContent === "222 events", "Search must leave follow and return to page one");
-    // 多页搜索结果中选中详情，语言切换必须保留整组阅读状态。
-    (document.querySelector("footer [data-trace-page=next]") as HTMLButtonElement).click();
-    await wait(() => Boolean(document.querySelector("footer")?.textContent?.includes("2 / 3")) &&
-      document.querySelector('[role="status"]')?.textContent === "222 events", "Second search page missing");
+    const eventsScroller = () => document.querySelector(".events") as HTMLElement;
+    await wait(() => {
+      const list = eventsScroller();
+      return checkbox("Follow new events")?.getAttribute("aria-checked") !== "true" &&
+        list && list.scrollHeight - list.clientHeight - list.scrollTop <= 1 &&
+        document.querySelector('[role="status"]')?.textContent === "222 events" &&
+        Boolean(document.querySelector('.event-row[title="fixture message follow appended"]')) &&
+        list.scrollHeight > list.clientHeight + 40;
+    }, "Search must leave follow and land on the newest match");
+    // 从最新处往上滚一段并选中详情，语言切换必须保留整组阅读状态。
+    const list = eventsScroller();
+    const target = Math.max(0, list.scrollTop - 240);
+    list.scrollTop = target;
+    list.dispatchEvent(new Event("scroll"));
+    await wait(() => Math.abs(eventsScroller().scrollTop - target) <= 1, "Need a scrolled reading position");
     (document.querySelector(".event-row") as HTMLButtonElement).click();
-    await wait(() => Boolean(document.querySelector(".detail pre")), "Selected detail missing");
+    await wait(() => Boolean(document.querySelector(".detail.trace-detail pre")) && !document.querySelector(".events .detail"), "Selected detail missing");
     const raw = Array.from(document.querySelectorAll<HTMLButtonElement>(".detail-toolbar button"))
       .find(button => /JSON/.test(button.textContent ?? ""));
     raw?.click();
     await wait(() => Boolean(document.querySelector(".detail pre")?.textContent?.includes("sessionId")), "Raw detail missing");
     return {
       search: search.value,
-      selected: document.querySelector('.event-row[aria-expanded="true"]')?.getAttribute("title"),
-      scrollTop: scroller.scrollTop,
+      selected: document.querySelector('.event-row[aria-current="true"]')?.getAttribute("title"),
+      scrollTop: eventsScroller().scrollTop,
     };
   };
   const before = await window.webContents.executeJavaScript(`(${searchAndSelect.toString()})()`);
@@ -66,9 +74,8 @@ export async function verifyTraceReading(window: BrowserWindow, appendEvent: () 
     return {
       language: document.documentElement.lang,
       search: document.querySelector<HTMLInputElement>("input[type=search]")?.value,
-      selected: document.querySelector('.event-row[aria-expanded="true"]')?.getAttribute("title"),
+      selected: document.querySelector('.event-row[aria-current="true"]')?.getAttribute("title"),
       scrollTop: (document.querySelector(".events") as HTMLElement).scrollTop,
-      secondPage: document.querySelector("footer")?.textContent?.includes("2 / 3"),
       raw: document.querySelector(".detail pre")?.textContent?.includes("sessionId"),
     };
   };
@@ -77,6 +84,5 @@ export async function verifyTraceReading(window: BrowserWindow, appendEvent: () 
   assert.equal(after.search, before.search);
   assert.equal(after.selected, before.selected);
   assert.equal(after.scrollTop, before.scrollTop);
-  assert.equal(after.secondPage, true);
   assert.equal(after.raw, true);
 }
