@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { TraceQuery } from "@/shared/extensionTypes";
@@ -157,12 +158,20 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
           <Search aria-hidden="true" className="pointer-events-none absolute top-1.5 left-2 size-3.5 text-muted-foreground" />
           <Input
             type="search"
-            className="h-7 pl-8 text-xs md:text-xs"
+            className={cn(
+              "h-7 pl-8 text-xs md:text-xs [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
+              search && "pr-7",
+            )}
             value={search}
             placeholder={t("trace:search")}
             aria-label={t("trace:search")}
             onChange={(event) => searchInput(event.target.value)}
           />
+          {search && (
+            <IconTooltip label={t("trace:clearSearch")} size="icon-xs" className="absolute top-0.5 right-0.5" onClick={() => searchInput("")}>
+              <X aria-hidden="true" className="size-3.5" />
+            </IconTooltip>
+          )}
         </div>
       </div>
       {error ? (

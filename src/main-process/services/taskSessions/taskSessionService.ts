@@ -27,6 +27,7 @@ import { readNativeSessionBinding } from "./nativeSessionBinding";
 import { canManageNativeSession, nativeActionEnvironment, removeNativeSession, renameNativeSession, requireSessionName } from "./nativeSessionActions";
 import { TaskContextServer } from "./taskContextServer";
 import { TaskContextFiles } from "./taskContextFiles";
+import { SessionWorkspaceMcp } from "./sessionWorkspaceMcp";
 import type { TaskContextNoteActions } from "./taskNoteTools";
 
 const MAX_SESSIONS = 32;
@@ -53,7 +54,8 @@ export class TaskSessionService {
     private readonly nativeActions = { environment: nativeActionEnvironment, rename: renameNativeSession, remove: removeNativeSession },
     private readonly loadResources: () => Promise<ResourceRecord[]> = async () => [],
     noteActions?: TaskContextNoteActions,
-    private readonly readActivity = readNativeSessionActivity) {
+    private readonly readActivity = readNativeSessionActivity,
+    private readonly workspaceMcp = new SessionWorkspaceMcp()) {
     this.contextServer = new TaskContextServer(loadTask, attachmentPaths, noteActions);
   }
 
@@ -64,6 +66,7 @@ export class TaskSessionService {
   }
   private async initialize() {
     if (this.loaded) return;
+    await this.workspaceMcp.reapAntigravity().catch((error) => { void writeDiagnosticEvent("session.context.sync_failed", { error }); });
     this.sessions = await this.repository.load();
     for (const session of this.sessions) if (session.kind === "agent" && session.agent) {
       if (!session.workspace && session.cwd) {
@@ -186,6 +189,7 @@ export class TaskSessionService {
   private async releaseContext(session: TaskSession) {
     this.contextServer.revoke(session.id);
     await this.contextFiles.release(session.id);
+    await this.workspaceMcp.release(session.id);
   }
   private contextSyncFailure(session: TaskSession, error: unknown) {
     if (!session.contextSyncFailed) void writeDiagnosticEvent("session.context.sync_failed", { taskId: session.taskId, operationId: session.id, error });
@@ -276,7 +280,7 @@ export class TaskSessionService {
           const current = await this.loadTask(task.id);
           if (current.status === "ARCHIVED") throw new Error("SESSION_BUSY");
           return this.contextFiles.prepare(session.id, current, this.settings().tasksDirectory, await this.attachmentPaths(current));
-        }, session.nativeLaunchId) : undefined;
+        }, session.nativeLaunchId, () => this.attachWorkspace(session, task.id, context.cwd)) : undefined;
       if (launch) session.contextMode = launch.contextMode;
       delete session.contextSyncFailed;
       if (launch) this.titleEnvironments.set(session.id, { GROK_HOME: launch.env.GROK_HOME, CLAUDE_CONFIG_DIR: launch.env.CLAUDE_CONFIG_DIR });
@@ -299,6 +303,7 @@ export class TaskSessionService {
             if (!this.sessions.includes(session) || session.terminalId !== terminalId) return;
             if (this.closing || owner.isDestroyed()) return;
             await this.contextFiles.release(session.id);
+            await this.workspaceMcp.release(session.id);
             if (!["running", "starting"].includes(session.status)) return;
             await this.captureFinalReply(session);
             session.status = "stopped";
@@ -551,7 +556,14 @@ export class TaskSessionService {
     this.activityTimer = null;
     await this.serialize(() => this.flushActivity()).catch((error) => writeDiagnosticEvent("session.activity.failed", { error }));
     await this.queue;
+    await this.workspaceMcp.close();
     await this.contextServer.close();
     await this.contextFiles.close();
+  }
+  private async attachWorkspace(session: TaskSession, taskId: string, cwd: string) {
+    if (session.agent?.agentId !== "grok" && session.agent?.agentId !== "antigravity") return undefined;
+    const connection = await this.contextServer.connect(session.id, taskId);
+    try { return await this.workspaceMcp.attach({ agentId: session.agent.agentId, sessionId: session.id, cwd, connection }); }
+    catch (error) { this.contextServer.revoke(session.id); throw error; }
   }
 }

@@ -204,7 +204,6 @@
     "errors": {
       "PACKAGE_INVALID": "安装包校验失败，请使用当前 Navo 支持的官方版本。",
       "INCOMPATIBLE": "插件与当前 Navo 不兼容，请卸载后安装兼容版本。",
-      "RELEASE_UNAVAILABLE": "该版本尚未发布到 Releases，可选择经过校验的本地安装包。",
       "DOWNLOAD_FAILED": "下载失败，请检查网络后重试。",
       "CLEANUP_REQUIRED": "上次卸载未完成，请再次卸载以清理残留文件。",
       "INVALID_STORAGE": "扩展配置无法读取，已有数据未被重置。",
@@ -236,7 +235,6 @@
     "updateAvailable": "有可用更新：v{{version}}",
     "upToDate": "当前已是最新兼容版本",
     "lastChecked": "上次成功检查：{{time}}",
-    "updateHint": "更新仅提示，点击更新后才会安装。",
     "update": "更新",
     "updating": "正在更新…",
     "availableRelease": "可安装版本：v{{version}}"

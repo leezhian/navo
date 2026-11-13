@@ -1,8 +1,9 @@
-import { RefreshCw, Download } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { getExtensionsApi } from "@/services/extensionsApi";
-import { extensionErrorKeys } from "@/services/extensionErrorMessages";
+import { extensionErrorKey } from "@/services/extensionErrorMessages";
 import type { ExtensionStatus } from "@/shared/extensionTypes";
 
 interface ExtensionUpdateActionsProps {
@@ -13,40 +14,56 @@ interface ExtensionUpdateActionsProps {
   /** 统一处理 IPC 错误并刷新安装状态。 */
   run: (action: () => Promise<void>) => Promise<boolean>;
 }
-export function ExtensionUpdateActions({ status, busy, run }: ExtensionUpdateActionsProps) {
+
+/**
+ * 启用开关旁的更新入口。没有新版本时只显示检查图标；
+ * 已有兼容新版时改为「更新」，点击后才下载安装。检查进行中不能开始安装。
+ */
+export function ExtensionUpdateButton({ status, busy, run }: ExtensionUpdateActionsProps) {
+  const { t } = useTranslation(["settings"]);
+  const disabled = busy || status.checking;
+  if (status.updateAvailable) {
+    return (
+      <Button size="sm" disabled={disabled} onClick={() => void run(() => getExtensionsApi().update())}>
+        {t(status.operation === "updating" ? "settings:labs.updating" : "settings:labs.update")}
+      </Button>
+    );
+  }
+  return (
+    <IconTooltip
+      label={t("settings:labs.checkUpdates")}
+      size="icon-sm"
+      disabled={disabled}
+      onClick={() => void run(() => getExtensionsApi().checkForUpdates())}
+    >
+      <RefreshCw className={status.checking ? "size-3.5 animate-spin" : "size-3.5"} />
+    </IconTooltip>
+  );
+}
+
+/** 检查进度、可用更新、上次成功时间和需要展示的失败原因。没有内容时不占一行。 */
+export function ExtensionUpdateActions({ status }: Pick<ExtensionUpdateActionsProps, "status">) {
   const { t, i18n } = useTranslation(["settings"]);
   const checkedAt = status.checkedAt ? new Date(status.checkedAt).toLocaleString(i18n.resolvedLanguage) : null;
-  let message = t("settings:labs.updateHint");
+  const updateErrorKey = status.updateError ? extensionErrorKey(status.updateError) : null;
+  let message: string | null = null;
   if (status.checking) message = t("settings:labs.checkingUpdates");
   else if (status.updateAvailable) message = t("settings:labs.updateAvailable", { version: status.availableVersion });
   else if (status.checkedAt && !status.updateError)
     message = status.version ? t("settings:labs.upToDate") : t("settings:labs.availableRelease", { version: status.availableVersion });
+  if (!message && !checkedAt && !updateErrorKey) return null;
+  const followsStatus = Boolean(message || checkedAt);
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3 text-xs text-muted-foreground">
-      <div className="min-w-0 flex-1" role="status" aria-live="polite">
-        <span className={status.updateAvailable ? "text-foreground" : undefined}>{message}</span>
-        {checkedAt && <p className="mt-1">{t("settings:labs.lastChecked", { time: checkedAt })}</p>}
-        {status.updateError && (
-          <p role="alert" className="mt-1 text-destructive">
-            {t(extensionErrorKeys[status.updateError])}
+    <div className="border-t px-4 py-3 text-xs text-muted-foreground">
+      <div role="status" aria-live="polite">
+        {message && <span className={status.updateAvailable ? "text-foreground" : undefined}>{message}</span>}
+        {checkedAt && <p className={message ? "mt-1" : undefined}>{t("settings:labs.lastChecked", { time: checkedAt })}</p>}
+        {updateErrorKey && (
+          <p role="alert" className={followsStatus ? "mt-1 text-destructive" : "text-destructive"}>
+            {t(updateErrorKey)}
           </p>
         )}
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={busy || status.checking}
-        onClick={() => void run(() => getExtensionsApi().checkForUpdates())}
-      >
-        <RefreshCw className={status.checking ? "size-3.5 animate-spin" : "size-3.5"} />
-        {t("settings:labs.checkUpdates")}
-      </Button>
-      {status.updateAvailable && (
-        <Button size="sm" disabled={busy || status.checking} onClick={() => void run(() => getExtensionsApi().update())}>
-          <Download className="size-3.5" />
-          {t(status.operation === "updating" ? "settings:labs.updating" : "settings:labs.update")}
-        </Button>
-      )}
     </div>
   );
 }

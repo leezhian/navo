@@ -7,6 +7,7 @@ import type { TaskService } from "../services/taskService";
 import type { Task } from "../../domain/tasks";
 import { SessionRepository } from "../services/taskSessions/sessionRepository";
 import { TaskSessionService } from "../services/taskSessions/taskSessionService";
+import { SessionWorkspaceMcp } from "../services/taskSessions/sessionWorkspaceMcp";
 import { getCurrentSettings } from "../services/settingsService";
 import { getAgentService } from "./agentHandlers";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
@@ -70,7 +71,9 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
       create: (id, note, sessionId, authorize) => tasks.createAgentNote(id, note, sessionId, authorize).then(publishTask),
       update: (id, note, version, authorize) => tasks.updateNote(id, note, version, authorize).then(publishTask),
       remove: (id, noteId, version, authorize) => tasks.deleteNote(id, noteId, version, authorize).then(publishTask),
-    });
+    }, undefined, new SessionWorkspaceMcp({
+      pluginRoot: path.join(app.getPath("userData"), "task-mcp-plugins"),
+    }));
   sessions = service;
   unsubscribeTasks?.();
   unsubscribeTasks = onTaskPublished((record) => { void service.updateTaskContext(record.id).catch(() => undefined); });

@@ -1,6 +1,7 @@
 {
   "all": "All",
   "search": "Search messages, commands or files",
+  "clearSearch": "Clear search",
   "loading": "Loading…",
   "empty": "No matching trace events",
   "error": "Could not read the trace. Please retry.",

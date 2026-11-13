@@ -24,6 +24,7 @@ test("Read-only MCP isolates tasks, reads current data, rejects arbitrary ids an
   tasks.get("one").description = "live update"; tasks.get("one").contextVersion++;
   result = JSON.parse((await read(one, "get_task_context")).content[0].text);
   assert.equal(result.prompt, "live update"); assert.equal(result.version, 2);
+  assert.equal(result.notes[0].bytes, Buffer.byteLength("private note")); assert.equal(result.notes[0].content, undefined);
   assert.equal(JSON.parse((await read(one, "get_task_note", { noteId: "note-one" })).content[0].text).content, "private note");
   assert.equal((await read(two, "get_task_note", { noteId: "note-one" })).isError, true);
   assert.equal((await read(one, "get_task_context", { taskId: "two" })).isError, true);
@@ -43,6 +44,10 @@ test("Adapters use process-scoped configuration, unknown CLIs use snapshots with
   assert.equal(supportsSessionContext("claude", "--model"), false);
   assert.equal(supportsSessionContext("grok", "--config"), false);
   assert.equal(supportsSessionContext("antigravity", "--settings"), false);
+  assert.equal(supportsSessionContext("grok", "Commands:\n  mcp          Manage MCP\n"), true);
+  assert.equal(supportsSessionContext("antigravity", "Available subcommands:\n  mcp             Manage MCP servers\n"), true);
+  assert.throws(() => contextLaunchArguments("grok", connection, "mcp"), /SESSION_OPTION_UNSUPPORTED/);
+  assert.throws(() => contextLaunchArguments("antigravity", connection, "mcp"), /SESSION_OPTION_UNSUPPORTED/);
   const claude = contextLaunchArguments("claude", connection, "--append-system-prompt");
   assert.equal(JSON.parse(claude.args[1]).mcpServers.navo_task.headers.Authorization, "Bearer temporary-secret");
   const codex = contextLaunchArguments("codex", connection, "--config --no-daemon");

@@ -272,7 +272,7 @@ src/components/ui/icon-tooltip.tsx
 
 新建 Worktree 在与任务数据同一事务中保存初始化命令快照，顺序运行并记录检查点；失败保留现场，重试跳过成功步骤，冷启动不重跑中断脚本。Agent 启动与恢复检查初始化状态。
 
-动态上下文通过会话级 Streamable HTTP MCP 提供，监听随机回环端口，凭证仅存内存并随会话结束撤销。Claude 使用临时 `--mcp-config`，Codex 使用 `--config` 覆盖及环境变量凭证（参考 [官方 MCP 配置](https://developers.openai.com/codex/mcp)）；Grok/Antigravity 无 MCP 时生成会话独立的实时上下文文件，任务修改后原子更新；提示 Agent 每轮重新读取，Grok 恢复时通过 `--rules` 重新传递文件读取约定。原终端输入保持不变，不拦截回车、不自动插入文本、不新增消息输入框；上下文图标可刷新文件并复制读取提示，但不表示模型已读取。不会修改全局配置、仓库规则文件或 hooks。数据库 v12 新增任务上下文版本及初始化检查点。v13 为 `task_notes` 增加独立版本、创建来源/会话、排序及创建/更新时间，旧笔记原位迁移并保留顺序与已有时间。任务 MCP 提供 `get_task_context`、`get_task_note`、`create_task_note`、`update_task_note`、`delete_task_note`；写入仅限当前任务普通笔记，编辑/删除强制比对笔记版本，提交成功后通知界面及运行中的文件上下文。归档/删除中的任务、跨任务引用和失效凭证不能写入；正文与其他资源仍只读。笔记变更同时递增任务上下文版本，无变化保存不递增，不保存历史正文。Grok/Antigravity 的文件模式只读，不将文件修改写回数据库。
+动态上下文通过会话级 Streamable HTTP MCP 提供，监听随机回环端口，凭证仅存内存并随会话结束撤销。Claude 使用临时 `--mcp-config`，Codex 使用 `--config` 覆盖及环境变量凭证（参考 [官方 MCP 配置](https://developers.openai.com/codex/mcp)）。Grok 在 CLI 提供 `mcp` 子命令时，把带标记的 `navo_task` 合并进本次工作目录的 `.grok/config.toml`，凭证只放在进程环境变量 `NAVO_TASK_CONTEXT_TOKEN`，不写用户级配置；最后一个使用该目录的会话结束或应用退出时移除标记段。Antigravity 在帮助里同时有 `mcp` 子命令和 `--add-dir` 时，把本次会话的 HTTP 地址和凭证写进应用私有目录中的插件配置，并用 `--add-dir` 指向该目录，不修改用户 MCP 配置；会话结束或应用退出时删除该目录。写不进去，或 CLI 没有对应能力时，仍用会话独立的实时上下文文件。文件模式在任务修改后原子更新，并提示每轮重新读取；Grok 恢复且无法使用 MCP 时，仍通过 `--rules` 传递读取约定。动态上下文的笔记索引只含标题、版本和正文字节数，正文用 `get_task_note` 读取。原终端输入保持不变，不拦截回车、不自动插入文本、不新增消息输入框，也不提供 Chat 会话。上下文图标只在文件模式刷新并复制读取提示，不表示模型已读取。不修改仓库规则或 hooks。数据库 v12 新增任务上下文版本及初始化检查点。v13 为 `task_notes` 增加独立版本、创建来源/会话、排序及创建/更新时间，旧笔记原位迁移并保留顺序与已有时间。任务 MCP 提供 `get_task_context`、`get_task_note`、`create_task_note`、`update_task_note`、`delete_task_note`；写入仅限当前任务普通笔记，编辑/删除强制比对笔记版本，提交成功后通知界面及运行中的文件上下文。归档/删除中的任务、跨任务引用和失效凭证不能写入；正文与其他资源仍只读。笔记变更同时递增任务上下文版本，无变化保存不递增，不保存历史正文。Grok/Antigravity 的文件模式只读，不将文件修改写回数据库。
 
 ### 会话自动恢复
 
@@ -299,7 +299,7 @@ npx tsc -p extensions/session-trace/tsconfig.json
 
 独立产物为 `extension-dist/session-trace-<版本>.navo-extension`，包含清单和 UTF-8 文件，不需要用户安装 Node 或执行 npm。宿主保留首版固定摘要作为安装回退；独立更新通过内置 Ed25519 公钥验证远程清单，清单包含插件版本、SHA-256、大小、接口版本、兼容宿主主版本和固定官方下载地址。已发布版本不可替换内容；以后发布插件无需改宿主摘要或重新发版 Navo。
 
-插件包发布到 `leezhian/navo` 对应的 `session-trace-v<版本>` Release；签名清单作为 `catalog.json` 上传到固定的 `session-trace-catalog` Release。清单地址为 `https://github.com/leezhian/navo/releases/download/session-trace-catalog/catalog.json`。先上传新包，再更新清单。清单尚未发布时，检查更新会显示发布源不可用；首版仍可从经过同等校验的本地包安装。构建与签名脚本均不会自动发布。
+插件包发布到 `leezhian/navo` 对应的 `session-trace-v<版本>` Release；签名清单作为 `catalog.json` 上传到固定的 `session-trace-catalog` Release。清单地址为 `https://github.com/leezhian/navo/releases/download/session-trace-catalog/catalog.json`。先上传新包，再更新清单。清单尚未发布时，检查更新不额外提示；首版仍可从经过同等校验的本地包安装。构建与签名脚本均不会自动发布。
 
 ```bash
 # 初次配置公钥时使用；已有密钥与公钥时不要重复生成

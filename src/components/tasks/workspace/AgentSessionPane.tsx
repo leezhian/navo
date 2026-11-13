@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { ListTree, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { ChartNoAxesGantt, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
@@ -90,7 +90,7 @@ function SessionViewSwitch({ traceSelected, onViewChange }: SessionViewSwitchPro
   const itemClass = (selected: boolean) => selected ? "bg-accent text-foreground" : "";
   return <div role="group" aria-label={t("settings:labs.view")} className="flex items-center gap-0.5 rounded-md">
     <IconTooltip label={t("settings:labs.terminal")} size="icon-xs" aria-pressed={!traceSelected} data-selected={!traceSelected} className={itemClass(!traceSelected)} onClick={() => onViewChange?.(false)}><SquareTerminal className="size-3.5" /></IconTooltip>
-    <IconTooltip label={t("settings:labs.trace")} size="icon-xs" aria-pressed={traceSelected} data-selected={traceSelected} className={itemClass(traceSelected)} onClick={() => onViewChange?.(true)}><ListTree className="size-3.5" /></IconTooltip>
+    <IconTooltip label={t("settings:labs.trace")} size="icon-xs" aria-pressed={traceSelected} data-selected={traceSelected} className={itemClass(traceSelected)} onClick={() => onViewChange?.(true)}><ChartNoAxesGantt className="size-3.5" /></IconTooltip>
   </div>;
 }
 

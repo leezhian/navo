@@ -1,14 +1,14 @@
-import { extensionErrorKeys } from "@/services/extensionErrorMessages";
+import { extensionErrorKey } from "@/services/extensionErrorMessages";
 import { normalizeExtensionErrorCode } from "@/shared/extensionErrors";
 import { useState } from "react";
-import { FlaskConical, Download, FolderOpen, Trash2 } from "lucide-react";
+import { ChartNoAxesGantt, Download, FolderOpen, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useExtensions } from "@/hooks/useExtensions";
 import { getExtensionsApi } from "@/services/extensionsApi";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ExtensionUpdateActions } from "./ExtensionUpdateActions";
+import { ExtensionUpdateActions, ExtensionUpdateButton } from "./ExtensionUpdateActions";
 import { SettingsPageHeader, SettingsSectionHeader, SettingsList, SettingsRow } from "./settingsPrimitives";
 
 export function LabsSettingsPage() {
@@ -21,7 +21,8 @@ export function LabsSettingsPage() {
   );
   // 回退未完成时已没有下载任务，保留卸载入口供用户清理后重装。
   const transferring = (status?.operation === "installing" || status?.operation === "updating") && status?.error !== "UPDATE_ROLLBACK_FAILED";
-  const message = (error !== status?.updateError ? error : null) || status?.error;
+  const reported = (error !== status?.updateError ? error : null) || status?.error;
+  const alertKey = reported ? extensionErrorKey(normalizeExtensionErrorCode(reported)) : null;
   return (
     <>
       <SettingsPageHeader title={t("settings:pages.labs")} />
@@ -40,8 +41,9 @@ export function LabsSettingsPage() {
           <SettingsRow
             title={t("settings:labs.traceTitle")}
             description={t("settings:labs.traceDescription")}
-            icon={<FlaskConical className="size-5 text-muted-foreground" />}
+            icon={<ChartNoAxesGantt className="size-5 text-muted-foreground" />}
           >
+            <ExtensionUpdateButton status={status} busy={busy} run={run} />
             {status.version ? (
               <Switch
                 checked={status.enabled}
@@ -100,12 +102,12 @@ export function LabsSettingsPage() {
               <p className="mt-1 text-xs text-muted-foreground">{status.progress}%</p>
             </div>
           )}
-          <ExtensionUpdateActions status={status} busy={busy} run={run} />
+          <ExtensionUpdateActions status={status} />
         </SettingsList>
       )}
-      {message && (
+      {alertKey && (
         <p role="alert" className="mt-3 text-xs text-destructive">
-          {t(extensionErrorKeys[normalizeExtensionErrorCode(message)])}
+          {t(alertKey)}
         </p>
       )}
       <Dialog open={confirm} onOpenChange={setConfirm}>

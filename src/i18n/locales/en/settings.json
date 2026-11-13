@@ -206,7 +206,6 @@
     "errors": {
       "PACKAGE_INVALID": "Package verification failed. Use the official version supported by this Navo build.",
       "INCOMPATIBLE": "This extension is incompatible. Uninstall it and install a compatible version.",
-      "RELEASE_UNAVAILABLE": "This release is not published yet. You can select a verified local package.",
       "DOWNLOAD_FAILED": "Download failed. Check your connection and retry.",
       "CLEANUP_REQUIRED": "The previous uninstall was interrupted. Retry to remove remaining files.",
       "INVALID_STORAGE": "Extension settings could not be read. Existing data has not been reset.",
@@ -238,7 +237,6 @@
     "updateAvailable": "Update available: v{{version}}",
     "upToDate": "You have the latest compatible version",
     "lastChecked": "Last successful check: {{time}}",
-    "updateHint": "Updates are installed only when you choose Update.",
     "update": "Update",
     "updating": "Updating…",
     "availableRelease": "Available version: v{{version}}"

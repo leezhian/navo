@@ -182,12 +182,17 @@ test("TypeScript 拒绝缺失 key、中文 key 和任意动态字符串", () => 
 test("插件错误码映射覆盖已知错误，未知持久化值及 IPC 错误使用通用提示", () => {
   const { extensionErrorCodes, normalizeExtensionErrorCode } = load("src/shared/extensionErrors.ts");
   const { extensionErrorCode } = load("src/services/extensionsApi.ts");
-  const { extensionErrorKeys } = load("src/services/extensionErrorMessages.ts");
-  assert.deepEqual(Object.keys(extensionErrorKeys).sort(), [...extensionErrorCodes].sort());
+  const { extensionErrorKeys, extensionErrorKey } = load("src/services/extensionErrorMessages.ts");
+  const silentCodes = extensionErrorCodes.filter((code) => extensionErrorKey(code) === null);
+  assert.deepEqual(silentCodes, ["RELEASE_UNAVAILABLE"]);
+  assert.deepEqual(Object.keys(extensionErrorKeys).sort(), extensionErrorCodes.filter((code) => !silentCodes.includes(code)).sort());
   for (const code of extensionErrorCodes) {
     assert.equal(normalizeExtensionErrorCode(code), code);
     assert.equal(extensionErrorCode(new Error("Error invoking remote method 'extension': Error: " + code)), code);
-    for (const { value: locale } of supportedLocales) assert.ok(resources[locale].settings.labs.errors[code]);
+    for (const { value: locale } of supportedLocales) {
+      if (silentCodes.includes(code)) assert.equal(resources[locale].settings.labs.errors[code], undefined);
+      else assert.ok(resources[locale].settings.labs.errors[code]);
+    }
   }
   for (const unknown of [undefined, null, "SQLITE_BUSY", "UNKNOWN_CODE", "settings:pages.labs"]) {
     assert.equal(normalizeExtensionErrorCode(unknown), "OPERATION_FAILED");

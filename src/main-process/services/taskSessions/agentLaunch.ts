@@ -7,8 +7,10 @@ import { agentLaunchArguments } from "./launchArguments";
 import { CONTEXT_INSTRUCTIONS, contextLaunchArguments, supportsSessionContext } from "./contextLaunchArguments";
 import type { TaskContextConnection } from "./taskContextServer";
 import { nativeLaunchReference } from "./nativeSessionBinding";
+import { helpOffersAddDir } from "./antigravityWorkspacePlugin";
+import type { WorkspaceMcpAttachment } from "./sessionWorkspaceMcp";
 
-export async function prepareAgentLaunch(agents: AgentService, selection: TaskAgentSelection, nativeId: string, prompt: string, resume: boolean, nativeHistoryRoot?: string, connectContext?: () => Promise<TaskContextConnection>, dynamicPrompt?: string, prepareContextFile?: () => Promise<string>, nativeLaunchId?: string) {
+export async function prepareAgentLaunch(agents: AgentService, selection: TaskAgentSelection, nativeId: string, prompt: string, resume: boolean, nativeHistoryRoot?: string, connectContext?: () => Promise<TaskContextConnection>, dynamicPrompt?: string, prepareContextFile?: () => Promise<string>, nativeLaunchId?: string, attachWorkspace?: () => Promise<WorkspaceMcpAttachment | undefined>) {
   const { configurations } = await agents.repository.read();
   const config = configurations.find((item) => item.id === selection.agentId);
   if (!config?.enabled) throw new Error("AGENT_UNAVAILABLE");
@@ -33,7 +35,7 @@ export async function prepareAgentLaunch(agents: AgentService, selection: TaskAg
     prompt += reference;
     if (dynamicPrompt !== undefined) dynamicPrompt += reference;
   }
-  const context = connectContext && supportsSessionContext(selection.agentId, helpText) ? contextLaunchArguments(selection.agentId, await connectContext(), helpText) : undefined;
+  const context = await resolveDynamicContext(selection.agentId, helpText, connectContext, attachWorkspace);
   const canPassFileInstructions = !resume || (selection.agentId === "grok" && helpText.includes("--rules"));
   const fileInstructions = !context && prepareContextFile && canPassFileInstructions ? await prepareContextFile() : undefined;
   const fileArgs = fileInstructions && selection.agentId === "grok" && helpText.includes("--rules") ? ["--rules", fileInstructions] : [];
@@ -42,4 +44,19 @@ export async function prepareAgentLaunch(agents: AgentService, selection: TaskAg
   return { command: installation.binaryPath, env,
     contextMode: context ? "dynamic" as const : fileInstructions ? "file" as const : "snapshot" as const,
     args: [...config.args, ...(context?.args ?? []), ...fileArgs, ...agentLaunchArguments(selection, nativeId, prompt, resume, helpText)] };
+}
+
+/** Grok/Antigravity 的配置写入失败时退回文件，不把动态模式标成已连接。 */
+async function resolveDynamicContext(agent: TaskAgentSelection["agentId"], helpText: string, connectContext?: () => Promise<TaskContextConnection>, attachWorkspace?: () => Promise<WorkspaceMcpAttachment | undefined>) {
+  if (!supportsSessionContext(agent, helpText)) return undefined;
+  if (agent === "grok" || agent === "antigravity") {
+    if (!attachWorkspace) return undefined;
+    // Antigravity 要能把私有插件目录加进本次进程。帮助里没有这个参数就保持文件模式。
+    if (agent === "antigravity" && !helpOffersAddDir(helpText)) return undefined;
+    try {
+      const attached = await attachWorkspace();
+      return attached ? { args: attached.args ?? [], env: attached.env } : undefined;
+    } catch { return undefined; }
+  }
+  return connectContext ? contextLaunchArguments(agent, await connectContext(), helpText) : undefined;
 }
