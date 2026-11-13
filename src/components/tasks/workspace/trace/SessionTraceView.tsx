@@ -37,6 +37,8 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
   const splitRef = useRef<HTMLDivElement>(null);
   const [stacked, setStacked] = useState(() => typeof window !== "undefined" && window.matchMedia(STACKED_QUERY).matches);
   const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL);
+  // 不记住。视图挂在会话上，终端和轨迹来回切换还在；换会话会卸掉。
+  const [actualDuration, setActualDuration] = useState(false);
   const {
     events,
     offset,
@@ -106,6 +108,22 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
         </span>
         <span>{stats ? t("trace:counts.tools", { count: stats.tools }) : t("trace:unknown.tools")}</span>
         {!!stats?.errors && <span className="text-destructive">{t("trace:counts.errors", { count: stats.errors })}</span>}
+        {!untimed && (
+          <Button
+            type="button"
+            size="xs"
+            variant={actualDuration ? "secondary" : "outline"}
+            aria-pressed={actualDuration}
+            className="ml-auto rounded-full font-normal"
+            title={actualDuration ? t("trace:axis.useEqualWidth") : t("trace:axis.useActualDuration")}
+            onClick={() => {
+              setActualDuration((value) => !value);
+              clearRange();
+            }}
+          >
+            {t("trace:axis.duration")}
+          </Button>
+        )}
       </div>
       {untimed ? (
         <p className="px-3 pb-3 text-xs text-muted-foreground">{t("trace:timelineMissing")}</p>
@@ -118,6 +136,7 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
           onSelect={jump}
           onRangeSelect={setRange}
           onRangeClear={clearRange}
+          actualDuration={actualDuration}
         />
       )}
       <div className="flex flex-wrap items-center gap-2 border-y px-3 py-2">

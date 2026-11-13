@@ -254,20 +254,29 @@ export class TraceIndex {
     const { where, args } = this.scope(query);
     const limit = query.limit ?? 80;
     let offset = query.offset ?? 0;
-    // 事件序号包含隐藏记账行，定位时按当前筛选计算其所在页，避免按 id 直接换算翻到空页。
-    if (query.eventId != null) {
-      const before = this.db.prepare(`SELECT COUNT(*) total FROM events ${where} AND seq<?`).get(...args, query.eventId)?.total;
+    // 事件序号包含隐藏记账行，定位时按当前筛选计算其所在页，避免按序号直接换算翻到空页。
+    // 框选传来一组命中。时间线不跟筛选走，第一条可能已被排除，所以取仍可见的最小序号。
+    let focusId = query.eventId ?? null;
+    if (focusId == null && query.offset == null && query.hitIds?.length) {
+      const row = this.db
+        .prepare(`SELECT MIN(seq) seq FROM events ${where} AND seq IN (SELECT value FROM json_each(?))`)
+        .get(...args, JSON.stringify(query.hitIds));
+      if (row?.seq != null) focusId = Number(row.seq);
+    }
+    if (focusId != null) {
+      const before = this.db.prepare(`SELECT COUNT(*) total FROM events ${where} AND seq<?`).get(...args, focusId)?.total;
       offset = Math.floor(Number(before) / limit) * limit;
     }
-    // 框选只用于高亮，不收窄列表：这里只算出当前结果中第一条命中的位置。
+    // 框选只用于高亮，不收窄列表：这里只算出当前结果中第一条落在时间段内的位置。
+    // 已经按事件或框选序号定了窗口时，不再用墙上时间改起点。
     let rangeFirstIndex: number | null | undefined;
     if (query.from != null && query.to != null) {
       const range = this.rangeClause(query);
       const first = this.db.prepare(`SELECT MIN(seq) seq FROM events ${where} ${range.sql}`).get(...args, ...range.args)?.seq;
       rangeFirstIndex =
         first == null ? null : Number(this.db.prepare(`SELECT COUNT(*) total FROM events ${where} AND seq<?`).get(...args, Number(first))?.total);
-      // 未指定起点时直接返回命中所在的窗口，宿主一次查询即可滚过去。
-      if (rangeFirstIndex != null && query.offset == null && query.eventId == null) offset = Math.floor(rangeFirstIndex / limit) * limit;
+      if (rangeFirstIndex != null && query.offset == null && query.eventId == null && !query.hitIds?.length)
+        offset = Math.floor(rangeFirstIndex / limit) * limit;
     }
     const rows = this.db.prepare(`SELECT seq,data FROM events ${where} ORDER BY seq LIMIT ? OFFSET ?`).all(...args, limit, offset);
     const total = Number(this.db.prepare(`SELECT COUNT(*) total FROM events ${where}`).get(...args)?.total);

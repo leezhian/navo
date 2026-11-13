@@ -22,16 +22,40 @@ export function eventOverlapsRange(event: Pick<TraceEvent, "timestamp" | "durati
   return start >= rangeStart && start <= rangeEnd;
 }
 
-/** 把过窄的拖选扩展到事件块最小宽度，且不超出时间轴起止。 */
-export function expandTimelineRange(fromMs: number, toMs: number, axisStart: number, axisEnd: number, axisWidthPx: number): { from: string; to: string } {
-  const axisDuration = Math.max(1, axisEnd - axisStart);
-  const minMs = Math.max(MIN_MARK_PX / Math.max(axisWidthPx, 1), MIN_MARK_RATIO) * axisDuration;
-  let start = Math.min(fromMs, toMs),
-    end = Math.max(fromMs, toMs);
-  if (end - start < minMs) {
+/**
+ * 框选命中。ids 在场时（含空数组）只认投影命中的事件，不再用墙上时间：
+ * 等宽记录里，起得很早的长工具不该因为持续时间跨进后面的格子而被算进选区。
+ * 空数组表示选区没有落到任何事件。没有 ids 时仍按墙上时间重叠，供只持有时间段的调用使用。
+ */
+export function eventInBrush(
+  event: Pick<TraceEvent, "id" | "timestamp" | "durationMs">,
+  range: { from: string; to: string; ids?: number[] },
+): boolean {
+  if (range.ids) return range.ids.includes(event.id);
+  return eventOverlapsRange(event, range.from, range.to);
+}
+
+/**
+ * 把过窄的拖选扩到最小宽度，且不超出投影整段。返回投影坐标。
+ * 等宽记录的坐标是槽位，不能当成毫秒去转 ISO，也不能传给按时间过滤的查询。
+ * scaleDuration 是屏幕上当前窗口的跨度。放大后按可见窗算最小宽度，夹紧仍用整段起止，边缘平移带进来的选区不会被裁回窗口。
+ */
+export function expandDomainRange(
+  from: number,
+  to: number,
+  axisStart: number,
+  axisEnd: number,
+  axisWidthPx: number,
+  scaleDuration?: number,
+): { start: number; end: number } {
+  const bounds = Math.max(1, axisEnd - axisStart);
+  const minSpan = Math.max(MIN_MARK_PX / Math.max(axisWidthPx, 1), MIN_MARK_RATIO) * Math.max(1, scaleDuration ?? bounds);
+  let start = Math.min(from, to),
+    end = Math.max(from, to);
+  if (end - start < minSpan) {
     const mid = (start + end) / 2;
-    start = mid - minMs / 2;
-    end = mid + minMs / 2;
+    start = mid - minSpan / 2;
+    end = mid + minSpan / 2;
   }
   if (start < axisStart) {
     end = Math.min(axisEnd, end + (axisStart - start));
@@ -41,7 +65,23 @@ export function expandTimelineRange(fromMs: number, toMs: number, axisStart: num
     start = Math.max(axisStart, start - (end - axisEnd));
     end = axisEnd;
   }
-  return { from: new Date(start).toISOString(), to: new Date(end).toISOString() };
+  return { start, end };
+}
+
+/**
+ * 把过窄的拖选扩展到事件块最小宽度，且不超出时间轴起止，再换成 ISO。
+ * scaleDurationMs 是屏幕上当前时间窗的时长。只适用于毫秒坐标；槽位坐标用 expandDomainRange。
+ */
+export function expandTimelineRange(
+  fromMs: number,
+  toMs: number,
+  axisStart: number,
+  axisEnd: number,
+  axisWidthPx: number,
+  scaleDurationMs?: number,
+): { from: string; to: string } {
+  const range = expandDomainRange(fromMs, toMs, axisStart, axisEnd, axisWidthPx, scaleDurationMs);
+  return { from: new Date(range.start).toISOString(), to: new Date(range.end).toISOString() };
 }
 
 /** 把新取到的窗口并入已加载的连续区间；不相邻时改用新窗口，避免列表出现空洞。 */

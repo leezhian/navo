@@ -195,18 +195,21 @@ void app.whenReady().then(async () => {
       const scroller = document.querySelector(".events") as HTMLElement;
       const tool = () => document.querySelector<HTMLElement>('.event-row[data-kind="tool"]');
       await wait(() => Boolean(document.querySelector(".event-row[data-dimmed]")), "Range did not dim rows");
-      // 框选不再过滤：总数不变，列表滚到当前结果里第一条命中的长工具调用。
+      // 框选不再过滤。默认等宽记录，拖动落在大约第 120–125 格，第一条是 fixture message 120，不是更早开始的长工具。
       if (document.querySelector('[role="status"]')?.textContent !== "220 events") throw Error("Range must not filter the list");
+      const firstHit = () => document.querySelector<HTMLElement>('.event-row[title="fixture message 120"]');
       await wait(() => {
-        const row = tool();
+        const row = firstHit();
         if (!row || row.dataset.dimmed) return false;
         const rowRect = row.getBoundingClientRect(), listRect = scroller.getBoundingClientRect();
         return rowRect.top >= listRect.top - 1 && rowRect.bottom <= listRect.bottom + 1;
       }, "Range must scroll to the first in-range event");
-      const selected = document.querySelector<HTMLElement>('.event-row[aria-current="true"]');
-      if (selected?.title !== "fixture message 12" || !selected.dataset.dimmed) throw Error("Selected event outside the range must stay selected and dimmed");
+      const toolRow = tool();
+      if (toolRow && !toolRow.dataset.dimmed) throw Error("The long tool is an early slot and must be dimmed");
+      // 选中的是第 12 条，滚到第 120 条后它不在当前窗口里。详情还停在它身上，就说明选中没被框选清掉。
+      if (document.querySelector('.event-row[aria-current="true"]')) throw Error("The scrolled window must not replace the selected row");
       const pane = document.querySelector(".detail.trace-detail");
-      if (!pane || document.querySelector(".events .detail") || !pane.querySelector("pre")?.textContent?.includes("fixture message"))
+      if (!pane || document.querySelector(".events .detail") || !pane.querySelector("pre")?.textContent?.includes("fixture message 12"))
         throw Error("Selected detail must stay open in the right-hand pane");
       const mark = (label: string) => document.querySelector<HTMLElement>(`.timeline button[aria-label="${label}"]`);
       if (!mark("User · fixture message 0")?.dataset.dimmed || mark("User · fixture message 122")?.dataset.dimmed) throw Error("Timeline marks outside the range must be dimmed");
@@ -218,20 +221,31 @@ void app.whenReady().then(async () => {
       return true;
     };
     await win.webContents.executeJavaScript(`(${rangeChecks.toString()})()`);
-    const assertRangeClearedKeeping = (title: string, opened: string, message: string) => waitInPage(`() => {
-      const selected = document.querySelector('.event-row[aria-current="true"]');
+    const assertRangeClearedKeeping = (opened: string, message: string) => waitInPage(`() => {
+      const pane = document.querySelector(".detail.trace-detail pre");
       return !document.querySelector(".event-row[data-dimmed]") &&
-        selected?.getAttribute("title") === ${JSON.stringify(title)} &&
+        Boolean(pane?.textContent?.includes("fixture message 12")) &&
         !document.querySelector(${JSON.stringify('.event-row[aria-current="true"][title="' + opened + '"]')});
     }`, message);
-    // 点置灰列表行：只取消框选，不改选中、不展开被点的行。
-    await clickSelector('.event-row[data-dimmed][title="fixture message 11"]');
-    await assertRangeClearedKeeping("fixture message 12", "fixture message 11", "Dimmed list row should only clear the range");
+    // 点一条仍在视口里的置灰行：只取消框选。第 11 条已经滚出虚拟列表，不能再点它。
+    const dimmedTitle = await win.webContents.executeJavaScript(`(() => {
+      const scroller = document.querySelector(".events");
+      if (!scroller) throw Error("Event list missing");
+      const listRect = scroller.getBoundingClientRect();
+      const row = Array.from(document.querySelectorAll(".event-row[data-dimmed]")).find(item => {
+        const rect = item.getBoundingClientRect();
+        return rect.top >= listRect.top && rect.bottom <= listRect.bottom && item.getAttribute("title") !== "fixture message 12";
+      });
+      if (!row) throw Error("No visible dimmed row");
+      return row.getAttribute("title");
+    })()`);
+    await clickSelector(`.event-row[data-dimmed][title="${dimmedTitle}"]`);
+    await assertRangeClearedKeeping(dimmedTitle, "Dimmed list row should only clear the range");
     await dragRange();
     await waitInPage('() => Boolean(document.querySelector(".event-row[data-dimmed]"))', "Range was not reapplied");
     // 点框选外的时间线块：同样只取消框选。
     await clickSelector('.timeline button[aria-label="User · fixture message 0"]');
-    await assertRangeClearedKeeping("fixture message 12", "fixture message 0", "Dimmed timeline mark should only clear the range");
+    await assertRangeClearedKeeping("fixture message 0", "Dimmed timeline mark should only clear the range");
     await dragRange();
     await waitInPage('() => Boolean(document.querySelector(".event-row[data-dimmed]"))', "Range was not reapplied");
     // 点选区内的时间线块：仍应定位并展开。
@@ -265,6 +279,27 @@ void app.whenReady().then(async () => {
       if (statsBar?.querySelector("svg") || /tokens|3m 39s|Not recorded/i.test(statsBar?.textContent ?? "")) throw Error("Duration and tokens must not be shown: " + statsBar?.textContent);
       const timelineText = document.querySelector(".timeline")?.textContent ?? "";
       if (!timelineText.includes("Input") || /[0-9][smhd]/.test(timelineText)) throw Error("Timeline must keep lane labels and drop time ticks: " + timelineText);
+      // 等宽记录共 220 格。第 r 轮（r ≤ 10）的第一条在槽位 r-1，其余轮在槽位 r；相距不足 4px 合并。
+      const axisEl = document.querySelector<HTMLElement>(".timeline .cursor-crosshair");
+      const lines = Array.from(document.querySelectorAll<HTMLElement>(".timeline [data-round-line]"));
+      if (!axisEl || !lines.length) throw Error("Round lines missing");
+      const width = axisEl.clientWidth;
+      let expected = 0, lastX = -Infinity;
+      for (let round = 1; round <= 219; round++) {
+        const x = (round <= 10 ? round - 1 : round) / 220 * width;
+        if (x - lastX >= 4) { expected++; lastX = x; }
+      }
+      if (lines.length !== expected) throw Error("Round line count " + lines.length + " != " + expected + " at width " + width);
+      const covered = lines.reduce((sum, line) => { const [from, to = from] = (line.dataset.roundLine ?? "").split("-").map(Number); return sum + to - from + 1; }, 0);
+      if (covered !== 219) throw Error("Merged round lines must cover all 219 timed rounds: " + covered);
+      if (lines.some(line => line.textContent || getComputedStyle(line).pointerEvents !== "none")) throw Error("Round lines must have no text and ignore the pointer");
+      if (/Round|轮/.test(timelineText)) throw Error("Timeline must not show round text: " + timelineText);
+      const axisRect = axisEl.getBoundingClientRect();
+      for (const line of lines.slice(0, 40)) {
+        const rect = line.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.left, axisRect.top + 6);
+        if (!hit || hit.hasAttribute("data-round-line") || !axisEl.contains(hit)) throw Error("Round line must not intercept the pointer");
+      }
       if (!document.querySelector(".stats")?.textContent?.includes("— model requests")) throw Error("Unknown requests were displayed as zero");
       return { virtualRows: count, text: document.body.innerText };
     };

@@ -22,3 +22,27 @@ export function formatTraceDuration(ms: number): string {
     .filter(Boolean)
     .join(" ");
 }
+
+function formatTraceClock(date: Date) {
+  const pad = (value: number, size = 2) => String(value).padStart(size, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+}
+
+/**
+ * 时间线方块悬停只保留三行：类型、本地时刻、总毫秒。
+ * 有耗时时写出开始到结束；没有耗时时不补 0，第三行交给调用方的「未记录」。
+ */
+export function timelineHoverText(
+  event: { timestamp?: string; durationMs?: number },
+  kind: string,
+  missing: string,
+  total: (ms: number) => string,
+): string {
+  const start = event.timestamp ? Date.parse(event.timestamp) : Number.NaN;
+  const clock = Number.isFinite(start) ? formatTraceClock(new Date(start)) : (event.timestamp ?? missing);
+  const duration = event.durationMs;
+  const spentMs = duration != null && Number.isFinite(duration) ? Math.max(0, duration) : null;
+  const time = spentMs != null && Number.isFinite(start) ? `${clock} → ${formatTraceClock(new Date(start + spentMs))}` : clock;
+  const spent = spentMs != null && Number.isFinite(start) ? total(spentMs) : missing;
+  return `${kind}\n${time}\n${spent}`;
+}

@@ -34,6 +34,14 @@
   "running": "Running",
   "injected": "Injected",
   "clipped": "Long content is partially displayed",
+  "axis": {
+    "duration": "Duration",
+    "useEqualWidth": "Use equal-width operations",
+    "useActualDuration": "Use actual duration"
+  },
+  "hover": {
+    "total": "Total {{ms}} ms"
+  },
   "timelineClipped": "Timeline shows the first 1,000 timestamped events",
   "timelineMissing": "No times were recorded for this session, so the timeline and range selection are unavailable",
   "following": "Follow new events",

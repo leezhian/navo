@@ -34,6 +34,14 @@
   "running": "运行中",
   "injected": "自动注入",
   "clipped": "内容较长，仅展示部分",
+  "axis": {
+    "duration": "时长",
+    "useEqualWidth": "使用等宽操作",
+    "useActualDuration": "使用实际时长"
+  },
+  "hover": {
+    "total": "总计 {{ms}} 毫秒"
+  },
   "timelineClipped": "时间线仅展示前 1000 条带时间事件",
   "timelineMissing": "该会话未记录时间，无法使用时间线和框选",
   "following": "跟随新事件",

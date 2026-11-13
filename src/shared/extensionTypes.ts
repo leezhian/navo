@@ -60,6 +60,11 @@ export interface TraceQuery {
   eventId?: number;
   /** 为 true 时包含默认隐藏的记账记录。 */
   showBookkeeping?: boolean;
+  /**
+   * 框选命中的事件序号。分页找到其中仍通过当前筛选和搜索的最小序号，并打开它所在的窗口。
+   * 不收窄列表。时间线查询忽略该字段。
+   */
+  hitIds?: number[];
   /** 可选的 ISO-8601 起点；与 to 一起时分页结果返回时间段内第一条事件的位置，不过滤列表。时间线查询忽略该字段。 */
   from?: string;
   /** 可选的 ISO-8601 终点，必须晚于 from。 */

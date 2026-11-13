@@ -4,7 +4,7 @@ import type { TraceEvent } from "@/shared/extensionTypes";
 import { cn } from "@/lib/utils";
 import { formatTraceDuration } from "./formatTraceDuration";
 import { traceKindTone } from "./traceKind";
-import { eventOverlapsRange } from "./traceRange";
+import { eventInBrush } from "./traceRange";
 import type { TraceRange, TraceScrollTarget } from "./useTraceData";
 
 /** 尚无已加载行时的占位行高；载入后按实际行高排版，并由滚动锚点抵消差值。 */
@@ -43,7 +43,7 @@ interface EventListProps {
   onSelect: (id: number) => void;
   /** 叠加过滤后的结果总数；滚动高度按它预留，也用于空态判断。 */
   total: number;
-  /** 框选时间段；段外的行置灰，不从列表移除。 */
+  /** 当前投影框中的事件；框外的行置灰，不从列表移除。 */
   range: TraceRange | null;
   /** key 变化时滚到指定事件或最新一条。 */
   scrollTarget: TraceScrollTarget;
@@ -178,6 +178,7 @@ export function EventList({
     setViewport((current) => current.top === element.scrollTop && current.height === element.clientHeight
       ? current : { top: element.scrollTop, height: element.clientHeight });
   }, [following, height, viewport.height]);
+  const outsideRange = (event: TraceEvent) => Boolean(range && !eventInBrush(event, range));
   return (
     <div
       className="events trace-events min-h-[100px] flex-1 overflow-auto px-2 [overflow-anchor:none]"
@@ -201,16 +202,16 @@ export function EventList({
                   className={cn(
                     "event-row trace-event-row grid h-[38px] w-full grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 text-left text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 max-[480px]:grid-cols-[48px_minmax(0,1fr)]",
                     selected === row.event.id && "bg-primary/10 hover:bg-primary/15",
-                    range && !eventOverlapsRange(row.event, range.from, range.to) && "opacity-40",
+                    outsideRange(row.event) && "opacity-40",
                   )}
                   data-kind={row.event.kind}
-                  data-dimmed={(range && !eventOverlapsRange(row.event, range.from, range.to)) || undefined}
+                  data-dimmed={outsideRange(row.event) || undefined}
                   data-bookkeeping={row.event.bookkeeping || undefined}
                   aria-current={selected === row.event.id ? "true" : undefined}
                   title={row.event.preview}
                   onClick={() => {
                     if (!row.event) return;
-                    if (range && !eventOverlapsRange(row.event, range.from, range.to)) {
+                    if (outsideRange(row.event)) {
                       onClearRange();
                       return;
                     }

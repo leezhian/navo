@@ -20,10 +20,15 @@ interface TraceCriteria {
   showBookkeeping?: boolean;
 }
 
-/** 框选时间段，ISO-8601；只用于高亮和定位，不参与列表过滤。 */
+/**
+ * 框选结果。只用于高亮和定位，不参与列表过滤。
+ * ids 是当前投影里命中的事件，按记录顺序；from/to 只留下这些事件的墙上时间，不能拿去滚动或判断置灰。
+ */
 export interface TraceRange {
   from: string;
   to: string;
+  /** 投影命中。空数组表示选区没有落到任何事件，列表全部置灰且不滚动。 */
+  ids: number[];
 }
 
 /** 列表滚动请求：key 变化时执行一次，定位到事件或停在最新一条。 */
@@ -265,21 +270,29 @@ export function useTraceData(runQuery: TraceQueryFn, hostRevision: number) {
     setCriteria((current) => ({ filter: "all", search: "", showBookkeeping: current.showBookkeeping }));
     setSelected(id);
   }
-  function setRange(from: string, to: string) {
+  function setRange(range: TraceRange) {
     setFollow(false);
-    setRangeState({ from, to });
+    setRangeState(range);
+    // 没有命中就不滚动，并作废还在飞的上一次定位。不能用 from/to：等宽记录的时间包络会罩住更早开始的长工具，列表会滚错行。
+    if (range.ids.length === 0) {
+      rangeRequest.current++;
+      return;
+    }
     const seq = ++rangeRequest.current,
       gen = generation.current;
-    // 一次查询拿到当前结果中第一条命中所在的窗口；已加载的窗口不重取。
-    void runQuery(pageQuery(criteriaRef.current, { from, to }))
+    const ids = range.ids;
+    // 时间线不跟类型筛选和搜索走，第一条命中可能不在当前列表里。用全部命中去找仍可见的最小序号。
+    // 返回的这一页里没有任何命中时，不替换已加载窗口，也不滚动，避免跳回开头。
+    void runQuery(pageQuery(criteriaRef.current, { hitIds: ids }))
       .then((result) => {
         if (seq !== rangeRequest.current || gen !== generation.current) return;
         const page = result as TracePage;
-        if (page.rangeFirstIndex == null) return;
+        const hit = new Set(ids);
+        const target = page.events.find((event) => hit.has(event.id));
+        if (!target) return;
         const offset = page.offset ?? 0;
-        const target = page.events[page.rangeFirstIndex - offset];
         setLoaded((value) => (value ? mergeTraceWindows(value, page, offset) : toWindow(page, offset)));
-        if (target) setScrollTarget((current) => ({ key: current.key + 1, eventId: target.id }));
+        setScrollTarget((current) => ({ key: current.key + 1, eventId: target.id }));
       })
       .catch(() => undefined);
   }

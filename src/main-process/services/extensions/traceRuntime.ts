@@ -62,9 +62,16 @@ export function validateTraceQuery(value: TraceQuery) {
     (value.showBookkeeping != null && typeof value.showBookkeeping !== "boolean") ||
     (value.eventId != null && (!Number.isSafeInteger(value.eventId) || Number(value.eventId) < 1)) ||
     (value.kind === "detail" && value.eventId == null) ||
+    !validHitIds(value.hitIds) ||
     !validTraceRange(value.from, value.to)
   )
     throw Error("INVALID_QUERY");
+}
+/** 框选命中序号。缺省表示不按框选定位。每项必须是 ≥ 1 的安全整数，条数不超过时间线上限。 */
+function validHitIds(value: TraceQuery["hitIds"] | null) {
+  if (value == null) return true;
+  if (!Array.isArray(value) || value.length > 1000) return false;
+  return value.every((id) => Number.isSafeInteger(id) && id >= 1);
 }
 /** 起止时间必须同时缺省或同时为可解析的 ISO 时间，且 from 早于 to。 */
 function validTraceRange(from?: string | null, to?: string | null) {

@@ -193,6 +193,42 @@ test('PRD 2.5: locating an event ignores hidden bookkeeping ids when paging',()=
  } finally {index.close();}
 }));
 
+test('PRD 2.5: brush paging uses the first hit still visible in the current filter',()=>fixture(async root=>{
+ const source=path.join(root,'log.jsonl');
+ const users=Array.from({length:81},(_,index)=>({type:'user',timestamp:stamp,message:{content:`user ${index+1}`}}));
+ await writeFile(source,jsonl([
+  ...users,
+  {type:'assistant',timestamp:stamp,message:{id:'req-brush',content:[{type:'text',text:'assistant note'}]}},
+  {type:'user',timestamp:stamp,message:{content:'user after assistant'}},
+ ]));
+ const index=new TraceIndex(source,path.join(root,'cache.sqlite'),'claude');
+ try {
+  await index.refresh();
+  const all=index.page({kind:'page',limit:200});
+  const assistant=all.events.find(event=>event.kind==='assistant');
+  const firstUser=all.events.find(event=>event.preview==='user 1');
+  const lastUser=all.events.find(event=>event.preview==='user after assistant');
+  assert.ok(assistant&&firstUser&&lastUser);
+  const hits=[firstUser.id,assistant.id,lastUser.id];
+  const userPage=index.page({kind:'page',filter:'user',hitIds:hits,limit:80});
+  assert.equal(userPage.offset,0);
+  assert.equal(userPage.events[0].id,firstUser.id);
+  // 第一条命中是助手，当前筛选是用户时，滚到后面仍可见的那条用户，而不是跳到助手所在页。
+  const later=index.page({kind:'page',filter:'user',hitIds:[assistant.id,lastUser.id],limit:80});
+  assert.equal(later.offset,80);
+  assert.ok(later.events.some(event=>event.id===lastUser.id));
+  assert.ok(later.events.every(event=>event.id!==assistant.id));
+  const assistantPage=index.page({kind:'page',filter:'assistant',hitIds:hits,limit:80});
+  assert.equal(assistantPage.events[0].id,assistant.id);
+  // 命中全被筛选排除时停在当前页起点，不按被排除的序号换页。宿主看到这一页没有命中就不会替换窗口。
+  const excluded=index.page({kind:'page',filter:'user',hitIds:[assistant.id],limit:80});
+  assert.equal(excluded.offset,0);
+  assert.ok(excluded.events.every(event=>event.id!==assistant.id));
+  const tools=index.page({kind:'page',filter:'tool',hitIds:hits,limit:80});
+  assert.equal(tools.total,0);
+  assert.equal(tools.events.length,0);
+ } finally {index.close();}
+}));
 
 test('timeline duration uses d h m s and caps at days', () => {
   const { formatTraceDuration } = load('src/components/tasks/workspace/trace/formatTraceDuration.ts');
@@ -204,6 +240,170 @@ test('timeline duration uses d h m s and caps at days', () => {
   assert.equal(formatTraceDuration(3600000), '1h');
   assert.equal(formatTraceDuration(90000000), '1d 1h');
   assert.equal(formatTraceDuration(172800000), '2d');
+  const { timelineHoverText } = load('src/components/tasks/workspace/trace/formatTraceDuration.ts');
+  const start = new Date(2026, 10, 13, 10, 4, 22, 938);
+  const total = (ms) => `总计 ${ms} 毫秒`;
+  assert.equal(timelineHoverText({ timestamp: start.toISOString(), durationMs: 88 }, '工具', '未记录', total), '工具\n10:04:22.938 → 10:04:23.026\n总计 88 毫秒');
+  assert.equal(timelineHoverText({ timestamp: start.toISOString() }, '工具', '未记录', total), '工具\n10:04:22.938\n未记录');
+});
+
+test('timeline round lines use each round earliest timed event and merge within 4px',()=>{
+  const {roundStarts,mergeRoundMarks}=load('src/components/tasks/workspace/trace/timelineRounds.ts');
+  const at=seconds=>new Date(Date.parse('2026-11-06T08:00:00.000Z')+seconds*1000).toISOString();
+  const events=[
+    {id:1,kind:'system',round:0,timestamp:at(0),preview:''},
+    {id:2,kind:'user',round:1,preview:''},
+    {id:3,kind:'assistant',round:1,timestamp:at(2),preview:''},
+    {id:4,kind:'tool',round:1,timestamp:at(1),preview:''},
+    {id:5,kind:'user',round:3,timestamp:at(10),preview:''},
+    {id:6,kind:'user',round:4,timestamp:at(10.2),preview:''},
+    {id:7,kind:'user',round:5,timestamp:at(50),preview:''},
+  ];
+  const starts=roundStarts(events);
+  // 第 0 轮不画线；第 1 轮用户输入没有时间，工具在 1s，早于记录顺序上排在前面的助手 2s，取该轮最早时间；第 2 轮没有带时间事件，不估算。
+  assert.deepEqual(starts.map(item=>item.round),[1,3,4,5]);
+  assert.equal(starts[0].at,Date.parse(at(1)));
+  const start=Date.parse(at(0)),total=50000;
+  assert.deepEqual(mergeRoundMarks(starts,start,total,1000).map(mark=>[mark.from,mark.to]),[[1,1],[3,3],[4,4],[5,5]]);
+  assert.deepEqual(mergeRoundMarks(starts,start,total,500).map(mark=>[mark.from,mark.to]),[[1,1],[3,4],[5,5]]);
+  assert.deepEqual(mergeRoundMarks(starts,start,total,0),[]);
+  // 窗口外的轮次不参与合并，否则会把窗口内第一条并进看不见的线。
+  const outside=[{round:1,at:99},{round:2,at:120}];
+  assert.equal(mergeRoundMarks(outside,100,1000,100).length,1);
+  assert.deepEqual(mergeRoundMarks(outside.filter(item=>item.at>=100&&item.at<=1100),100,1000,100).map(mark=>mark.from),[2]);
+});
+
+test('timeline projection packs records by default and can use actual duration',()=>{
+  const {projectTimeline,spansOverlapping}=load('src/components/tasks/workspace/trace/timelineProjection.ts');
+  const at=seconds=>new Date(Date.parse('2026-11-06T08:00:00.000Z')+seconds*1000).toISOString();
+  const events=[
+    {id:1,kind:'user',round:1,timestamp:at(0),durationMs:1000,preview:''},
+    {id:2,kind:'tool',round:1,timestamp:at(10),durationMs:1000,preview:''},
+    {id:3,kind:'assistant',round:2,timestamp:at(1),durationMs:500,preview:''},
+  ];
+  const sequence=projectTimeline(events,'sequence');
+  assert.equal(sequence.end,3);
+  assert.deepEqual(sequence.spans.map(span=>[span.id,span.start,span.end]),[[1,0,1],[2,1,2],[3,2,3]]);
+  // 第 1 轮的工具在墙上更晚，等宽记录仍把竖线放在该轮第一条记录。
+  // 槽位是半开区间，选区从 1 开始不含第 0 格 [0, 1)，只含 [1, 2) 和 [2, 3)。
+  assert.deepEqual(sequence.rounds.map(item=>[item.round,item.at]),[[1,0],[2,2]]);
+  assert.deepEqual(spansOverlapping(sequence.spans,1,2.2),[2,3]);
+  assert.deepEqual(spansOverlapping(sequence.spans,1.1,1.2),[2]);
+  assert.deepEqual(spansOverlapping([{id:9,start:1,end:1}],1,1),[9]);
+  assert.deepEqual(spansOverlapping([{id:9,start:1,end:1}],0,0.5),[]);
+  const duration=projectTimeline(events,'duration');
+  const spanOf=id=>duration.spans.find(item=>item.id===id);
+  // 按开始时间排序后，第 3 条紧挨第 1 条，第 2 条前面有 8500ms 空等被抽掉。
+  assert.equal(spanOf(2).start-duration.start,1500);
+  assert.equal(spanOf(2).end-duration.start,2500);
+  assert.equal(duration.end-duration.start,2500);
+  assert.equal(spanOf(3).start-duration.start,1000);
+  assert.deepEqual(spansOverlapping(duration.spans,duration.start,duration.end),[1,2,3]);
+  // 后记录的工具时间被倒推到更早：等宽竖线仍在第一条，时长模式跟最早时刻。
+  const grok=[
+    {id:1,kind:'assistant',round:1,timestamp:at(2),durationMs:0,preview:''},
+    {id:2,kind:'tool',round:1,timestamp:at(1),durationMs:500,preview:''},
+  ];
+  assert.equal(projectTimeline(grok,'sequence').rounds[0].at,0);
+  assert.equal(projectTimeline(grok,'duration').rounds[0].at,Date.parse(at(1)));
+  assert.equal(projectTimeline([{id:1,kind:'user',round:1,preview:''}],'sequence'),null);
+  assert.equal(projectTimeline([{id:1,kind:'user',round:1,timestamp:'nope',preview:''}],'duration'),null);
+});
+
+test('timeline viewport zooms around the pointer, pans, and keeps a short brush on the visible window',()=>{
+  const {
+    applyTimelineWheel,clampTimelineViewport,edgePanTimelineViewport,panTimelineViewport,revealTimelineViewport,
+    timelineWheelPixels,zoomTimelineViewport,
+  }=load('src/components/tasks/workspace/trace/timelineViewport.ts');
+  const {expandTimelineRange}=load('src/components/tasks/workspace/trace/traceRange.ts');
+  const anchorOf=(viewport,fraction,fullStart,fullDuration)=>{
+    const start=viewport?viewport.start:fullStart;
+    const duration=viewport?viewport.end-viewport.start:fullDuration;
+    return start+fraction*duration;
+  };
+  for (const fraction of [0,0.5,1]) {
+    const before=anchorOf(null,fraction,0,100000);
+    const next=zoomTimelineViewport(0,100000,null,fraction,-200);
+    assert.ok(next);
+    assert.ok(Math.abs(anchorOf(next,fraction,0,100000)-before)<1e-6);
+  }
+  assert.equal(zoomTimelineViewport(0,100000,{start:0,end:50000},0.5,10000),null);
+  assert.equal(zoomTimelineViewport(0,10,null,0.5,-500),null);
+  let view=null;
+  for (let step=0;step<80&&(!view||view.end-view.start>20);step++) view=zoomTimelineViewport(0,1_000_000,view,0.2,-400);
+  assert.ok(view);
+  assert.ok(Math.abs(view.end-view.start-20)<1e-6);
+  const slots=zoomTimelineViewport(0,220,null,0.5,-5000,4);
+  assert.ok(slots);
+  assert.ok(Math.abs(slots.end-slots.start-4)<1e-6);
+  const zoomed={start:0,end:50000};
+  const wider=zoomTimelineViewport(0,100000,zoomed,0,10);
+  assert.ok(wider&&wider.end-wider.start>50000&&wider.end-wider.start<100000);
+  // 放大之后正向 deltaY 必须把窗口放宽；水平滑动只平移，不改变时长。双指张开即使水平分量更大也仍然缩放。
+  const zoomedWindow={start:1000,end:2000};
+  const zoomedOut=applyTimelineWheel(0,100000,zoomedWindow,{deltaX:0,deltaY:40,deltaMode:0,ctrlKey:false,anchorFraction:0.5,widthPx:200});
+  assert.ok(zoomedOut&&zoomedOut.end-zoomedOut.start>1000);
+  const slid=applyTimelineWheel(0,100000,zoomedWindow,{deltaX:50,deltaY:4,deltaMode:0,ctrlKey:false,anchorFraction:0.5,widthPx:100});
+  assert.ok(slid);
+  assert.equal(slid.end-slid.start,1000);
+  assert.ok(slid.start>zoomedWindow.start);
+  const pinch=applyTimelineWheel(0,100000,zoomedWindow,{deltaX:80,deltaY:-40,deltaMode:0,ctrlKey:true,anchorFraction:0.5,widthPx:100});
+  assert.ok(pinch&&pinch.end-pinch.start<1000);
+  assert.equal(applyTimelineWheel(0,100000,null,{deltaX:80,deltaY:0,deltaMode:0,ctrlKey:false,anchorFraction:0.2,widthPx:100}),null);
+  assert.equal(timelineWheelPixels(1,1),16);
+  assert.equal(timelineWheelPixels(3,0),3);
+  assert.equal(panTimelineViewport(0,1000,0,100,-10000,100).start,900);
+  assert.equal(panTimelineViewport(0,1000,100,100,10000,100).start,0);
+  const kept={start:100,end:200};
+  assert.equal(revealTimelineViewport(0,1000,kept,150,160),kept);
+  const revealedLeft=revealTimelineViewport(0,1000,kept,10,20);
+  assert.equal(revealedLeft.start,10);
+  assert.equal(revealedLeft.end-revealedLeft.start,100);
+  const revealedRight=revealTimelineViewport(0,1000,kept,900,950);
+  assert.equal(revealedRight.start,850);
+  assert.equal(revealedRight.end-revealedRight.start,100);
+  assert.equal(clampTimelineViewport(0,100,{start:-50,end:-1}),null);
+  assert.equal(clampTimelineViewport(0,100,{start:200,end:300}),null);
+  assert.equal(clampTimelineViewport(0,100,{start:0,end:99.95}),null);
+  const inside={start:10,end:40};
+  assert.equal(clampTimelineViewport(0,100,inside),inside);
+  const pulled=clampTimelineViewport(0,100,{start:90,end:140});
+  assert.equal(pulled.start,50);
+  assert.equal(pulled.end,100);
+  const edge=edgePanTimelineViewport(0,1000,{start:100,end:200},0,100);
+  assert.equal(edge.start,97.5);
+  assert.equal(edgePanTimelineViewport(0,1000,{start:100,end:200},50,100).start,100);
+  const fullStart=0,fullEnd=100000,visible=1000,width=200;
+  const expanded=expandTimelineRange(500,501,fullStart,fullEnd,width,visible);
+  const minMs=Math.max(3/width,0.005)*visible;
+  assert.ok(Math.abs(Date.parse(expanded.to)-Date.parse(expanded.from)-minMs)<1);
+  assert.ok(Date.parse(expanded.from)>=fullStart&&Date.parse(expanded.to)<=fullEnd);
+  const unscaled=expandTimelineRange(fullStart+1000,fullStart+1001,fullStart,fullEnd,width);
+  assert.ok(Date.parse(unscaled.to)-Date.parse(unscaled.from)>=Math.max(3/width,0.005)*(fullEnd-fullStart)-1);
+});
+
+test('right drag under 3px does not pan the timeline',()=>{
+  const {beginAxisPointer,brushDraftFromPointer,panFromPointer,DRAG_THRESHOLD_PX}=load('src/components/tasks/workspace/trace/timelineAxisPointer.ts');
+  const gesture={fullStart:0,fullEnd:1000,viewport:{start:100,end:200},minDuration:20};
+  const rect={left:0,width:200};
+  const started=beginAxisPointer(2,7,40,rect,gesture);
+  assert.equal(started.kind,'pan');
+  assert.equal(panFromPointer(started.session,40+DRAG_THRESHOLD_PX-0.01,200,0,1000),undefined);
+  assert.equal(started.session.moved,false);
+  const next=panFromPointer(started.session,40+DRAG_THRESHOLD_PX,200,0,1000);
+  assert.ok(next);
+  assert.ok(next.start<100);
+  assert.equal(started.session.moved,true);
+  const idle=beginAxisPointer(2,8,40,rect,{...gesture,viewport:null});
+  assert.equal(idle.kind,'pan');
+  assert.equal(panFromPointer(idle.session,80,200,0,1000),undefined);
+  assert.equal(idle.session.moved,true);
+  const drag=beginAxisPointer(0,1,10,rect,gesture);
+  assert.equal(drag.kind,'drag');
+  assert.equal(brushDraftFromPointer(drag.session,10+DRAG_THRESHOLD_PX,rect,0,1000,gesture),null);
+  assert.equal(drag.session.moved,false);
+  assert.ok(brushDraftFromPointer(drag.session,10+DRAG_THRESHOLD_PX+1,rect,0,1000,gesture));
+  assert.equal(drag.session.moved,true);
 });
 
 test('range queries keep every row and return the first in-range index of the filtered list',()=>fixture(async root=>{
@@ -272,7 +472,7 @@ test('range first index follows list order even when in-range rows are not conti
 }));
 
 test('trace range helpers expand a short drag, merge windows and distinguish overlap rules',()=>{
-  const {eventOverlapsRange,expandTimelineRange,mergeTraceWindows}=load('src/components/tasks/workspace/trace/traceRange.ts');
+  const {eventInBrush,eventOverlapsRange,expandTimelineRange,mergeTraceWindows}=load('src/components/tasks/workspace/trace/traceRange.ts');
   const start='2026-11-06T08:00:00.000Z', mid='2026-11-06T08:00:05.000Z', end='2026-11-06T08:00:10.000Z';
   assert.equal(eventOverlapsRange({timestamp:start},start,end),true);
   assert.equal(eventOverlapsRange({timestamp:end},start,end),true);
@@ -281,6 +481,11 @@ test('trace range helpers expand a short drag, merge windows and distinguish ove
   assert.equal(eventOverlapsRange({timestamp:start,durationMs:10000},end,'2026-11-06T08:00:20.000Z'),true);
   assert.equal(eventOverlapsRange({timestamp:start,durationMs:4000},end,'2026-11-06T08:00:20.000Z'),false);
   assert.equal(eventOverlapsRange({},start,end),false);
+  // 有 ids 时忽略墙上重叠。空数组表示一格都没框中，全部算在选区外。
+  assert.equal(eventInBrush({id:2,timestamp:start,durationMs:10000},{from:start,to:end,ids:[1]}),false);
+  assert.equal(eventInBrush({id:1,timestamp:'2026-11-06T07:00:00.000Z'},{from:start,to:end,ids:[1]}),true);
+  assert.equal(eventInBrush({id:9,timestamp:start},{from:start,to:end,ids:[]}),false);
+  assert.equal(eventInBrush({id:1,timestamp:start},{from:start,to:end}),true);
   const axisStart=Date.parse('2026-11-06T08:00:00.000Z'), axisEnd=Date.parse('2026-11-06T08:01:40.000Z');
   const expanded=expandTimelineRange(axisStart+1000,axisStart+1001,axisStart,axisEnd,200);
   assert.ok(Date.parse(expanded.to)-Date.parse(expanded.from)>=Math.max(3/200,0.005)*(axisEnd-axisStart)-1);
