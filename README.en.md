@@ -26,11 +26,15 @@
 
 Run the native CLIs for Claude Code, Codex, Grok Build, and Antigravity with their familiar terminal interfaces. Create multiple sessions within a task, choose models, modes, and reasoning levels supported by your installed CLI, and manage session startup, shutdown, archiving, and resumption.
 
+![Navo workspace preview with a native agent session, task context, and implementation notes](docs/readme-features/workspace.png)
+
 [Explore agent settings →](docs/prd/settings/agents.md)
 
 ### Organize development around tasks
 
 Manage pending, completed, and archived tasks in a board or list. Filter by status or project and sort by date, title, or project. Keep descriptions, attachments, links, and multiple repositories or folders together. Move between task details and dedicated tabs while keeping sessions attached to their work.
+
+![Navo task board preview showing pending, completed, and archived tasks](docs/readme-features/task-board.png)
 
 [Explore task management →](docs/prd/tasks.md)
 

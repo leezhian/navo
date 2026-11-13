@@ -26,11 +26,15 @@
 
 运行 Claude Code、Codex、Grok Build 和 Antigravity 的原生 CLI，保留熟悉的终端交互。可在一个任务下创建多个会话，按本机 CLI 实际能力选择模型、模式和思考等级，并管理会话的启动、停止、归档及恢复。
 
+![Navo 工作台预览：原生 Agent 会话、任务上下文与方案笔记](docs/readme-features/workspace.png)
+
 [了解 Agent 配置 →](docs/prd/settings/agents.md)
 
 ### 用任务组织开发过程
 
 通过看板或列表管理待办、完成和归档任务，按状态、项目筛选，按日期、标题或项目排序。将描述、附件、链接及多个仓库或文件夹归入同一任务，在任务详情与独立标签之间切换，让工作内容与运行会话保持关联。
+
+![Navo 任务看板预览：待办、完成与归档任务](docs/readme-features/task-board.png)
 
 [了解任务管理 →](docs/prd/tasks.md)
 
