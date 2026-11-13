@@ -181,10 +181,12 @@ export class TaskService {
           }
           const resources = manifest.steps.map((step) => step.resource);
           const description = input.description.trim();
+          // 单个 Issue/PR 作为任务命名来源；多个条目无法确定主项时沿用描述首行。
+          const initialTitle = input.links.length === 1 ? input.links[0].title.trim() : description.split(/\r?\n/)[0].trim();
           const createdAt = new Date().toISOString();
           const task: Task = {
             ...(agent ? { agent } : {}),
-            id: input.requestId, title: Array.from(description.split(/\r?\n/)[0].trim()).slice(0, 80).join(""),
+            id: input.requestId, title: Array.from(initialTitle).slice(0, 80).join(""),
             description, date: createdAt, updatedAt: createdAt, projectName: resources[0]?.name ?? "", status: "TODO",
             resources, links: input.links, webLinks: (input.webLinks ?? []).map(({ id, url, title }) => ({ id, url, title: title.trim() })),
             attachments: attachments.map(({ id, name, size }) => ({ id, name, size })),

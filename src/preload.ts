@@ -51,6 +51,7 @@ const api: NavoApi = {
   },
   taskSessions: {
     list: () => ipcRenderer.invoke(ipcChannels.taskSessionsList),
+    refreshTitles: (taskId) => ipcRenderer.invoke(ipcChannels.taskSessionsRefreshTitles, taskId),
     start: (input) => ipcRenderer.invoke(ipcChannels.taskSessionsStart, input),
     stop: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsStop, id),
     archive: (id) => ipcRenderer.invoke(ipcChannels.taskSessionsArchive, id),
@@ -147,6 +148,12 @@ const api: NavoApi = {
     },
   },
   app: {
+    taskLinksReady: () => ipcRenderer.invoke(ipcChannels.appTaskLinksReady),
+    onOpenTask: (listener) => {
+      const handler = (_event: IpcRendererEvent, taskId: string) => listener(taskId);
+      ipcRenderer.on(ipcChannels.appOpenTask, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.appOpenTask, handler);
+    },
     getInfo() {
       return ipcRenderer.invoke(ipcChannels.appGetInfo);
     },

@@ -32,6 +32,7 @@ import type { TaskContextNoteActions } from "./taskNoteTools";
 
 const MAX_SESSIONS = 32;
 const ACTIVITY_FLUSH_DELAY_MS = 1000;
+const RUNTIME_REFRESH_DELAY_MS = 5000;
 export class TaskSessionService {
   private sessions: TaskSession[] = [];
   private owners = new Map<string, number>();
@@ -40,7 +41,7 @@ export class TaskSessionService {
   private loaded = false;
   private queue: Promise<unknown> = Promise.resolve();
   private closing = false;
-  private titleTimer: NodeJS.Timeout | null = null;
+  private runtimeTimer: NodeJS.Timeout | null = null;
   private titleEnvironments = new Map<string, NodeJS.ProcessEnv>();
   private activityTimer: NodeJS.Timeout | null = null;
   private activeSessions = new Set<TaskSession>();
@@ -87,27 +88,52 @@ export class TaskSessionService {
       await this.repository.save(session, { preserveUpdateTime: true });
     }
     this.loaded = true;
-    await this.refreshTitles();
-    this.scheduleTitles();
+    this.scheduleRuntimeRefresh();
   }
-  private async refreshTitles() {
+  /** 详情进入时只读取该任务的原生标题；普通列表加载使用已保存的名称。 */
+  refreshTitles(taskId: string) {
+    return this.serialize(async () => {
+      await this.initialize();
+      if (typeof taskId !== "string" || !taskId) throw new Error("TASK_INVALID");
+      await this.loadTask(taskId);
+      for (const session of this.sessions) if (session.taskId === taskId) await this.refreshNativeMetadata(session);
+      return this.publish();
+    });
+  }
+  private async refreshNativeMetadata(session: TaskSession) {
+    if (session.kind !== "agent" || session.archivedAt) return false;
+    const native = await readNativeSessionBinding(session);
+    const bindingChanged = Boolean(native && !session.resumable);
+    const title = native?.title || await this.readTitle(session, this.titleEnvironments.get(session.id));
+    const titleChanged = Boolean(title && (title !== session.title || session.titleSource !== "cli"));
+    if (!bindingChanged && !titleChanged) return false;
+    const updated = { ...session,
+      ...(bindingChanged && native ? { nativeSessionId: native.id, resumable: true } : {}),
+      ...(titleChanged && title ? { title, titleSource: "cli" as const } : {}) };
+    await this.repository.save(updated);
+    Object.assign(session, updated);
+    return true;
+  }
+  /** 只对保留了精确关联信息的 Codex/Antigravity 补绑，旧记录和其他 CLI 不做无效轮询。 */
+  private needsNativeBinding(session: TaskSession) {
+    return session.kind === "agent" && !session.archivedAt && !session.resumable
+      && Boolean(session.nativeLaunchId && session.nativeHistoryRoot)
+      && (session.agent?.agentId === "codex" || session.agent?.agentId === "antigravity");
+  }
+  /** 运行状态与未读仅检查活跃进程；未完成身份绑定独立检查，已有标题不参与后台轮询。 */
+  private async refreshSessionSignals() {
     let changed = false;
     for (const session of this.sessions) {
       if (session.kind !== "agent" || session.archivedAt) continue;
-      const native = await readNativeSessionBinding(session);
-      if (native && !session.resumable) {
-        session.nativeSessionId = native.id; session.resumable = true;
-        await this.repository.save(session);changed = true;
-      }
+      // 原生记录可能在进程停止后才落盘；补绑只开放恢复入口，不启动进程。
+      const needsBinding = this.needsNativeBinding(session);
+      if (needsBinding && await this.refreshNativeMetadata(session)) changed = true;
+      if (session.status !== "running") continue;
+      const previousReply = session.lastReplyAt;
       if (await this.refreshActivity(session)) changed = true;
-      const title = native?.title || await this.readTitle(session, this.titleEnvironments.get(session.id));
-      if (!title || (title === session.title && session.titleSource === "cli")) continue;
-      const updated = { ...session, title, titleSource: "cli" as const };
-      await this.repository.save(updated);
-      session.title = title;
-      session.titleSource = "cli";
-      session.lastUpdateAt = updated.lastUpdateAt;
-      changed = true;
+      // 新回复到达且仍无标题时补读，不随之后的状态轮询重复读取已有名称。
+      if (!needsBinding && !session.title && session.lastReplyAt !== previousReply
+        && await this.refreshNativeMetadata(session)) changed = true;
     }
     if (changed) this.publish();
   }
@@ -132,23 +158,29 @@ export class TaskSessionService {
     session.lastReplyAt = lastReplyAt;
     return true;
   }
-  /** 进程结束前补读一次，避免回合完成后、下次轮询前退出导致未读丢失；只推进回复时间，由调用方随状态一起保存。 */
+  /** 结束前补读回复时间及尚未取得的原生身份/标题，避免在下一次状态检查前退出造成遗漏。 */
   private async captureFinalReply(session: TaskSession) {
     if (session.kind !== "agent") return;
-    try { this.advanceReply(session, (await this.readActivity(session, this.titleEnvironments.get(session.id)))?.lastReplyAt); }
+    try {
+      this.advanceReply(session, (await this.readActivity(session, this.titleEnvironments.get(session.id)))?.lastReplyAt);
+      if (!session.title || !session.resumable) await this.refreshNativeMetadata(session);
+    }
     catch { /* 读取失败保留上次回复时间，不阻断停止流程。 */ }
   }
-  private scheduleTitles() {
-    if (this.closing || this.titleTimer) return;
-    this.titleTimer = setTimeout(() => {
-      this.titleTimer = null;
-      void this.serialize(() => this.refreshTitles()).catch(() => undefined).finally(() => this.scheduleTitles());
-    }, 5000);
-    this.titleTimer.unref();
+  private scheduleRuntimeRefresh() {
+    if (this.closing || this.runtimeTimer || !this.sessions.some(session => this.needsNativeBinding(session)
+      || (session.kind === "agent" && !session.archivedAt && session.status === "running"))) return;
+    this.runtimeTimer = setTimeout(() => {
+      this.runtimeTimer = null;
+      void this.serialize(() => this.refreshSessionSignals()).catch(() => undefined).finally(() => this.scheduleRuntimeRefresh());
+    }, RUNTIME_REFRESH_DELAY_MS);
+    this.runtimeTimer.unref();
   }
   list() { return this.serialize(async () => { await this.initialize(); return this.sessions; }); }
   private publish() {
     for (const session of this.sessions) if (session.status !== "running") { delete session.phase; delete session.waitingReason; }
+    // 启动失败、解除归档等状态变化也可能留下待绑定记录，不依赖某次成功启动来开启检查。
+    this.scheduleRuntimeRefresh();
     this.changed(this.sessions); return this.sessions;
   }
   private async save(session: TaskSession) { await this.repository.save(session); this.publish(); }
@@ -332,6 +364,8 @@ export class TaskSessionService {
       session.resumable = Boolean(session.nativeSessionId && (resume || session.agent?.agentId === "claude" || session.agent?.agentId === "grok"));
       delete session.error;
       await this.save(session);
+      // CLI 元数据可能尚未落盘，后续由详情进入、首次回复或 ID 绑定时补读。
+      await this.refreshNativeMetadata(session);
       void writeDiagnosticEvent("session.start.succeeded", { taskId: task.id, operationId: session.id });
     } catch (error) {
       finished?.(null);
@@ -464,6 +498,7 @@ export class TaskSessionService {
         await this.nativeActions.rename(session, title, env);
         session.title = title.trim(); session.titleSource = "cli";
         await this.repository.save(session);
+        await this.refreshNativeMetadata(session);
       } finally { this.publish(); }
       return this.sessions;
     });
@@ -550,8 +585,8 @@ export class TaskSessionService {
   }
   async shutdown() {
     this.closing = true;
-    if (this.titleTimer) clearTimeout(this.titleTimer);
-    this.titleTimer = null;
+    if (this.runtimeTimer) clearTimeout(this.runtimeTimer);
+    this.runtimeTimer = null;
     if (this.activityTimer) clearTimeout(this.activityTimer);
     this.activityTimer = null;
     await this.serialize(() => this.flushActivity()).catch((error) => writeDiagnosticEvent("session.activity.failed", { error }));

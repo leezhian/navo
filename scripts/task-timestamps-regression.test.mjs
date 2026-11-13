@@ -134,7 +134,7 @@ test("会话元数据与活动时间分开保存，重复保存不刷新，兼�
   assert.equal((await tasks.load())[0].updatedAt, createdAt);
 });
 
-test("启动恢复不伪造活动，真实标题变更更新元数据，无变化轮询保持原时间", async context => {
+test("启动恢复不伪造活动，按需同步标题更新元数据，无变化检查保持原时间", async context => {
   const { sessions } = await fixture(context);
   await sessions.save({ ...session });
   const runtime = sessionRuntime(sessions);
@@ -145,12 +145,12 @@ test("启动恢复不伪造活动，真实标题变更更新元数据，无变�
     assert.equal(current.lastActiveAt, createdAt);
     runtime.setTitle("Real CLI name");
     context.mock.timers.tick(5000);
-    [current] = await runtime.service.list();
+    [current] = await runtime.service.refreshTitles(task.id);
     assert.equal(current.title, "Real CLI name");
     const titleUpdatedAt = current.lastUpdateAt;
     assert.equal(titleUpdatedAt, new Date().toISOString());
     context.mock.timers.tick(5000);
-    [current] = await runtime.service.list();
+    [current] = await runtime.service.refreshTitles(task.id);
     assert.equal(current.lastUpdateAt, titleUpdatedAt);
     assert.equal(current.lastActiveAt, createdAt);
   } finally { await runtime.service.shutdown(); }

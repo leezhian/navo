@@ -86,6 +86,7 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
     void initializeTask(record, sender, true, true).catch((error) => writeDiagnosticEvent("session.start.failed", { taskId, error }));
   });
   ipcMain.handle(ipcChannels.taskSessionsList, (event) => { owner(event); return service.list(); });
+  ipcMain.handle(ipcChannels.taskSessionsRefreshTitles, (event, taskId: string) => { owner(event); return service.refreshTitles(taskId); });
   ipcMain.handle(ipcChannels.taskSessionsContextReminder, (event, id: string) => service.contextReminder(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsStart, (event, input: StartTaskSessionInput) => service.start(input, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsStop, (event, id: string) => service.stop(id, owner(event)));

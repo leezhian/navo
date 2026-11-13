@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { Archive, Circle, CircleCheck, Ellipsis, FolderPlus, Pencil, Power, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Archive, Check, Circle, CircleCheck, Copy, Ellipsis, FolderPlus, Link, Mail, MailOpen, Pencil, Power, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import { useTaskStore } from "@/stores/taskStore";
 import { useTaskSessionStore } from "@/stores/taskSessionStore";
 import { getTasksApi } from "@/services/taskApi";
+import { taskLink } from "@/shared/taskLinks";
+import { useTaskReadActions } from "@/hooks/useTaskReadActions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
@@ -18,13 +20,13 @@ interface TaskWorkbenchMenuProps {
   task: Task;
   /** 进入顶栏就地重命名，不新开对话框。 */
   onRename: () => void;
-  /** 刷新失败或结果摘要时回写到工作台提示区。 */
+  /** 复制或刷新失败时回写到工作台提示区。 */
   onNotice: (title: string, body: string) => void;
 }
 
 type DialogAction = "delete" | "archive" | "resources" | null;
 
-/** 标题旁 ⋯：重命名、改状态、添加资源、关闭全部 Agent、刷新工作区；归档／恢复与删除放最底。 */
+/** 标题旁 ⋯：任务状态、已读、资源与复制操作；归档／恢复与删除放最底。 */
 export function TaskWorkbenchMenu({ task, onRename, onNotice }: TaskWorkbenchMenuProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const pending = useTaskStore((state) => state.pending);
@@ -32,11 +34,30 @@ export function TaskWorkbenchMenu({ task, onRename, onNotice }: TaskWorkbenchMen
   const sessions = useTaskSessionStore((state) => state.sessions);
   const [action, setAction] = useState<DialogAction>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
   const archived = task.status === "ARCHIVED";
   const busy = pending || sessionPending || refreshing;
   const agents = sessions.filter((session) => session.taskId === task.id && session.kind === "agent" && !session.archivedAt);
   const repositories = task.resources?.filter((resource) => resource.mode !== "folder") ?? [];
   const runningAgents = agents.filter((session) => session.status === "running" || session.status === "starting");
+  const prompt = task.description ?? "";
+  const readActions = useTaskReadActions(agents);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  async function copy(text: string) {
+    setCopied(false);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      onNotice(t("tasks:actions.copyFailed"), t("tasks:actions.copyFailedHint"));
+    }
+  }
 
   async function changeStatus(status: "TODO" | "DONE") {
     if (busy || task.status === status) return;
@@ -81,7 +102,8 @@ export function TaskWorkbenchMenu({ task, onRename, onNotice }: TaskWorkbenchMen
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label={t("tasks:actions.taskMenu")} disabled={busy}>
-          <Ellipsis />
+          {copied ? <Check /> : <Ellipsis />}
+          {copied && <span role="status" className="sr-only">{t("common:feedback.copied")}</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-52" onCloseAutoFocus={(event) => { if (action) event.preventDefault(); }}>
@@ -102,6 +124,10 @@ export function TaskWorkbenchMenu({ task, onRename, onNotice }: TaskWorkbenchMen
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        {readActions.available && <DropdownMenuItem className="text-xs" onSelect={readActions.toggleRead}>
+          {readActions.hasUnread ? <MailOpen className="size-3.5" /> : <Mail className="size-3.5" />}
+          {t(readActions.hasUnread ? "tasks:actions.markRead" : "tasks:actions.markUnread")}
+        </DropdownMenuItem>}
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" disabled={busy || archived} onSelect={() => setAction("resources")}>
           <FolderPlus className="size-3.5" />{t("tasks:actions.addResource")}
@@ -112,6 +138,13 @@ export function TaskWorkbenchMenu({ task, onRename, onNotice }: TaskWorkbenchMen
         <DropdownMenuItem className="text-xs" disabled={busy || repositories.length === 0} onSelect={() => void refreshWorkspace()}>
           <RefreshCw className="size-3.5" />{t("tasks:actions.refreshWorkspace")}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-xs" onSelect={() => void copy(taskLink(task.id))}>
+          <Link className="size-3.5" />{t("tasks:actions.copyLink")}
+        </DropdownMenuItem>
+        {prompt.trim() !== "" && <DropdownMenuItem className="text-xs" onSelect={() => void copy(prompt)}>
+          <Copy className="size-3.5" />{t("tasks:actions.copyPrompt")}
+        </DropdownMenuItem>}
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" disabled={busy}
           onSelect={() => { if (archived) void useTaskStore.getState().restore(task.id); else setAction("archive"); }}>

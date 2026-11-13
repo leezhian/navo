@@ -147,7 +147,13 @@
     "markDone": "改为 DONE",
     "closeAllAgents": "关闭全部 Agent",
     "refreshWorkspace": "刷新工作区状态",
-    "refreshWorkspaceFailed": "部分工作目录刷新失败"
+    "refreshWorkspaceFailed": "部分工作目录刷新失败",
+    "markRead": "标为已读",
+    "markUnread": "标为未读",
+    "copyLink": "复制任务链接",
+    "copyPrompt": "复制任务正文",
+    "copyFailed": "复制失败",
+    "copyFailedHint": "无法写入剪贴板，请重试。"
   },
   "dialogs": {
     "renameTitle": "重命名任务",
@@ -268,7 +274,7 @@
     "start": "启动",
     "stop": "停止会话",
     "resume": "恢复对话",
-    "restart": "重启 Agent",
+    "resumeUnavailable": "尚未识别可恢复的原生对话，暂时无法恢复。可通过新建会话开始其他工作。",
     "restartUnavailable": "尚未识别可恢复的原生对话，暂时无法重启。可通过新建会话开始其他工作。",
     "restartAgent": "重启 Agent",
     "shutdownAgent": "关闭 Agent",
@@ -318,5 +324,9 @@
       "waitingReason": "等待原因",
       "unread": "未读"
     }
+  },
+  "taskLink": {
+    "missing": "本机找不到此任务，任务可能已被删除或属于其他设备。",
+    "failed": "无法打开任务链接，请重新打开链接。"
   }
 }

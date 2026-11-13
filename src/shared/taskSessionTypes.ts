@@ -73,6 +73,8 @@ export interface TaskSessionsApi {
   /** 刷新本会话上下文文件并返回读取提示，仅供复制，不发送终端输入。 */
   contextReminder(id: string): Promise<string>;
   list(): Promise<TaskSession[]>;
+  /** 按需刷新当前任务未归档会话的原生标题，返回完整会话列表供共享视图同步。 */
+  refreshTitles(taskId: string): Promise<TaskSession[]>;
   start(input: StartTaskSessionInput): Promise<TaskSession[]>;
   stop(id: string): Promise<TaskSession[]>;
   archive(id: string): Promise<TaskSession[]>;

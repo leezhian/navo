@@ -2,6 +2,7 @@ import type { TaskSession } from "@/shared/taskSessionTypes";
 
 const MARKS_KEY = "navo:session-read-marks";
 const BASELINE_KEY = "navo:session-read-baseline";
+const UNREAD_KEY = "navo:session-manual-unread";
 
 let version = 0;
 const listeners = new Set<() => void>();
@@ -46,9 +47,33 @@ export function readSessionMark(sessionId: string) {
   return readMarks()[sessionId];
 }
 
+function readManualUnread(): string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(UNREAD_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+  } catch { return []; }
+}
+
+export function isSessionManuallyUnread(sessionId: string) {
+  return readManualUnread().includes(sessionId);
+}
+
+/** 手动未读独立于回复水位，因此没有回复的会话也可留待稍后处理。 */
+export function markSessionUnread(sessionId: string) {
+  if (!sessionId || isSessionManuallyUnread(sessionId)) return;
+  writeManualUnread([...readManualUnread(), sessionId]);
+}
+
+function writeManualUnread(ids: string[]) {
+  try { localStorage.setItem(UNREAD_KEY, JSON.stringify(ids)); }
+  catch { /* 与已读水位一样，存储不可用时不阻断界面。 */ }
+  notify();
+}
+
 /** 将水位推进到 at；只前进，不回退。 */
 export function markSessionRead(sessionId: string, at = new Date().toISOString()) {
   if (!sessionId || !Number.isFinite(Date.parse(at))) return;
+  if (isSessionManuallyUnread(sessionId)) writeManualUnread(readManualUnread().filter((id) => id !== sessionId));
   const marks = readMarks();
   const previous = marks[sessionId];
   if (previous && Date.parse(previous) >= Date.parse(at)) return;
@@ -56,9 +81,11 @@ export function markSessionRead(sessionId: string, at = new Date().toISOString()
   writeMarks(marks);
 }
 
-/** 仅当会话有 lastReplyAt，且晚于本机会话水位（无水位时用全局基线）时才算未读。 */
+/** 手动标记或回复晚于本机水位时算未读；普通终端与已归档会话始终排除。 */
 export function isSessionUnread(session: Pick<TaskSession, "lastReplyAt" | "id" | "kind" | "archivedAt">) {
-  if (session.kind !== "agent" || session.archivedAt || !session.lastReplyAt) return false;
+  if (session.kind !== "agent" || session.archivedAt) return false;
+  if (isSessionManuallyUnread(session.id)) return true;
+  if (!session.lastReplyAt) return false;
   const watermark = readSessionMark(session.id) ?? ensureReadBaseline();
   return Date.parse(session.lastReplyAt) > Date.parse(watermark);
 }

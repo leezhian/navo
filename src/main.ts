@@ -19,11 +19,7 @@ import { bindProcessDiagnostics, bindWindowDiagnostics, registerDiagnosticHandle
 import { flushSettings, getCurrentSettings, loadSettings } from "./main-process/services/settingsService";
 import { updateApplicationMenu } from "./main-process/applicationMenu";
 import { startReviewSessionWatcher, stopReviewSessionWatcher } from "./main-process/services/reviewSessionWatcher";
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit();
-}
+import { registerTaskLinks } from "./main-process/taskLinks";
 
 // 更名后沿用已有用户目录，保留本地偏好；新安装使用 Navo 的默认目录。
 const legacyUserDataPath = path.join(app.getPath("appData"), "vibe-reviewer");
@@ -36,8 +32,8 @@ const appIconPath = app.isPackaged
   ? path.join(process.resourcesPath, "icon.png")
   : path.join(app.getAppPath(), "assets/icons/icon.png");
 
-bindProcessDiagnostics();
-startApplication();
+let canOpenWindow = false;
+let taskLinks: ReturnType<typeof registerTaskLinks>;
 
 const createWindow = () => {
   const usesNativeVibrancy = process.platform === "darwin";
@@ -62,6 +58,7 @@ const createWindow = () => {
   });
 
   bindWindowStateEvents(mainWindow);
+  taskLinks.bindWindow(mainWindow);
   bindWindowDiagnostics(mainWindow);
   bindDevelopmentTools(mainWindow, Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL));
 
@@ -83,9 +80,22 @@ const createWindow = () => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
   }
+  return mainWindow;
 };
 
+// 已安装应用保持单实例，Windows/Linux 的协议启动交给现有窗口；开发实例互不干扰。
+if (started || (app.isPackaged && !app.requestSingleInstanceLock())) {
+  app.quit();
+} else {
+  bindProcessDiagnostics();
+  startApplication();
+}
+
 function startApplication() {
+  taskLinks = registerTaskLinks(() => {
+    if (!canOpenWindow) return undefined;
+    return BrowserWindow.getAllWindows()[0] ?? createWindow();
+  });
   app.on("ready", async () => {
     // 开发时运行的是 Electron 通用宿主，需要显式替换 Dock 图标。
     if (process.platform === "darwin" && !app.isPackaged) {
@@ -104,9 +114,11 @@ function startApplication() {
     registerReviewHandlers();
     registerTerminalHandlers();
     registerWindowHandlers();
+    taskLinks.registerProtocol();
     startReviewSessionWatcher().catch((error: unknown) => {
       void writeDiagnosticEvent("app.watcher_failed", { error });
     });
+    canOpenWindow = true;
     createWindow();
   });
 
@@ -145,7 +157,7 @@ function startApplication() {
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (canOpenWindow && BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });

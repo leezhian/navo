@@ -77,6 +77,7 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const events = [];
   const nativeCalls = [];
   const runtime = createLoader({
+    ...(options.readBinding ? { "./nativeSessionBinding": { readNativeSessionBinding: options.readBinding } } : {}),
     "./agentLaunch": { prepareAgentLaunch: async (...args) => { options.launchCalls?.push(args); if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); options.prompts?.push(args[3]); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); return { command: "/mock/cli", args: [], env: {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
     "./taskContext": { prepareTaskContext: options.prepareTaskContext ?? (async () => ({ cwd: os.tmpdir(), prompt: "task context" })), taskPrompt: options.taskPrompt ?? (() => "task context") },
     "../terminal/terminalService": {
@@ -495,29 +496,47 @@ test("归档停止所属进程、保留记录，忽略延迟退出回调，禁�
   await runtime.service.shutdown(); await restored.service.shutdown();
 });
 
-test("旧 Agent 加编号名称清理，加载同步真实名称并保留已归档标题", async () => {
+test("列表只读保存名称，进入详情只同步当前任务未归档的真实名称", async () => {
   const initial = [{ id:"saved", taskId:task.id, kind:"agent", agent:selection, title:"Claude Code 1", status:"stopped", terminalId:"old" },
+    { id:"other", taskId:"other-task", kind:"agent", agent:selection, title:"Other task title", status:"stopped", terminalId:"other-pty" },
     { id:"archived", taskId:task.id, kind:"agent", agent:selection, title:"Archived title", status:"stopped", terminalId:"archived-pty", archivedAt:"2026-10-07T00:00:00.000Z" }];
   const fallback = fixture(initial);
   assert.equal((await fallback.service.list())[0].title, "");
-  const runtime = fixture(initial, async () => "CLI title");
-  const records = await runtime.service.list();
+  const reads = [];
+  const runtime = fixture(initial, async session => { reads.push(session.id); return "CLI title"; });
+  assert.equal((await runtime.service.list())[0].title, "");
+  assert.deepEqual(reads, []);
+  const records = await runtime.service.refreshTitles(task.id);
+  assert.deepEqual(reads, ["saved"]);
   assert.equal(records[0].title, "CLI title");
-  assert.equal(records[1].title, "Archived title");
+  assert.equal(records[1].title, "Other task title");
+  assert.equal(records[2].title, "Archived title");
   assert.equal(runtime.saved.get("saved").title, "CLI title");
   assert.equal(runtime.saved.get("saved").titleSource, "cli");
   await runtime.service.shutdown(); await fallback.service.shutdown();
 });
 
-test("CLI 改名后台同步，不重启进程；归档保存失败时条目保留并已停止", { timeout: 10000 }, async () => {
+test("已有标题不后台轮询，状态和未读继续更新；进入详情才同步 CLI 改名", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
   let nativeTitle = "Initial native title";
-  const runtime = fixture([], async () => nativeTitle);
+  let titleReads = 0;
+  const reply = "2026-11-13T01:00:00.000Z";
+  const runtime = fixture([], async () => { titleReads++; return nativeTitle; }, {
+    readActivity: async () => ({ phase: "idle", lastReplyAt: reply }),
+  });
   try {
     await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+    assert.equal(titleReads, 1);
     nativeTitle = "CLI renamed title";
-    await new Promise(resolve => setTimeout(resolve, 5200));
+    context.mock.timers.tick(5000);
     const [session] = await runtime.service.list();
+    assert.equal(session.title, "Initial native title");
+    assert.equal(session.phase, "idle");
+    assert.equal(session.lastReplyAt, reply);
+    assert.equal(titleReads, 1);
+    await runtime.service.refreshTitles(task.id);
     assert.equal(session.title, "CLI renamed title");
+    assert.equal(titleReads, 2);
     assert.equal(runtime.launches(), 1);
     assert.equal(runtime.saved.get(session.id).title, nativeTitle);
     runtime.service.repository.save = async () => { throw new Error("write failed"); };
@@ -527,6 +546,141 @@ test("CLI 改名后台同步，不重启进程；归档保存失败时条目保�
     assert.equal(runtime.processes.size, 0);
     assert.equal((await runtime.service.list()).length, 1);
   } finally { await runtime.service.shutdown(); }
+});
+
+test("新会话标题延迟生成时在首次回复补读，取得标题后不再随回复重复读取", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  let title = null, lastReplyAt;
+  let reads = 0;
+  const runtime = fixture([], async () => { reads++; return title; }, {
+    readActivity: async () => ({ phase: "idle", lastReplyAt }),
+  });
+  context.after(() => runtime.service.shutdown());
+  const [session] = await runtime.service.start({ taskId: task.id, kind: "agent" }, runtime.owner);
+  assert.equal(session.title, "");
+  context.mock.timers.tick(5000);
+  await runtime.service.list();
+  assert.equal(reads, 1);
+  title = "First reply title"; lastReplyAt = "2026-11-13T01:00:00.000Z";
+  context.mock.timers.tick(5000);
+  await runtime.service.list();
+  assert.equal(session.title, title);
+  assert.equal(reads, 2);
+  title = "Later title"; lastReplyAt = "2026-11-13T02:00:00.000Z";
+  context.mock.timers.tick(5000);
+  await runtime.service.list();
+  assert.equal(reads, 2);
+  assert.equal(session.lastReplyAt, lastReplyAt);
+});
+
+test("新会话原生 ID 延迟落盘仍可绑定，绑定后不随运行状态重复查询标题", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  let native = null, bindingReads = 0;
+  const runtime = fixture([], undefined, { readBinding: async () => { bindingReads++; return native; } });
+  context.after(() => runtime.service.shutdown());
+  const [session] = await runtime.service.start({ taskId: task.id, kind: "agent", agent: { ...selection, agentId: "codex" } }, runtime.owner);
+  assert.equal(session.resumable, false);
+  native = { id: "bound-native-id", title: "Bound native title" };
+  context.mock.timers.tick(5000);
+  await runtime.service.list();
+  assert.equal(session.nativeSessionId, native.id);
+  assert.equal(session.resumable, true);
+  assert.equal(session.title, native.title);
+  const reads = bindingReads;
+  context.mock.timers.tick(5000);
+  await runtime.service.list();
+  assert.equal(bindingReads, reads);
+});
+
+for (const agentId of ["codex", "antigravity"]) for (const status of ["stopped", "failed"]) {
+  test(`${agentId} ${status} 后延迟落盘仍后台补绑，完成后停止检查且不重启进程`, async context => {
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    let native = null, bindingReads = 0, activityReads = 0;
+    const runtime = fixture([], undefined, {
+      readBinding: async () => { bindingReads++; return native; },
+      readActivity: async () => { activityReads++; return null; },
+    });
+    context.after(() => runtime.service.shutdown());
+    const [session] = await runtime.service.start({ taskId: task.id, kind: "agent", agent: { ...selection, agentId } }, runtime.owner);
+    if (status === "stopped") await runtime.service.stop(session.id, runtime.owner);
+    else {
+      runtime.processes.get(session.terminalId).launch.onExit(1);
+      runtime.processes.delete(session.terminalId);
+      await runtime.service.list();
+    }
+    const readsAfterStop = bindingReads, activityAfterStop = activityReads, lastActiveAt = session.lastActiveAt;
+    context.mock.timers.tick(5000);
+    await runtime.service.list();
+    assert.ok(bindingReads > readsAfterStop);
+    assert.equal(session.resumable, false);
+    native = { id: "late-native-id", title: "Late native title" };
+    context.mock.timers.tick(5000);
+    await runtime.service.list();
+    assert.equal(session.nativeSessionId, native.id);
+    assert.equal(session.resumable, true);
+    assert.equal(session.title, native.title);
+    assert.equal(runtime.saved.get(session.id).nativeSessionId, native.id);
+    assert.equal(runtime.events.at(-1)[0].resumable, true);
+    assert.equal(session.status, status);
+    assert.equal(session.resumeOnOpen, false);
+    assert.equal(session.lastActiveAt, lastActiveAt);
+    assert.equal(activityReads, activityAfterStop);
+    assert.equal(runtime.launches(), 1);
+    assert.equal(runtime.processes.size, 0);
+    const completedReads = bindingReads;
+    context.mock.timers.tick(10000);
+    await runtime.service.list();
+    assert.equal(bindingReads, completedReads);
+    assert.equal(runtime.service.runtimeTimer, null);
+  });
+}
+
+test("重启应用后继续补绑已保存的可靠关联，旧记录、其他 CLI 和归档会话不参与", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  const pending = { id: "pending", taskId: task.id, kind: "agent", agent: { ...selection, agentId: "codex" },
+    status: "stopped", title: "", terminalId: "old-terminal", workspace: { kind: "task" }, cwd: os.tmpdir(),
+    nativeLaunchId: "launch-ref", nativeHistoryRoot: "/fixture/codex", resumable: false, resumeOnOpen: false };
+  const reads = [];
+  const runtime = fixture([pending,
+    { ...pending, id: "legacy", nativeLaunchId: undefined },
+    { ...pending, id: "no-root", nativeHistoryRoot: undefined },
+    { ...pending, id: "archived", archivedAt: "2026-11-13T01:00:00Z" },
+    { ...pending, id: "claude", agent: selection },
+  ], undefined, { readBinding: async session => { reads.push(session.id); return { id: "found-native", title: "Found title" }; } });
+  context.after(() => runtime.service.shutdown());
+  await runtime.service.list();
+  assert.deepEqual(reads, []);
+  context.mock.timers.tick(5000);
+  const records = await runtime.service.list();
+  assert.deepEqual(reads, ["pending"]);
+  assert.equal(records[0].nativeSessionId, "found-native");
+  assert.equal(records[0].status, "stopped");
+  assert.equal(runtime.launches(), 0);
+  context.mock.timers.tick(10000);
+  await runtime.service.list();
+  assert.deepEqual(reads, ["pending"]);
+  assert.equal(runtime.service.runtimeTimer, null);
+});
+
+test("待绑定会话归档后停止核对，解除归档重新安排身份检查", async context => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  let native = null, bindingReads = 0;
+  const runtime = fixture([], undefined, { readBinding: async () => { bindingReads++; return native; } });
+  context.after(() => runtime.service.shutdown());
+  const [session] = await runtime.service.start({ taskId: task.id, kind: "agent", agent: { ...selection, agentId: "codex" } }, runtime.owner);
+  await runtime.service.archive(session.id, runtime.owner);
+  const beforeArchive = bindingReads;
+  context.mock.timers.tick(5000);
+  await runtime.service.list();
+  assert.equal(bindingReads, beforeArchive);
+  assert.equal(runtime.service.runtimeTimer, null);
+  native = { id: "restored-native", title: "Restored native title" };
+  await runtime.service.restore(session.id, runtime.owner);
+  context.mock.timers.tick(5000);
+  await runtime.service.list();
+  assert.equal(session.nativeSessionId, native.id);
+  assert.equal(session.status, "stopped");
+  assert.equal(runtime.launches(), 1);
 });
 
 test("快捷新建仅给 Agent ID，使用能力默认值，不沿用任务自定义模型/模式/思考等级",async()=>{

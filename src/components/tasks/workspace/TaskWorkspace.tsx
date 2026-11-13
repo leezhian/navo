@@ -1,6 +1,7 @@
 import { useExtensions } from "@/hooks/useExtensions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVisibleSessionResume } from "@/hooks/useVisibleSessionResume";
+import { useTaskSessionTitleRefresh } from "@/hooks/useTaskSessionTitleRefresh";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SquareArrowOutUpRight, Terminal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
@@ -99,6 +100,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const [addCategory, setAddCategory] = useState<TaskResourceCategory | null>(null);
   const [renameRequest, setRenameRequest] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  useTaskSessionTitleRefresh(task.id, rootRef);
   const contentRef = useRef<HTMLDivElement>(null);
   const contextTriggerRef = useRef<HTMLButtonElement>(null);
   const branchTriggerRef = useRef<HTMLButtonElement>(null);

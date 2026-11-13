@@ -15,6 +15,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     name: 'Navo',
+    protocols: [{ name: 'Navo task links', schemes: ['navo'] }],
     // Packager 会按目标平台选择同名的 .icns 或 .ico。
     icon: appIconPath,
     extraResource: [`${appIconPath}.png`],

@@ -154,7 +154,13 @@
     "markDone": "Mark as DONE",
     "closeAllAgents": "Close all Agents",
     "refreshWorkspace": "Refresh workspace status",
-    "refreshWorkspaceFailed": "Some working directories failed to refresh"
+    "refreshWorkspaceFailed": "Some working directories failed to refresh",
+    "markRead": "Mark as read",
+    "markUnread": "Mark as unread",
+    "copyLink": "Copy task link",
+    "copyPrompt": "Copy task prompt",
+    "copyFailed": "Copy failed",
+    "copyFailedHint": "Could not write to the clipboard. Please try again."
   },
   "dialogs": {
     "renameTitle": "Rename task",
@@ -276,7 +282,7 @@
     "start": "Start",
     "stop": "Stop session",
     "resume": "Resume conversation",
-    "restart": "Restart agent",
+    "resumeUnavailable": "A resumable native conversation has not been identified yet. Start a new session for other work.",
     "restartUnavailable": "A resumable native conversation has not been identified yet. Start a new session for other work.",
     "showTerminal": "Show terminals",
     "hideTerminal": "Hide terminals",
@@ -326,5 +332,9 @@
       "waitingReason": "Waiting for",
       "unread": "Unread"
     }
+  },
+  "taskLink": {
+    "missing": "This task was not found on this device. It may have been deleted or belong to another device.",
+    "failed": "Could not open the task link. Please open the link again."
   }
 }

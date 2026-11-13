@@ -16,7 +16,8 @@ interface TaskSessionState {
   remove: (id: string) => Promise<void>;
   restart: (id: string, resumeOnly: boolean) => Promise<void>;
   resumeVisible: (id: string) => Promise<boolean>;
-  refresh: () => Promise<void>;
+  /** 传入任务 ID 时同步该任务的原生标题；省略时仅加载已保存的列表。 */
+  refresh: (taskId?: string) => Promise<void>;
 }
 
 function errorCode(error: unknown) {
@@ -46,9 +47,13 @@ export const useTaskSessionStore = create<TaskSessionState>((set, get) => {
       await mutate(() => getTaskSessionsApi().resumeVisible(id));
       return true;
     },
-    refresh: async () => {
+    refresh: async (taskId) => {
       const revision = eventRevision;
-      try { const sessions = await getTaskSessionsApi().list(); if (revision === eventRevision) receiveSessions(sessions); }
+      try {
+        const api = getTaskSessionsApi();
+        const sessions = await (taskId ? api.refreshTitles(taskId) : api.list());
+        if (revision === eventRevision) receiveSessions(sessions);
+      }
       catch (error) { set({ error: errorCode(error) }); }
     },
   };

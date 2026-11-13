@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { ChartNoAxesGantt, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
+import { ChartNoAxesGantt, Play, SquareTerminal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
@@ -13,7 +13,7 @@ import { SessionActionMenu } from "./SessionActionMenu";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { hasManagedTerminalSession } from "@/components/terminal/terminalSessionManager";
 import { TaskSessionContextAction } from "./TaskSessionContextAction";
-import { useSessionUnread } from "@/hooks/useSessionUnread";
+import { useSessionAutoRead } from "@/hooks/useSessionAutoRead";
 
 /** 首次打开轨迹时再加载界面代码，插件未启用时不会下载或执行这段模块。 */
 const SessionTracePane = lazy(() => import("./SessionTracePane").then((module) => ({ default: module.SessionTracePane })));
@@ -38,6 +38,7 @@ interface AgentSessionPaneProps {
 }
 export function AgentSessionPane({ task, session, newSessionControl, emptySessionControl, onClosePane, traceAvailable = false, traceSelected = false, onViewChange, visible = true }: AgentSessionPaneProps) {
   const { t } = useTranslation(["common", "tasks", "settings"]);
+  const resumeHintId = useId();
   const paneRef = useRef<HTMLElement>(null);
   const [onScreen, setOnScreen] = useState(false);
   useEffect(() => {
@@ -47,13 +48,10 @@ export function AgentSessionPane({ task, session, newSessionControl, emptySessio
   }, []);
   const pending = useTaskSessionStore((state) => state.pending);
   const running = session?.status === "running" || session?.status === "starting";
+  const canResume = Boolean(session?.resumable && session.nativeSessionId);
   const sessionName = session?.title || t("tasks:runtime.untitledSession");
   const traceLeaseVisible = visible && onScreen;
-  const { unread, markRead } = useSessionUnread();
-  useEffect(() => {
-    if (!session || !traceLeaseVisible || !unread(session)) return;
-    markRead(session);
-  }, [session, session?.lastReplyAt, traceLeaseVisible, unread, markRead]);
+  useSessionAutoRead(session, traceLeaseVisible);
   return <section ref={paneRef} className="task-workbench-panel task-agent-pane">
     <header className="task-workbench-panel-heading">
       <div className="flex min-w-0 items-center gap-2"><SessionStatusIcon status={session?.status} />{session && <AgentProviderIcon agentId={session.agent?.agentId} />}<span className="truncate text-xs" title={session ? sessionName : undefined}>{session ? sessionName : t("tasks:runtime.sessions")}</span></div>
@@ -67,9 +65,9 @@ export function AgentSessionPane({ task, session, newSessionControl, emptySessio
     {session && traceAvailable && <TraceKeepAlive key={session.id} session={session} selected={traceSelected} visible={traceLeaseVisible} />}
     <div className="min-h-0 flex-1 flex-col" style={{ display: traceSelected ? "none" : "flex" }}>
     {session?.error && <p role="alert" className="px-3 py-2 text-xs text-destructive">{t(session.error === "SESSION_MODE_UNSUPPORTED" ? "tasks:runtime.modeUnsupported" : session.error === "SESSION_OPTION_UNSUPPORTED" ? "tasks:runtime.optionUnsupported" : "tasks:runtime.startFailed")}</p>}
-    {session && !running && <div className="flex shrink-0 gap-2 px-3 py-2">
-      {session.resumable && <Button variant="ghost" size="sm" className="text-xs" disabled={pending || task.status === "ARCHIVED"} onClick={() => void useTaskSessionStore.getState().restart(session.id, true)}><Play className="size-3.5" />{t("tasks:runtime.resume")}</Button>}
-      <Button variant="ghost" size="sm" className="text-xs" disabled={pending || task.status === "ARCHIVED" || !session.resumable || !session.nativeSessionId} title={!session.resumable || !session.nativeSessionId ? t("tasks:runtime.restartUnavailable") : undefined} onClick={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restart")}</Button>
+    {session && !running && <div className="flex shrink-0 flex-col items-start gap-1 px-3 py-2">
+      <Button variant="ghost" size="sm" className="text-xs" disabled={pending || task.status === "ARCHIVED" || !canResume} aria-describedby={!canResume ? resumeHintId : undefined} onClick={() => void useTaskSessionStore.getState().restart(session.id, true)}><Play className="size-3.5" />{t("tasks:runtime.resume")}</Button>
+      {!canResume && <p id={resumeHintId} className="text-xs text-muted-foreground">{t("tasks:runtime.resumeUnavailable")}</p>}
     </div>}
     {session && (session.status === "running" || hasManagedTerminalSession(session.terminalId)) ? <TerminalWorkspace key={session.terminalId} title={sessionName} sessionId={session.terminalId} cwd={session.cwd} compact attachOnly /> :
       <div className="task-session-empty">{!session && <><p className="whitespace-pre-wrap break-words">{task.description || task.title}</p>{emptySessionControl}</>}</div>}

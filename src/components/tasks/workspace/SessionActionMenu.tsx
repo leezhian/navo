@@ -30,7 +30,7 @@ export function SessionActionMenu({ session, taskArchived = false }: SessionActi
         {!session.archivedAt && <>
         <DropdownMenuItem className="text-xs" disabled={!nativeSupported || pending} onSelect={() => openAction("rename")}><Pencil className="size-3.5" />{t("tasks:runtime.renameSession")}</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-xs" disabled={pending || taskArchived || !canRestart} title={!canRestart ? t("tasks:runtime.restartUnavailable") : undefined} onSelect={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restartAgent")}</DropdownMenuItem>
+        {running && <DropdownMenuItem className="text-xs" disabled={pending || taskArchived || !canRestart} title={!canRestart ? t("tasks:runtime.restartUnavailable") : undefined} onSelect={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restartAgent")}</DropdownMenuItem>}
         <DropdownMenuItem className="text-xs" disabled={pending || !running} onSelect={() => void useTaskSessionStore.getState().stop(session.id)}><Power className="size-3.5" />{t("tasks:runtime.shutdownAgent")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" disabled={pending} onSelect={() => void useTaskSessionStore.getState().archive(session.id)}><Archive className="size-3.5" />{t("tasks:runtime.archiveSession")}</DropdownMenuItem>

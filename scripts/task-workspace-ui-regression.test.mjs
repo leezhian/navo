@@ -31,7 +31,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
       const extensionListeners=new Set();let extensionStatus={id:'session-trace',version:'0.1.0',availableVersion:'0.1.0',enabled:false,compatible:true,operation:'idle',progress:0,error:null,downloadBytes:100};window.traceOpens=[];window.traceCloses=[];window.traceLeaseIds=[];window.setTraceEnabled=enabled=>{extensionStatus={...extensionStatus,enabled};for(const callback of extensionListeners)callback(extensionStatus);};
       window.navo={extensions:{status:async()=>extensionStatus,onChanged:callback=>{extensionListeners.add(callback);return()=>extensionListeners.delete(callback);},openTrace:async(id,leaseId)=>{window.traceOpens.push(id);window.traceLeaseIds.push(leaseId);if(window.deferTraceOpen)await new Promise(resolve=>{window.resolveTraceOpen=resolve;});return{id:leaseId};},closeTrace:async id=>window.traceCloses.push(id),queryTrace:async(_leaseId,query)=>query.kind==='timeline'?{events:[],truncated:false}:query.kind==='detail'?{id:query.eventId??0,kind:'user',round:0,preview:'',content:'',raw:'',truncated:false}:{events:[],total:0,stats:{events:0,rounds:0,requests:null,tools:0,errors:0}},onTraceChanged:()=>()=>{}},settings:{save:async settings=>{window.savedSettings=settings;return settings;}},resources:{onCloneProgress:()=>()=>{},inspectGit:async()=>({isRepository:true,remoteUrl:null})},tasks:{workspaceOpenOptions:async()=>{window.optionsReadCount=(window.optionsReadCount||0)+1;if(window.failWorkspaceOptions)throw new Error('fixture read failure');return {editors:window.noEditors?[]:[{id:'vscode',name:'VS Code'},{id:'xcode',name:'Xcode'}],remote:{provider:window.remoteProvider,url:'https://gitlab.com/fixture/repo'},externalTerminal:true};},openWorkspace:async(taskId,resourceId,target)=>window.workspaceOpens.push({taskId,resourceId,target})},agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:['grok','claude'].map(id=>({id,enabled:true}))},installations:[],entries:Object.fromEntries(['grok','claude'].map(id=>[id,{capabilities:{agentId:id},pending:false,error:null}]))})},taskSessions:{
         resumeVisible:async id=>{window.autoResumes.push(id);return publish();},
-        list:async()=>structuredClone(records),onChanged:callback=>{changed.add(callback);return()=>changed.delete(callback);},
+        list:async()=>structuredClone(records),refreshTitles:async()=>structuredClone(records),onChanged:callback=>{changed.add(callback);return()=>changed.delete(callback);},
         start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,command:input.commandId?{id:input.commandId,resourceId:input.resourceId,name:'Build'}:undefined,title:input.commandId?'Build':input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',lastActiveAt:'2026-10-07T00:00:00.000Z',resumable:input.kind==='agent'});return publish();},
         stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id||record.kind==='agent').map(record=>record.id===id?{...record,status:'stopped'}:record);return publish();},
         archive:async id=>{window.archives.push(id);records=records.map(record=>record.id===id?{...record,status:'stopped',archivedAt:new Date().toISOString()}:record);return publish();},
@@ -245,6 +245,12 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await wait(()=>document.querySelector('#status [aria-label="Failed"]'),'Tab status is not driven by sessions');
         await wait(()=>document.querySelectorAll('.task-context-session').length===2,'Session rows missing');
         const rows=()=>[...document.querySelectorAll('.task-context-session')];
+        const resumeButton=()=>[...document.querySelectorAll('.task-agent-pane button')].find(element=>element.textContent.trim()==='Resume conversation');
+        const resumeHint=document.getElementById(resumeButton()?.getAttribute('aria-describedby'));
+        if(!resumeButton()?.disabled||!resumeHint?.textContent.trim()||!resumeHint.getClientRects().length||getComputedStyle(resumeHint).visibility!=='visible')throw new Error('Unbound session must expose a visible, accessible explanation without hover');
+        const hintBounds=resumeHint.getBoundingClientRect();
+        if(hintBounds.width===0||hintBounds.height===0||!resumeHint.contains(document.elementFromPoint(hintBounds.left+hintBounds.width/2,hintBounds.top+hintBounds.height/2)))throw new Error('Resume explanation must remain visible inside the pane');
+        if([...document.querySelectorAll('.task-agent-pane button')].some(element=>element.textContent.trim()==='Restart agent'))throw new Error('Stopped panel must not duplicate the resume action');
         const sessionActions=[...document.querySelectorAll('.task-agent-pane > header > div:last-child > button')];
         if(sessionActions.length!==3||new Set(sessionActions.map(element=>getComputedStyle(element).color)).size!==1)throw new Error('Session header add, menu and close buttons must share the same default color');
         if(!rows()[0].querySelector('svg[aria-label="Grok Build"]')||!rows()[1].querySelector('svg[aria-label="Claude Code"]'))throw new Error('Agent brand icons missing');
@@ -291,12 +297,17 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await openDropdown(button('Session actions'));await wait(()=>menuItem('Shut down agent'),'Shutdown action missing');menuItem('Shut down agent').click();
         await wait(()=>rows()[0].querySelector('.task-context-session-status').textContent==='Stopped'&&!button('Session actions').disabled,'Shutdown did not update status');
         if(rows().length!==1||!document.querySelector('.task-agent-pane'))throw new Error('Shutdown must preserve record and pane');
-        await openDropdown(button('Session actions'));await wait(()=>menuItem('Restart Agent'),'Restart action missing');
+        await openDropdown(button('Session actions'));await wait(()=>menuItem('Shut down agent'),'Stopped session menu missing');
+        if(menuItem('Restart Agent'))throw new Error('Stopped session must not expose restart');
         if(menuItem('Shut down agent').getAttribute('aria-disabled')!=='true')throw new Error('Shutdown must be disabled for stopped Agent');
-        menuItem('Restart Agent').click();await wait(()=>window.restarts.length===1&&!button('Session actions').disabled,'Restart not submitted');
-        if(window.restarts[0].resume!==false)throw new Error('Restart must stop the old process before resuming the same conversation');
+        menuItem('Shut down agent').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+        await wait(()=>!document.querySelector('[role="menu"][data-state="open"]'),'Stopped session menu did not close');
+        if(!resumeButton()||resumeButton().disabled||resumeButton().hasAttribute('aria-describedby'))throw new Error('Bound stopped session must offer resume without an unavailable explanation');
+        resumeButton().click();await wait(()=>window.restarts.length===1&&!button('Session actions').disabled,'Resume not submitted');
+        if(window.restarts[0].resume!==true)throw new Error('Stopped session must resume the same conversation');
         await openDropdown(button('Session actions'));await wait(()=>menuItem('Restart Agent'),'Running restart missing');menuItem('Restart Agent').click();
         await wait(()=>window.restarts.length===2&&!button('Session actions').disabled,'Running Agent must allow restart');
+        if(window.restarts[1].resume!==false)throw new Error('Running restart must stop the old process before resuming');
         await openDropdown(button('Session actions'));await wait(()=>menuItem('Rename session'),'Session menu missing');
         for(const label of ['Archive session','Delete session'])if(!menuItem(label))throw new Error('Missing '+label);
         if(menuItem('Rename session').nextElementSibling?.getAttribute('role')!=='separator'||menuItem('Archive session').nextElementSibling!==menuItem('Delete session'))throw new Error('Archive and delete must share a group separated from rename');

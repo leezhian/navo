@@ -29,3 +29,20 @@ test("基线保护历史会话；仅 lastReplyAt 晚于水位才未读", () => {
   markSessionRead("s1", "2026-11-07T09:00:00.000Z");
   assert.equal(readSessionMark("s1"), "2026-11-07T10:00:01.000Z");
 });
+
+test("手动未读独立于水位持久化，已读清除手动标记且不回退回复水位", () => {
+  storage.clear();
+  const marks = createLoader()("src/utils/sessionReadMarks.ts");
+  const session = { id: "manual", kind: "agent" };
+  marks.markSessionRead(session.id, "2027-01-01T00:00:00.000Z");
+  marks.markSessionUnread(session.id);
+  assert.equal(marks.isSessionUnread(session), true);
+  const reloaded = createLoader()("src/utils/sessionReadMarks.ts");
+  assert.equal(reloaded.isSessionUnread(session), true);
+  assert.equal(reloaded.isSessionUnread({ ...session, archivedAt: "date" }), false);
+  assert.equal(reloaded.isSessionUnread({ ...session, kind: "shell" }), false);
+  reloaded.markSessionRead(session.id, "2026-01-01T00:00:00.000Z");
+  assert.equal(reloaded.isSessionUnread(session), false);
+  assert.equal(reloaded.readSessionMark(session.id), "2027-01-01T00:00:00.000Z");
+  assert.equal(reloaded.isSessionUnread({ ...session, lastReplyAt: "2027-01-01T00:00:01.000Z" }), true);
+});

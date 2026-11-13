@@ -16,15 +16,17 @@ import { useSettingsStore } from "./stores/settingsStore";
 import { Button } from "./components/ui/button";
 import { getSettingsError } from "./services/settingsErrors";
 import { subscribeTaskSessions } from "./stores/taskSessionStore";
+import { useTaskLinks } from "./hooks/useTaskLinks";
 
 function App() {
   useEffect(subscribeTaskSessions, []);
   useEffect(subscribeTaskChanges, []);
   const { resolvedTheme, settings, updateSettings } = useLocalSettings();
   const navigation = useAppNavigation();
+  const taskLinks = useTaskLinks(navigation.selectTasks);
   const taskTabs = useTaskTabs();
   const [creatingTask, setCreatingTask] = useState(false);
-  const { t } = useTranslation(["common", "settings"]);
+  const { t } = useTranslation(["common", "settings", "tasks"]);
   const { loaded, loading, loadError, saveError, saving, bootstrap, retrySave } = useSettingsStore();
 
   useEffect(() => {
@@ -53,6 +55,10 @@ function App() {
           <span>{t("settings:errors.unsaved")} {getSettingsError(saveError)}</span><Button className="h-7 text-xs" variant="secondary" onClick={retrySave}>{t("common:actions.retry")}</Button>
         </div>}
         <span role="status" className="sr-only">{saving ? t("common:status.saving") : ""}</span>
+        {taskLinks.error && <div role="alert" className="settings-save-alert">
+          <span>{t(taskLinks.error === "missing" ? "tasks:taskLink.missing" : "tasks:taskLink.failed")}</span>
+          <Button className="h-7 text-xs" variant="secondary" onClick={taskLinks.dismiss}>{t("common:actions.close")}</Button>
+        </div>}
         <div className="h-full" hidden={navigation.section !== "tasks" || taskTabs.activeTaskId !== null}><TaskBoard /></div>
         <TaskPages visible={navigation.section === "tasks" && taskTabs.activeTaskId !== null} />
         <div className="h-full" hidden={navigation.section !== "issue"}><IssueList /></div>
