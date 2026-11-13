@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CircleDot, File, FolderGit2, GitPullRequest, Link2, NotebookText } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { TaskMarkdownEditor } from "../workspace/TaskMarkdownEditor";
 import type { Task } from "@/domain/tasks";
 import type { TaskResourceCategory } from "@/shared/taskResourceTypes";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -55,7 +56,7 @@ export function TaskAddResourcesDialog({ task, initialCategory, onClose }: TaskA
           {isIssue && <TaskIssuePickerContent key={category} group={issueGroup} selected={category === "issues" ? draft.issues : draft.prs} onChange={category === "issues" ? draft.setIssues : draft.setPrs} lockedIds={(updatedTask.links ?? []).filter((item) => item.group === issueGroup).map((item) => item.id)} disabled={disabled} />}
           {category === "links" && <div className="space-y-3"><TaskWebLinkFields url={draft.url} title={draft.linkTitle} onUrlChange={draft.setUrl} onTitleChange={draft.setLinkTitle} disabled={disabled} invalid={Boolean(draft.url.trim()) && !isTaskLinkUrl(draft.url.trim())} />{draft.duplicateLink && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyLinked")}</p>}</div>}
           {category === "notes" && <><Input aria-label={t("tasks:resources.noteTitle")} placeholder={t("tasks:resources.noteTitle")} value={draft.noteTitle} maxLength={160} disabled={disabled} onChange={(event) => draft.setNoteTitle(event.target.value)} className="h-8 text-xs" />
-            <textarea aria-label={t("tasks:resources.noteContent")} placeholder={t("tasks:resources.noteContent")} value={draft.content} maxLength={100000} disabled={disabled} onChange={(event) => draft.setContent(event.target.value)} className="min-h-56 flex-1 resize-none rounded-lg border border-input bg-transparent p-3 font-mono text-xs leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring/30" />
+            <div className="flex min-h-56 flex-1 flex-col"><TaskMarkdownEditor value={draft.content} onChange={draft.setContent} disabled={disabled} /></div>
           </>}
           {category === "files" && <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center text-xs">
             <File className="size-8 text-muted-foreground" /><p className="max-w-md leading-6 text-muted-foreground">{t("tasks:resources.fileDescription")}</p>

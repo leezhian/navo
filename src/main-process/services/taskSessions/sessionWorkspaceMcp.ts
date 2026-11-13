@@ -26,7 +26,7 @@ export interface WorkspaceMcpAttachInput {
 
 /**
  * Grok 只把项目 `.grok/config.toml` 的 MCP 段并入会话，不写 ~/.grok。
- * Antigravity 按 Kepler 的做法写应用私有插件目录，并用 --add-dir 交给 CLI；不改用户 MCP 配置。
+ * Antigravity 写入应用私有插件目录，并用 --add-dir 交给 CLI；不改用户 MCP 配置。
  */
 export class SessionWorkspaceMcp {
   private readonly grokBySession = new Map<string, string>();

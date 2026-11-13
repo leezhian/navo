@@ -36,6 +36,7 @@ import { WorkspaceSeparator } from "./WorkspaceSeparator";
 import { TaskBranchPane } from "./TaskBranchPane";
 import { TaskNotePane } from "./TaskNotePane";
 import { TaskNoteDialogs } from "./TaskNoteDialogs";
+import type { TaskNoteOpenRequest } from "@/stores/taskTabsStore";
 import { TaskTitleEditor } from "./TaskTitleEditor";
 import { TaskWorkbenchMenu } from "./TaskWorkbenchMenu";
 import { useTaskNoteEditor } from "@/hooks/useTaskNoteEditor";
@@ -48,8 +49,10 @@ interface TaskWorkspaceProps {
   onClose: () => void;
   /** 只在任务侧栏展示提升为标签页的入口。 */
   onOpenPage?: () => void;
+  /** 来自本机链接的笔记定位，重复点击同一链接也可重新展开面板。 */
+  noteRequest?: TaskNoteOpenRequest | null;
 }
-export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWorkspaceProps) {
+export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteRequest }: TaskWorkspaceProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const { settings, resolvedTheme, updateSettings } = useLocalSettings();
   const allSessions = useTaskSessionStore((state) => state.sessions);
@@ -99,6 +102,16 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   const [review, setReview] = useState<{ session: ReviewSession; mode: CompareMode; targetBranch: string; filePath?: string } | null>(null);
   const [addCategory, setAddCategory] = useState<TaskResourceCategory | null>(null);
   const [renameRequest, setRenameRequest] = useState(0);
+  const [renameNoteId, setRenameNoteId] = useState<string | null>(null);
+  const handledNoteRequest = useRef<TaskNoteOpenRequest | null>(null);
+  useEffect(() => {
+    if (!noteRequest || !workspaceWidth || noteRequest.taskId !== task.id || handledNoteRequest.current === noteRequest || noteEditor.busy || noteEditor.confirmation) return;
+    noteEditor.leave(() => {
+      handledNoteRequest.current = noteRequest;
+      setRightContent({ kind: "note", id: noteRequest.noteId }); setRightOpen(true); setExpanded(false);
+      if (narrow) setContextOpen(false);
+    });
+  }, [noteRequest, task.id, workspaceWidth, narrow, noteEditor.busy, noteEditor.confirmation]);
   const rootRef = useRef<HTMLDivElement>(null);
   useTaskSessionTitleRefresh(task.id, rootRef);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -259,7 +272,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
   function runResource(operation: () => Promise<void>) {
     void operation().catch(() => setPreview({ title: t("tasks:runtime.resourceError"), body: t("tasks:runtime.resourceErrorDetail") }));
   }
-  const rightPane = rightContent.kind === "note" ? <TaskNotePane editor={noteEditor} onClose={closeRight} /> : branchResource ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={closeRight} onOpenDiff={showReview} /> : null;
+  const rightPane = rightContent.kind === "note" ? <TaskNotePane taskId={task.id} editor={noteEditor} onClose={closeRight}
+    renameRequested={renameNoteId === rightContent.id} onRenameHandled={() => setRenameNoteId(null)}
+    onSession={(id) => {
+      const session = agents.find((item) => item.id === id);
+      if (session) noteEditor.leave(() => { selectContextSession(session, true); if (rightOverlay) setRightOpen(false); });
+    }} /> : branchResource ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={closeRight} onOpenDiff={showReview} /> : null;
   const rightTitle = t(rightContent.kind === "note" ? "tasks:notes.title" : "tasks:branch.title");
   const rightCloseLabel = t(rightContent.kind === "note" ? "tasks:notes.close" : "tasks:branch.close");
   return <div ref={rootRef} className="task-workbench" data-narrow={narrow} data-context-open={contextOpen}>
@@ -287,6 +305,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
           <TaskResourceRail task={task} sessions={allSessions.filter((session) => session.taskId === task.id)} activeId={showAgentPane ? active?.id : undefined} activeTerminalId={visibleTerminal ? activeTerminal?.id : undefined}
             activeResourceId={visibleBranch ? branchResource?.resourceId : undefined} activeNoteId={visibleNote ? noteEditor.note?.id : undefined} onNote={showNote}
             onDeleteNote={(id) => noteEditor.requestDelete(id)} noteDeleteDisabled={noteEditor.pending || noteEditor.busy || noteEditor.readOnly}
+            onRenameNote={(id, trigger) => { showNote(id, trigger); setRenameNoteId(id); }}
             onRunCommand={(resourceId, commandId) => void addTerminal(resourceId, commandId)}
             agentChoices={agentChoices} onNewSession={(id, resourceId) => void addAgent(id, resourceId)} onNewTerminal={(resourceId) => void addTerminal(resourceId)}
             onNewSessionFrom={(id, sourceSessionId) => void addAgent(id, undefined, sourceSessionId)}
@@ -321,6 +340,13 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage }: TaskWork
       </div>
       {rightOverlay && <TaskPanelSheet side="right" open={visibleRight} onOpenChange={(open) => { if (!open) closeRight(); }} width={360} container={layoutContainer} triggerRef={rightContent.kind === "note" ? noteTriggerRef : branchTriggerRef}
         fallbackTriggerRef={contextTriggerRef}
+        onEscapeKeyDown={(event) => {
+          // 标题输入自己处理取消；阻止 Radix 的文档级 Esc 先关闭整个抽屉。
+          if (event.target instanceof Element && event.target.closest("[data-note-title-editor]")) { event.preventDefault(); return; }
+          if (noteEditor.draft && event.target instanceof Element && event.target.closest("[data-note-editor]")) {
+            event.preventDefault(); noteEditor.leave(() => undefined);
+          }
+        }}
         className="task-branch-overlay" title={rightTitle} closeLabel={rightCloseLabel}>
         {rightPane}
       </TaskPanelSheet>}

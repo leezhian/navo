@@ -51,6 +51,8 @@ interface EventListProps {
   onVisibleEvents?: (first: number, last: number) => void;
   /** 点击置灰行时只取消框选，不改变当前选中。 */
   onClearRange: () => void;
+  /** 只记录可见且已加载的事件锚点，不把隐藏容器的零位置写回。 */
+  onRememberPosition?: (eventId: number, offset: number) => void;
 }
 export function EventList({
   events,
@@ -63,6 +65,7 @@ export function EventList({
   scrollTarget,
   onVisibleEvents,
   onClearRange,
+  onRememberPosition,
 }: EventListProps) {
   const { t, i18n } = useTranslation(["trace"]);
   /** 右侧列：有耗时显示耗时，运行中的工具标注运行中，否则显示时刻；日志没有时间时显示未记录。 */
@@ -75,6 +78,8 @@ export function EventList({
           ? new Date(event.timestamp).toLocaleTimeString(i18n.resolvedLanguage, { hour12: false })
           : t("trace:missing");
   const scroller = useRef<HTMLDivElement>(null);
+  const rememberPosition = useRef(onRememberPosition);
+  rememberPosition.current = onRememberPosition;
   const locatedSelection = useRef<number | null>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 500 });
   const { rows, estimate, loadedTop } = useMemo(() => {
@@ -112,6 +117,10 @@ export function EventList({
   function rememberAnchor(scrollTop: number, rowList = rows) {
     const row = eventRowAt(rowList, scrollTop);
     anchor.current = { key: scrollTarget.key, id: row?.event?.id, offset: row ? scrollTop - row.top : 0 };
+    if (row?.event && scroller.current && scroller.current.clientHeight > 0 && scroller.current.clientWidth > 0
+      && scrollTop >= loadedTop && scrollTop < loadedBottom) {
+      rememberPosition.current?.(row.event.id, scrollTop - row.top);
+    }
   }
   useEffect(() => {
     const element = scroller.current;
@@ -128,7 +137,7 @@ export function EventList({
       const row = scrollTarget.eventId != null ? rows.find((item) => item.event?.id === scrollTarget.eventId) : undefined;
       if (row) {
         // 目标行上方留出分组标题的位置。
-        element.scrollTop = Math.max(0, row.top - 30);
+        element.scrollTop = Math.max(0, row.top + (scrollTarget.offset ?? -30));
         locatedSelection.current = selected === scrollTarget.eventId ? selected : locatedSelection.current;
       } else if (scrollTarget.edge === "end" || scrollTarget.eventId == null) element.scrollTop = element.scrollHeight;
       rememberAnchor(element.scrollTop);

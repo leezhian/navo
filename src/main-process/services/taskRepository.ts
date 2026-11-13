@@ -7,6 +7,9 @@ import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { readTaskExtraResources } from "./taskResourceRepository";
 import { insertInitialization, readInitialization } from "./taskInitializationRepository";
 import type { StoredInitializationStep } from "./taskInitializationRepository";
+import { recordTaskNoteVersion } from "./taskNoteHistory";
+import { TASK_PROMPT_ID } from "../../shared/taskContextTypes";
+import { readTaskNoteComments } from "./taskNoteComments";
 
 export interface StoredAttachment extends TaskAttachment {
   storageName: string;
@@ -24,6 +27,7 @@ export class TaskRepository {
     const rows = database.prepare("SELECT * FROM tasks WHERE namespace = ? ORDER BY position, id").all(this.namespace);
     return rows.map((row) => {
       const taskId = String(row.id);
+      const promptSnapshot = database.prepare("SELECT actor,session_id,created_at FROM task_note_history WHERE namespace=? AND task_id=? AND note_id=? AND version=?").get(this.namespace, taskId, TASK_PROMPT_ID, Number(row.prompt_version));
       const agent = database.prepare("SELECT data FROM task_agents WHERE namespace = ? AND task_id = ?").get(this.namespace, taskId);
       const resources = database.prepare("SELECT data FROM task_resources WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
       const links = database.prepare("SELECT data FROM task_links WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
@@ -35,6 +39,9 @@ export class TaskRepository {
         id: taskId, title: String(row.title), description: String(row.description), date: String(row.date),
         updatedAt: String(row.updated_at),
         contextVersion: Number(row.context_version),
+        promptVersion: Number(row.prompt_version),
+        ...(promptSnapshot ? { promptMetadata: { updatedAt: String(promptSnapshot.created_at), lastEditor: promptSnapshot.actor as "user" | "agent" | "unknown", ...(promptSnapshot.session_id ? { lastEditorSessionId: String(promptSnapshot.session_id) } : {}) } } : {}),
+        promptComments: readTaskNoteComments(database, this.namespace, taskId, TASK_PROMPT_ID),
         initialization: readInitialization(database, this.namespace, taskId),
         projectName: String(row.project_name), status: row.status as Task["status"],
         archivedFrom: row.archived_from === "TODO" || row.archived_from === "DONE" ? row.archived_from : undefined,
@@ -53,6 +60,7 @@ export class TaskRepository {
   private insert(database: DatabaseSync, task: Task, position: number) {
     database.prepare("INSERT INTO tasks (namespace,id,title,description,date,project_name,status,archived_from,position,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
       .run(this.namespace, task.id, task.title, task.description ?? "", task.date, task.projectName, task.status, task.archivedFrom ?? null, position, task.updatedAt || task.date);
+    recordTaskNoteVersion(database, this.namespace, task.id, TASK_PROMPT_ID, "create");
   }
 
   importLegacy(tasks: Task[]): Promise<Task[]> {

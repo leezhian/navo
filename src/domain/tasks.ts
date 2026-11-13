@@ -8,6 +8,11 @@ export type TaskStatus = "TODO" | "DONE" | "ARCHIVED";
 export interface Task {
   /** 正文、笔记、资源每次成功修改后递增，供运行中的 Agent 判断上下文变化。 */
   contextVersion?: number;
+  /** 正文独立版本；笔记或其他资源修改不会改变它。 */
+  promptVersion?: number;
+  promptComments?: import("../shared/taskNoteTypes").TaskNoteComment[];
+  /** 正文最近一次保存的信息，不使用其他任务变更时间冒充正文更新时间。 */
+  promptMetadata?: Pick<TaskNote, "updatedAt" | "lastEditor" | "lastEditorSessionId">;
   /** 新 Worktree 的初始化检查点；脚本仅保存在主进程数据库。 */
   initialization?: import("../shared/taskContextTypes").TaskInitializationStep[];
   /** 创建时选择的 Agent、模型、模式和思考等级；旧任务可缺省。 */

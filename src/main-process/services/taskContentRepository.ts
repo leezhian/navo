@@ -3,6 +3,9 @@ import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
 import type { TaskResource } from "../../shared/taskTypes";
 import type { TaskDeletionProgress } from "../../shared/taskDeletionTypes";
 import { openAppDatabase } from "./appDatabase";
+import { recordTaskNoteVersion } from "./taskNoteHistory";
+import { TASK_PROMPT_ID } from "../../shared/taskContextTypes";
+import { isTaskNoteVersion } from "../../utils/taskNotes";
 
 /** 所有内容修改在同一事务中校验归档/删除状态并递增上下文版本。 */
 export class TaskContentRepository {
@@ -28,13 +31,16 @@ export class TaskContentRepository {
     } catch (error) { database.exec("ROLLBACK"); throw error; }
     finally { database.close(); }
   }
-  updatePrompt(taskId: string, content: string, expected: string) {
-    if (typeof content !== "string" || !content.trim() || content.length > 100000 || typeof expected !== "string") throw new Error("TASK_INVALID");
+  updatePrompt(taskId: string, content: string, expected: string, expectedVersion?: number) {
+    if (expectedVersion !== undefined && !isTaskNoteVersion(expectedVersion)) throw new Error("TASK_INVALID");
+    if (typeof content !== "string" || content.length > 100000 || typeof expected !== "string") throw new Error("TASK_INVALID");
     return this.mutate(taskId, (database) => {
-      const row = database.prepare("SELECT description FROM tasks WHERE namespace=? AND id=?").get(this.namespace, taskId);
+      const row = database.prepare("SELECT description,prompt_version FROM tasks WHERE namespace=? AND id=?").get(this.namespace, taskId);
+      if (expectedVersion !== undefined && row?.prompt_version !== expectedVersion) throw new Error("TASK_CONTENT_CHANGED");
       if (row?.description !== expected) throw new Error("TASK_CONTENT_CHANGED");
       if (row.description === content) return false;
-      database.prepare("UPDATE tasks SET description=? WHERE namespace=? AND id=?").run(content, this.namespace, taskId);
+      database.prepare("UPDATE tasks SET description=?,prompt_version=prompt_version+1 WHERE namespace=? AND id=?").run(content, this.namespace, taskId);
+      recordTaskNoteVersion(database, this.namespace, taskId, TASK_PROMPT_ID, "edit");
       return true;
     });
   }

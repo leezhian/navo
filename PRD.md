@@ -28,7 +28,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），将任务、项�
 | 代码审查弹窗 | [代码审查](docs/prd/review.md) |
 | 任务内终端 | [终端](docs/prd/terminal.md) |
 
-[DESIGN.md](DESIGN.md) 只维护通用视觉风格、设计 token、基础组件和动效规范；技术栈、目录职责、存储实现与验证命令见 [README.md](README.md)。
+[DESIGN.md](DESIGN.md) 只维护通用视觉风格、设计 token、基础组件和动效规范；软件介绍与快速开始见 [README.md](README.md)，技术栈、目录职责、存储实现与验证命令见[开发指南](docs/development.md)。
 
 ## 3. 目标用户与目标
 

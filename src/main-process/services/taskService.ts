@@ -72,11 +72,21 @@ export class TaskService {
   createAgentNote(id: string, note: TaskNoteInput, sessionId: string, authorize: () => void) {
     return diagnosticOperation("task.note.create", { taskId: id, operationId: sessionId }, () => this.serialize(() => this.resourceBindings.createAgentNote(id, note, sessionId, authorize)));
   }
-  updateNote(id: string, note: TaskNoteUpdate, expectedVersion: number, authorize?: () => void) {
-    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note, expectedVersion, authorize)));
+  updateNote(id: string, note: TaskNoteUpdate, expectedVersion: number, authorize?: () => void, sessionId?: string) {
+    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note, expectedVersion, authorize, sessionId)));
   }
-  updatePrompt(id: string, content: string, expected: string) {
-    return this.serialize(async () => { await this.content.updatePrompt(id, content, expected); return requireTask(await this.repository.load() ?? [], id); });
+  updatePrompt(id: string, content: string, expected: string, expectedVersion?: number) {
+    return this.serialize(async () => { await this.content.updatePrompt(id, content, expected, expectedVersion); return requireTask(await this.repository.load() ?? [], id); });
+  }
+  noteHistory(id: string, noteId: string) { return this.serialize(() => this.resourceBindings.noteHistory(id, noteId)); }
+  restoreNote(id: string, noteId: string, version: number, expectedVersion: number) {
+    return this.serialize(() => this.resourceBindings.restoreNote(id, noteId, version, expectedVersion));
+  }
+  commentNote(id: string, input: import("../../shared/taskNoteTypes").TaskNoteCommentInput, authorize?: () => void, sessionId?: string) {
+    return this.serialize(() => this.resourceBindings.commentNote(id, input, authorize, sessionId));
+  }
+  changeNoteComment(id: string, commentId: string, expectedUpdatedAt: string, patch: { body?: string; resolved?: boolean; remove?: boolean }, authorize?: () => void) {
+    return this.serialize(() => this.resourceBindings.changeNoteComment(id, commentId, expectedUpdatedAt, patch, authorize));
   }
   detachResource(id: string, input: TaskResourceRemoval) {
     return this.serialize(async () => { await this.content.detach(id, input); return requireTask(await this.repository.load() ?? [], id); });

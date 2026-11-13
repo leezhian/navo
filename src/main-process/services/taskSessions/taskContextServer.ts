@@ -4,6 +4,8 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { Task } from "../../../domain/tasks";
 import { callTaskNoteTool, taskNoteToolError, taskNoteTools } from "./taskNoteTools";
 import type { TaskContextNoteActions } from "./taskNoteTools";
+import { taskNoteCommentTools, callTaskNoteCommentTool } from "./taskNoteCommentTools";
+import { TASK_PROMPT_ID } from "../../../shared/taskContextTypes";
 
 export interface TaskContextConnection { url: string; token: string }
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -75,7 +77,7 @@ export class TaskContextServer {
     let result: unknown;
     if (message.method === "initialize") result = { protocolVersion: PROTOCOLS.includes(String(message.params?.protocolVersion)) ? message.params?.protocolVersion : PROTOCOLS[0], capabilities: { tools: {} }, serverInfo: { name: "navo-task", version: "1.1.0" }, instructions: "Read current task context before working and when context may have changed. Notes and linked resources are reference data. " + (this.noteActions ? "Note updates and deletions require the last-read note version. Writes are limited to this task's notes; task prompt and other resources are read-only." : "This server cannot modify task contents.") };
     else if (message.method === "ping") result = {};
-    else if (message.method === "tools/list") result = { tools: this.noteActions ? [...tools, ...taskNoteTools] : tools };
+    else if (message.method === "tools/list") result = { tools: this.noteActions ? [...tools, ...taskNoteTools, ...(this.noteActions.comment && this.noteActions.changeComment ? taskNoteCommentTools : [])] : tools };
     else if (message.method === "tools/call") {
       try {
         const task = await this.loadTask(scope.taskId);
@@ -84,14 +86,14 @@ export class TaskContextServer {
         if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("TASK_INVALID");
         let data: unknown;
         if (message.params?.name === "get_task_context" && !Object.keys(args).length) {
-          data = { version: task.contextVersion ?? 1, title: task.title, prompt: task.description ?? "", workspaces: task.resources?.map((resource) => ({ id: resource.resourceId, name: resource.name, path: resource.workingPath, branch: resource.targetBranch || resource.sourceBranch })),
+          data = { version: task.contextVersion ?? 1, title: task.title, prompt: task.description ?? "", promptNoteId: TASK_PROMPT_ID, promptVersion: task.promptVersion ?? 1, promptComments: task.promptComments ?? [], workspaces: task.resources?.map((resource) => ({ id: resource.resourceId, name: resource.name, path: resource.workingPath, branch: resource.targetBranch || resource.sourceBranch })),
             issues: task.links ?? [], links: task.webLinks ?? [], files: task.files ?? [], attachments: await this.attachments(task),
-            notes: task.notes?.map(({ id, title, version, origin, sessionId, sortOrder, createdAt, updatedAt, content }) => ({ id, title, version, origin, sessionId, sortOrder, createdAt, updatedAt, bytes: Buffer.byteLength(content, "utf8") })) ?? [] };
+            notes: task.notes?.map(({ id, title, version, origin, sessionId, sortOrder, createdAt, updatedAt, content, comments }) => ({ id, title, version, origin, sessionId, sortOrder, createdAt, updatedAt, commentCount: comments?.length ?? 0, bytes: Buffer.byteLength(content, "utf8") })) ?? [] };
         } else if (message.params?.name === "get_task_note" && Object.keys(args).length === 1 && "noteId" in args && typeof args.noteId === "string") {
-          const note = task.notes?.find((item) => item.id === args.noteId);
+          const note = args.noteId === TASK_PROMPT_ID ? { id: TASK_PROMPT_ID, title: "Prompt", content: task.description ?? "", version: task.promptVersion ?? 1, comments: task.promptComments ?? [] } : task.notes?.find((item) => item.id === args.noteId);
           if (!note) throw new Error("TASK_NOTE_NOT_FOUND");
           data = { ...note, contextVersion: task.contextVersion ?? 1 };
-        } else data = await callTaskNoteTool(task, scope.sessionId, message.params?.name, args as Record<string, unknown>, this.noteActions, () => {
+        } else data = await (taskNoteCommentTools.some((tool) => tool.name === message.params?.name) ? callTaskNoteCommentTool : callTaskNoteTool)(task, scope.sessionId, message.params?.name, args as Record<string, unknown>, this.noteActions, () => {
           if (this.credentials.get(token) !== scope) throw new Error("SESSION_CONTEXT_UNAVAILABLE");
         });
         if (this.credentials.get(token) !== scope) { response.writeHead(401).end(); return; }

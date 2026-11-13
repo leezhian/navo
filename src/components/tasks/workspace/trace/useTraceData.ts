@@ -4,6 +4,7 @@ import { traceErrorCode } from "./TraceError";
 import type { TraceErrorCode } from "./TraceError";
 import type { TraceQueryFn } from "./useSessionTrace";
 import { mergeTraceWindows, tailWindowOffsets, visibleWindowOffsets, type TraceWindow } from "./traceRange";
+import { readTraceReadingPosition, writeTraceReadingPosition } from "@/stores/readingPositionStore";
 
 export const TRACE_WINDOW_SIZE = 80;
 const SEARCH_DELAY = 180;
@@ -35,6 +36,8 @@ export interface TraceRange {
 export interface TraceScrollTarget {
   key: number;
   eventId?: number;
+  /** 恢复阅读时精确回到事件行内偏移；普通定位仍在行上方留出分组标题。 */
+  offset?: number;
   edge?: "end";
 }
 
@@ -54,11 +57,14 @@ function toWindow(page: TracePage, offset: number): TraceWindow {
 }
 
 /** 统一处理查询、窗口预取、实时刷新与详情竞态。hostRevision 来自宿主的变化通知。 */
-export function useTraceData(runQuery: TraceQueryFn, hostRevision: number) {
+export function useTraceData(runQuery: TraceQueryFn, hostRevision: number, readingKey?: string) {
+  const initialPosition = useRef(readTraceReadingPosition(readingKey));
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const [criteria, setCriteria] = useState<TraceCriteria>({ filter: "all", search: "" });
+  const [criteria, setCriteria] = useState<TraceCriteria>(() => initialPosition.current
+    ? { filter: initialPosition.current.filter, search: initialPosition.current.search, showBookkeeping: initialPosition.current.showBookkeeping }
+    : { filter: "all", search: "" });
   const [range, setRangeState] = useState<TraceRange | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(criteria.search);
   const [loaded, setLoaded] = useState<TraceWindow | null>(null);
   const [timeline, setTimeline] = useState<{ events: TraceEvent[]; truncated: boolean }>({ events: [], truncated: false });
   const [selected, setSelected] = useState<number | null>(null);
@@ -67,7 +73,7 @@ export function useTraceData(runQuery: TraceQueryFn, hostRevision: number) {
   const [detailError, setDetailError] = useState<TraceErrorCode | null>(null);
   const [loading, setLoading] = useState(true);
   const [localRevision, setLocalRevision] = useState(0);
-  const [follow, setFollow] = useState(false);
+  const [follow, setFollow] = useState(initialPosition.current?.follow ?? false);
   const [scrollTarget, setScrollTarget] = useState<TraceScrollTarget>({ key: 0 });
   const request = useRef(0),
     detailRequest = useRef(0),
@@ -90,6 +96,12 @@ export function useTraceData(runQuery: TraceQueryFn, hostRevision: number) {
   const revision = hostRevision + localRevision;
 
   useEffect(() => () => clearTimeout(searchTimer.current), []);
+  useEffect(() => {
+    if (!readingKey) return;
+    const position = readTraceReadingPosition(readingKey);
+    // 空结果也要保留查询；输入尚在防抖期间离开时，恢复用户已输入的搜索词。
+    writeTraceReadingPosition(readingKey, { ...position, ...criteria, search, follow, offset: position?.offset ?? 0 });
+  }, [readingKey, criteria, search, follow]);
 
   useEffect(() => {
     const sequence = ++request.current;
@@ -99,7 +111,8 @@ export function useTraceData(runQuery: TraceQueryFn, hostRevision: number) {
     setLoading(true);
     setError(null);
     // 时间线定位优先；否则仍在结果里的选中事件保持不动，其余情况停在最新一条。
-    const eventId = locateId.current ?? selectedRef.current ?? undefined;
+    const remembered = initialPosition.current;
+    const eventId = locateId.current ?? selectedRef.current ?? (remembered?.follow ? undefined : remembered?.eventId);
     locateId.current = undefined;
     const showBookkeeping = Boolean(criteria.showBookkeeping);
     void (async () => {
@@ -123,7 +136,8 @@ export function useTraceData(runQuery: TraceQueryFn, hostRevision: number) {
         if (window) setLoaded(window);
         setTimeline(marks as { events: TraceEvent[]; truncated: boolean });
         if (eventId != null && !located && selectedRef.current === eventId) setSelected(null);
-        setScrollTarget((current) => (located ? { key: current.key + 1, eventId } : { key: current.key + 1, edge: "end" }));
+        setScrollTarget((current) => (located ? { key: current.key + 1, eventId, offset: remembered?.eventId === eventId ? remembered.offset : undefined } : { key: current.key + 1, edge: "end" }));
+        initialPosition.current = undefined;
         setLoading(false);
       } catch (caught) {
         if (sequence === request.current) {
@@ -308,6 +322,10 @@ export function useTraceData(runQuery: TraceQueryFn, hostRevision: number) {
     for (const offset of tailWindowOffsets(current.total, TRACE_WINDOW_SIZE)) loadWindow(offset);
   }
   return {
+    rememberPosition(eventId: number, offset: number) {
+      if (!readingKey || loading) return;
+      writeTraceReadingPosition(readingKey, { ...criteria, search, follow, eventId, offset });
+    },
     events: loaded?.events ?? [],
     offset: loaded?.offset ?? 0,
     total: loaded?.total ?? 0,

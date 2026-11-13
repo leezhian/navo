@@ -27,11 +27,12 @@ test("Live files update full task state, remove unlinked items and isolate task/
   assert.notEqual(first, second); assert.notEqual(path.dirname(first), path.dirname(other));
   assert.equal((await read(first)).attachments[0].path, "/attachments/ref.txt");
   assert.equal((await stat(first)).mode & 0o777, 0o400);
-  const updated = { ...base, contextVersion: 2, description: "latest", notes: [], resources: [], attachments: [] };
+  const updated = { ...base, contextVersion: 2, description: "latest", promptVersion: 3, promptComments: [{ id: "comment", body: "Review prompt" }], notes: [], resources: [], attachments: [] };
   await files.update("session-one", updated, []); await files.update("session-two", updated, []);
   for (const location of [first, second]) {
     const value = await read(location);
     assert.equal(value.version, 2); assert.equal(value.task.prompt, "latest");
+    assert.equal(value.task.promptNoteId, "task-prompt"); assert.equal(value.task.promptVersion, 3); assert.deepEqual(value.task.promptComments, updated.promptComments);
     assert.deepEqual(value.notes, []); assert.deepEqual(value.workspaces, []); assert.deepEqual(value.attachments, []);
   }
   assert.equal((await read(other)).task.prompt, "other task");

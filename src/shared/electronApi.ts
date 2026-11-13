@@ -162,7 +162,7 @@ export interface NavoApi {
     /** 任务数据加载完成并注册监听后，请求交付冷启动的任务链接。 */
     taskLinksReady(): Promise<void>;
     /** 接收已由主进程校验的本机任务定位请求。 */
-    onOpenTask(listener: (taskId: string) => void): () => void;
+    onOpenTask(listener: (target: import("./taskLinks").TaskLinkTarget) => void): () => void;
     /** 读取关于页所需的应用基础信息。 */
     getInfo(): Promise<AppInfo>;
     /** 打开关于页中的官方链接，只允许主进程白名单内的目标。 */

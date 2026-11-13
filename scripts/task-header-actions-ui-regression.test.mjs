@@ -35,8 +35,8 @@ test('标题菜单复制、已读聚合与链接导航的完整交互', { timeou
       window.copied=[];window.notices=[];window.readyCount=0;window.section='settings';
       Object.defineProperty(navigator.clipboard,'writeText',{value:async text=>{if(window.failCopy)throw Error('denied');window.copied.push(text);}});
       const listeners=new Set();let pending='task-two';
-      window.navo={app:{onOpenTask:callback=>{listeners.add(callback);return()=>listeners.delete(callback);},taskLinksReady:async()=>{window.readyCount++;if(pending){for(const cb of listeners)cb(pending);pending=null;}}}};
-      window.deliverTask=id=>{for(const cb of listeners)cb(id);};
+      window.navo={app:{onOpenTask:callback=>{listeners.add(callback);return()=>listeners.delete(callback);},taskLinksReady:async()=>{window.readyCount++;if(pending){for(const cb of listeners)cb({taskId:pending});pending=null;}}}};
+      window.deliverTask=id=>{for(const cb of listeners)cb({taskId:id});};
       window.loadTasks=()=>useTaskStore.setState({tasks:[task,second],loaded:true});
       window.tabs=()=>useTaskTabsStore.getState();
       window.addAgents=()=>useTaskSessionStore.setState({sessions:records});

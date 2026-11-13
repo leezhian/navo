@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SessionTraceView } from "./trace/SessionTraceView";
 import { TraceError } from "./trace/TraceError";
 import { useSessionTrace } from "./trace/useSessionTrace";
+import { readingPositionKey } from "@/stores/readingPositionStore";
 
 interface SessionTracePaneProps {
   /** 只读查看已绑定的原生会话；不执行恢复或终端写入。 */
@@ -14,6 +15,7 @@ interface SessionTracePaneProps {
 export function SessionTracePane({ session, visible }: SessionTracePaneProps) {
   const { t } = useTranslation(["common", "settings", "trace"]);
   const { query, revision, error, retry } = useSessionTrace(session, visible);
+  const readingKey = readingPositionKey(session.taskId, "trace", session.id, session.nativeSessionId ?? "", session.nativeHistoryRoot ?? "");
   if (!visible) return null;
   if (error)
     return (
@@ -25,7 +27,7 @@ export function SessionTracePane({ session, visible }: SessionTracePaneProps) {
       </div>
     );
   return query ? (
-    <SessionTraceView query={query} revision={revision} />
+    <SessionTraceView key={readingKey} readingKey={readingKey} query={query} revision={revision} />
   ) : (
     <div className="task-session-empty">{t("settings:labs.loading")}</div>
   );

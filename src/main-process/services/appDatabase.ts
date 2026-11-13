@@ -6,8 +6,9 @@ import { removeLegacyDemoRecords } from "./migrations/removeLegacyDemoRecords";
 import { addTaskActivityTimestamps } from "./migrations/addTaskActivityTimestamps";
 import { addTaskContext } from "./migrations/addTaskContext";
 import { addTaskNoteMetadata } from "./migrations/addTaskNoteMetadata";
+import { addTaskNoteCollaboration } from "./migrations/addTaskNoteCollaboration";
 
-export const APP_SCHEMA_VERSION = 14;
+export const APP_SCHEMA_VERSION = 15;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -106,6 +107,7 @@ export async function openAppDatabase(filePath: string) {
           addTaskActivityTimestamps(database);
           addTaskContext(database);
           addTaskNoteMetadata(database);
+          addTaskNoteCollaboration(database);
           database.exec("COMMIT");
           void writeDiagnosticEvent("database.migrate.succeeded", { fromVersion: version, toVersion: APP_SCHEMA_VERSION });
         } catch (error) {

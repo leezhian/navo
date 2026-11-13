@@ -20,9 +20,11 @@ interface TaskPanelSheetProps {
   fallbackTriggerRef?: RefObject<HTMLButtonElement | null>;
   /** 保留各面板的内容样式，浮层布局统一由共享类控制。 */
   className?: string;
+  /** 编辑内容可先消费 Esc，避免抽屉在编辑器处理按键前关闭。 */
+  onEscapeKeyDown?: (event: KeyboardEvent) => void;
 }
 
-export function TaskPanelSheet({ children, side, open, onOpenChange, width, title, closeLabel, container, triggerRef, fallbackTriggerRef, className }: TaskPanelSheetProps) {
+export function TaskPanelSheet({ children, side, open, onOpenChange, width, title, closeLabel, container, triggerRef, fallbackTriggerRef, className, onEscapeKeyDown }: TaskPanelSheetProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   return <Sheet modal={false} open={open} onOpenChange={onOpenChange}>
     {container && <SheetContent ref={contentRef} container={container} side={side} showCloseButton={false}
@@ -30,6 +32,7 @@ export function TaskPanelSheet({ children, side, open, onOpenChange, width, titl
       overlay={<button className="task-context-backdrop duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none"
         data-state={open ? "open" : "closed"} tabIndex={-1} aria-label={closeLabel} onClick={() => onOpenChange(false)} />}
       onInteractOutside={(event) => event.preventDefault()}
+      onEscapeKeyDown={onEscapeKeyDown}
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         const focused = document.activeElement;

@@ -31,9 +31,11 @@ interface SessionTraceViewProps {
   query: TraceQueryFn;
   /** 宿主收到新增内容通知时递增，保留阅读状态并刷新当前窗口。 */
   revision: number;
+  /** 按任务和原生会话隔离的窗口内阅读记录；独立预览可省略。 */
+  readingKey?: string;
 }
 /** 官方轨迹界面由宿主直接渲染，复用项目组件与主题；数据仍来自插件解析进程。 */
-export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
+export function SessionTraceView({ query, revision, readingKey }: SessionTraceViewProps) {
   const { t } = useTranslation(["trace"]);
   const splitRef = useRef<HTMLDivElement>(null);
   const [stacked, setStacked] = useState(() => typeof window !== "undefined" && window.matchMedia(STACKED_QUERY).matches);
@@ -67,7 +69,8 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
     setFollow,
     refresh,
     onVisibleEvents,
-  } = useTraceData(query, revision);
+    rememberPosition,
+  } = useTraceData(query, revision, readingKey);
   const open = selected !== null;
   useEffect(() => {
     const media = window.matchMedia(STACKED_QUERY);
@@ -194,6 +197,7 @@ export function SessionTraceView({ query, revision }: SessionTraceViewProps) {
             scrollTarget={scrollTarget}
             onVisibleEvents={onVisibleEvents}
             onClearRange={clearRange}
+            onRememberPosition={rememberPosition}
           />
           {open && !stacked && (
             <div className="relative z-10 flex w-2 shrink-0 -mx-1 self-stretch">

@@ -3,7 +3,7 @@ import { chmod, lstat, mkdir, realpath, rename, rm, unlink, writeFile } from "no
 import path from "node:path";
 import { NAVO_TASK_SERVER, assertTaskContextToken, assertTaskContextUrl } from "./taskMcpGuards";
 
-/** 与 Kepler 的终端 MCP 目录相同：仅所有者可进入。 */
+/** 插件目录仅所有者可进入。 */
 export const PLUGIN_DIRECTORY_MODE = 0o700;
 /** 插件文件含本次凭证，仅所有者可读写。 */
 export const PLUGIN_FILE_MODE = 0o600;

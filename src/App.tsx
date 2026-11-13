@@ -56,7 +56,7 @@ function App() {
         </div>}
         <span role="status" className="sr-only">{saving ? t("common:status.saving") : ""}</span>
         {taskLinks.error && <div role="alert" className="settings-save-alert">
-          <span>{t(taskLinks.error === "missing" ? "tasks:taskLink.missing" : "tasks:taskLink.failed")}</span>
+          <span>{t(taskLinks.error === "missing" ? "tasks:taskLink.missing" : taskLinks.error === "noteMissing" ? "tasks:notes.notFound" : "tasks:taskLink.failed")}</span>
           <Button className="h-7 text-xs" variant="secondary" onClick={taskLinks.dismiss}>{t("common:actions.close")}</Button>
         </div>}
         <div className="h-full" hidden={navigation.section !== "tasks" || taskTabs.activeTaskId !== null}><TaskBoard /></div>

@@ -6,6 +6,7 @@ import { TaskResourceRepository } from "./taskResourceRepository";
 import { TaskFileSelections } from "./taskFileSelections";
 import { isTaskNoteInput } from "../../utils/taskNotes";
 import { TaskNoteRepository } from "./taskNoteRepository";
+import type { TaskNoteCommentInput } from "../../shared/taskNoteTypes";
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 function validate(input: AddTaskResourcesInput) {
@@ -50,12 +51,25 @@ export class TaskResourceBindings {
     await this.notes.create(taskId, note, sessionId, authorize);
     return this.task(taskId);
   }
-  async updateNote(taskId: string, note: TaskNoteUpdate, expectedVersion: number, authorize?: () => void) {
-    await this.notes.update(taskId, note, expectedVersion, authorize);
+  async updateNote(taskId: string, note: TaskNoteUpdate, expectedVersion: number, authorize?: () => void, sessionId?: string) {
+    await this.notes.update(taskId, note, expectedVersion, authorize, sessionId);
     return this.task(taskId);
   }
   async deleteNote(taskId: string, noteId: string, expectedVersion: number, authorize?: () => void) {
     await this.notes.remove(taskId, noteId, expectedVersion, authorize);
     return this.task(taskId);
+  }
+  async noteHistory(taskId: string, noteId: string) {
+    await this.task(taskId);
+    return this.notes.history(taskId, noteId);
+  }
+  async restoreNote(taskId: string, noteId: string, version: number, expectedVersion: number) {
+    await this.notes.restore(taskId, noteId, version, expectedVersion); return this.task(taskId);
+  }
+  async commentNote(taskId: string, input: TaskNoteCommentInput, authorize?: () => void, sessionId?: string) {
+    await this.notes.comment(taskId, input, authorize, sessionId); return this.task(taskId);
+  }
+  async changeNoteComment(taskId: string, id: string, expectedUpdatedAt: string, patch: { body?: string; resolved?: boolean; remove?: boolean }, authorize?: () => void) {
+    await this.notes.changeComment(taskId, id, expectedUpdatedAt, patch, authorize); return this.task(taskId);
   }
 }

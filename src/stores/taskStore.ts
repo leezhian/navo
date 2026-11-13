@@ -6,6 +6,7 @@ import type { TaskDeletionConfirmation } from "@/shared/taskDeletionTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { clearLegacyTasks, readLegacyTasks } from "@/services/adeData";
 import { moveTask } from "@/utils/taskState";
+import { useTaskNoteDraftStore } from "./taskNoteDraftStore";
 
 interface TaskState {
   tasks: Task[];
@@ -20,7 +21,10 @@ interface TaskState {
   create: (input: CreateTaskInput) => Promise<Task>;
   addResources: (id: string, input: AddTaskResourcesInput) => Promise<Task>;
   updateNote: (id: string, note: TaskNoteUpdate, expectedVersion: number) => Promise<Task>;
-  updatePrompt: (id: string, content: string, expected: string) => Promise<Task>;
+  updatePrompt: (id: string, content: string, expected: string, version?: number) => Promise<Task>;
+  restoreNote: (id: string, noteId: string, version: number, expected: number) => Promise<Task>;
+  commentNote: (id: string, input: import("@/shared/taskNoteTypes").TaskNoteCommentInput) => Promise<Task>;
+  changeNoteComment: (id: string, commentId: string, expected: string, patch: { body?: string; resolved?: boolean; remove?: boolean }) => Promise<Task>;
   detachResource: (id: string, input: import("@/shared/taskContextTypes").TaskResourceRemoval) => Promise<Task>;
   deleteWorktree: (id: string, resourceId: string, confirmation: TaskDeletionConfirmation) => Promise<Task>;
   deleteNote: (id: string, noteId: string, expectedVersion: number) => Promise<Task>;
@@ -73,7 +77,10 @@ export const useTaskStore = create<TaskState>((set, get) => {
     requestOpen: (requestedTaskId) => set({ requestedTaskId }),
     addResources: (id, input) => updateTask(() => getTasksApi().addResources(id, input)),
     updateNote: (id, note, expectedVersion) => updateTask(() => getTasksApi().updateNote(id, note, expectedVersion)),
-    updatePrompt: (id, content, expected) => updateTask(() => getTasksApi().updatePrompt(id, content, expected)),
+    updatePrompt: (id, content, expected, version) => updateTask(() => getTasksApi().updatePrompt(id, content, expected, version)),
+    restoreNote: (id, noteId, version, expected) => updateTask(() => getTasksApi().restoreNote(id, noteId, version, expected)),
+    commentNote: (id, input) => updateTask(() => getTasksApi().commentNote(id, input)),
+    changeNoteComment: (id, commentId, expected, patch) => updateTask(() => getTasksApi().changeNoteComment(id, commentId, expected, patch)),
     detachResource: (id, input) => updateTask(() => getTasksApi().detachResource(id, input)),
     deleteWorktree: (id, resourceId, confirmation) => updateTask(() => getTasksApi().deleteWorktree(id, resourceId, confirmation)),
     deleteNote: (id, noteId, expectedVersion) => updateTask(() => getTasksApi().deleteNote(id, noteId, expectedVersion)),
@@ -90,7 +97,11 @@ export const useTaskStore = create<TaskState>((set, get) => {
     move: (id, status, beforeId) => mutate(() => getTasksApi().move(id, status, beforeId), moveTask(get().tasks, id, status, beforeId)),
     restore: (id) => mutate(() => getTasksApi().restore(id)),
     archive: (id, confirmation) => mutate(() => getTasksApi().archive(id, confirmation)),
-    remove: (id, confirmation) => mutate(() => getTasksApi().remove(id, confirmation)),
+    remove: async (id, confirmation) => {
+      const removed = await mutate(() => getTasksApi().remove(id, confirmation));
+      if (removed) useTaskNoteDraftStore.getState().clearTask(id);
+      return removed;
+    },
   };
 });
 

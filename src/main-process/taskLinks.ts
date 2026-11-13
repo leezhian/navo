@@ -1,23 +1,23 @@
 import { app, ipcMain, type BrowserWindow } from "electron";
 import { ipcChannels } from "../shared/ipcChannels";
-import { parseTaskLink, TASK_LINK_SCHEME } from "../shared/taskLinks";
+import { parseTaskLink, TASK_LINK_SCHEME, type TaskLinkTarget } from "../shared/taskLinks";
 
 /** 冷启动期间保留最后一次定位请求，等任务数据与监听器就绪后再交付。 */
 export function registerTaskLinks(openWindow: () => BrowserWindow | undefined) {
-  let pendingTaskId: string | null = null;
+  let pendingTarget: TaskLinkTarget | null = null;
   let window: BrowserWindow | undefined;
   let rendererReady = false;
 
   function deliver() {
-    if (!pendingTaskId || !rendererReady || !window || window.isDestroyed()) return;
-    window.webContents.send(ipcChannels.appOpenTask, pendingTaskId);
-    pendingTaskId = null;
+    if (!pendingTarget || !rendererReady || !window || window.isDestroyed()) return;
+    window.webContents.send(ipcChannels.appOpenTask, pendingTarget);
+    pendingTarget = null;
   }
 
   function receive(url: string) {
-    const taskId = parseTaskLink(url);
-    if (!taskId) return false;
-    pendingTaskId = taskId;
+    const request = parseTaskLink(url);
+    if (!request) return false;
+    pendingTarget = request;
     const target = openWindow();
     if (target) {
       if (target.isMinimized()) target.restore();
@@ -49,11 +49,12 @@ export function registerTaskLinks(openWindow: () => BrowserWindow | undefined) {
   });
 
   for (const arg of process.argv) {
-    const taskId = parseTaskLink(arg);
-    if (taskId) pendingTaskId = taskId;
+    const request = parseTaskLink(arg);
+    if (request) pendingTarget = request;
   }
 
   return {
+    openLink: receive,
     bindWindow(target: BrowserWindow) {
       window = target;
       rendererReady = false;

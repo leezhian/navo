@@ -3,23 +3,26 @@ import type { Task } from "../../../domain/tasks";
 import type { TaskNoteInput, TaskNoteUpdate } from "../../../shared/taskResourceTypes";
 import { isTaskNoteId, isTaskNoteInput, isTaskNoteUpdate, isTaskNoteVersion, TASK_NOTE_CONTENT_LIMIT, TASK_NOTE_TITLE_LIMIT } from "../../../utils/taskNotes";
 import { TaskNoteVersionConflict } from "../taskNoteRepository";
+import type { TaskNoteCommentInput } from "../../../shared/taskNoteTypes";
 
 /** 写入必须走任务服务队列；授权检查需传到数据库事务边界。 */
 export interface TaskContextNoteActions {
   create(taskId: string, note: TaskNoteInput, sessionId: string, authorize: () => void): Promise<Task>;
-  update(taskId: string, note: TaskNoteUpdate, version: number, authorize: () => void): Promise<Task>;
+  update(taskId: string, note: TaskNoteUpdate, version: number, authorize: () => void, sessionId?: string): Promise<Task>;
   remove(taskId: string, noteId: string, version: number, authorize: () => void): Promise<Task>;
+  comment?(taskId: string, input: TaskNoteCommentInput, authorize: () => void, sessionId: string): Promise<Task>;
+  changeComment?(taskId: string, id: string, expected: string, patch: { body?: string; resolved?: boolean }, authorize: () => void): Promise<Task>;
 }
 
 const title = { type: "string", maxLength: TASK_NOTE_TITLE_LIMIT, description: "Optional note title; an empty title is allowed." };
-const content = { type: "string", minLength: 1, maxLength: TASK_NOTE_CONTENT_LIMIT, description: "Markdown source." };
+const content = { type: "string", maxLength: TASK_NOTE_CONTENT_LIMIT, description: "Markdown source." };
 const noteId = { type: "string", description: "Note id from get_task_context or get_task_note, within this task." };
 const version = { type: "integer", minimum: 1, description: "The note version last read. On conflict, read again before deciding what to change." };
 const annotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 const hasField = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 export const taskNoteTools = [
   { name: "create_task_note", description: "Create a Markdown note in the current task. Records this session as its author; returns the note and version.",
-    inputSchema: { type: "object", properties: { title, content }, required: ["content"], additionalProperties: false }, annotations: { ...annotations, destructiveHint: false } },
+    inputSchema: { type: "object", properties: { title, content: { ...content, minLength: 1 } }, required: ["content"], additionalProperties: false }, annotations: { ...annotations, destructiveHint: false } },
   { name: "update_task_note", description: "Update a note in this task using its last-read version. Specify title, content or sortOrder; omitted fields are preserved. Never silently overwrite a version conflict.",
     inputSchema: { type: "object", properties: { noteId, version, title, content, sortOrder: { type: "integer", minimum: 0, description: "Display order; lower values appear first. Ties keep insertion order." } }, required: ["noteId", "version"], additionalProperties: false }, annotations },
   { name: "delete_task_note", description: "Permanently delete a note from the current task using its last-read version. Read the note first and only delete it when appropriate for the user's task.",
@@ -48,7 +51,7 @@ export async function callTaskNoteTool(task: Task, sessionId: string, name: unkn
     content: hasField(args, "content") ? args.content : current.content,
     ...(hasField(args, "sortOrder") ? { sortOrder: args.sortOrder } : {}) } as TaskNoteUpdate;
   if (!isTaskNoteUpdate(note)) throw new Error("TASK_INVALID");
-  const updated = await actions.update(task.id, note, args.version, authorize);
+  const updated = await actions.update(task.id, note, args.version, authorize, sessionId);
   return { ...updated.notes?.find((item) => item.id === note.id), contextVersion: updated.contextVersion };
 }
 

@@ -1,3 +1,6 @@
+import { useReadingPosition } from "@/hooks/useReadingPosition";
+import { readingPositionKey } from "@/stores/readingPositionStore";
+import { useTaskSessionStore } from "@/stores/taskSessionStore";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Archive, ChevronDown, ChevronRight, CircleDot, FileText, FolderGit2, GitBranch, GitPullRequest, Link2, Plus, Terminal } from "lucide-react";
@@ -37,6 +40,8 @@ interface TaskResourceRailProps {
   onNote: (id: string, trigger: HTMLButtonElement) => void;
   /** 右击删除只打开确认，不切换当前笔记。 */
   onDeleteNote: (id: string) => void;
+  /** 右键或 F2 打开目标笔记并进入独立标题编辑。 */
+  onRenameNote?: (id: string, trigger: HTMLButtonElement) => void;
   noteDeleteDisabled: boolean;
   /** 在所选工作区的独立终端运行仓库命令。 */
   onRunCommand: (resourceId: string, commandId: string) => void;
@@ -94,9 +99,11 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
-export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
+export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
   const { unread } = useSessionUnread();
+  const sessionsLoaded = useTaskSessionStore(state => state.loaded);
+  const scrollRef = useReadingPosition<HTMLElement>(readingPositionKey(task.id, "context"), sessionsLoaded);
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
   const archived = sessions.filter((session) => session.kind === "agent" && session.archivedAt);
   const terminals = sessions.filter((session) => session.kind === "shell");
@@ -104,7 +111,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
   const folders = task.resources?.filter((resource) => resource.mode === "folder") ?? [];
   const prs = task.links?.filter((link) => link.group === "PR") ?? [];
   const issues = task.links?.filter((link) => link.group === "ISSUE") ?? [];
-  return <aside className="task-context-rail" aria-label={t("tasks:runtime.context")}>
+  return <aside ref={scrollRef} className="task-context-rail" aria-label={t("tasks:runtime.context")}>
     <TaskInitializationPanel task={task} />
     <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories")}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
     <ResourceGroup title={t("tasks:runtime.sessions")} count={agents.length + archived.length} action={newSessionControl}>
@@ -158,8 +165,8 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
       {task.webLinks?.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "link", id: link.id }}><button className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button></TaskResourceMenu>)}
     </ResourceGroup>
     <ResourceGroup title="NOTES" count={(task.notes?.length ?? 0) + 1} onAdd={onAddResource && (() => onAddResource("notes"))}>
-      <TaskNoteRow note={{ id: TASK_PROMPT_ID, title: t("tasks:context.prompt"), content: task.description ?? "" }} active={activeNoteId === TASK_PROMPT_ID} deleteDisabled onOpen={onNote} />
-      {task.notes?.map((note) => <TaskNoteRow key={note.id} note={note} active={note.id === activeNoteId} deleteDisabled={noteDeleteDisabled} onOpen={onNote} onDelete={onDeleteNote} />)}
+      <TaskNoteRow taskId={task.id} note={{ id: TASK_PROMPT_ID, title: t("tasks:context.prompt"), content: task.description ?? "" }} active={activeNoteId === TASK_PROMPT_ID} deleteDisabled onOpen={onNote} />
+      {task.notes?.map((note) => <TaskNoteRow key={note.id} taskId={task.id} note={note} active={note.id === activeNoteId} deleteDisabled={noteDeleteDisabled} onOpen={onNote} onDelete={onDeleteNote} onRename={onRenameNote} />)}
     </ResourceGroup>
   </aside>;
 }

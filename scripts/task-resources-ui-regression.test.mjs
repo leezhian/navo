@@ -18,12 +18,14 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
       import i18n from '/src/i18n/index.ts';import {TaskWorkspace} from '/src/components/tasks/workspace/TaskWorkspace.tsx';
       import {TooltipProvider} from '/src/components/ui/tooltip.tsx';import {useSettingsStore} from '/src/stores/settingsStore.ts';
       import {useTaskStore} from '/src/stores/taskStore.ts';import {useIssueStore} from '/src/stores/issueStore.ts';
+      import {useTaskLinks} from '/src/hooks/useTaskLinks.ts';import {useTaskTabsStore} from '/src/stores/taskTabsStore.ts';
       await i18n.changeLanguage('zh-CN');useSettingsStore.setState({loaded:true});
       let task={id:'existing',title:'任务资源测试',date:'2026-10-07',projectName:'navo',status:'TODO',resources:[{resourceId:'repo',name:'navo',mode:'current-branch',workingPath:'/test',targetBranch:'main',sourceBranch:'main'}],links:[],webLinks:[],files:[],notes:[]};
       const items=['ISSUE','PR'].map(group=>({id:group,title:group+' title',group,tag:'feature',status:group==='PR'?'review':'todo',projectName:'navo',provider:'GitHub',date:'2026-10-07'}));
       useTaskStore.setState({tasks:[task],loaded:true});useIssueStore.setState({items});window.submissions=[];window.releases=[];window.reveals=[];
       const records=[{id:'repo',name:'navo',kind:'repo',localPath:'/test',available:true},{id:'backend',name:'backend',kind:'repo',localPath:'/fixture/backend',available:true},{id:'assets',name:'assets',kind:'folder',localPath:'/fixture/assets',available:true}];
-      window.navo={settings:{chooseDirectory:async()=>'/fixture/quick'},resources:{list:async()=>records,onCloneProgress:()=>()=>{},save:async value=>{const saved={...value,id:'quick',available:true};records.push(saved);return saved;}},
+      const linkListeners=new Set();let coldLink=true;window.deliverNote=noteId=>{for(const listener of linkListeners)listener({taskId:task.id,noteId});};const selectTasks=()=>{};
+      window.navo={app:{onOpenTask:callback=>{linkListeners.add(callback);return()=>linkListeners.delete(callback);},taskLinksReady:async()=>{if(coldLink){coldLink=false;window.deliverNote('task-prompt');}}},settings:{chooseDirectory:async()=>'/fixture/quick'},resources:{list:async()=>records,onCloneProgress:()=>()=>{},save:async value=>{const saved={...value,id:'quick',available:true};records.push(saved);return saved;}},
         review:{watchProject:async()=>{},unwatchProject:async()=>{},onProjectChanged:()=>()=>{}},
         tasks:{inspectResource:async id=>{const record=records.find(item=>item.id===id);return {resourceId:id,name:record.name,path:record.localPath,git:record.kind==='repo'?{root:record.localPath,currentBranch:'main',defaultSource:'refs/heads/main',branches:[{ref:'refs/heads/main',name:'main',kind:'local'}]}:null};},
         loadBranch:async()=>({projectPath:'/test',branchName:'main',baseBranch:'main',baseAvailable:true,files:{unstaged:[],staged:[],branch:[]},untrackedCount:0,commits:[],hasMoreCommits:false}),
@@ -36,7 +38,7 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
         agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:[]},installations:[],entries:{}})}};
       window.remoteNoteUpdate=(title,content)=>{task={...task,notes:task.notes.map(note=>note.title===title?{...note,content,version:note.version+1}:note)};useTaskStore.setState({tasks:[structuredClone(task)]});};
       window.savedNote=title=>task.notes.find(note=>note.title===title);
-      function Fixture(){const record=useTaskStore(state=>state.tasks[0]);return React.createElement(TooltipProvider,null,React.createElement('div',{style:{height:720,width:1100}},React.createElement(TaskWorkspace,{task:record,headingId:'task-title',onClose:()=>{}})));}
+      function Fixture(){const record=useTaskStore(state=>state.tasks[0]);const noteRequest=useTaskTabsStore(state=>state.noteRequest);useTaskLinks(selectTasks);return React.createElement(TooltipProvider,null,React.createElement('div',{style:{height:720,width:1100}},React.createElement(TaskWorkspace,{task:record,noteRequest,headingId:'task-title',onClose:()=>{}})));}
       createRoot(document.getElementById('root')).render(React.createElement(Fixture));
     </script>`));
   });
@@ -54,7 +56,7 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           const category=()=>dialog()?.querySelector('[data-resource-category]')?.dataset.resourceCategory;
           const fill=async(element,value)=>{const prototype=element.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}));await pause();};
           await wait(()=>document.querySelector('.task-context-toolbar button'),'Workspace missing');
-          [...document.querySelectorAll('.task-context-row')].find(row=>row.textContent==='任务正文').click();await wait(()=>document.querySelector('.task-note-pane'),'Prompt pane missing');
+          await wait(()=>document.querySelector('.task-note-pane'),'Cold note link must open Prompt after layout initializes');
           const promptPane=()=>document.querySelector('.task-note-pane');if(promptPane().querySelector('button[aria-label="删除笔记"]'))throw Error('Prompt must not be deletable');
           promptPane().querySelector('button[aria-label="编辑笔记"]').click();await wait(()=>promptPane().querySelector('textarea'),'Prompt editor missing');if(promptPane().querySelector('input'))throw Error('Prompt title must be fixed');await fill(promptPane().querySelector('textarea'),'Updated prompt');button('保存',promptPane()).click();await wait(()=>window.promptSaved==='Updated prompt'&&!promptPane().querySelector('textarea'),'Prompt save failed');if(!document.querySelector('.task-workbench-title').textContent.includes('任务资源测试'))throw Error('Prompt must preserve title');promptPane().querySelector('button[aria-label="关闭"]').click();await wait(()=>!promptPane(),'Close prompt failed');
           document.querySelector('.task-context-toolbar button').click();await wait(()=>category()==='repositories','Top add should open repositories');
@@ -111,25 +113,25 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           if([...document.querySelectorAll('.task-context-row')].some(row=>row.textContent==='assets'))throw Error('Cancelled directories must not bind to task');
           const notePane=()=>document.querySelector('.task-note-pane');const confirmation=()=>document.querySelector('[data-slot="dialog-content"]');
           const noteRow=title=>[...document.querySelectorAll('.task-context-row')].find(item=>item.title===title);
-          const noteAction=label=>notePane().querySelector('button[aria-label="'+label+'"]');
+          const noteAction=label=>notePane()?.querySelector('button[aria-label="'+label+'"]');
           const noteMenuItem=label=>[...document.querySelectorAll('[data-slot="context-menu-item"]')].find(item=>item.textContent===label);
           const noteMenu=async title=>{const row=noteRow(title),bounds=row.getBoundingClientRect();row.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:bounds.left+20,clientY:bounds.top+12}));await wait(()=>noteMenuItem('打开')&&noteMenuItem('删除'),'Note context menu missing');};
+          const deleteCurrentNote=async()=>{noteAction('笔记操作').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,isPrimary:true,pointerType:'mouse'}));await wait(()=>[...document.querySelectorAll('[role="menuitem"]')].some(item=>item.textContent==='删除笔记'),'Note delete menu missing');[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.textContent==='删除笔记').click();};
           noteRow('未命名笔记').click();await wait(()=>notePane(),'Note preview missing');
-          if(document.querySelector('.task-branch-pane')||dialog()||!notePane().textContent.includes('# A note'))throw Error('Notes must replace branch pane, not open another column or generic modal');
+          if(document.querySelector('.task-branch-pane')||dialog()||!notePane().querySelector('h1')?.textContent.includes('A note'))throw Error('Notes must replace branch pane, not open another column or generic modal');
           if(noteRow('未命名笔记').getAttribute('aria-pressed')!=='true'||document.querySelector('.task-context-change[data-active="true"]'))throw Error('Only the visible note should be selected');
           if(!document.querySelector('[role="separator"][aria-label="调整笔记面板宽度"]'))throw Error('Notes should reuse resizable right panel');
           noteAction('编辑笔记').click();await wait(()=>notePane().querySelector('textarea'),'Note editor missing');
           await fill(notePane().querySelector('textarea'),'Unsaved draft');
-          document.querySelector('button[aria-label="显示分支栏"]').click();await wait(()=>confirmation(),'Switch must confirm unsaved changes');
-          button('取消',confirmation()).click();await wait(()=>!confirmation(),'Discard cancel failed');
-          if(notePane().querySelector('textarea').value!=='Unsaved draft')throw Error('Cancel must preserve note and draft');
-          noteAction('关闭').click();await wait(()=>confirmation(),'Close must protect draft');
-          button('放弃修改',confirmation()).click();await wait(()=>!confirmation()&&!notePane(),'Discard must close panel');
-          if(noteRow('未命名笔记').getAttribute('aria-pressed')!=='false')throw Error('Closed note must not remain selected');
-          noteRow('未命名笔记').click();await wait(()=>notePane(),'Note reopen failed');
-          if(notePane().textContent.includes('Unsaved draft'))throw Error('Discarded draft must not persist');
-          noteAction('编辑笔记').click();await wait(()=>notePane().querySelector('textarea'),'Re-edit missing');
-          await fill(notePane().querySelector('input'),'Edited note');await fill(notePane().querySelector('textarea'),'Updated body');
+          document.querySelector('button[aria-label="显示分支栏"]').click();await wait(()=>!notePane()&&document.querySelector('.task-branch-pane'),'Switch should preserve draft without a modal');
+          if(confirmation())throw Error('Switching a note must not ask to discard its persisted draft');
+          noteRow('未命名笔记').click();await wait(()=>noteAction('继续编辑草稿'),'Draft resume missing');noteAction('继续编辑草稿').click();await wait(()=>notePane().querySelector('textarea')?.value==='Unsaved draft','Switch lost note draft');
+          noteAction('关闭').click();await wait(()=>!notePane(),'Closing note should preserve its draft');
+          noteRow('未命名笔记').click();await wait(()=>noteAction('继续编辑草稿'),'Closed draft not restored');noteAction('继续编辑草稿').click();await wait(()=>notePane().querySelector('textarea'),'Re-edit missing');
+          button('取消',notePane()).click();await wait(()=>confirmation(),'Explicit cancel must confirm draft discard');button('放弃修改',confirmation()).click();await wait(()=>!confirmation()&&!notePane().querySelector('textarea'),'Discard failed');
+          notePane().querySelector('header button[title="未命名笔记"]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));await wait(()=>notePane().querySelector('input'),'Inline rename missing');
+          await fill(notePane().querySelector('input'),'Edited note');notePane().querySelector('button[aria-label="确认"]').click();await wait(()=>noteRow('Edited note')&&!notePane().querySelector('input'),'Inline rename failed');
+          noteAction('编辑笔记').click();await wait(()=>notePane().querySelector('textarea'),'Body editor missing');await fill(notePane().querySelector('textarea'),'Updated body');
           window.failNote=true;button('保存',notePane()).click();await wait(()=>notePane().querySelector('[role="alert"]'),'Save error missing');
           if(notePane().querySelector('textarea').value!=='Updated body')throw Error('Failed save lost draft');
           window.failNote=false;button('保存',notePane()).click();await wait(()=>noteRow('Edited note')&&!notePane().querySelector('textarea'),'Saved title and preview must update together');
@@ -144,9 +146,10 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           await fill(dialog().querySelector('input'),'Second note');await fill(dialog().querySelector('textarea'),'Keep the second note');button('添加到任务').click();await wait(()=>!dialog()&&noteRow('Second note'),'Second note missing');
           noteRow('Second note').click();await wait(()=>notePane().textContent.includes('Keep the second note'),'Note switching did not update preview');
           noteAction('编辑笔记').click();await wait(()=>notePane().querySelector('textarea'),'Second note editor missing');await fill(notePane().querySelector('textarea'),'Second draft');
-          noteRow('Edited note').click();await wait(()=>confirmation(),'Changing notes must confirm dirty draft');button('取消',confirmation()).click();await wait(()=>!confirmation(),'Note-switch cancellation failed');
-          if(noteRow('Second note').getAttribute('aria-pressed')!=='true'||notePane().querySelector('textarea').value!=='Second draft')throw Error('Cancellation changed the selected note');
-          noteRow('Edited note').click();await wait(()=>confirmation(),'Note-switch confirmation missing');button('放弃修改',confirmation()).click();await wait(()=>!confirmation()&&notePane().textContent.includes('Newer Agent body'),'Confirmed note switch failed');
+          noteRow('Edited note').click();await wait(()=>notePane().textContent.includes('Newer Agent body')&&!notePane().querySelector('textarea'),'Note switch failed');
+          noteRow('Second note').click();await wait(()=>noteAction('继续编辑草稿'),'Second draft missing');noteAction('继续编辑草稿').click();await wait(()=>notePane().querySelector('textarea')?.value==='Second draft','Second draft was lost');
+          button('取消',notePane()).click();await wait(()=>confirmation(),'Explicit draft cancel missing');button('放弃修改',confirmation()).click();await wait(()=>!confirmation()&&!notePane().querySelector('textarea'),'Second draft discard failed');
+          noteRow('Edited note').click();await wait(()=>notePane().textContent.includes('Newer Agent body'),'Return to first note failed');
           await noteMenu('Second note');if(getComputedStyle(noteMenuItem('打开')).fontSize!=='12px'||noteMenuItem('删除').dataset.variant!=='destructive')throw Error('Notes must use shared context menu styles');
           if(!notePane().textContent.includes('Newer Agent body'))throw Error('Right click must not change selected note');noteMenuItem('打开').click();await wait(()=>notePane().textContent.includes('Keep the second note'),'Context Open did not preview selected note');
           noteRow('Edited note').click();await wait(()=>notePane().textContent.includes('Newer Agent body'),'Restore first note failed');
@@ -165,11 +168,10 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           await wait(()=>document.querySelector('[data-slot="sheet-content"][data-side="right"] .task-note-pane textarea'),'Narrow Notes must use drawer');
           if(notePane().querySelector('textarea').value!=='Draft survives resizing')throw Error('Resize discarded note draft');
           const escape=()=>document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',bubbles:true,cancelable:true}));
-          notePane().querySelector('textarea').focus();escape();await wait(()=>confirmation(),'Drawer Escape must confirm dirty draft');
-          await wait(()=>document.activeElement===button('取消',confirmation()),'Discard must default focus to cancel');
-          escape();await wait(()=>!confirmation(),'Escape must dismiss only confirmation');
-          if(!notePane()||notePane().querySelector('textarea').value!=='Draft survives resizing')throw Error('Upper dialog close also closed lower drawer');
-          document.querySelector('.task-context-backdrop').click();await wait(()=>confirmation(),'Backdrop close must also protect draft');button('取消',confirmation()).click();await wait(()=>!confirmation(),'Backdrop discard cancel failed');
+          notePane().querySelector('textarea').focus();escape();await wait(()=>!notePane().querySelector('textarea')&&noteAction('继续编辑草稿'),'Escape should pause editing and retain the draft');
+          if(confirmation())throw Error('Pause should not discard a draft');
+          notePane().querySelector('header button[title="Edited note"]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));await wait(()=>notePane().querySelector('header input'),'Narrow rename missing');notePane().querySelector('header input').focus();escape();await wait(()=>notePane()&&!notePane().querySelector('header input'),'Esc must cancel rename without closing drawer');
+          noteAction('继续编辑草稿').click();await wait(()=>notePane().querySelector('textarea')?.value==='Draft survives resizing','Escape lost the draft');
           document.querySelector('#root').firstElementChild.style.width='1100px';
           await wait(()=>notePane()&&!document.querySelector('[data-slot="sheet-content"]'),'Wide Notes must return to inline panel');
           if(notePane().querySelector('textarea').value!=='Draft survives resizing')throw Error('Returning wide lost draft');
@@ -177,21 +179,23 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           document.querySelector('#root').firstElementChild.style.width='520px';await wait(()=>document.querySelector('[data-slot="sheet-content"][data-side="right"] .task-note-pane'),'Clean note drawer missing');
           noteAction('关闭').focus();noteAction('关闭').click();await wait(()=>!notePane(),'Clean note drawer must close without confirmation');
           await wait(()=>document.activeElement===document.querySelector('.task-workbench-heading button[aria-label="任务上下文"]'),'Unmounted note trigger must fall back to context button');
-          document.querySelector('.task-workbench-heading button[aria-label="任务上下文"]').click();await wait(()=>noteRow('Edited note'),'Context drawer missing');noteRow('Edited note').click();await wait(()=>notePane(),'Notes must open from narrow context');
+          document.querySelector('.task-workbench-heading button[aria-label="任务上下文"]').click();await wait(()=>noteRow('Edited note'),'Context drawer missing');window.deliverNote(window.savedNote('Edited note').id);await wait(()=>notePane(),'Note link must open from narrow context');
           await wait(()=>!document.querySelector('[data-slot="sheet-content"][data-side="left"]'),'Notes and context drawers must be mutually exclusive');
-          document.querySelector('#root').firstElementChild.style.width='1100px';await wait(()=>notePane()&&!document.querySelector('[data-slot="sheet-content"]')&&noteRow('Edited note'),'Wide restore failed');
-          noteAction('删除笔记').click();await wait(()=>confirmation(),'Delete confirmation missing');
+          noteAction('关闭').click();await wait(()=>!notePane(),'Linked note must close');window.deliverNote(window.savedNote('Edited note').id);await wait(()=>notePane(),'Repeated note link must reopen the same note');
+          document.querySelector('#root').firstElementChild.style.width='1100px';await wait(()=>notePane()&&!document.querySelector('[data-slot="sheet-content"]'),'Wide restore failed');
+          document.querySelector('.task-workbench-heading button[aria-label="任务上下文"]').click();await wait(()=>noteRow('Edited note'),'Reopen remembered context panel failed');
+          await deleteCurrentNote();await wait(()=>confirmation(),'Delete confirmation missing');
           await wait(()=>document.activeElement===button('取消',confirmation()),'Delete must default focus to cancel');
           button('取消',confirmation()).click();await wait(()=>!confirmation(),'Delete cancel failed');if(!noteRow('Edited note'))throw Error('Cancelled deletion removed note');
-          noteAction('删除笔记').click();await wait(()=>confirmation(),'Versioned delete confirmation missing');window.remoteNoteUpdate('Edited note','Updated during delete confirmation');
+          await deleteCurrentNote();await wait(()=>confirmation(),'Versioned delete confirmation missing');window.remoteNoteUpdate('Edited note','Updated during delete confirmation');
           button('删除',confirmation()).click();await wait(()=>confirmation().querySelector('[role="alert"]'),'Deleting an updated note must report a conflict');
           if(window.savedNote('Edited note').content!=='Updated during delete confirmation')throw Error('Stale deletion removed newer content');
           button('取消',confirmation()).click();await wait(()=>!confirmation(),'Conflict delete cancel failed');
-          noteAction('删除笔记').click();await wait(()=>confirmation(),'Delete reopen failed');window.failNote=true;button('删除',confirmation()).click();await wait(()=>confirmation().querySelector('[role="alert"]'),'Delete failure missing');
+          await deleteCurrentNote();await wait(()=>confirmation(),'Delete reopen failed');window.failNote=true;button('删除',confirmation()).click();await wait(()=>confirmation().querySelector('[role="alert"]'),'Delete failure missing');
           if(!notePane()||!noteRow('Edited note'))throw Error('Failed deletion removed note');window.failNote=false;button('删除',confirmation()).click();await wait(()=>!confirmation()&&!notePane()&&!noteRow('Edited note'),'Delete success must remove note and close panel');
           if(!noteRow('Second note'))throw Error('Deleting the selected note removed another note');
           noteRow('Second note').click();await wait(()=>notePane(),'Remaining note missing');if(!notePane().textContent.includes('Keep the second note'))throw Error('Discarded second draft was saved');
-          noteAction('删除笔记').click();await wait(()=>confirmation(),'Last note delete confirmation missing');button('删除',confirmation()).click();await wait(()=>!confirmation()&&!notePane()&&!noteRow('Second note'),'Last note deletion failed');
+          await deleteCurrentNote();await wait(()=>confirmation(),'Last note delete confirmation missing');button('删除',confirmation()).click();await wait(()=>!confirmation()&&!notePane()&&!noteRow('Second note'),'Last note deletion failed');
           if(!document.querySelector('.task-context-rail').textContent.includes('任务正文'))throw Error('Deleting last note must preserve Prompt');
           const fileRow=document.querySelector('.task-context-row[title="/fixture/spec.md"]');fileRow.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:100,clientY:100}));await wait(()=>[...document.querySelectorAll('[role="menuitem"]')].some(item=>item.textContent==='解除关联'),'Resource unlink menu missing');[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.textContent==='解除关联').click();await wait(()=>dialog()?.textContent.includes('解除资源关联'),'Unlink must confirm');button('取消').click();await wait(()=>!dialog(),'Unlink cancellation failed');if(window.detached)throw Error('Cancel detached resource');
           if(!noteRow('/fixture/spec.md'))throw Error('Deleting note changed other resources');

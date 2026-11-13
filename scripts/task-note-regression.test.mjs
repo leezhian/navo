@@ -40,7 +40,7 @@ test("v12 笔记迁移保留正文与顺序，时间取任务原值，升级及�
   assert.deepEqual(migrated.notes.map(note => [note.id, note.version, note.origin, note.sortOrder, note.createdAt, note.updatedAt]),
     ids.map((id, index) => [id, 1, "user", index, base.date, base.updatedAt]));
   assert.equal(migrated.notes[1].content, "# 正文 1");assert.equal((await task("other")).notes[0].sortOrder, 0);
-  db = await openAppDatabase(filename);assert.equal(db.prepare("PRAGMA user_version").get().user_version, 14);db.close();
+  db = await openAppDatabase(filename);assert.equal(db.prepare("PRAGMA user_version").get().user_version, 15);db.close();
   assert.deepEqual((await new TaskRepository(filename, "test").load()).find(task => task.id === base.id), migrated);
   await tasks.completeDeletion(base.id);assert.equal(await task(), undefined);
 });

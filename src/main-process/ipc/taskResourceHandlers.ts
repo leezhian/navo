@@ -9,6 +9,7 @@ import type { TaskDeletionConfirmation } from "../../shared/taskDeletionTypes";
 import { withIdleTaskWorkspace, initializeTask } from "./taskSessionHandlers";
 import { publishTask } from "./taskEvents";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
+import { exportTaskNote } from "../services/taskNoteExport";
 
 export function registerTaskResourceHandlers(tasks: TaskService) {
   const owners = new Set<number>();
@@ -31,11 +32,30 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
   ipcMain.handle(ipcChannels.tasksUpdateNote, (event, taskId: string, note: TaskNoteUpdate, expectedVersion: number) => {
     owner(event);return tasks.updateNote(taskId, note, expectedVersion).then(publishTask);
   });
+  ipcMain.handle(ipcChannels.tasksExportNote, async (event, taskId: string, noteId: string, version?: number) => {
+    const window = owner(event);
+    if (typeof taskId !== "string" || typeof noteId !== "string") throw new Error("TASK_INVALID");
+    const task = (await tasks.repository.load())?.find((item) => item.id === taskId);
+    if (!task) throw new Error("TASK_NOT_FOUND");
+    const snapshot = version === undefined ? undefined : (await tasks.noteHistory(taskId, noteId)).find((item) => item.version === version);
+    if (version !== undefined && !snapshot) throw new Error("TASK_NOTE_NOT_FOUND");
+    return exportTaskNote(window, task, noteId, snapshot);
+  });
   ipcMain.handle(ipcChannels.tasksDeleteNote, (event, taskId: string, noteId: string, expectedVersion: number) => {
     owner(event);return tasks.deleteNote(taskId, noteId, expectedVersion).then(publishTask);
   });
-  ipcMain.handle(ipcChannels.tasksUpdatePrompt, (event, taskId: string, content: string, expected: string) => {
-    owner(event); return tasks.updatePrompt(taskId, content, expected).then(publishTask);
+  ipcMain.handle(ipcChannels.tasksUpdatePrompt, (event, taskId: string, content: string, expected: string, version?: number) => {
+    owner(event); return tasks.updatePrompt(taskId, content, expected, version).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksNoteHistory, (event, taskId: string, noteId: string) => { owner(event); return tasks.noteHistory(taskId, noteId); });
+  ipcMain.handle(ipcChannels.tasksRestoreNote, (event, taskId: string, noteId: string, version: number, expected: number) => {
+    owner(event); return tasks.restoreNote(taskId, noteId, version, expected).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksCommentNote, (event, taskId: string, input: import("../../shared/taskNoteTypes").TaskNoteCommentInput) => {
+    owner(event); return tasks.commentNote(taskId, input).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksChangeNoteComment, (event, taskId: string, id: string, expected: string, patch: { body?: string; resolved?: boolean; remove?: boolean }) => {
+    owner(event); return tasks.changeNoteComment(taskId, id, expected, patch).then(publishTask);
   });
   ipcMain.handle(ipcChannels.tasksDetachResource, (event, taskId: string, input: TaskResourceRemoval) => {
     owner(event);

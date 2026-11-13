@@ -81,7 +81,7 @@ test("v9 任务库升级资源表后保留既有任务，不生成笔记或文�
   let database = await openAppDatabase(filename);
   database.exec("DROP TABLE task_resource_batches; DROP TABLE task_notes; DROP TABLE task_file_references; PRAGMA user_version=9");database.close();
   database = await openAppDatabase(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 14);database.close();
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 15);database.close();
   const migrated = await tasks.load();
   assert.equal(migrated.length, 2);assert.equal(migrated[0].title, task.title);
   assert.deepEqual(migrated[0].notes, []);assert.deepEqual(migrated[0].files, []);
@@ -126,7 +126,7 @@ test("笔记修改校验归属、输入、归档及删除中状态，不误改�
   }
   await assert.rejects(isolated.updateNote(task.id, note, 1), /TASK_NOTE_NOT_FOUND/);
   await assert.rejects(isolated.deleteNote(task.id, note.id, 1), /TASK_NOTE_NOT_FOUND/);
-  for (const invalid of [null, {}, { ...note, id: "invalid" }, { ...note, title: "x".repeat(161) }, { ...note, content: " " }, { ...note, content: "x".repeat(100001) }]) {
+  for (const invalid of [null, {}, { ...note, id: "invalid" }, { ...note, title: "x".repeat(161) }, { ...note, content: null }, { ...note, content: "x".repeat(100001) }]) {
     await assert.rejects(bindings.updateNote(task.id, invalid, 1), /TASK_INVALID/);
   }
   await assert.rejects(bindings.deleteNote(task.id, "invalid", 1), /TASK_INVALID/);

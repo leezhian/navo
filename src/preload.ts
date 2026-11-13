@@ -99,7 +99,12 @@ const api: NavoApi = {
     openWorkspace: (id, resourceId, target) => ipcRenderer.invoke(ipcChannels.tasksOpenWorkspace, id, resourceId, target),
     addResources: (id, input) => ipcRenderer.invoke(ipcChannels.tasksAddResources, id, input),
     updateNote: (id, note, expectedVersion) => ipcRenderer.invoke(ipcChannels.tasksUpdateNote, id, note, expectedVersion),
-    updatePrompt: (id, content, expected) => ipcRenderer.invoke(ipcChannels.tasksUpdatePrompt, id, content, expected),
+    exportNote: (taskId, noteId, version) => ipcRenderer.invoke(ipcChannels.tasksExportNote, taskId, noteId, version),
+    noteHistory: (taskId, noteId) => ipcRenderer.invoke(ipcChannels.tasksNoteHistory, taskId, noteId),
+    restoreNote: (taskId, noteId, version, expected) => ipcRenderer.invoke(ipcChannels.tasksRestoreNote, taskId, noteId, version, expected),
+    commentNote: (taskId, input) => ipcRenderer.invoke(ipcChannels.tasksCommentNote, taskId, input),
+    changeNoteComment: (taskId, id, expected, patch) => ipcRenderer.invoke(ipcChannels.tasksChangeNoteComment, taskId, id, expected, patch),
+    updatePrompt: (id, content, expected, version) => ipcRenderer.invoke(ipcChannels.tasksUpdatePrompt, id, content, expected, version),
     detachResource: (id, input) => ipcRenderer.invoke(ipcChannels.tasksDetachResource, id, input),
     inspectWorktreeDeletion: (id, resourceId) => ipcRenderer.invoke(ipcChannels.tasksInspectWorktreeDeletion, id, resourceId),
     deleteWorktree: (id, resourceId, confirmation) => ipcRenderer.invoke(ipcChannels.tasksDeleteWorktree, id, resourceId, confirmation),
@@ -150,7 +155,7 @@ const api: NavoApi = {
   app: {
     taskLinksReady: () => ipcRenderer.invoke(ipcChannels.appTaskLinksReady),
     onOpenTask: (listener) => {
-      const handler = (_event: IpcRendererEvent, taskId: string) => listener(taskId);
+      const handler = (_event: IpcRendererEvent, target: import("./shared/taskLinks").TaskLinkTarget) => listener(target);
       ipcRenderer.on(ipcChannels.appOpenTask, handler);
       return () => ipcRenderer.removeListener(ipcChannels.appOpenTask, handler);
     },

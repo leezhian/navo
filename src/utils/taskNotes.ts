@@ -12,5 +12,8 @@ export function isTaskNoteInput(note: TaskNoteInput | null | undefined): note is
     && typeof note.content === "string" && note.content.trim() && note.content.length <= TASK_NOTE_CONTENT_LIMIT);
 }
 export function isTaskNoteUpdate(note: TaskNoteUpdate | null | undefined): note is TaskNoteUpdate {
-  return isTaskNoteInput(note) && (note.sortOrder === undefined || isTaskNoteOrder(note.sortOrder));
+  // 已有笔记允许清空正文；新建仍要求提供内容。
+  return Boolean(note && isTaskNoteId(note.id) && typeof note.title === "string" && note.title.length <= TASK_NOTE_TITLE_LIMIT
+    && typeof note.content === "string" && note.content.length <= TASK_NOTE_CONTENT_LIMIT
+    && (note.sortOrder === undefined || isTaskNoteOrder(note.sortOrder)));
 }

@@ -69,8 +69,10 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
       return paths;
     }, undefined, undefined, () => resources.list(), {
       create: (id, note, sessionId, authorize) => tasks.createAgentNote(id, note, sessionId, authorize).then(publishTask),
-      update: (id, note, version, authorize) => tasks.updateNote(id, note, version, authorize).then(publishTask),
+      update: (id, note, version, authorize, sessionId) => tasks.updateNote(id, note, version, authorize, sessionId).then(publishTask),
       remove: (id, noteId, version, authorize) => tasks.deleteNote(id, noteId, version, authorize).then(publishTask),
+      comment: (id, input, authorize, sessionId) => tasks.commentNote(id, input, authorize, sessionId).then(publishTask),
+      changeComment: (id, commentId, expected, patch, authorize) => tasks.changeNoteComment(id, commentId, expected, patch, authorize).then(publishTask),
     }, undefined, new SessionWorkspaceMcp({
       pluginRoot: path.join(app.getPath("userData"), "task-mcp-plugins"),
     }));

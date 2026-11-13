@@ -13,6 +13,10 @@ export interface TaskNoteUpdate extends TaskNoteInput {
   sortOrder?: number;
 }
 export interface TaskNote extends TaskNoteInput {
+  /** 最近保存者与原创建者分开记录，历史迁移无法确认时为 unknown。 */
+  lastEditor?: import("./taskNoteTypes").TaskNoteActor;
+  lastEditorSessionId?: string;
+  comments?: import("./taskNoteTypes").TaskNoteComment[];
   /** 笔记独立版本，从 1 开始；修改和删除必须提交读到的版本。 */
   version: number;
   /** 创建来源由主进程记录，后续编辑不改写作者。 */

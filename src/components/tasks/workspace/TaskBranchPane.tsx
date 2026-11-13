@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useReadingPosition } from "@/hooks/useReadingPosition";
+import { readingPositionKey } from "@/stores/readingPositionStore";
 import { ArrowUpRight, GitBranch, GitCommitHorizontal, ListTree, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskResource } from "@/shared/taskTypes";
@@ -23,6 +25,7 @@ export function TaskBranchPane({ taskId, resource, onClose, onOpenDiff }: TaskBr
   const [scope, setScope] = useState<"working" | "commits">("working");
   const [filter, setFilter] = useState("");
   const [tree, setTree] = useState(true);
+  const scrollRef = useReadingPosition<HTMLDivElement>(readingPositionKey(taskId, "branch", resource.resourceId, resource.workingPath, scope, filter, String(tree)), Boolean(snapshot) && !loading);
   const modes: CompareMode[] = scope === "working" ? ["unstaged", "staged"] : ["branch"];
   const files = modes.flatMap((mode) => snapshot?.files[mode] ?? []);
   const visible = files.filter((file) => file.path.toLowerCase().includes(filter.trim().toLowerCase()));
@@ -41,7 +44,7 @@ export function TaskBranchPane({ taskId, resource, onClose, onOpenDiff }: TaskBr
       <button aria-pressed={scope === "commits"} onClick={() => setScope("commits")}>{t("tasks:branch.commits")}<span>{snapshot?.baseAvailable ? snapshot.commits.length + (snapshot.hasMoreCommits ? "+" : "") : ""}</span></button>
     </div><IconTooltip label={t(tree ? "tasks:branch.showList" : "tasks:branch.showTree")} size="icon-xs" onClick={() => setTree(!tree)}><ListTree /></IconTooltip></div>
     <label className="task-branch-filter"><Search /><input value={filter} onChange={(event) => setFilter(event.target.value)} aria-label={t("tasks:branch.filter")} placeholder={t("tasks:branch.filter")} /></label>
-    <div className="task-branch-scroll" aria-busy={loading}>
+    <div ref={scrollRef} className="task-branch-scroll" aria-busy={loading}>
       {error && <div className="task-branch-notice" role="alert">{t("tasks:branch.failed")}<Button variant="ghost" size="sm" onClick={refresh}>{t("common:actions.refresh")}</Button></div>}
       {loading && <div className="space-y-3 p-3" aria-label={t("common:status.loading")}><div className="h-3 rounded bg-muted" /><div className="h-3 w-3/4 rounded bg-muted" /><div className="h-3 w-1/2 rounded bg-muted" /></div>}
       {scope === "working" && Boolean(snapshot?.untrackedCount) && <p className="task-branch-notice">{t("tasks:branch.untracked", { count: snapshot?.untrackedCount ?? 0 })}</p>}

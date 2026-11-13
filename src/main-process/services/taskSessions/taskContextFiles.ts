@@ -3,6 +3,7 @@ import { lstat, mkdir, realpath, rename, unlink, writeFile } from "node:fs/promi
 import path from "node:path";
 import type { Task } from "../../../domain/tasks";
 import { resolveResourcePath } from "../resourcePaths";
+import { TASK_PROMPT_ID } from "../../../shared/taskContextTypes";
 
 interface ContextFile {
   taskId: string;
@@ -67,7 +68,8 @@ export class TaskContextFiles {
     }
     // 归档时清空正文和资源，保留可读的失效标记，不让缓存文件继续伪装成当前上下文。
     const data = task.status === "ARCHIVED" ? { schemaVersion: 1, version, task: { id: task.id, status: task.status }, unavailable: true } : {
-      schemaVersion: 1, version, task: { id: task.id, title: task.title, prompt: task.description ?? "", status: task.status },
+      schemaVersion: 1, version, task: { id: task.id, title: task.title, prompt: task.description ?? "", status: task.status,
+        promptNoteId: TASK_PROMPT_ID, promptVersion: task.promptVersion ?? 1, promptComments: task.promptComments ?? [] },
       workspaces: (task.resources ?? []).map((resource) => ({ id: resource.resourceId, name: resource.name, path: resource.workingPath, branch: resource.targetBranch || resource.sourceBranch })),
       issues: task.links ?? [], links: task.webLinks ?? [], files: task.files ?? [],
       attachments: (task.attachments ?? []).map((attachment, index) => ({ id: attachment.id, name: attachment.name, path: attachments[index] })), notes: task.notes ?? [],

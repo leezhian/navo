@@ -3,7 +3,10 @@ import { findTaskSplit, taskTabGroups } from "../domain/taskSplit";
 import type { SplitOrientation, SplitSide, TaskSplit } from "../domain/taskSplit";
 import { joinTaskOrder, retainTaskTabs } from "../utils/taskTabState";
 
+export interface TaskNoteOpenRequest { taskId: string; noteId: string; sequence: number }
 interface TaskTabsState {
+  /** 深链携带的笔记定位，仅传递给对应任务标签，序号支持重复定位同一笔记。 */
+  noteRequest: TaskNoteOpenRequest | null;
   /** 当前窗口打开的任务，顺序即顶部标签顺序，不跨重启保存。 */
   taskIds: string[];
   /** null 表示正在浏览一级模块，不激活任务页面。 */
@@ -11,7 +14,7 @@ interface TaskTabsState {
   /** 非嵌套的双页组合，第二页为空时展示选择器。 */
   splits: TaskSplit[];
   /** 新任务追加标签，已打开任务只激活，避免重复页面。 */
-  openTask: (taskId: string) => void;
+  openTask: (taskId: string, noteId?: string) => void;
   /** 仅激活已有标签，返回是否命中，供任务条目决定是否打开侧栏。 */
   activateTask: (taskId: string) => boolean;
   /** 返回一级模块但保留已打开的标签。 */
@@ -41,11 +44,13 @@ interface TaskTabsState {
 }
 
 export const useTaskTabsStore = create<TaskTabsState>((set, get) => ({
+  noteRequest: null,
   taskIds: [],
   activeTaskId: null,
   splits: [],
-  openTask(taskId) {
-    set((state) => ({ taskIds: state.taskIds.includes(taskId) ? state.taskIds : [...state.taskIds, taskId], activeTaskId: taskId }));
+  openTask(taskId, noteId) {
+    set((state) => ({ taskIds: state.taskIds.includes(taskId) ? state.taskIds : [...state.taskIds, taskId], activeTaskId: taskId,
+      noteRequest: noteId ? { taskId, noteId, sequence: (state.noteRequest?.sequence ?? 0) + 1 } : null }));
   },
   activateTask(taskId) {
     if (!get().taskIds.includes(taskId)) return false;

@@ -5,6 +5,7 @@ import type { Task, TaskStatus } from "../domain/tasks";
 import type { AddTaskResourcesInput, TaskFileReference, TaskNoteUpdate } from "./taskResourceTypes";
 import type { WorkspaceOpenOptions, WorkspaceOpenTarget } from "./workspaceOpenTypes";
 import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview, TaskWorktreeDeletionPreview } from "./taskDeletionTypes";
+import type { TaskNoteCommentInput, TaskNoteVersion } from "./taskNoteTypes";
 
 export type TaskExecutionMode = "worktree" | "new-branch" | "current-branch" | "folder";
 
@@ -93,7 +94,15 @@ export interface TasksApi {
   addResources(taskId: string, input: AddTaskResourcesInput): Promise<Task>;
   /** 仅修改指定任务的笔记，必须提交编辑开始时的笔记版本。 */
   updateNote(taskId: string, note: TaskNoteUpdate, expectedVersion: number): Promise<Task>;
-  updatePrompt(taskId: string, content: string, expected: string): Promise<Task>;
+  updatePrompt(taskId: string, content: string, expected: string, expectedVersion?: number): Promise<Task>;
+  /** 读取真实保存版本；恢复创建新版本并检查当前版本。 */
+  noteHistory(taskId: string, noteId: string): Promise<TaskNoteVersion[]>;
+  restoreNote(taskId: string, noteId: string, version: number, expectedVersion: number): Promise<Task>;
+  /** 评论锚定保存版本及原文，写入成功后进入任务上下文。 */
+  commentNote(taskId: string, input: TaskNoteCommentInput): Promise<Task>;
+  changeNoteComment(taskId: string, commentId: string, expectedUpdatedAt: string, patch: { body?: string; resolved?: boolean; remove?: boolean }): Promise<Task>;
+  /** 将指定笔记或任务正文另存为 Markdown；目标路径由系统保存面板选择，取消返回 false。 */
+  exportNote(taskId: string, noteId: string, version?: number): Promise<boolean>;
   detachResource(taskId: string, input: import("./taskContextTypes").TaskResourceRemoval): Promise<Task>;
   /** 检查指定 Worktree；删除必须提交本窗口获得的确认凭据。 */
   inspectWorktreeDeletion(taskId: string, resourceId: string): Promise<TaskWorktreeDeletionPreview>;
