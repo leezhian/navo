@@ -70,14 +70,20 @@ void app.whenReady().then(async () => {
       if ((await api.status()).enabled) throw Error("Install enabled extension implicitly");
       (document.querySelector('[role="switch"]') as HTMLButtonElement).click();
       await wait(() => document.querySelector('[role="switch"]')?.getAttribute("aria-checked") === "true", "Enable did not persist");
-      const button = (text: string) => Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(item => item.textContent === text);
-      button("检查更新")?.click();
+      const button = (name: string) => {
+        // 检查更新是图标按钮，使用无障碍名称定位；必需按钮缺失时立即报错，避免静默跳过点击。
+        const target = Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
+          .find(item => (item.getAttribute("aria-label") ?? item.textContent) === name);
+        if (!target) throw Error(`Required button missing: ${name}`);
+        return target;
+      };
+      button("检查更新").click();
       await wait(() => document.body.innerText.includes("有可用更新：v0.2.0"), "Update notice missing");
       if ((await api.status()).version !== "0.1.0" || !(await api.status()).enabled) throw Error("Check changed installed state");
-      button("更新")?.click();
+      button("更新").click();
       await wait(() => Boolean(document.querySelector('[role="alert"]')), "Update failure was hidden");
       if ((await api.status()).version !== "0.1.0" || !(await api.status()).enabled) throw Error("Failed update lost old enabled package");
-      button("更新")?.click();
+      button("更新").click();
       await wait(() => document.body.innerText.includes("v0.2.0") && document.body.innerText.includes("当前已是最新兼容版本"), "Update did not finish");
       if ((await api.status()).version !== "0.2.0" || !(await api.status()).enabled) throw Error("Update lost enable preference");
       await (window as unknown as { setFixtureLanguage: (language: string) => Promise<unknown> }).setFixtureLanguage("en");
@@ -110,6 +116,8 @@ void app.whenReady().then(async () => {
     };
     const opened = await win.webContents.executeJavaScript(`(${uiChecks.toString()})()`);
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    // 夹具每个下标对应一条事件（工具结果合并到调用），ID 从 1 开始；时间线提示不再包含消息摘要。
+    const timelineMark = (index: number) => `.timeline button[data-event-id="${index + 1}"]`;
     const pointOf = (selector: string) => win.webContents.executeJavaScript(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) throw Error(${JSON.stringify(selector)} + " missing");
@@ -152,7 +160,7 @@ void app.whenReady().then(async () => {
       throw Error(${JSON.stringify(message)} + ": " + document.body.innerText);
     })()`);
     // 真实鼠标点时间线块，列表应定位并展开；不用 element.click()，以覆盖指针捕获路径。
-    await clickSelector('.timeline button[aria-label="User · fixture message 12"]');
+    await clickSelector(timelineMark(12));
     await waitInPage(`() => {
       const pane = document.querySelector(".detail.trace-detail");
       return Boolean(document.querySelector('.event-row[aria-current="true"][title="fixture message 12"]')) &&
@@ -211,8 +219,9 @@ void app.whenReady().then(async () => {
       const pane = document.querySelector(".detail.trace-detail");
       if (!pane || document.querySelector(".events .detail") || !pane.querySelector("pre")?.textContent?.includes("fixture message 12"))
         throw Error("Selected detail must stay open in the right-hand pane");
-      const mark = (label: string) => document.querySelector<HTMLElement>(`.timeline button[aria-label="${label}"]`);
-      if (!mark("User · fixture message 0")?.dataset.dimmed || mark("User · fixture message 122")?.dataset.dimmed) throw Error("Timeline marks outside the range must be dimmed");
+      const mark = (index: number) => document.querySelector<HTMLElement>(`.timeline button[data-event-id="${index + 1}"]`);
+      const outside = mark(0), inside = mark(122);
+      if (!outside || !inside || !outside.dataset.dimmed || inside.dataset.dimmed) throw Error("Timeline marks outside the range must be dimmed");
       if (Array.from(document.querySelectorAll(".trace-events .event-row")).some(row => !row.hasAttribute("data-dimmed") && /fixture message (1[0-1]?[0-9]|[0-9])$/.test(row.getAttribute("title") ?? "")))
         throw Error("Out-of-range rows must be dimmed");
       if (document.body.innerText.includes("Selected range") || document.body.innerText.includes("Clear range")) throw Error("Range badge must be removed");
@@ -244,12 +253,12 @@ void app.whenReady().then(async () => {
     await dragRange();
     await waitInPage('() => Boolean(document.querySelector(".event-row[data-dimmed]"))', "Range was not reapplied");
     // 点框选外的时间线块：同样只取消框选。
-    await clickSelector('.timeline button[aria-label="User · fixture message 0"]');
+    await clickSelector(timelineMark(0));
     await assertRangeClearedKeeping("fixture message 0", "Dimmed timeline mark should only clear the range");
     await dragRange();
     await waitInPage('() => Boolean(document.querySelector(".event-row[data-dimmed]"))', "Range was not reapplied");
     // 点选区内的时间线块：仍应定位并展开。
-    await clickSelector('.timeline button[aria-label="User · fixture message 122"]');
+    await clickSelector(timelineMark(122));
     await waitInPage(`() => Boolean(document.querySelector('.event-row[aria-current="true"][title="fixture message 122"]:not([data-dimmed])')) && Boolean(document.querySelector(".detail.trace-detail")) && !document.querySelector(".events .detail")`, "In-range timeline click did not locate");
     await clickSelector('.event-row[title="fixture message 123"]:not([data-dimmed])');
     await waitInPage(`() => Boolean(document.querySelector('.event-row[aria-current="true"][title="fixture message 123"]:not([data-dimmed])')) && Boolean(document.querySelector(".detail.trace-detail"))`, "In-range list row click did not select");
@@ -316,12 +325,12 @@ void app.whenReady().then(async () => {
     }`, "Timeline jump was reset by search");
     await searchInPage("fixture message 219");
     await waitInPage(`() => document.querySelector('[role="status"]')?.textContent === "1 event" && Boolean(document.querySelector('.event-row[title="fixture message 219"]'))`, "Search for 219 failed");
-    await clickSelector('.timeline button[aria-label="User · fixture message 149"]');
+    await clickSelector(timelineMark(149));
     await delay(400);
     await assertJump("fixture message 149");
     await searchInPage("fixture message 23");
     await delay(40); // 输入已进入 React 状态，但 180ms 防抖尚未触发。再次点同一块会取消选中，所以改点另一块。
-    await clickSelector('.timeline button[aria-label="User · fixture message 148"]');
+    await clickSelector(timelineMark(148));
     await delay(400);
     await assertJump("fixture message 148");
     await searchInPage("fixture message 219");
