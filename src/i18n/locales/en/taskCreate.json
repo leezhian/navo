@@ -1,0 +1,108 @@
+{
+  "agent": {
+    "configure": "Task agent configuration",
+    "select": "Select agent",
+    "model": "Model",
+    "mode": "Mode",
+    "effort": "Thought level",
+    "noEffort": "This model provides no thought-level options",
+    "empty": "No agents are available to select. Check enabled, installation and sign-in status in Settings → Agents.",
+    "loading": "Reading model options…",
+    "pending": "Waiting for background update…",
+    "useDefault": "Use default agent",
+    "unavailable": "The selected agent, model or configuration is no longer available. Select it again.",
+    "bypassWarning": "This mode will bypass permission prompts when a session is launched. Use only in trusted workspaces."
+  },
+  "actions": {
+    "open": "Create task",
+    "creating": "Creating…"
+  },
+  "composer": {
+    "description": "Task description",
+    "placeholder": "Describe the task…"
+  },
+  "links": {
+    "addIssue": "Add issue",
+    "addPullRequest": "Add PR",
+    "resizePreview": "Resize list and preview",
+    "unknownProvider": "Unknown provider",
+    "loadError": "Unable to load task associations",
+    "search": "Search items",
+    "searchPlaceholder": "Search titles or projects…",
+    "emptyPreview": "Select an item to preview"
+  },
+  "attachments": {
+    "menu": "Add attachment or link",
+    "add": "Add images or files"
+  },
+  "webLinks": {
+    "add": "Add link",
+    "title": "Links",
+    "url": "URL",
+    "titlePlaceholder": "Optional",
+    "invalidUrl": "Enter a valid HTTP or HTTPS URL without embedded credentials.",
+    "description": "Any url - docs, a spec, a ticket. Add a title to label the row, or leave it and the url shows."
+  },
+  "resources": {
+    "repoAdded": "Repo already added",
+    "branchAdded": "Repo and Branch already added",
+    "title": "Working directories",
+    "add": "Add repo or folder",
+    "replace": "Switch working directory",
+    "pickerTitle": "Add working directories",
+    "search": "Search resources",
+    "searchPlaceholder": "Search repos or folders…"
+  },
+  "filters": {
+    "provider": {
+      "label": "Filter by provider",
+      "any": "Any provider"
+    },
+    "pullRequestState": {
+      "label": "Filter by PR state",
+      "any": "Any State",
+      "open": "Open"
+    },
+    "repository": {
+      "any": "Any Repo",
+      "label": "Filter by repository"
+    },
+    "taskLink": {
+      "any": "Any",
+      "linked": "Has a task",
+      "unlinked": "Not task yet",
+      "label": "Filter by task association"
+    }
+  },
+  "branches": {
+    "useExisting": "Use this branch",
+    "newFrom": "New branch from here",
+    "actions": "Branch options: {{branch}}",
+    "existingLabel": "Use {{branch}}",
+    "selectSource": "Choose base branch",
+    "source": "Base branch",
+    "searchPlaceholder": "Search branches…",
+    "local": "Local branches",
+    "remote": "Remote branches",
+    "noMatches": "No matching branches",
+    "worktree": "Isolated worktree",
+    "repositoryBranch": "New branch in repo",
+    "useCurrent": "Use current branch",
+    "detachedHead": "Detached HEAD",
+    "target": "Target branch",
+    "cancelEdit": "Cancel branch name edit",
+    "confirmName": "Confirm branch name"
+  },
+  "errors": {
+    "invalidBranch": "Invalid branch name. Change the name or the branch prefix in Settings.",
+    "branchExists": "The target branch already exists. Choose another name.",
+    "invalidSource": "The base branch is no longer available. Select it again.",
+    "emptyRepository": "The repo has no commits yet. A task workspace cannot be created.",
+    "dirtyRepository": "The repo has uncommitted changes. Resolve them or use an isolated worktree.",
+    "resourceChanged": "The working directory or branch changed. Select the resource again.",
+    "duplicateResource": "A repo or directory cannot be added more than once.",
+    "filesOnly": "Only files can be attached, not directories.",
+    "attachmentMissing": "An attachment is no longer available. Choose the file again.",
+    "retained": "Creation did not finish. Some branches or working directories were kept. Inspect them before retrying."
+  }
+}

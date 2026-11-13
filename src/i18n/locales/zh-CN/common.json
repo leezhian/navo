@@ -1,0 +1,81 @@
+{
+  "sort": {
+    "property": "排序属性",
+    "ascendingAction": "升序，点击切换为降序",
+    "descendingAction": "降序，点击切换为升序",
+    "label": "排序"
+  },
+  "fields": {
+    "title": "标题",
+    "details": "详情",
+    "tag": "标签",
+    "project": "项目",
+    "status": "状态",
+    "time": "时间",
+    "group": "分组",
+    "date": "日期",
+    "name": "名称",
+    "unknown": "未知"
+  },
+  "actions": {
+    "reload": "重新加载",
+    "create": "创建",
+    "rename": "重命名",
+    "restore": "恢复",
+    "archive": "归档",
+    "reset": "重置",
+    "back": "后退",
+    "forward": "前进",
+    "delete": "删除",
+    "copyPath": "复制路径",
+    "close": "关闭",
+    "retry": "重试",
+    "reveal": "在文件系统中打开",
+    "open": "打开",
+    "copy": "复制",
+    "refresh": "刷新",
+    "edit": "编辑",
+    "remove": "移除",
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "add": "添加"
+  },
+  "selection": {
+    "selectItem": "选择：{{title}}",
+    "removeItem": "移除：{{title}}",
+    "previewItem": "预览：{{title}}",
+    "count": "已选择 {{count}} 项"
+  },
+  "status": {
+    "checkingProgress": "检查中…",
+    "checking": "检查中",
+    "loading": "读取中",
+    "saving": "保存中…",
+    "refreshing": "正在刷新"
+  },
+  "display": {
+    "label": "显示选项",
+    "fields": "展示字段",
+    "list": "列表",
+    "board": "看板"
+  },
+  "empty": {
+    "options": "暂无选项",
+    "projects": "暂无项目"
+  },
+  "groups": {
+    "label": "{{group}} 分组"
+  },
+  "feedback": {
+    "copied": "已复制"
+  },
+  "refresh": {
+    "cooldown": "{{seconds}} 秒",
+    "failed": "刷新失败，请重试"
+  },
+  "errors": {
+    "applicationFailed": "应用遇到异常，请重新加载后重试。",
+    "operationFailed": "操作失败，请重试。"
+  }
+}

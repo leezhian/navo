@@ -1,0 +1,14 @@
+{"type":"system","content":"fixture system prompt"}
+{"type":"user","content":[{"type":"text","text":"fixture first prompt"}],"prompt_index":1}
+{"type":"user","content":[{"type":"text","text":"fixture reminder"}],"synthetic_reason":"system_reminder"}
+{"type":"reasoning","id":"rsn_fixture_1","summary":[{"type":"text","text":"fixture reasoning summary"}],"encrypted_content":"redacted","status":"completed"}
+{"type":"assistant","content":"fixture checking","tool_calls":[{"id":"call_fixture_1","name":"bash","arguments":"{\"command\":\"fixture command\"}"},{"id":"call_fixture_2","name":"read_file","arguments":"{\"path\":\"fixture.txt\"}"}],"model_id":"grok-model","model_fingerprint":"fp_fixture","reasoning_effort":"high"}
+{"type":"tool_result","tool_call_id":"call_fixture_1","content":"fixture tool output"}
+{"type":"tool_result","tool_call_id":"call_fixture_2","content":"fixture missing file"}
+{"type":"assistant","content":"fixture final reply","model_id":"grok-model","model_fingerprint":"fp_fixture","reasoning_effort":"high"}
+{"type":"user","content":[{"type":"text","text":"fixture second prompt"},{"type":"image","data":"QUJDRA=="}],"prompt_index":2}
+{"type":"assistant","content":"","tool_calls":[{"id":"call_fixture_3","name":"bash","arguments":"{\"command\":\"fixture second command\"}"}],"model_id":"grok-model","model_fingerprint":"fp_fixture"}
+{"type":"tool_result","tool_call_id":"call_fixture_3","content":"fixture untimed output"}
+
+{"type":"assistant","content":"fixture broken
+{"type":"future_record","value":1}

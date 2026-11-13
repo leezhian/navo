@@ -1,0 +1,50 @@
+diff --git a/dist/ghostty-web.js b/dist/ghostty-web.js
+index a4ca427b95288e70c782ce303013cd644893dcec..f5611eafa30bbdfcd37a813137b28cf8fe4f2be9 100644
+--- a/dist/ghostty-web.js
++++ b/dist/ghostty-web.js
+@@ -1386,7 +1386,7 @@ class $ {
+    */
+   resize(A, B) {
+     const g = A * this.metrics.width, E = B * this.metrics.height;
+-    this.canvas.style.width = `${g}px`, this.canvas.style.height = `${E}px`, this.canvas.width = g * this.devicePixelRatio, this.canvas.height = E * this.devicePixelRatio, this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio), this.ctx.textBaseline = "alphabetic", this.ctx.textAlign = "left", this.ctx.fillStyle = this.theme.background, this.ctx.fillRect(0, 0, g, E);
++    this.canvas.style.width = `${g}px`, this.canvas.style.height = `${E}px`, this.canvas.width = Math.round(g * this.devicePixelRatio), this.canvas.height = Math.round(E * this.devicePixelRatio), this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio), this.ctx.textBaseline = "alphabetic", this.ctx.textAlign = "left", this.ctx.fillStyle = this.theme.background, this.ctx.fillRect(0, 0, g, E);
+   }
+   // ==========================================================================
+   // Main Rendering
+@@ -1396,9 +1396,15 @@ class $ {
+    */
+   render(A, B = !1, g = 0, E, C = 1) {
+     var U;
++    if (!this.canvas.isConnected || !this.canvas.clientWidth || !this.canvas.clientHeight || document.visibilityState === "hidden") return;
++    const currentDpr = window.devicePixelRatio || 1;
++    if (this.devicePixelRatio !== currentDpr) {
++      this.devicePixelRatio = currentDpr;
++      B = true;
++    }
+     this.currentBuffer = A;
+     const I = A.getCursor(), D = A.getDimensions(), i = E ? E.getScrollbackLength() : 0;
+-    (U = A.needsFullRedraw) != null && U.call(A) && (B = !0), (this.canvas.width !== D.cols * this.metrics.width * this.devicePixelRatio || this.canvas.height !== D.rows * this.metrics.height * this.devicePixelRatio) && (this.resize(D.cols, D.rows), B = !0), g !== this.lastViewportY && (B = !0, this.lastViewportY = g);
++    (U = A.needsFullRedraw) != null && U.call(A) && (B = !0), (this.canvas.width !== Math.round(D.cols * this.metrics.width * this.devicePixelRatio) || this.canvas.height !== Math.round(D.rows * this.metrics.height * this.devicePixelRatio)) && (this.resize(D.cols, D.rows), B = !0), g !== this.lastViewportY && (B = !0, this.lastViewportY = g);
+     const s = I.x !== this.lastCursorPosition.x || I.y !== this.lastCursorPosition.y;
+     if (s || this.cursorBlink) {
+       if (!B && !A.isRowDirty(I.y)) {
+@@ -2639,7 +2645,9 @@ class IA {
+   startRenderLoop() {
+     const A = () => {
+       if (!this.isDisposed && this.isOpen) {
+-        this.renderer.render(this.wasmTerm, !1, this.viewportY, this, this.scrollbarOpacity);
++        if (this.element?.isConnected && this.element.clientWidth > 0 && this.element.clientHeight > 0 && document.visibilityState !== "hidden") {
++          this.renderer.render(this.wasmTerm, !1, this.viewportY, this, this.scrollbarOpacity);
++        }
+         const B = this.wasmTerm.getCursor();
+         B.y !== this.lastCursorY && (this.lastCursorY = B.y, this.cursorMoveEmitter.fire()), this.animationFrameId = requestAnimationFrame(A);
+       }
+@@ -2664,7 +2672,7 @@ class IA {
+    * Clean up components (called on dispose or error)
+    */
+   cleanupComponents() {
+-    this.selectionManager && (this.selectionManager.dispose(), this.selectionManager = void 0), this.inputHandler && (this.inputHandler.dispose(), this.inputHandler = void 0), this.renderer && (this.renderer.dispose(), this.renderer = void 0), this.canvas && this.canvas.parentNode && (this.canvas.parentNode.removeChild(this.canvas), this.canvas = void 0), this.textarea && this.textarea.parentNode && (this.textarea.parentNode.removeChild(this.textarea), this.textarea = void 0), this.element && (this.element.removeEventListener("wheel", this.handleWheel), this.element.removeEventListener("mousedown", this.handleMouseDown, { capture: !0 }), this.element.removeEventListener("mousemove", this.handleMouseMove), this.element.removeEventListener("mouseleave", this.handleMouseLeave), this.element.removeEventListener("click", this.handleClick), this.element.removeAttribute("contenteditable"), this.element.removeAttribute("role"), this.element.removeAttribute("aria-label"), this.element.removeAttribute("aria-multiline")), this.isOpen && typeof document < "u" && document.removeEventListener("mouseup", this.handleMouseUp), this.scrollbarHideTimeout && (window.clearTimeout(this.scrollbarHideTimeout), this.scrollbarHideTimeout = void 0), this.linkDetector && (this.linkDetector.dispose(), this.linkDetector = void 0), this.wasmTerm && (this.wasmTerm.free(), this.wasmTerm = void 0), this.ghostty = void 0, this.element = void 0, this.textarea = void 0;
++    this.selectionManager && (this.selectionManager.dispose(), this.selectionManager = void 0), this.inputHandler && (this.inputHandler.dispose(), this.inputHandler = void 0), this.renderer && (this.renderer.dispose(), this.renderer = void 0), this.canvas && this.canvas.parentNode && (this.canvas.parentNode.removeChild(this.canvas), this.canvas = void 0), this.textarea && this.textarea.parentNode && (this.textarea.parentNode.removeChild(this.textarea), this.textarea = void 0), this.element && (this.element.removeEventListener("wheel", this.handleWheel), this.element.removeEventListener("mousedown", this.handleMouseDown, { capture: !0 }), this.element.removeEventListener("mousemove", this.handleMouseMove), this.element.removeEventListener("mouseleave", this.handleMouseLeave), this.element.removeEventListener("click", this.handleClick), this.element.removeAttribute("contenteditable"), this.element.removeAttribute("role"), this.element.removeAttribute("aria-label"), this.element.removeAttribute("aria-multiline")), typeof document < "u" && document.removeEventListener("mouseup", this.handleMouseUp), this.scrollbarHideTimeout && (window.clearTimeout(this.scrollbarHideTimeout), this.scrollbarHideTimeout = void 0), this.linkDetector && (this.linkDetector.dispose(), this.linkDetector = void 0), this.wasmTerm && (this.wasmTerm.free(), this.wasmTerm = void 0), this.ghostty = void 0, this.element = void 0, this.textarea = void 0;
+   }
+   /**
+    * Assert terminal is open (throw if not)

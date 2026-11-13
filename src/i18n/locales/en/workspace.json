@@ -1,0 +1,38 @@
+{
+  "tabs": {
+    "label": "Workspace tabs",
+    "closeLabel": "Close tab: {{title}}",
+    "closeOthers": "Close others"
+  },
+  "navigation": {
+    "tasks": "Tasks",
+    "history": "Navigation history",
+    "label": "App navigation"
+  },
+  "split": {
+    "create": "Split view",
+    "withCurrent": "Split with current tab",
+    "moveInto": "Move tab into split view",
+    "swapLeft": "Swap with left view",
+    "swapRight": "Swap with right view",
+    "swapTop": "Swap with top view",
+    "swapBottom": "Swap with bottom view",
+    "adjust": "Adjust views",
+    "cancel": "Unsplit views",
+    "closeLeft": "Close left view",
+    "closeRight": "Close right view",
+    "closeTop": "Close top view",
+    "closeBottom": "Close bottom view",
+    "stack": "Stack vertically",
+    "sideBySide": "Show side by side",
+    "reverse": "Reverse views",
+    "pickerTitle": "Choose a tab",
+    "closePicker": "Close tab picker",
+    "empty": "No tabs available for split view",
+    "resize": "Resize split views"
+  },
+  "details": {
+    "resize": "Resize {{label}} and details",
+    "ratio": "{{label}} {{percent}}%, details {{details}}%"
+  }
+}

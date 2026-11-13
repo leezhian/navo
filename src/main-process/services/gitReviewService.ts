@@ -1,0 +1,279 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import type { GitFileSnapshot } from "@/domain/diffParser";
+import type { CompareMode } from "@/domain/types";
+import type {
+  GitCommandOutput,
+  LoadReviewDiffParams,
+  OpenFileInVsCodeParams,
+  RunReviewBatchFileActionParams,
+  RunReviewFileActionParams,
+} from "../../shared/electronApi";
+import { commandSucceeds, hashDiffContent, runGit } from "./gitCommandService";
+
+interface DiffFilePath {
+  oldPath: string | null;
+  newPath: string | null;
+}
+
+interface DiffContentSource {
+  oldTreeish: string;
+  newTreeish: string | null;
+  readNewFromWorktree: boolean;
+}
+
+export async function runGitDiff(params: LoadReviewDiffParams): Promise<GitCommandOutput> {
+  const args = createDiffArgs(params.mode, params.targetBranch);
+  const output = await runGit(params.projectPath, args);
+  const fileSnapshots = await collectDiffFileSnapshots(params.projectPath, params.mode, params.targetBranch, output.stdout);
+
+  return {
+    ...output,
+    file_snapshots: fileSnapshots,
+    signature: hashDiffContent(output.stdout),
+  };
+}
+
+/**
+ * 只计算当前对比方式的 diff 内容签名，不读取文件快照。
+ * 供渲染进程在工作区事件后判断是否需要全量 refresh。
+ */
+export async function getGitDiffSignature(params: LoadReviewDiffParams): Promise<string> {
+  const args = createDiffArgs(params.mode, params.targetBranch);
+  const output = await runGit(params.projectPath, args);
+  return hashDiffContent(output.stdout);
+}
+
+/**
+ * 统计尊重 gitignore 的未跟踪文件数。
+ * 主 diff 仍只展示 tracked 改动；该计数仅用于提示条，避免把生成目录灌进审查列表。
+ */
+export async function getUntrackedFileCount(projectPath: string): Promise<number> {
+  try {
+    const output = await runGit(projectPath, ["ls-files", "--others", "--exclude-standard"]);
+    return output.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean).length;
+  } catch {
+    return 0;
+  }
+}
+
+export async function loadBranches(projectPath: string): Promise<string[]> {
+  const output = await runGit(projectPath, ["for-each-ref", "--format=%(refname:short)%00%(symref)", "refs/heads", "refs/remotes"]);
+  // 远端 HEAD 是符号引用，不作为重复的目标分支候选；只查询本机引用。
+  return output.stdout
+    .split(/\r?\n/)
+    .map((line) => line.split("\0"))
+    .filter(([name, symbolicTarget]) => name && !symbolicTarget)
+    .map(([name]) => name);
+}
+
+export async function openFileInVsCode({ projectPath, filePath }: OpenFileInVsCodeParams): Promise<void> {
+  const fullPath = path.join(projectPath, filePath);
+
+  if (await commandSucceeds("code", ["-g", fullPath])) {
+    return;
+  }
+
+  if (process.platform === "darwin" && (await commandSucceeds("open", ["-a", "Visual Studio Code", fullPath]))) {
+    return;
+  }
+
+  throw new Error("VS Code command failed");
+}
+
+export async function runReviewFileAction({ action, filePaths, projectPath }: RunReviewFileActionParams): Promise<void> {
+  if (filePaths.length === 0) return;
+  await runGit(projectPath, createFileActionArgs(action, filePaths));
+}
+
+export async function runReviewBatchFileAction({
+  action,
+  filePaths,
+  projectPath,
+}: RunReviewBatchFileActionParams): Promise<void> {
+  if (filePaths.length === 0) {
+    return;
+  }
+
+  await runGit(projectPath, createBatchFileActionArgs(action, filePaths));
+}
+
+function createDiffArgs(mode: CompareMode, targetBranch?: string): string[] {
+  const argsByMode: Record<CompareMode, string[]> = {
+    unstaged: ["diff"],
+    staged: ["diff", "--cached"],
+    branch: ["diff", `${targetBranch || "main"}...HEAD`],
+  };
+
+  if (!Object.prototype.hasOwnProperty.call(argsByMode, mode)) {
+    throw new Error("不支持的 Git 对比方式");
+  }
+
+  return [...argsByMode[mode], "--"];
+}
+
+function createFileActionArgs(action: RunReviewFileActionParams["action"], filePaths: string[]): string[] {
+  const argsByAction: Record<RunReviewFileActionParams["action"], string[]> = {
+    "restore-worktree": ["restore", "--worktree", "--", ...filePaths],
+    "restore-file": ["restore", "--staged", "--worktree", "--", ...filePaths],
+    stage: ["add", "--", ...filePaths],
+    unstage: ["restore", "--staged", "--", ...filePaths],
+  };
+
+  return argsByAction[action];
+}
+
+function createBatchFileActionArgs(action: RunReviewBatchFileActionParams["action"], filePaths: string[]): string[] {
+  const argsByAction: Record<RunReviewBatchFileActionParams["action"], string[]> = {
+    "restore-worktree-all": ["restore", "--worktree", "--", ...filePaths],
+    "stage-all": ["add", "--", ...filePaths],
+    "unstage-all": ["restore", "--staged", "--", ...filePaths],
+  };
+
+  return argsByAction[action];
+}
+
+async function collectDiffFileSnapshots(
+  projectPath: string,
+  mode: CompareMode,
+  targetBranch: string | undefined,
+  rawDiff: string,
+): Promise<GitFileSnapshot[]> {
+  const source = await createDiffContentSource(projectPath, mode, targetBranch);
+  const files = parseDiffFilePaths(rawDiff);
+
+  return Promise.all(
+    files.map(async (file) => ({
+      old_path: file.oldPath,
+      new_path: file.newPath,
+      old_content: file.oldPath ? await readOldContent(projectPath, source, file.oldPath) : null,
+      new_content: file.newPath ? await readNewContent(projectPath, source, file.newPath) : null,
+    })),
+  );
+}
+
+async function createDiffContentSource(
+  projectPath: string,
+  mode: CompareMode,
+  targetBranch?: string,
+): Promise<DiffContentSource> {
+  if (mode === "staged") {
+    return {
+      oldTreeish: "HEAD",
+      newTreeish: ":",
+      readNewFromWorktree: false,
+    };
+  }
+
+  if (mode === "branch") {
+    const branch = targetBranch || "main";
+    return {
+      oldTreeish: (await resolveMergeBase(projectPath, branch)) || branch,
+      newTreeish: "HEAD",
+      readNewFromWorktree: false,
+    };
+  }
+
+  return {
+    oldTreeish: ":",
+    newTreeish: null,
+    readNewFromWorktree: true,
+  };
+}
+
+function readOldContent(projectPath: string, source: DiffContentSource, filePath: string) {
+  return readGitObject(projectPath, source.oldTreeish, filePath);
+}
+
+function readNewContent(projectPath: string, source: DiffContentSource, filePath: string) {
+  if (source.readNewFromWorktree) {
+    return readWorktreeFile(projectPath, filePath);
+  }
+
+  return source.newTreeish ? readGitObject(projectPath, source.newTreeish, filePath) : Promise.resolve(null);
+}
+
+async function resolveMergeBase(projectPath: string, targetBranch: string) {
+  try {
+    const output = await runGit(projectPath, ["merge-base", targetBranch, "HEAD"]);
+    return output.stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readGitObject(projectPath: string, treeish: string, filePath: string) {
+  const objectPath = treeish === ":" ? `:${filePath}` : `${treeish}:${filePath}`;
+
+  try {
+    const output = await runGit(projectPath, ["show", objectPath]);
+    return output.stdout;
+  } catch {
+    return null;
+  }
+}
+
+async function readWorktreeFile(projectPath: string, filePath: string) {
+  try {
+    return await readFile(path.join(projectPath, filePath), "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function parseDiffFilePaths(rawDiff: string): DiffFilePath[] {
+  const files: DiffFilePath[] = [];
+  let current: DiffFilePath | null = null;
+
+  for (const line of rawDiff.split(/\r?\n/)) {
+    if (line.startsWith("diff --git ")) {
+      pushDiffFilePath(files, current);
+      current = parseDiffGitHeader(line);
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+
+    if (line.startsWith("--- ")) {
+      current.oldPath = normalizeDiffPath(line.slice(4));
+    } else if (line.startsWith("+++ ")) {
+      current.newPath = normalizeDiffPath(line.slice(4));
+    } else if (line.startsWith("rename from ")) {
+      current.oldPath = line.slice("rename from ".length).trim();
+    } else if (line.startsWith("rename to ")) {
+      current.newPath = line.slice("rename to ".length).trim();
+    }
+  }
+
+  pushDiffFilePath(files, current);
+  return files;
+}
+
+function pushDiffFilePath(files: DiffFilePath[], file: DiffFilePath | null) {
+  if (file && (file.oldPath || file.newPath)) {
+    files.push(file);
+  }
+}
+
+function parseDiffGitHeader(line: string): DiffFilePath {
+  const [, , oldPath, newPath] = line.split(/\s+/);
+  return {
+    oldPath: normalizeDiffPath(oldPath),
+    newPath: normalizeDiffPath(newPath),
+  };
+}
+
+function normalizeDiffPath(filePath = "") {
+  const trimmed = filePath.trim();
+
+  if (!trimmed || trimmed === "/dev/null") {
+    return null;
+  }
+
+  return trimmed.replace(/^[ab]\//, "");
+}

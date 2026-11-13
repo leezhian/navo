@@ -1,0 +1,108 @@
+{
+  "agent": {
+    "configure": "任务 Agent 配置",
+    "select": "选择 Agent",
+    "model": "模型",
+    "mode": "模式",
+    "effort": "思考等级",
+    "noEffort": "此模型未提供思考等级选项",
+    "empty": "没有可选择的 Agent。请在设置 → Agents 中检查启用、安装和登录状态。",
+    "loading": "读取模型配置…",
+    "pending": "等待后台更新…",
+    "useDefault": "使用默认 Agent",
+    "unavailable": "所选 Agent、模型或配置已不可用，请重新选择。",
+    "bypassWarning": "此模式在后续运行时会跳过权限确认，请仅在可信工作区使用。"
+  },
+  "actions": {
+    "open": "创建任务",
+    "creating": "创建中…"
+  },
+  "composer": {
+    "description": "任务描述",
+    "placeholder": "描述要完成的任务…"
+  },
+  "links": {
+    "addIssue": "关联 Issue",
+    "addPullRequest": "关联 PR",
+    "resizePreview": "调整列表与预览宽度",
+    "unknownProvider": "未知来源",
+    "loadError": "无法读取任务关联状态",
+    "search": "搜索条目",
+    "searchPlaceholder": "搜索标题或项目…",
+    "emptyPreview": "选择条目查看预览"
+  },
+  "attachments": {
+    "menu": "添加附件或链接",
+    "add": "添加图片或文件"
+  },
+  "webLinks": {
+    "add": "添加链接",
+    "title": "链接",
+    "url": "链接",
+    "titlePlaceholder": "选填",
+    "invalidUrl": "请输入有效的 HTTP 或 HTTPS 链接，且不要包含账号密码。",
+    "description": "可以添加文档、规范、工单等任意网页链接。填写标题作为条目名称，留空则显示链接。"
+  },
+  "resources": {
+    "repoAdded": "仓库已添加",
+    "branchAdded": "仓库和分支已添加",
+    "title": "工作目录",
+    "add": "添加仓库或文件夹",
+    "replace": "切换工作目录",
+    "pickerTitle": "添加工作目录",
+    "search": "搜索资源",
+    "searchPlaceholder": "搜索仓库或文件夹…"
+  },
+  "filters": {
+    "provider": {
+      "label": "服务商筛选",
+      "any": "全部服务商"
+    },
+    "pullRequestState": {
+      "label": "PR 状态筛选",
+      "any": "全部状态",
+      "open": "开放"
+    },
+    "repository": {
+      "any": "全部仓库",
+      "label": "仓库筛选"
+    },
+    "taskLink": {
+      "any": "不限",
+      "linked": "已关联任务",
+      "unlinked": "未关联任务",
+      "label": "任务关联筛选"
+    }
+  },
+  "branches": {
+    "useExisting": "使用此分支",
+    "newFrom": "从此分支新建",
+    "actions": "分支选项：{{branch}}",
+    "existingLabel": "使用 {{branch}}",
+    "selectSource": "选择源分支",
+    "source": "源分支",
+    "searchPlaceholder": "搜索分支…",
+    "local": "本地分支",
+    "remote": "远程分支",
+    "noMatches": "没有匹配的分支",
+    "worktree": "独立 Worktree",
+    "repositoryBranch": "原仓库新建分支",
+    "useCurrent": "使用当前分支",
+    "detachedHead": "分离的 HEAD",
+    "target": "目标分支",
+    "cancelEdit": "取消编辑分支名",
+    "confirmName": "确认分支名"
+  },
+  "errors": {
+    "invalidBranch": "分支名无效，请修改名称或设置中的分支前缀。",
+    "branchExists": "目标分支已存在，请更换名称。",
+    "invalidSource": "源分支已失效，请重新选择。",
+    "emptyRepository": "仓库尚无提交，暂时无法创建任务工作区。",
+    "dirtyRepository": "原仓库有未提交改动，请处理后重试，或使用独立 Worktree。",
+    "resourceChanged": "工作目录或分支状态已变化，请重新选择资源。",
+    "duplicateResource": "同一仓库或目录不能重复添加。",
+    "filesOnly": "只能添加文件，不能添加目录。",
+    "attachmentMissing": "附件已失效，请重新选择文件。",
+    "retained": "创建未完成，部分分支或工作目录已保留，请检查后重试。"
+  }
+}

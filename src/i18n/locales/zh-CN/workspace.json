@@ -1,0 +1,38 @@
+{
+  "tabs": {
+    "label": "工作区标签",
+    "closeLabel": "关闭标签：{{title}}",
+    "closeOthers": "关闭其他"
+  },
+  "navigation": {
+    "tasks": "任务",
+    "history": "页面历史",
+    "label": "应用导航"
+  },
+  "split": {
+    "create": "拆分视图",
+    "withCurrent": "与当前标签拆分",
+    "moveInto": "将标签页移至拆分视图",
+    "swapLeft": "与左侧视图交换",
+    "swapRight": "与右侧视图交换",
+    "swapTop": "与上方视图交换",
+    "swapBottom": "与下方视图交换",
+    "adjust": "调整视图",
+    "cancel": "取消拆分视图",
+    "closeLeft": "关闭左侧视图",
+    "closeRight": "关闭右侧视图",
+    "closeTop": "关闭上方视图",
+    "closeBottom": "关闭下方视图",
+    "stack": "堆叠显示",
+    "sideBySide": "并排显示",
+    "reverse": "反转视图",
+    "pickerTitle": "选择标签页",
+    "closePicker": "关闭选择标签页",
+    "empty": "没有可用于拆分的标签页",
+    "resize": "调整拆分视图大小"
+  },
+  "details": {
+    "resize": "调整{{label}}与详情宽度",
+    "ratio": "{{label}} {{percent}}%，详情 {{details}}%"
+  }
+}

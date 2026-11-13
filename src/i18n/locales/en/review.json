@@ -1,0 +1,82 @@
+{
+  "git": {
+    "statusError": "Could not load Git status",
+    "commandError": "Git command failed"
+  },
+  "commit": {
+    "pushCount_other": "Push {{count}} unpushed commits",
+    "pushCount_one": "Push {{count}} unpushed commit",
+    "title": "Commit changes",
+    "moreActions": "More commit actions",
+    "submitOrPush": "Commit or push",
+    "message": "Commit message",
+    "includeUnstaged": "Include unstaged changes",
+    "submit": "Commit",
+    "submitAndPush": "Commit and push",
+    "push": "Push"
+  },
+  "files": {
+    "resizeTree": "Resize file tree",
+    "filterPlaceholder": "Filter files…",
+    "emptyMatches": "No matching files",
+    "hideTree": "Hide file tree",
+    "showTree": "Show file tree",
+    "acceptAndStage": "Accept edits and stage",
+    "unstage": "Unstage file",
+    "stage": "Stage file",
+    "restore": "Restore file",
+    "openInEditor": "Open in VS Code",
+    "copyRelativePath": "Copy relative path",
+    "restoreAll": "Restore all",
+    "stageAll": "Stage all",
+    "unstageAll": "Unstage all"
+  },
+  "dialog": {
+    "title": "Code review",
+    "description": "Review unstaged, staged or branch changes with file navigation, comments and Git actions."
+  },
+  "diff": {
+    "expandAll": "Expand all diffs",
+    "collapseAll": "Collapse all diffs",
+    "switchUnified": "Switch to unified view",
+    "switchSplit": "Switch to split view",
+    "largeNotice": "Large diff detected. One file is displayed at a time.",
+    "skippedUntracked_other": "Only tracked changes are shown. Skipped {{count}} untracked files. Remove generated files and refresh if needed.",
+    "skippedUntracked_one": "Only tracked changes are shown. Skipped {{count}} untracked file. Remove generated files and refresh if needed.",
+    "viewBranch": "View branch diff",
+    "binaryNotice": "Code diffs are not available for binary files.",
+    "disableWordWrap": "Disable word wrap",
+    "enableWordWrap": "Enable word wrap",
+    "disableWrapping": "Disable diff wrapping",
+    "enableWrapping": "Enable diff wrapping",
+    "disableWordDiff": "Disable word diffs",
+    "enableWordDiff": "Enable word diffs"
+  },
+  "comments": {
+    "copied": "Review comments copied",
+    "empty": "No saved comments",
+    "copy": "Copy review comments",
+    "local": "Local comment",
+    "lineLabel": "Comment on line {{line}}",
+    "requestChanges": "Request changes",
+    "label": "Comment",
+    "add": "Add local comment"
+  },
+  "empty": {
+    "staged": "No staged changes",
+    "changes": "Code changes will appear here",
+    "unstaged": "No unstaged changes",
+    "comparison": "No changes for this comparison."
+  },
+  "branches": {
+    "search": "Search branches",
+    "label": "Branch"
+  },
+  "display": {
+    "label": "View options"
+  },
+  "compare": {
+    "unstaged": "Unstaged",
+    "staged": "Staged"
+  }
+}

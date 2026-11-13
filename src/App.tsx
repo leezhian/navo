@@ -1,50 +1,75 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { ApplicationShell } from "./components/layout/ApplicationShell";
+import { TaskBoard } from "./components/tasks/TaskBoard";
+import { TaskPages } from "./components/tasks/TaskPages";
+import { useTaskTabs } from "./hooks/useTaskTabs";
+import { IssueList } from "./components/issues/IssueList";
+import { SettingsPanel } from "./components/settings/SettingsPanel";
+import { TooltipProvider } from "./components/ui/tooltip";
+import { useLocalSettings } from "./hooks/useLocalSettings";
+import { useAppNavigation } from "./hooks/useAppNavigation";
 import "./App.css";
+import { useEffect, useState } from "react";
+import { TaskCreateDialog } from "./components/tasks/create/TaskCreateDialog";
+import { useTaskStore, subscribeTaskChanges } from "./stores/taskStore";
+import { useTranslation } from "react-i18next";
+import { useSettingsStore } from "./stores/settingsStore";
+import { Button } from "./components/ui/button";
+import { getSettingsError } from "./services/settingsErrors";
+import { subscribeTaskSessions } from "./stores/taskSessionStore";
+import { useTaskLinks } from "./hooks/useTaskLinks";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  useEffect(subscribeTaskSessions, []);
+  useEffect(subscribeTaskChanges, []);
+  const { resolvedTheme, settings, updateSettings } = useLocalSettings();
+  const navigation = useAppNavigation();
+  const taskLinks = useTaskLinks(navigation.selectTasks);
+  const taskTabs = useTaskTabs();
+  const [creatingTask, setCreatingTask] = useState(false);
+  const { t } = useTranslation(["common", "settings", "tasks"]);
+  const { loaded, loading, loadError, saveError, saving, bootstrap, retrySave } = useSettingsStore();
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((navigator.platform.includes("Mac") ? event.metaKey : event.ctrlKey) && event.key === ",") {
+        event.preventDefault();
+        navigation.selectSection("settings");
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigation.selectSection]);
+
+  if (!loaded) return <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background p-8 text-sm">
+    {loading || loadError === null ? t("common:status.loading") : <>
+      <p role="alert">{t("settings:errors.load")}</p><p className="text-xs text-muted-foreground">{getSettingsError(loadError)}</p>
+      <Button variant="secondary" onClick={() => void bootstrap()}>{t("common:actions.retry")}</Button>
+    </>}
+  </div>;
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <TooltipProvider delayDuration={250}>
+      <ApplicationShell section={navigation.section} canGoBack={navigation.canGoBack} canGoForward={navigation.canGoForward}
+        onGoBack={navigation.goBack} onGoForward={navigation.goForward} onSelectSection={navigation.selectSection} onCreateTask={() => setCreatingTask(true)}>
+        {saveError !== null && <div role="alert" className="settings-save-alert">
+          <span>{t("settings:errors.unsaved")} {getSettingsError(saveError)}</span><Button className="h-7 text-xs" variant="secondary" onClick={retrySave}>{t("common:actions.retry")}</Button>
+        </div>}
+        <span role="status" className="sr-only">{saving ? t("common:status.saving") : ""}</span>
+        {taskLinks.error && <div role="alert" className="settings-save-alert">
+          <span>{t(taskLinks.error === "missing" ? "tasks:taskLink.missing" : taskLinks.error === "noteMissing" ? "tasks:notes.notFound" : "tasks:taskLink.failed")}</span>
+          <Button className="h-7 text-xs" variant="secondary" onClick={taskLinks.dismiss}>{t("common:actions.close")}</Button>
+        </div>}
+        <div className="h-full" hidden={navigation.section !== "tasks" || taskTabs.activeTaskId !== null}><TaskBoard /></div>
+        <TaskPages visible={navigation.section === "tasks" && taskTabs.activeTaskId !== null} />
+        <div className="h-full" hidden={navigation.section !== "issue"}><IssueList /></div>
+        <div className="h-full" hidden={navigation.section !== "settings"}>
+          <SettingsPanel settings={settings} resolvedTheme={resolvedTheme} updateSettings={updateSettings} />
+        </div>
+      </ApplicationShell>
+      <TaskCreateDialog open={creatingTask} onOpenChange={setCreatingTask} settings={settings} onCreated={(task) => {
+        navigation.selectSection("tasks"); useTaskStore.getState().requestOpen(task.id);
+      }} />
+    </TooltipProvider>
   );
 }
 

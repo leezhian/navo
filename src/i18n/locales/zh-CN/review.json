@@ -1,0 +1,80 @@
+{
+  "git": {
+    "statusError": "无法读取 Git 状态",
+    "commandError": "Git 命令失败"
+  },
+  "commit": {
+    "pushCount_other": "推送 {{count}} 个未推送提交",
+    "title": "提交更改",
+    "moreActions": "更多提交操作",
+    "submitOrPush": "提交或推送",
+    "message": "提交信息",
+    "includeUnstaged": "包含未暂存的更改",
+    "submit": "提交",
+    "submitAndPush": "提交并推送",
+    "push": "推送"
+  },
+  "files": {
+    "resizeTree": "调整文件树宽度",
+    "filterPlaceholder": "筛选文件...",
+    "emptyMatches": "没有匹配的文件",
+    "hideTree": "隐藏文件树",
+    "showTree": "显示文件树",
+    "acceptAndStage": "接受编辑内容并暂存",
+    "unstage": "取消暂存文件",
+    "stage": "暂存文件",
+    "restore": "还原文件",
+    "openInEditor": "在 VS Code 中打开",
+    "copyRelativePath": "复制相对路径",
+    "restoreAll": "还原全部",
+    "stageAll": "暂存全部",
+    "unstageAll": "对全部取消暂存"
+  },
+  "dialog": {
+    "title": "代码差异审查",
+    "description": "查看未暂存、已暂存或分支差异，保留文件导航、评论及 Git 操作。"
+  },
+  "diff": {
+    "expandAll": "展开全部差异",
+    "collapseAll": "折叠全部差异",
+    "switchUnified": "切换到统一视图",
+    "switchSplit": "切换到分栏视图",
+    "largeNotice": "检测到大量差异：每次仅显示一个文件。",
+    "skippedUntracked_other": "仅展示已跟踪文件的改动：已跳过 {{count}} 个未跟踪文件。若为生成物请清理后刷新。",
+    "viewBranch": "查看分支差异",
+    "binaryNotice": "二进制文件不展示代码 diff。",
+    "disableWordWrap": "关闭自动换行",
+    "enableWordWrap": "开启自动换行",
+    "disableWrapping": "关闭差异换行",
+    "enableWrapping": "开启差异换行",
+    "disableWordDiff": "禁用文字差异",
+    "enableWordDiff": "启用文字差异"
+  },
+  "comments": {
+    "copied": "已复制审查评论",
+    "empty": "暂无已保存的评论",
+    "copy": "复制审查评论",
+    "local": "本地评论",
+    "lineLabel": "对第 {{line}} 行发表评论",
+    "requestChanges": "请求更改",
+    "label": "注释",
+    "add": "添加本地评论"
+  },
+  "empty": {
+    "staged": "无暂存更改",
+    "changes": "代码更改将在此处显示",
+    "unstaged": "无未暂存更改",
+    "comparison": "当前对比方式暂无改动。"
+  },
+  "branches": {
+    "search": "搜索分支",
+    "label": "分支"
+  },
+  "display": {
+    "label": "查看选项"
+  },
+  "compare": {
+    "unstaged": "未暂存",
+    "staged": "已暂存"
+  }
+}

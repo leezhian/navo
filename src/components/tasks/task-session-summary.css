@@ -1,0 +1,13 @@
+.task-session-summary { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; white-space: nowrap; font-size: 11px; font-weight: 400; line-height: 16px; font-variant-numeric: tabular-nums; color: var(--muted-foreground); cursor: default; }
+.task-session-group { display: inline-flex; align-items: center; gap: 3px; }
+.task-session-tally { display: inline-flex; align-items: center; gap: 6px; }
+.task-session-group-icon { flex-shrink: 0; width: 12px; height: 12px; }
+.task-session-group-icon[data-status="running"] { fill: currentColor; color: #518065; }
+.dark .task-session-group-icon[data-status="running"] { color: #8fbba0; }
+.task-session-group-icon[data-status="failed"] { color: var(--destructive); }
+.task-session-group-icon[data-status="starting"] { animation: task-session-group-spin 1s linear infinite; }
+@keyframes task-session-group-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .task-session-group-icon[data-status="starting"] { animation: none; } }
+
+.task-session-group-icon[data-status="unread"] { color: #3b82f6; fill: none; }
+.dark .task-session-group-icon[data-status="unread"] { color: #60a5fa; }

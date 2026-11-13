@@ -1,0 +1,69 @@
+import { ipcMain } from "electron";
+import { ipcChannels } from "../../shared/ipcChannels";
+import type {
+  ArchiveReviewSessionParams,
+  CommitChangesParams,
+  GetCommitStatusParams,
+  LoadReviewDiffParams,
+  MarkReviewSessionReadParams,
+  OpenFileInVsCodeParams,
+  ProjectPathParams,
+  RunReviewBatchFileActionParams,
+  RunReviewFileActionParams,
+} from "../../shared/electronApi";
+import { commitChanges, getCommitStatus, pushCommits } from "../services/gitCommitService";
+import {
+  getGitDiffSignature,
+  getUntrackedFileCount,
+  loadBranches,
+  openFileInVsCode,
+  runGitDiff,
+  runReviewBatchFileAction,
+  runReviewFileAction,
+} from "../services/gitReviewService";
+import { unwatchProject, watchProject } from "../services/projectChangeWatcher";
+import {
+  archiveReviewSession,
+  cleanupReviewStorage,
+  loadReviewSessions,
+  markReviewSessionRead,
+} from "../services/reviewStorage";
+
+export function registerReviewHandlers() {
+  ipcMain.handle(ipcChannels.reviewLoadSessions, () => loadReviewSessions());
+  ipcMain.handle(ipcChannels.reviewMarkSessionRead, (_event, params: MarkReviewSessionReadParams) =>
+    markReviewSessionRead(params.sessionId, params.updatedAt),
+  );
+  ipcMain.handle(ipcChannels.reviewArchiveSession, (_event, params: ArchiveReviewSessionParams) =>
+    archiveReviewSession(params.sessionId),
+  );
+  ipcMain.handle(ipcChannels.reviewCleanStorage, () => cleanupReviewStorage());
+  ipcMain.handle(ipcChannels.reviewGetCommitStatus, (_event, params: GetCommitStatusParams) => getCommitStatus(params));
+  ipcMain.handle(ipcChannels.reviewCommitChanges, (_event, params: CommitChangesParams) => commitChanges(params));
+  ipcMain.handle(ipcChannels.reviewPushCommits, (_event, params: ProjectPathParams) =>
+    pushCommits(params.projectPath),
+  );
+  ipcMain.handle(ipcChannels.reviewRunGitDiff, (_event, params: LoadReviewDiffParams) => runGitDiff(params));
+  ipcMain.handle(ipcChannels.reviewGetGitDiffSignature, (_event, params: LoadReviewDiffParams) =>
+    getGitDiffSignature(params),
+  );
+  ipcMain.handle(ipcChannels.reviewGetUntrackedFileCount, (_event, params: ProjectPathParams) =>
+    getUntrackedFileCount(params.projectPath),
+  );
+  ipcMain.handle(ipcChannels.reviewWatchProject, (_event, params: ProjectPathParams) => {
+    watchProject(params.projectPath);
+  });
+  ipcMain.handle(ipcChannels.reviewUnwatchProject, (_event, params: ProjectPathParams) => {
+    unwatchProject(params.projectPath);
+  });
+  ipcMain.handle(ipcChannels.reviewLoadBranches, (_event, projectPath: string) => loadBranches(projectPath));
+  ipcMain.handle(ipcChannels.reviewOpenFileInVsCode, (_event, params: OpenFileInVsCodeParams) =>
+    openFileInVsCode(params),
+  );
+  ipcMain.handle(ipcChannels.reviewRunBatchFileAction, (_event, params: RunReviewBatchFileActionParams) =>
+    runReviewBatchFileAction(params),
+  );
+  ipcMain.handle(ipcChannels.reviewRunFileAction, (_event, params: RunReviewFileActionParams) =>
+    runReviewFileAction(params),
+  );
+}

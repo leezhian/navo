@@ -1,0 +1,80 @@
+{
+  "all": "全部",
+  "search": "搜索消息、命令或文件",
+  "clearSearch": "清空搜索",
+  "loading": "正在读取…",
+  "empty": "没有匹配的轨迹事件",
+  "error": "读取失败，请重试",
+  "retry": "重试",
+  "errors": {
+    "INVALID_QUERY": "查询无效",
+    "SOURCE_INVALID": "记录与当前会话不匹配",
+    "SOURCE_ROOT_MISSING": "无法定位日志目录",
+    "SOURCE_MISSING": "未找到对应记录",
+    "SOURCE_UNREADABLE": "记录暂不可读",
+    "LINE_TOO_LARGE": "单条记录过大，已停止解析",
+    "CACHE_LIMIT": "轨迹索引已达到容量上限",
+    "SESSION_MISSING": "会话已移除或身份已变化",
+    "LEASE_EXPIRED": "轨迹视图已失效，请重新打开",
+    "EVENT_MISSING": "该事件已不存在，请刷新",
+    "RUNTIME_FAILED": "解析进程已退出",
+    "RUNTIME_TIMEOUT": "解析超时",
+    "EXTENSION_DISABLED": "会话轨迹已关闭",
+    "IDENTITY_PENDING": "尚未绑定原生会话标识",
+    "UNSUPPORTED_PROVIDER": "此 Agent 的轨迹格式暂不支持"
+  },
+  "previous": "上一页",
+  "next": "下一页",
+  "content": "内容",
+  "raw": "原始 JSON",
+  "result": "执行结果",
+  "input": "输入",
+  "model": "模型",
+  "tools": "工具",
+  "missing": "未记录",
+  "running": "运行中",
+  "injected": "自动注入",
+  "clipped": "内容较长，仅展示部分",
+  "axis": {
+    "duration": "时长",
+    "useEqualWidth": "使用等宽操作",
+    "useActualDuration": "使用实际时长"
+  },
+  "hover": {
+    "total": "总计 {{ms}} 毫秒"
+  },
+  "timelineClipped": "时间线仅展示前 1000 条带时间事件",
+  "timelineMissing": "该会话未记录时间，无法使用时间线和框选",
+  "following": "跟随新事件",
+  "showAll": "显示全部",
+  "showAllHint": "显示默认隐藏的记账记录",
+  "bookkeeping": "记账",
+  "requestUnknown": "日志未提供可靠的模型请求边界",
+  "kinds": {
+    "user": "用户",
+    "assistant": "助手",
+    "reasoning": "推理",
+    "context": "上下文",
+    "system": "系统",
+    "tool": "工具",
+    "error": "错误",
+    "compaction": "压缩",
+    "unknown": "未知"
+  },
+  "group": "轮 {{round}}",
+  "requestGroup": "轮 {{round}} · 模型请求 {{request}}",
+  "counts": {
+    "turns_other": "{{count}} 轮对话",
+    "requests_other": "{{count}} 次模型请求",
+    "tools_other": "{{count}} 个工具",
+    "events_other": "{{count}} 条事件",
+    "errors_other": "{{count}} 次错误"
+  },
+  "unknown": {
+    "turns": "— 轮对话",
+    "requests": "— 次模型请求",
+    "tools": "— 个工具"
+  },
+  "filter": "按类型筛选",
+  "resizeDetail": "调整详情宽度"
+}

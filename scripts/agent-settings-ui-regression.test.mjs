@@ -1,0 +1,182 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { test } from "node:test";
+import electron from "electron";
+import { createServer } from "vite";
+
+test("Agent 设置：稳定首屏、四种 CLI、路径保存、命令确认、串行更新与取消", { timeout: 60000 }, async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "navo-agents-ui-"));
+  const { default: tailwindcss } = await import("@tailwindcss/vite");
+  const server = await createServer({ configFile: false, appType: "custom", root: process.cwd(), cacheDir: path.join(directory, "cache"), logLevel: "error",
+    plugins: [tailwindcss()], esbuild: { jsx: "automatic" }, resolve: { alias: { "@": path.resolve("src") } }, worker: { format: "es" }, server: { host: "127.0.0.1", port: 0 } });
+  server.middlewares.use("/__agents", async (_request, response) => {
+    response.setHeader("Content-Type", "text/html");
+    response.end(await server.transformIndexHtml("/__agents", `<div id="root"></div><script type="module">
+      import React from 'react'; import {createRoot} from 'react-dom/client'; import '/src/App.css';
+      import i18n from '/src/i18n/index.ts'; import {SettingsPanel} from '/src/components/settings/SettingsPanel.tsx';
+      import {defaultSettings} from '/src/domain/settings.ts'; import {TooltipProvider} from '/src/components/ui/tooltip.tsx';
+      import {useSettingsStore} from '/src/stores/settingsStore.ts';useSettingsStore.setState({logFilePath:'/fixtures/logs/navo.log'});
+      await i18n.changeLanguage('zh-CN'); window.setLocale=locale=>i18n.changeLanguage(locale);
+      let snapshot={defaultAgent:null,secureStorageAvailable:true,configurations:['claude','codex','grok','antigravity'].map(id=>({id,enabled:true,customPath:'',args:[],environmentNames:id==='claude'?['EXISTING_TOKEN']:[]}))};
+      window.starts=[]; window.plans=[]; window.saved=[]; window.scans=0; window.scanIds=[]; const exits=new Set(); const output=new Set(); const changes=new Set();
+      const detected=config=>({id:config.id,status:config.id==='codex'?'missing':'installed',binaryPath:config.id==='codex'?null:config.customPath||'/test/'+config.id,version:config.id==='codex'?null:'1.2.3',source:'path',auth:config.id==='claude'?'signedIn':'unknown',actions:config.id==='codex'?['install']:config.id==='antigravity'?['manageLogin']:['login','logout','update']});
+      let installations=snapshot.configurations.map(detected);
+      const ready=new Promise(resolve=>window.releaseLoad=resolve);
+      window.notify=()=>{for(const listener of changes)listener();};
+      window.pushVersion=version=>{installations=installations.map(item=>item.id==='claude'?{...item,version}:item);window.notify();};
+      window.navo={settings:{getLogsStatus:async()=>({failed:false}),chooseDirectory:async()=>window.directoryChoice??null,revealLogFile:async()=>{window.revealedLog=true;},clearLogs:async()=>{if(window.failClear)throw Error('LOG_FAILED');window.clearedLog=true;}},agents:{
+        load:async()=>{throw new Error('Settings must read the shared snapshot');},
+        capabilitySnapshot:async()=>{await ready;const result=structuredClone({settings:snapshot,installations,entries:{}});if(window.holdSnapshot){window.holdSnapshot=false;await new Promise(resolve=>window.releaseSnapshot=resolve);}return result;},
+        onCapabilitiesChanged:listener=>{changes.add(listener);return()=>changes.delete(listener);},
+        scan:async id=>{window.scans++;window.scanIds.push(id??'all');if(window.holdScan){await new Promise(resolve=>window.resumeScan=resolve);window.holdScan=false;}installations=installations.map(item=>!id||item.id===id?detected(snapshot.configurations.find(config=>config.id===item.id)):item);window.notify();return structuredClone(installations);},
+        save:async input=>{window.saved.push(input);if(window.failSave)throw new Error('AGENT_STORAGE_FAILED');if(input.customPath==='/test/invalid')throw new Error('AGENT_INVALID_PATH');snapshot.configurations=snapshot.configurations.map(config=>config.id===input.id?{id:input.id,enabled:input.enabled,customPath:input.customPath,args:input.args,environmentNames:input.environment.map(entry=>entry.name)}:config);installations=installations.map(item=>item.id===input.id?detected(snapshot.configurations.find(config=>config.id===item.id)):item);window.notify();return structuredClone(snapshot);},
+        setDefault:async id=>{snapshot.defaultAgent=id;return structuredClone(snapshot);},chooseBinary:async()=>window.chooseResult===undefined?'/test/chosen-cli':window.chooseResult,openDocumentation:async()=>{},
+        prepare:async(id,action)=>{const plan={id,action,token:crypto.randomUUID(),command:id+' '+action};window.plans.push(plan);return plan;},discardPlans:async()=>{},
+        startOperation:async params=>{window.starts.push(params);for(const listener of output)listener({sessionId:params.sessionId,data:'TEST CLI OUTPUT\\r\\n'});},
+      },terminal:{create:async()=>{throw new Error('Must not create a plain shell');},write:async()=>{},resize:async()=>{},destroy:async params=>{window.destroyed=params.sessionId;},onData:listener=>{output.add(listener);return()=>output.delete(listener);},onExit:listener=>{exits.add(listener);return()=>exits.delete(listener);}}};
+      window.finish=code=>{const last=window.starts.at(-1);for(const listener of exits)listener({sessionId:last.sessionId,exitCode:code});};
+      function SettingsFixture(){const [settings,updateSettings]=React.useState(defaultSettings);window.currentAppSettings=settings;return React.createElement(SettingsPanel,{settings,resolvedTheme:'light',updateSettings});}
+      createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(TooltipProvider,null,React.createElement(SettingsFixture))));
+    </script>`));
+  });
+  let child;
+  try {
+    await server.listen();
+    const runner = path.join(directory, "runner.cjs");
+    await writeFile(runner, `const {app,BrowserWindow}=require('electron');app.setPath('userData',${JSON.stringify(path.join(directory, "user-data"))});app.whenReady().then(async()=>{
+      app.dock?.hide();const window=new BrowserWindow({show:false,width:1100,height:950,webPreferences:{backgroundThrottling:false}});
+      window.webContents.on('console-message',event=>{if(event.level==='error')console.error(event.message);});
+      try {await window.loadURL(${JSON.stringify("http://127.0.0.1:" + server.httpServer.address().port + "/__agents")});
+      await window.webContents.executeJavaScript(\`(async()=>{
+        const pause=()=>new Promise(resolve=>setTimeout(resolve,30));
+        async function wait(check,message){const end=Date.now()+8000;while(Date.now()<end){if(check())return;await pause();}throw new Error(message);}
+        const button=(label,root=document)=>[...root.querySelectorAll('button')].find(item=>item.textContent.trim()===label);
+        const dialog=()=>document.querySelector('[role="dialog"]');
+        await wait(()=>button('Agents'),'Missing settings navigation');
+        if(document.body.textContent.includes('诊断日志'))throw new Error('General settings must no longer display diagnostics');
+        button('关于').click();await wait(()=>document.querySelector('[role="group"][aria-label="诊断日志"]'),'Diagnostics must appear on About');
+        const logPanel=document.querySelector('[role="group"][aria-label="诊断日志"]');
+        const logRow=logPanel.closest('.settings-row');
+        if(logRow.querySelector('input')||logPanel.querySelectorAll('button').length!==3||logPanel.querySelector('.lucide-folder-open'))throw new Error('Diagnostic logs must expose only copy, open and clear actions');
+        if(document.body.textContent.includes('/fixtures/logs/navo.log')||document.querySelector('[title="/fixtures/logs/navo.log"]'))throw new Error('The log path must not be displayed or exposed in a tooltip');
+        Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedLogPath=value;}}});
+        button('复制路径',logPanel).click();await wait(()=>window.copiedLogPath==='/fixtures/logs/navo.log'&&button('已复制',logPanel),'Copy must use the full read-only log path');
+        button('打开',logPanel).click();await wait(()=>window.revealedLog,'Log open must still locate the file');await pause();
+        const clearButton=()=>[...logPanel.querySelectorAll('button')].find(item=>item.querySelector('.lucide-trash-2'));
+        window.failClear=true;clearButton().click();await wait(()=>logRow.querySelector('[role="alert"]'),'Clearing errors must remain visible');
+        window.failClear=false;clearButton().click();await wait(()=>window.clearedLog&&logRow.querySelector('[role="status"]'),'Retry must clear the log and show success');
+        if(window.currentAppSettings.logFilePath!=='')throw new Error('Log actions must not change the configured path');
+        await window.setLocale('en');await wait(()=>document.querySelector('[role="group"][aria-label="Diagnostic logs"]'),'About diagnostics must support English');
+        await window.setLocale('zh-CN');await pause();button('常规').click();await wait(()=>document.querySelector('input[aria-label="任务目录"]'),'General settings must remain accessible');
+        const taskDirectory=()=>document.querySelector('input[aria-label="任务目录"]');
+        if(taskDirectory()?.value!=='~/navo/tasks')throw new Error('Task directory must have a default path in General settings');
+        const directoryPicker=()=>document.querySelector('button[aria-label="选择目录: 任务目录"]');
+        window.directoryChoice='/fixtures/task-folders';directoryPicker().click();
+        await wait(()=>taskDirectory().value==='/fixtures/task-folders','Directory picker must update task directory');
+        if(window.currentAppSettings.repositoriesDirectory!=='~/navo/repos'||window.currentAppSettings.worktreesDirectory!=='~/navo/worktrees')throw new Error('Task directory must not change repository or worktree paths');
+        await wait(()=>!directoryPicker().disabled,'Directory picker must finish');
+        window.directoryChoice=null;directoryPicker().click();await pause();
+        if(taskDirectory().value!=='/fixtures/task-folders')throw new Error('Cancelling directory selection must preserve the path');
+        taskDirectory().focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(taskDirectory(),'/fixtures/edited-tasks');taskDirectory().dispatchEvent(new Event('input',{bubbles:true}));await pause();
+        taskDirectory().dispatchEvent(new FocusEvent('focusout',{bubbles:true}));
+        await wait(()=>window.currentAppSettings.tasksDirectory==='/fixtures/edited-tasks','Blur must commit manually edited task directory');
+        await window.setLocale('en');await wait(()=>document.querySelector('input[aria-label="Tasks directory"]'),'Task directory label must support English');
+        await window.setLocale('zh-CN');await wait(()=>button('Agents'),'Settings navigation must remain available');button('Agents').click();
+        await wait(()=>document.querySelector('section[aria-label="Claude Code"]'),'Initial cards must render');
+        if(document.querySelectorAll('.settings-list[aria-label]').length!==4)throw new Error('Initial detection must keep four cards visible instead of replacing the list with loading text');
+        if(document.body.textContent.includes('正在检测') || document.body.textContent.includes('未安装'))throw new Error('Pending detection must not show loading text or a false missing state');
+        const initialCard=document.querySelector('section[aria-label="Claude Code"]');
+        const initialHeight=initialCard.getBoundingClientRect().height;
+        window.releaseLoad();
+        await wait(()=>initialCard.textContent.includes('已登录'),'Initial detection did not finish');
+        if(initialCard!==document.querySelector('section[aria-label="Claude Code"]') || initialCard.getBoundingClientRect().height!==initialHeight)throw new Error('Detection must update cards in place without changing installed card height');
+        await wait(()=>document.querySelector('section[aria-label="Claude Code"]'),'Missing four CLI cards');
+        if(document.querySelectorAll('.settings-list[aria-label]').length!==4)throw new Error('Must support only four agents');
+        if(document.body.textContent.includes('Rich chat')||document.body.textContent.includes('添加账号'))throw new Error('Unsupported mode/account controls must be absent');
+        if(window.scans!==0)throw new Error('Opening settings must not scan, including StrictMode');
+        const claude=()=>document.querySelector('section[aria-label="Claude Code"]');
+        if(!claude().textContent.includes('已登录')||!document.querySelector('section[aria-label="Grok Build"]').textContent.includes('登录状态未知'))throw new Error('Real/unknown auth must differ');
+        document.querySelector('.navo-settings-navigation nav button').click();
+        await wait(()=>!claude(),'Agent page must unmount when navigating away');button('Agents').click();
+        await wait(()=>claude(),'Returning must render cached detection');
+        if(!claude()?.textContent.includes('已登录') || document.querySelectorAll('.settings-list[aria-label]').length!==4)throw new Error('Returning must retain cached cards and detection results');
+        await pause();if(window.scans!==0)throw new Error('Returning must not scan');
+        window.pushVersion('2.0.0');await wait(()=>claude().textContent.includes('2.0.0'),'Background event must update the page');
+        if(button('全部更新').disabled)throw new Error('Background snapshot reads must not lock the page');
+        window.holdSnapshot=true;window.notify();await wait(()=>window.releaseSnapshot,'Missing held snapshot');
+        window.pushVersion('3.0.0');await wait(()=>claude().textContent.includes('3.0.0'),'Newer snapshot must apply');
+        window.releaseSnapshot();await pause();if(!claude().textContent.includes('3.0.0'))throw new Error('Old snapshot must not overwrite newer results');
+        window.holdScan=true;button('重新扫描').click();await wait(()=>window.resumeScan,'Explicit scan must run');
+        if(!claude().textContent.includes('已登录'))throw new Error('Manual scan must preserve visible results');
+        window.resumeScan();await wait(()=>!button('全部更新').disabled,'Manual scan should settle');
+        if(window.scans!==1||window.scanIds[0]!=='all')throw new Error('Toolbar scan must be explicit and global');
+        if([...claude().querySelectorAll('p')].some(item=>item.textContent==='安装'))throw new Error('Duplicate installation section must be absent');
+        button('高级设置',claude()).click();await wait(()=>claude().querySelector('input'),'Missing binary path form');
+        if(claude().querySelector('textarea')||claude().querySelector('input[type="password"]')||claude().textContent.includes('启动参数')||claude().textContent.includes('环境变量'))throw new Error('Advanced settings must only edit the binary');
+        if(claude().textContent.includes('启用') || !claude().querySelector('[role="switch"][aria-label="启用 Claude Code"]'))throw new Error('Switch must have an accessible name without visible copy');
+        if(button('保存',claude()) || button('恢复默认',claude()))throw new Error('Save and restore defaults buttons must be absent');
+        const pathInput=()=>claude().querySelector('input');
+        const picker=()=>claude().querySelector('button[aria-label="选择可执行文件"]');
+        const rescan=()=>button('重新扫描',claude());
+        if(!pathInput().readOnly || pathInput().value!=='/test/claude')throw new Error('Detected path must be displayed read-only');
+        if(!(rescan().compareDocumentPosition(picker()) & Node.DOCUMENT_POSITION_FOLLOWING))throw new Error('Re-scan must be to the left of the file picker');
+        picker().click();await pause();
+        await wait(()=>window.saved.length===1 && !picker().disabled,'Choosing a file must save immediately');
+        if(window.saved[0].customPath!=='/test/chosen-cli'||window.saved[0].environment[0].value!==undefined||pathInput().value!=='/test/chosen-cli')throw new Error('Path not saved or unrelated stored settings changed');
+        if(window.scans!==1)throw new Error('Saving a path must not cause a global scan');
+        picker().click();await pause();
+        if(window.saved.length!==1)throw new Error('Choosing the same path must not save again');
+        window.chooseResult=null;picker().click();await pause();
+        if(window.saved.length!==1)throw new Error('Cancelling the picker must not save');
+        window.chooseResult='/test/invalid';picker().click();await pause();
+        await wait(()=>document.querySelector('[role="alert"]') && !picker().disabled,'Save failure must be visible');
+        if(pathInput().value!=='/test/chosen-cli')throw new Error('Save failure must preserve the last saved path');
+        window.chooseResult='/test/retry-cli';picker().click();await pause();
+        await wait(()=>window.saved.length===3 && !picker().disabled,'Choosing another path must allow retry');
+        if(document.querySelector('[role="alert"]'))throw new Error('Successful retry must clear the error');
+        window.failSave=true;rescan().click();await pause();
+        await wait(()=>window.saved.length===4 && !rescan().disabled,'Failed reset should settle');
+        if(pathInput().value!=='/test/retry-cli'||!document.querySelector('[role="alert"]'))throw new Error('Failed reset must preserve the custom path and show an error');
+        window.failSave=false;const scansBeforeReset=window.scans;rescan().click();await pause();
+        await wait(()=>window.saved.length===5 && !rescan().disabled,'Re-scan should persist automatic discovery');
+        if(window.saved[4].customPath!==''||window.scans!==scansBeforeReset+1||pathInput().value!=='/test/claude')throw new Error('Re-scan must clear custom path and display automatic detection');
+        rescan().click();await pause();
+        await wait(()=>window.scans===scansBeforeReset+2 && !rescan().disabled,'Automatic mode must still allow repeated scans');
+        if(window.scanIds.slice(1).some(id=>id!=='claude'))throw new Error('Path reset must scan only the affected Agent');
+        const scansBeforeDialog=window.scans;
+        button('全部更新').click();await wait(()=>dialog(),'Missing cancelled command confirmation');
+        button('关闭',dialog()).click();await wait(()=>!dialog(),'Unexecuted confirmation must close');await pause();
+        if(window.scans!==scansBeforeDialog)throw new Error('Closing an unexecuted confirmation must not scan');
+        button('全部更新').click();await wait(()=>dialog(),'Missing command confirmation');
+        if(window.starts.length)throw new Error('Preparing must not run commands');
+        if(dialog().querySelectorAll('pre').length!==2)throw new Error('Batch must show each command');
+        button('确认并执行',dialog()).click();await wait(()=>window.starts.length===1,'First operation did not start');
+        window.finish(1);await wait(()=>window.starts.length===2,'Failed update must not skip remaining agents');
+        window.finish(0);await wait(()=>button('关闭',dialog()),'Completed operation must remain visible');
+        if(!dialog().textContent.includes('执行失败')||!dialog().textContent.includes('命令已完成'))throw new Error('Batch results missing');
+        button('关闭',dialog()).click();await wait(()=>!dialog(),'Operation dialog should close');
+        await wait(()=>!button('全部更新').disabled,'Re-scan should settle');
+        button('全部更新').click();await wait(()=>dialog(),'Missing second confirmation');button('确认并执行',dialog()).click();
+        await wait(()=>window.starts.length===3,'Next batch did not start');button('停止并取消剩余操作',dialog()).click();
+        await wait(()=>dialog().textContent.includes('已取消'),'Cancellation must be visible');window.finish(0);await pause();
+        if(window.starts.length!==3)throw new Error('Cancellation must not launch queued update');
+        button('关闭',dialog()).click();await wait(()=>!dialog(),'Cancelled dialog should close');
+        if(window.scans!==scansBeforeDialog)throw new Error('Operation dialog close must not scan all Agents');
+        await window.setLocale('en');await wait(()=>button('Re-scan'),'Agent settings must support English');
+        if(!document.body.textContent.includes('Default agent'))throw new Error('Default setting missing');
+        button('Advanced',claude()).click();
+      })().catch(error=>{console.error(error.stack);throw error;})\`);
+      if(process.env.NAVO_AGENT_SCREENSHOT){await new Promise(resolve=>setTimeout(resolve,500));require('node:fs').writeFileSync(process.env.NAVO_AGENT_SCREENSHOT,(await window.webContents.capturePage()).toPNG());}
+      if(process.env.NAVO_ABOUT_SCREENSHOT){await window.webContents.executeJavaScript(\`(async()=>{await window.setLocale('zh-CN');await new Promise(resolve=>setTimeout(resolve,50));[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='关于').click();})()\`);await new Promise(resolve=>setTimeout(resolve,300));require('node:fs').writeFileSync(process.env.NAVO_ABOUT_SCREENSHOT,(await window.webContents.capturePage()).toPNG());}
+      app.exit(0);}catch(error){console.error(error.stack);app.exit(1);}});`);
+    const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+    let output = "";
+    child = spawn(electron, [runner], { env, stdio: ["ignore", "pipe", "pipe"], timeout: 45000 });
+    child.stdout.on("data", (chunk) => { output += chunk; }); child.stderr.on("data", (chunk) => { output += chunk; });
+    const code = await new Promise((resolve, reject) => { child.once("error", reject); child.once("exit", resolve); });
+    assert.equal(code, 0, output);
+  } finally { child?.kill(); await server.close(); await rm(directory, { recursive: true, force: true }); }
+});

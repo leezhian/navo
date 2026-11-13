@@ -1,0 +1,81 @@
+{
+  "sort": {
+    "property": "Sort property",
+    "ascendingAction": "Ascending, click to sort descending",
+    "descendingAction": "Descending, click to sort ascending",
+    "label": "Order"
+  },
+  "fields": {
+    "title": "Title",
+    "details": "Details",
+    "tag": "Tag",
+    "project": "Project",
+    "status": "Status",
+    "time": "Date",
+    "group": "Group",
+    "date": "Date",
+    "name": "Name",
+    "unknown": "Unknown"
+  },
+  "actions": {
+    "reload": "Reload",
+    "create": "Create",
+    "rename": "Rename",
+    "restore": "Restore",
+    "archive": "Archive",
+    "reset": "Reset",
+    "back": "Back",
+    "forward": "Forward",
+    "delete": "Delete",
+    "copyPath": "Copy path",
+    "close": "Close",
+    "retry": "Retry",
+    "reveal": "Reveal in file manager",
+    "open": "Open",
+    "copy": "Copy",
+    "refresh": "Refresh",
+    "edit": "Edit",
+    "remove": "Remove",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "add": "Add"
+  },
+  "selection": {
+    "selectItem": "Select: {{title}}",
+    "removeItem": "Remove: {{title}}",
+    "previewItem": "Preview: {{title}}",
+    "count": "{{count}} selected"
+  },
+  "status": {
+    "checkingProgress": "Checking…",
+    "checking": "Checking",
+    "loading": "Loading",
+    "saving": "Saving…",
+    "refreshing": "Refreshing"
+  },
+  "display": {
+    "label": "Display options",
+    "fields": "Display fields",
+    "list": "List",
+    "board": "Board"
+  },
+  "empty": {
+    "options": "No options",
+    "projects": "No projects"
+  },
+  "groups": {
+    "label": "{{group}} group"
+  },
+  "feedback": {
+    "copied": "Copied"
+  },
+  "refresh": {
+    "cooldown": "{{seconds}}s",
+    "failed": "Refresh failed. Please try again."
+  },
+  "errors": {
+    "applicationFailed": "The app encountered a problem. Reload to try again.",
+    "operationFailed": "Operation failed. Please retry."
+  }
+}
