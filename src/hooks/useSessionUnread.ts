@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { TaskSession } from "@/shared/taskSessionTypes";
-import { ensureReadBaseline, getReadMarksVersion, isSessionUnread, markSessionRead, subscribeReadMarks } from "@/utils/sessionReadMarks";
+import { ensureReadBaseline, getReadMarksVersion, isSessionUnread, markSessionRead, markSessionUnread, subscribeReadMarks } from "@/utils/sessionReadMarks";
 
 /** 订阅本机已读水位；首次调用时写入全局基线，避免历史会话全标未读。 */
 export function useSessionUnread() {
@@ -12,5 +12,6 @@ export function useSessionUnread() {
       ? session.lastReplyAt : new Date().toISOString();
     markSessionRead(session.id, at);
   }, []);
-  return { unread, markRead };
+  const markUnread = useCallback((sessionId: string) => markSessionUnread(sessionId), []);
+  return { unread, markRead, markUnread };
 }

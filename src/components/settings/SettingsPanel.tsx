@@ -1,7 +1,7 @@
 import { LabsSettingsPage } from "./LabsSettingsPage";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { Bot, Folder, Info, Palette, Plug, Search, Settings, FlaskConical } from "lucide-react";
+import { Bell, Bot, Folder, Info, Palette, Plug, Search, Settings, FlaskConical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { AboutSettingsPage } from "./AboutSettingsPage";
 import { AppearanceThemeSettings } from "./AppearanceThemeSettings";
 import { DiffAppearanceSettings } from "./DiffAppearanceSettings";
 import { GeneralSettingsPage } from "./GeneralSettingsPage";
+import { NotificationsSettingsPage } from "./NotificationsSettingsPage";
 import { AgentsSettingsPage } from "./AgentsSettingsPage";
 import { ResourcesSettingsPage } from "./ResourcesSettingsPage";
 import { IntegrationsSettingsPage } from "./IntegrationsSettingsPage";
@@ -16,9 +17,10 @@ import { SettingsPageHeader } from "./settingsPrimitives";
 import type { AppSettings, ResolvedTheme } from "@/domain/types";
 import "./settings.css";
 
-type SettingsPage = "general" | "appearance" | "agents" | "resources" | "integrations" | "labs" | "about";
+type SettingsPage = "general" | "notifications" | "appearance" | "agents" | "resources" | "integrations" | "labs" | "about";
 const settingsNavigation = [
   { id: "general" as const, title: "settings:pages.general" as const, icon: Settings },
+  { id: "notifications" as const, title: "settings:pages.notifications" as const, icon: Bell },
   { id: "appearance" as const, title: "settings:pages.appearance" as const, icon: Palette },
   { id: "agents" as const, title: "agents:title" as const, icon: Bot },
   { id: "resources" as const, title: "settings:pages.resources" as const, icon: Folder },
@@ -66,6 +68,7 @@ export function SettingsPanel({ resolvedTheme, settings, updateSettings }: Setti
       <section className="navo-settings-content" aria-label={t(settingsNavigation.find((item) => item.id === activePage)?.title ?? "settings:title")}>
         <div className="mx-auto w-full max-w-[760px]">
           {activePage === "general" && <GeneralSettingsPage settings={settings} updateSettings={updateSettings} />}
+          {activePage === "notifications" && <NotificationsSettingsPage settings={settings} updateSettings={updateSettings} />}
           {activePage === "agents" && <AgentsSettingsPage />}
           {activePage === "resources" && <ResourcesSettingsPage settings={settings} />}
           {activePage === "integrations" && <IntegrationsSettingsPage />}

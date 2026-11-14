@@ -36,7 +36,7 @@ import { WorkspaceSeparator } from "./WorkspaceSeparator";
 import { TaskBranchPane } from "./TaskBranchPane";
 import { TaskNotePane } from "./TaskNotePane";
 import { TaskNoteDialogs } from "./TaskNoteDialogs";
-import type { TaskNoteOpenRequest } from "@/stores/taskTabsStore";
+import type { TaskNoteOpenRequest, TaskSessionOpenRequest } from "@/stores/taskTabsStore";
 import { TaskTitleEditor } from "./TaskTitleEditor";
 import { TaskWorkbenchMenu } from "./TaskWorkbenchMenu";
 import { useTaskNoteEditor } from "@/hooks/useTaskNoteEditor";
@@ -51,8 +51,10 @@ interface TaskWorkspaceProps {
   onOpenPage?: () => void;
   /** 来自本机链接的笔记定位，重复点击同一链接也可重新展开面板。 */
   noteRequest?: TaskNoteOpenRequest | null;
+  /** 来自本机链接的会话定位；归档会话只读打开，不恢复进程。 */
+  sessionRequest?: TaskSessionOpenRequest | null;
 }
-export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteRequest }: TaskWorkspaceProps) {
+export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteRequest, sessionRequest }: TaskWorkspaceProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const { settings, resolvedTheme, updateSettings } = useLocalSettings();
   const allSessions = useTaskSessionStore((state) => state.sessions);
@@ -62,11 +64,15 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
   const terminals = sessions.filter((session) => session.kind === "shell");
   const agents = sessions.filter((session) => session.kind === "agent");
   const [selectedAgent, setSelectedAgent] = useState<string>();
+  const [readingId, setReadingId] = useState<string>();
   const [agentPaneOpen, setAgentPaneOpen] = useState(true);
   const { startSession, invalidateSelection } = useTaskSessionCreation(task.id);
   const agentChoices = useSessionAgentChoices();
   const [selectedTerminal, setSelectedTerminal] = useState<string>();
-  const active = agents.find((session) => session.id === selectedAgent) ?? agents[agents.length - 1];
+  const archivedAgents = allSessions.filter((session) => session.taskId === task.id && session.kind === "agent" && session.archivedAt);
+  const reading = archivedAgents.find((session) => session.id === readingId);
+  const liveActive = agents.find((session) => session.id === selectedAgent) ?? agents[agents.length - 1];
+  const active = reading ?? liveActive;
   const activeTerminal = terminals.find((session) => session.id === selectedTerminal) ?? terminals[0];
   const { layout, update: updateLayout, hasSaved } = useTaskWorkspaceLayout(task.id);
   const { railWidth, rightWidth, terminalHeight, contextOpen, rightOpen, terminalOpen, expanded } = layout;
@@ -104,6 +110,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
   const [renameRequest, setRenameRequest] = useState(0);
   const [renameNoteId, setRenameNoteId] = useState<string | null>(null);
   const handledNoteRequest = useRef<TaskNoteOpenRequest | null>(null);
+  const handledSessionRequest = useRef<TaskSessionOpenRequest | null>(null);
   useEffect(() => {
     if (!noteRequest || !workspaceWidth || noteRequest.taskId !== task.id || handledNoteRequest.current === noteRequest || noteEditor.busy || noteEditor.confirmation) return;
     noteEditor.leave(() => {
@@ -138,7 +145,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
     if (!traceAvailable) setSessionView(current => current.trace ? { ...current, trace: false, suppressResume: true } : current);
   }, [traceAvailable]);
   const agentPaneVisible = showAgentPane && !(narrow && contextOpen) && !(visibleRight && rightOverlay);
-  useVisibleSessionResume(task, active, agentPaneVisible && !resumeSuppressed, rootRef);
+  useVisibleSessionResume(task, reading ? undefined : liveActive, agentPaneVisible && !resumeSuppressed && !reading, rootRef);
 
   useEffect(() => {
     const element = rootRef.current;
@@ -168,9 +175,16 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
     if (created) { setSelectedTerminal(created.id); setTerminalOpen(true); }
   }
   function selectContextSession(session: TaskSession, forceOpen = false) {
-    if (session.kind === "agent") {
+    if (session.kind === "agent" && session.archivedAt) {
+      const canTrace = Boolean(extension.status?.enabled && extension.status.compatible && TRACE_PROVIDERS.some((provider) => provider === session.agent?.agentId));
+      setReadingId(session.id);
+      setAgentPaneOpen(forceOpen || session.id !== reading?.id || !showAgentPane);
+      setExpanded(false);
+      setSessionView({ id: session.id, trace: canTrace, suppressResume: true });
+    } else if (session.kind === "agent") {
       invalidateSelection("agent");
-      setAgentPaneOpen(forceOpen || session.id !== active?.id || !showAgentPane);
+      setReadingId(undefined);
+      setAgentPaneOpen(forceOpen || session.id !== liveActive?.id || !showAgentPane);
       setSelectedAgent(session.id);
       setExpanded(false);
     } else {
@@ -180,9 +194,37 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
     }
     if (narrow) setContextOpen(false);
   }
+  /** 只读打开时压住自动恢复。解除归档后交给可见会话规则；轨迹仍开着时由 trace 继续抑制。 */
+  function releaseResumeHold(sessionId: string) {
+    setSessionView((current) => current.id === sessionId ? { ...current, suppressResume: false } : current);
+  }
+  function selectRestored(session: TaskSession) {
+    selectContextSession(session);
+    releaseResumeHold(session.id);
+  }
   function toggleTerminal() {
     invalidateSelection("shell");
     setTerminalOpen(!visibleTerminal);
+  }
+  useEffect(() => {
+    if (!sessionRequest || sessionRequest.taskId !== task.id || handledSessionRequest.current === sessionRequest) return;
+    const session = allSessions.find((item) => item.id === sessionRequest.sessionId && item.taskId === task.id && item.kind === "agent");
+    if (!session) {
+      if (useTaskSessionStore.getState().loaded) handledSessionRequest.current = sessionRequest;
+      return;
+    }
+    handledSessionRequest.current = sessionRequest;
+    selectContextSession(session, true);
+  }, [sessionRequest, allSessions, task.id]);
+  async function restoreReading() {
+    if (!reading) return;
+    const id = reading.id;
+    await useTaskSessionStore.getState().restore(id);
+    const restored = useTaskSessionStore.getState().sessions.find((item) => item.id === id);
+    setReadingId(undefined);
+    if (!restored || restored.archivedAt) return;
+    setSelectedAgent(restored.id);
+    releaseResumeHold(id);
   }
   async function addAgent(agentId: AgentId, resourceId?: string | null, sourceSessionId?: string) {
     const created = await startSession({ kind: "agent", agentId, resourceId, sourceSessionId });
@@ -310,7 +352,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
             agentChoices={agentChoices} onNewSession={(id, resourceId) => void addAgent(id, resourceId)} onNewTerminal={(resourceId) => void addTerminal(resourceId)}
             onNewSessionFrom={(id, sourceSessionId) => void addAgent(id, undefined, sourceSessionId)}
             archivePending={pending} onArchive={(id) => void useTaskSessionStore.getState().archive(id)}
-            onSelect={selectContextSession}
+            onSelect={selectContextSession} onRestored={selectRestored}
             newSessionControl={newSessionControl} newTerminalControl={newTerminalControl} onReview={showBranch}
             onAddResource={setAddCategory} onFile={(id) => runResource(() => getTasksApi().revealResourceFile(task.id, id))}
             onWorkspaceOpenError={() => setPreview({ title: t("tasks:workspaceOpen.failed"), body: t("tasks:workspaceOpen.failedDetail") })}
@@ -321,8 +363,8 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
         {contextOpen && !narrow && <WorkspaceSeparator label={t("tasks:runtime.resizeContext")} value={railWidth} min={160} max={300} onDelta={(delta) => setRailWidth((width) => Math.max(160, Math.min(300, (rootRef.current?.clientWidth ?? 620) - 320, width + delta)))} />}
       <div className="task-workbench-content" ref={contentRef}>
         {showUpper && <div className="task-workbench-upper">
-        {showAgentPane && <div className="task-agent-container"><AgentSessionPane task={task} session={active} newSessionControl={newSessionControl}
-          traceAvailable={traceAvailable} traceSelected={traceSelected} visible={agentPaneVisible} onViewChange={trace => setSessionView({ id: active?.id, trace, suppressResume: false })}
+        {showAgentPane && <div className="task-agent-container"><AgentSessionPane task={task} session={active} newSessionControl={newSessionControl} readOnly={Boolean(reading)} onRestore={() => void restoreReading()}
+          traceAvailable={traceAvailable} traceSelected={traceSelected} visible={agentPaneVisible} onViewChange={trace => setSessionView({ id: active?.id, trace, suppressResume: Boolean(reading) })}
           emptySessionControl={<NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} withLabel />}
           onClosePane={() => { invalidateSelection("agent"); setAgentPaneOpen(false); }} /></div>}
         {visibleRight && !rightOverlay && <>

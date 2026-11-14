@@ -11,16 +11,54 @@ export function resolveSessionWorkspace(resources: TaskResource[], resourceId?: 
     : { kind: "all" };
 }
 
+export interface SessionHoverPlace {
+  project: string;
+  branch: string;
+  path: string;
+}
+
+function trimPath(value: string) {
+  return value.replace(/[\\/]+$/, "");
+}
+
+function pathTail(cwd: string) {
+  return cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? "";
+}
+
+/** 资源会话按 ID 找；旧记录只按去掉尾部分隔符的目录精确匹配。 */
+function linkedResource(session: TaskSession, resources: TaskResource[]) {
+  const workspace = session.workspace;
+  if (workspace?.kind === "resource") return resources.find((item) => item.resourceId === workspace.resourceId);
+  return resources.find((item) => session.cwd && trimPath(item.workingPath) === trimPath(session.cwd));
+}
+
+/** 全部工作树和文件夹的会话不展示项目、分支和路径。没有分支的普通文件夹只保留项目和路径。 */
+export function sessionHoverPlace(session: TaskSession, resources: TaskResource[]): SessionHoverPlace | null {
+  if (session.workspace?.kind === "all") return null;
+  const resource = linkedResource(session, resources);
+  if (resource) {
+    return {
+      project: resource.name,
+      branch: resource.mode === "folder" ? "" : resource.targetBranch || resource.sourceBranch,
+      path: resource.workingPath || session.cwd,
+    };
+  }
+  if (session.workspace?.kind === "resource") return { project: session.workspace.name, branch: session.workspace.branch, path: session.cwd };
+  return { project: pathTail(session.cwd), branch: "", path: session.cwd };
+}
+
+/** 路径过长时保留末尾，方便辨认 worktree 或项目目录。 */
+export function shortenPath(value: string, max = 42) {
+  const normalized = value.replace(/\\/g, "/");
+  if (normalized.length <= max) return normalized;
+  return `…${normalized.slice(-(max - 1))}`;
+}
+
 /** 旧会话仅按精确目录匹配；无法确认的旧记录显示目录，不冒充全局范围。 */
 export function sessionWorkspaceLabel(session: TaskSession, resources: TaskResource[], allLabel: string, unknownLabel: string) {
   if (session.workspace?.kind === "all") return allLabel;
-  const normalize = (value: string) => value.replace(/[\\/]+$/, "");
-  const workspace = session.workspace;
-  const resource = workspace?.kind === "resource"
-    ? resources.find((item) => item.resourceId === workspace.resourceId)
-    : resources.find((item) => session.cwd && normalize(item.workingPath) === normalize(session.cwd));
+  const resource = linkedResource(session, resources);
   if (resource) return resource.mode === "folder" ? resource.name : resource.targetBranch || resource.sourceBranch || resource.name;
   if (session.workspace?.kind === "resource") return session.workspace.branch || session.workspace.name;
-  const parts = session.cwd.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] || unknownLabel;
+  return pathTail(session.cwd) || unknownLabel;
 }

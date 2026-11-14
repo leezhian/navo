@@ -25,6 +25,7 @@ import { ArchivedSessions } from "./ArchivedSessions";
 import { TaskInitializationPanel } from "./TaskInitializationPanel";
 import { SessionHoverDetails } from "./SessionHoverDetails";
 import { useSessionUnread } from "@/hooks/useSessionUnread";
+import { sessionActivityText } from "@/utils/sessionActivityLabel";
 
 interface TaskResourceRailProps {
   /** 只展示真实关联资源，不填充 demo 条目。 */
@@ -54,6 +55,8 @@ interface TaskResourceRailProps {
   onNewTerminal?: (resourceId: string) => void;
   /** 左键同项切换显隐；右键 Open 传 forceOpen，始终展示所选会话。 */
   onSelect: (session: TaskSession, forceOpen?: boolean) => void;
+  /** 归档恢复后回到活动列表，并解除只读查看留下的自动恢复抑制。 */
+  onRestored: (session: TaskSession) => void;
   /** 与会话面板共用工作目录及 Agent 新建菜单。 */
   newSessionControl: ReactNode;
   /** 归档为独立操作，不触发选择；归档会终止进程并保留历史记录。 */
@@ -99,7 +102,7 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
-export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
+export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, onRestored, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
   const { unread } = useSessionUnread();
   const sessionsLoaded = useTaskSessionStore(state => state.loaded);
@@ -115,20 +118,17 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
     <TaskInitializationPanel task={task} />
     <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories")}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
     <ResourceGroup title={t("tasks:runtime.sessions")} count={agents.length + archived.length} action={newSessionControl}>
-      <ArchivedSessions sessions={archived} task={task} onRestored={onSelect} agentChoices={agentChoices} onNewSessionFrom={onNewSessionFrom} />
+      <ArchivedSessions sessions={archived} task={task} onRestored={onRestored} onOpen={onSelect} agentChoices={agentChoices} onNewSessionFrom={onNewSessionFrom} />
       {agents.map((session) => {
         const workspaceLabel = sessionWorkspaceLabel(session, task.resources ?? [], t("tasks:runtime.allWorktrees"), t("tasks:runtime.unknownWorkspace"));
         const workspace = session.workspace;
         const canCreate = task.status !== "ARCHIVED" && Boolean(workspace && (workspace.kind === "all" || task.resources?.some((resource) => resource.resourceId === workspace.resourceId)));
         const hasUnread = unread(session);
-        const statusLabel = session.status === "running" && session.phase
-          ? (session.phase === "waitingPermission" && session.waitingReason
-            ? t("tasks:runtime.phase.waitingPermissionWithReason", { reason: session.waitingReason })
-            : t(`tasks:runtime.phase.${session.phase}`))
-          : t(`tasks:runtime.status.${session.status}`);
+        const activity = sessionActivityText(session);
+        const statusLabel = "reason" in activity ? t(activity.key, { reason: activity.reason }) : t(activity.key);
         return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={archivePending} onOpen={() => onSelect(session, true)} onArchive={() => onArchive(session.id)} onNewSession={onNewSessionFrom}>
         <div className="task-context-session" data-active={session.id === activeId} data-unread={hasUnread || undefined}>
-        <SessionHoverDetails session={session} workspaceLabel={workspaceLabel} unread={hasUnread}>
+        <SessionHoverDetails session={session} resources={task.resources ?? []}>
         <button className="task-context-session-select" aria-pressed={session.id === activeId} onClick={() => onSelect(session)}>
           <ContextItemIcon><AgentProviderIcon agentId={session.agent?.agentId} /></ContextItemIcon>
           <span className="min-w-0 flex-1"><span className="flex min-w-0 w-full items-center gap-1"><span className="block min-w-0 truncate">{session.title || t("tasks:runtime.untitledSession")}</span>{hasUnread && <span className="task-context-session-unread" aria-label={t("tasks:runtime.status.unread")} />}</span>

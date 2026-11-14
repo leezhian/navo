@@ -21,6 +21,9 @@
     "changed": "内容已被其他视图或 Agent 修改，请保留草稿并重新打开最新内容后再操作。",
     "workspaceBusy": "请先停止使用此工作目录的会话、终端或初始化命令。",
     "archived": "已归档 {{count}}",
+    "archivedSearch": "查找归档会话…",
+    "archivedEmpty": "没有匹配的归档会话",
+    "readArchived": "只读查看归档会话",
     "restoreSession": "归档于 {{date}} · 点击恢复，不自动启动",
     "snapshot": "此会话仅有启动快照，尚未接入实时上下文；重新启动后按 CLI 能力接入。",
     "file": "上下文文件随任务修改更新，Agent 按约定每轮重新读取；不保证模型已读取。点击复制读取提示，可粘贴到原终端。",
@@ -367,24 +370,47 @@
     "deleteNativeDescription": "将停止并永久删除「{{name}}」的 CLI 原生会话历史及 Navo 会话记录。不会删除任务、仓库或工作目录，操作无法撤销。",
     "nativeActionsUnavailable": "此 Agent 暂无可靠的原生会话管理能力。",
     "nativeActionFailed": "CLI 会话记录操作失败，Navo 记录已保留。请检查 CLI、文件权限或稍后重试。",
+    "copySessionLink": "复制会话链接",
+    "archivedReadOnly": "只读。恢复后可以继续。",
+    "archivedOpenTrace": "使用右上角的轨迹查看这条会话的原生记录。",
+    "archivedNoTranscript": "终端滚动内容没有保存。安装并启用会话轨迹后，可以只读查看原生记录；也可以恢复会话后继续。",
     "markRead": "标为已读",
+    "markUnread": "标为未读",
     "phase": {
       "answering": "回答中",
+      "reasoning": "思考中",
+      "executingTool": "执行工具",
+      "waitingModel": "等待模型",
       "idle": "空闲",
       "waitingPermission": "等待权限",
       "waitingPermissionWithReason": "等待权限（{{reason}}）"
     },
     "hover": {
       "lastActive": "最近活动",
+      "lastReply": "最后一次回复",
+      "lastPrompt": "最后一次 prompt",
       "workspace": "工作范围",
       "status": "进程状态",
       "phase": "运行相位",
       "waitingReason": "等待原因",
-      "unread": "未读"
+      "config": "运行配置",
+      "error": "失败原因",
+      "unread": "未读",
+      "contextPercent": "上下文 {{percent}}%"
+    },
+    "notify": {
+      "replyTitle": "{{name}} 已回复",
+      "replyBody": "回复结束",
+      "permissionTitle": "{{name}} 需要权限",
+      "permissionBody": "等待权限：{{reason}}",
+      "permissionFallback": "等待权限",
+      "failureTitle": "{{name}} 失败",
+      "failureBody": "出错停止"
     }
   },
   "taskLink": {
     "missing": "本机找不到此任务，任务可能已被删除或属于其他设备。",
+    "sessionMissing": "本机找不到此会话，它可能已被删除。",
     "failed": "无法打开任务链接，请重新打开链接。"
   }
 }

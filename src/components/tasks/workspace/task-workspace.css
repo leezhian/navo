@@ -37,6 +37,7 @@
 .task-context-session-status { flex-shrink: 0; }
 .task-context-session-status[data-status="running"] { color: #518065; }
 .dark .task-context-session-status[data-status="running"] { color: #8fbba0; }
+.task-context-session-status[data-phase="waitingPermission"] { color: var(--session-waiting); }
 .task-context-session-status[data-status="failed"] { color: var(--destructive); }
 .task-context-session-archive, .task-context-change-actions { position: absolute; right: 8px; bottom: 8px; }
 .task-context-change-actions { display: flex; align-items: center; gap: 2px; }

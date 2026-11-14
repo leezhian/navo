@@ -15,8 +15,8 @@ export interface NativeActivityCapability {
 /** 各 Agent 能力矩阵：只登记已在本机原生记录中核实过的结构化事件，不扫描终端、不注入 hooks。 */
 export const NATIVE_ACTIVITY_CAPABILITIES: Record<AgentId, NativeActivityCapability> = {
   grok: {
-    phases: ["answering", "idle", "waitingPermission"], waitingReason: true, reply: true,
-    source: "$GROK_HOME/sessions/<cwd>/<id>/events.jsonl：turn_started、turn_ended(outcome=completed)、permission_requested(tool_name)、permission_resolved",
+    phases: ["answering", "reasoning", "executingTool", "waitingModel", "waitingPermission", "idle"], waitingReason: true, reply: true,
+    source: "$GROK_HOME/sessions/<cwd>/<id>/events.jsonl：phase_changed（streaming_text／streaming_reasoning／tool_execution／waiting_for_model／permission_prompt）、turn_started、turn_ended(outcome=completed)、permission_requested(tool_name)、permission_resolved",
   },
   codex: {
     phases: ["answering", "idle"], waitingReason: false, reply: true,

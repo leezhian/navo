@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|---|---|---|---|
 | Claude Code | 可靠 | 可靠 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 可靠 | `projects/<cwd>/<id>.jsonl`：非 meta、非子代理、非工具结果的 `user` 记录开始回合；`system` `turn_duration` 结束回合并给出回复时间。权限弹窗不落盘 |
 | Codex | 可靠 | 可靠 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 可靠 | `state_N.sqlite` `threads.rollout_path` 定位 rollout JSONL：`event_msg` `task_started` 开始，`task_complete` 结束并给出回复时间，`turn_aborted` 结束但不算回复。审批请求不落盘 |
-| Grok Build | 可靠 | 可靠 | 可靠 | 不支持 | 可靠（工具名） | 不支持 | 不支持 | 可靠 | `sessions/<cwd>/<id>/events.jsonl`：`turn_started`、`turn_ended`（仅 `outcome=completed` 算回复）、`permission_requested{tool_name}`、`permission_resolved` |
+| Grok Build | 可靠，另含思考中、执行工具、等待模型 | 可靠 | 可靠 | 不支持 | 可靠（工具名） | 不支持 | 不支持 | 可靠 | `sessions/<cwd>/<id>/events.jsonl`：`phase_changed` 的 `streaming_text`、`streaming_reasoning`、`tool_execution`、`waiting_for_model`、`permission_prompt`；`turn_started`、`turn_ended`（仅 `outcome=completed` 算回复）、`permission_requested{tool_name}`、`permission_resolved`。未列出的 `phase` 值忽略 |
 | Antigravity | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | `transcript.jsonl` 无明确回合结束事件，`PLANNER_RESPONSE` 在一回合内多次出现，无法确认回复完成 |
 
 取值：可靠／不支持。可靠项须写明事件或元数据来源，并有回归用例覆盖。

@@ -1,4 +1,4 @@
-import type { AppSettings, DiffDarkThemePreset, DiffIndicatorMode, DiffLightThemePreset } from "./types";
+import type { AppSettings, DiffDarkThemePreset, DiffIndicatorMode, DiffLightThemePreset, NotificationChannel, NotificationPreferences } from "./types";
 import { DEFAULT_LOCALE, normalizeLocale } from "../shared/locales";
 import type { TranslationKey } from "../i18n/types";
 import { normalizeWorkspaceOpenTarget } from "../utils/workspaceOpenTarget";
@@ -86,6 +86,49 @@ export const diffDarkThemeOptions: Array<{ label: string; value: DiffDarkThemePr
   },
 ];
 
+/** 新安装按「需要我时才打扰」：回复默认关闭，权限和错误默认开。 */
+export const defaultNotificationPreferences: NotificationPreferences = {
+  replies: { desktop: false, inApp: false },
+  questions: { desktop: true, inApp: true },
+  permissions: { desktop: true, inApp: true },
+  approvals: { desktop: true, inApp: true },
+  errors: { desktop: true, inApp: true },
+  sound: true,
+  includeForeground: false,
+};
+
+type LegacyNotificationSettings = Partial<AppSettings> & {
+  sessionNotifyReplies?: boolean;
+  sessionNotifyPermissions?: boolean;
+  sessionNotifyFailures?: boolean;
+};
+
+function normalizeChannel(value: unknown, fallback: NotificationChannel, legacyDesktop?: boolean): NotificationChannel {
+  if (value && typeof value === "object") {
+    const channel = value as Partial<NotificationChannel>;
+    return {
+      desktop: typeof channel.desktop === "boolean" ? channel.desktop : fallback.desktop,
+      inApp: typeof channel.inApp === "boolean" ? channel.inApp : fallback.inApp,
+    };
+  }
+  if (typeof legacyDesktop === "boolean") return { desktop: legacyDesktop, inApp: fallback.inApp };
+  return fallback;
+}
+
+/** 旧的三项总开关只映射到桌面通道，应用内沿用当前默认。 */
+function normalizeNotifications(value: LegacyNotificationSettings): NotificationPreferences {
+  const stored = value.notifications;
+  return {
+    replies: normalizeChannel(stored?.replies, defaultNotificationPreferences.replies, value.sessionNotifyReplies),
+    questions: normalizeChannel(stored?.questions, defaultNotificationPreferences.questions),
+    permissions: normalizeChannel(stored?.permissions, defaultNotificationPreferences.permissions, value.sessionNotifyPermissions),
+    approvals: normalizeChannel(stored?.approvals, defaultNotificationPreferences.approvals),
+    errors: normalizeChannel(stored?.errors, defaultNotificationPreferences.errors, value.sessionNotifyFailures),
+    sound: typeof stored?.sound === "boolean" ? stored.sound : defaultNotificationPreferences.sound,
+    includeForeground: stored?.includeForeground === true,
+  };
+}
+
 export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
   return {
     lastWorkspaceOpenTarget: normalizeWorkspaceOpenTarget(value.lastWorkspaceOpenTarget),
@@ -96,6 +139,7 @@ export function normalizeAppSettings(value: Partial<AppSettings>): AppSettings {
     defaultTaskMode: value.defaultTaskMode === "new-branch" || value.defaultTaskMode === "current-branch" ? value.defaultTaskMode : "worktree",
     branchPrefix: typeof value.branchPrefix === "string" ? value.branchPrefix.trim() : "navo/",
     keepAwakeDuringAgent: value.keepAwakeDuringAgent === true,
+    notifications: normalizeNotifications(value),
     logFilePath: normalizePath(value.logFilePath, ""),
     theme: value.theme === "light" || value.theme === "dark" ? value.theme : "system",
     diffViewMode: value.diffViewMode === "unified" ? "unified" : "split",
@@ -140,6 +184,7 @@ export const defaultSettings: AppSettings = {
   defaultTaskMode: "worktree",
   branchPrefix: "navo/",
   keepAwakeDuringAgent: false,
+  notifications: defaultNotificationPreferences,
   logFilePath: "",
   theme: "system",
   diffViewMode: "split",
