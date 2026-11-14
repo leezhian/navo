@@ -13,7 +13,8 @@ interface TaskPageProps {
 export function TaskPage({ task, onClose }: TaskPageProps) {
   const { t } = useTranslation(["common", "tasks"]);
   const noteRequest = useTaskTabsStore((state) => state.noteRequest?.taskId === task.id ? state.noteRequest : null);
+  const sessionRequest = useTaskTabsStore((state) => state.sessionRequest?.taskId === task.id ? state.sessionRequest : null);
   return <section className="h-full overflow-hidden rounded-[14px] bg-background" aria-label={t("tasks:page.label", { title: task.title })}>
-    <TaskDetails task={task} headingId={`task-page-heading-${task.id}`} onClose={onClose} noteRequest={noteRequest} />
+    <TaskDetails task={task} headingId={`task-page-heading-${task.id}`} onClose={onClose} noteRequest={noteRequest} sessionRequest={sessionRequest} />
   </section>;
 }

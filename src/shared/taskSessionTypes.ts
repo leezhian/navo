@@ -48,11 +48,24 @@ export interface TaskSession {
   lastActiveAt: string;
   /** CLI 原生记录中最近一次“回合完成”的时间；终端重绘不计入，作为未读依据。 */
   lastReplyAt?: string;
+  /** CLI 原生记录中最近一次用户发起回合的时间；终端输入不计入。 */
+  lastPromptAt?: string;
   /** 运行相位只在内存中维护，不落库；无能力或进程未运行时为空。 */
   phase?: TaskSessionPhase;
   /** 等待权限时事件给出的工具名；无原因字段时为空，不写占位。 */
   waitingReason?: string;
+  /** 最近一条结构化用量；只在内存中，没有上下文窗口时不推算百分比，也不估算费用。 */
+  usage?: SessionUsage;
   error?: string;
+}
+
+/** 来自 CLI 用量记录的非负整数。上下文窗口仅在该记录自己提供时存在。 */
+export interface SessionUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
+  contextWindow?: number;
 }
 
 export interface StartTaskSessionInput {

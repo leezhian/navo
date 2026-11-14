@@ -3,10 +3,12 @@ import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import { createLoader } from './helpers/load-typescript.mjs';
 
-const { taskLink, parseTaskLink } = createLoader()('src/shared/taskLinks.ts');
+const { taskLink, taskSessionLink, parseTaskLink, blockTaskLink } = createLoader()('src/shared/taskLinks.ts');
 test('本机链接往返并拒绝非任务路由、参数、凭据和路径折叠', () => {
   const id = 'e92a75d0-ef0c-4f4e-b709-d47d78230093';
   assert.deepEqual(parseTaskLink(taskLink(id)), { taskId: id });
+  assert.deepEqual(parseTaskLink(taskSessionLink(id, id)), { taskId: id, sessionId: id });
+  assert.equal(parseTaskLink(`navo://task/${id}/session/${id}?open=1`), null);
   for (const input of ['https://task/a', 'navo://task', 'navo://task/', 'navo://task/a/b', 'navo://task/a/../b', 'navo://task/a?command=run', 'navo://task/a#b', 'navo://user@task/a', 'navo://task:80/a', 'navo://task/%2Fetc', 'navo://task/%ZZ', 'navo://task/a\n', 'navo://session/a', `navo://task/${'a'.repeat(129)}`]) assert.equal(parseTaskLink(input), null, input);
 });
 
@@ -37,6 +39,16 @@ function fixture() {
   const ready = sender => handlers.get('app:task-links-ready')({ sender: sender ?? window.webContents });
   return { app, router, receive, ready, bind, deliveries, registrations };
 }
+
+test('找不到会话时不打开任务；列表未到齐时先等', () => {
+  const task = { notes: [{ id: 'note-1' }] };
+  const sessions = [{ id: 'session-1', taskId: 'task-1', kind: 'agent' }];
+  assert.equal(blockTaskLink({ taskId: 'task-1', sessionId: 'missing' }, task, false, []), 'wait');
+  assert.equal(blockTaskLink({ taskId: 'task-1', sessionId: 'missing' }, task, true, sessions), 'sessionMissing');
+  assert.equal(blockTaskLink({ taskId: 'task-1', sessionId: 'session-1' }, task, true, sessions), null);
+  assert.equal(blockTaskLink({ taskId: 'gone' }, undefined, true, sessions), 'missing');
+  assert.equal(blockTaskLink({ taskId: 'task-1' }, task, false, []), null);
+});
 
 test('冷启动保留最新链接，任务加载与订阅完成后仅交付一次，外部 sender 不能领走', () => {
   const f = fixture();
@@ -76,4 +88,15 @@ test('Windows/Linux 命令行冷启动链接也等待渲染进程', () => {
     assert.deepEqual(f.deliveries, []);
     f.ready(); assert.deepEqual(f.deliveries[0].id, { taskId: 'from-argv' });
   } finally { process.argv = original; }
+});
+
+test('归档检索忽略空白，用量百分比不超过窗口', () => {
+  const { archivedSessionMatches } = createLoader()('src/utils/archivedSessionSearch.ts');
+  const { sessionContextPercent } = createLoader()('src/utils/sessionUsageLabel.ts');
+  assert.equal(archivedSessionMatches('计划', 'main', '  '), true);
+  assert.equal(archivedSessionMatches('计划', 'main', 'MAIN'), true);
+  assert.equal(archivedSessionMatches('计划', 'main', 'zzz'), false);
+  assert.equal(sessionContextPercent({ inputTokens: 40, outputTokens: 5, cachedTokens: 5, contextWindow: 200 }), 25);
+  assert.equal(sessionContextPercent({ inputTokens: 300, contextWindow: 200 }), undefined);
+  assert.equal(sessionContextPercent({ outputTokens: 10 }), undefined);
 });

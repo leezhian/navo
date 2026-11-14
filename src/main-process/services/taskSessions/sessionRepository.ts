@@ -30,7 +30,7 @@ export class SessionRepository {
         ? new Date().toISOString() : session.lastUpdateAt || session.archivedAt || session.createdAt;
       // 运行相位与等待原因只在内存中，不写库；回复时间不算元数据变更。
       const persisted = { ...session };
-      delete persisted.phase; delete persisted.waitingReason;
+      delete persisted.phase; delete persisted.waitingReason; delete persisted.usage;
       const stored = { ...persisted, lastUpdateAt, lastActiveAt: session.lastActiveAt || session.createdAt };
       database.prepare("INSERT INTO task_sessions(namespace,task_id,id,data) VALUES(?,?,?,?) ON CONFLICT(namespace,id) DO UPDATE SET data=excluded.data")
         .run(this.namespace, session.taskId, session.id, JSON.stringify(stored));
@@ -46,5 +46,5 @@ export class SessionRepository {
 }
 
 function sessionMetadata(session: TaskSession) {
-  return JSON.parse(JSON.stringify({ ...session, lastUpdateAt: undefined, lastActiveAt: undefined, lastReplyAt: undefined, phase: undefined, waitingReason: undefined }));
+  return JSON.parse(JSON.stringify({ ...session, lastUpdateAt: undefined, lastActiveAt: undefined, lastReplyAt: undefined, lastPromptAt: undefined, phase: undefined, waitingReason: undefined, usage: undefined }));
 }

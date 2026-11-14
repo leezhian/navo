@@ -1,8 +1,8 @@
-import { open, readdir } from "node:fs/promises";
+import { open, readFile, readdir, stat } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
-import type { TaskSession, TaskSessionPhase } from "../../../shared/taskSessionTypes";
+import type { SessionUsage, TaskSession, TaskSessionPhase } from "../../../shared/taskSessionTypes";
 import { NATIVE_ACTIVITY_CAPABILITIES } from "../../../shared/taskSessionActivity";
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -15,6 +15,10 @@ export interface NativeSessionActivity {
   waitingReason?: string;
   /** 最近一次 CLI 明确记录“回合完成”的时间，作为未读依据。 */
   lastReplyAt?: string;
+  /** 最近一次用户发起回合的时间。 */
+  lastPromptAt?: string;
+  /** 最近一条用量。Codex 用上下文窗口；其余只保留 token 计数。 */
+  usage?: SessionUsage;
 }
 
 async function tail(filename: string) {
@@ -35,6 +39,23 @@ async function tail(filename: string) {
 
 const isDate = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
 const toolName = (value: unknown) => typeof value === "string" && /^[\w.:-]{1,80}$/.test(value) ? value : undefined;
+const tokenCount = (value: unknown) => typeof value === "number" && Number.isInteger(value) && value >= 0 && value < 1_000_000_000_000 ? value : undefined;
+
+function usageFrom(source: Record<string, unknown> | undefined, contextWindow?: number): SessionUsage | undefined {
+  if (!source && contextWindow === undefined) return undefined;
+  const usage: SessionUsage = {};
+  const input = tokenCount(source?.inputTokens ?? source?.input_tokens);
+  const output = tokenCount(source?.outputTokens ?? source?.output_tokens);
+  const cached = tokenCount(source?.cachedTokens ?? source?.cached_input_tokens ?? source?.cachedReadTokens);
+  const reasoning = tokenCount(source?.reasoningTokens ?? source?.reasoning_output_tokens);
+  const window = tokenCount(contextWindow);
+  if (input !== undefined) usage.inputTokens = input;
+  if (output !== undefined) usage.outputTokens = output;
+  if (cached !== undefined) usage.cachedTokens = cached;
+  if (reasoning !== undefined) usage.reasoningTokens = reasoning;
+  if (window !== undefined) usage.contextWindow = window;
+  return Object.keys(usage).length ? usage : undefined;
+}
 
 /** 只映射本机 events.jsonl 里出现过的 phase_changed 值；其余相位忽略，避免把未知事件猜成状态。 */
 const GROK_PHASES: Record<string, TaskSessionPhase> = {
@@ -50,7 +71,10 @@ function grokActivity(records: Record<string, unknown>[]): NativeSessionActivity
   const result: NativeSessionActivity = {};
   for (const record of records) {
     switch (record.type) {
-      case "turn_started": result.phase = "answering"; result.waitingReason = undefined; break;
+      case "turn_started":
+        result.phase = "answering"; result.waitingReason = undefined;
+        if (isDate(record.ts)) result.lastPromptAt = record.ts;
+        break;
       case "phase_changed": {
         const phase = typeof record.phase === "string" ? GROK_PHASES[record.phase] : undefined;
         if (!phase) break;
@@ -78,10 +102,22 @@ function codexActivity(records: Record<string, unknown>[]): NativeSessionActivit
   const result: NativeSessionActivity = {};
   for (const record of records) {
     if (record.type !== "event_msg") continue;
-    const type = (record.payload as Record<string, unknown> | undefined)?.type;
-    if (type === "task_started") result.phase = "answering";
+    const payload = record.payload as Record<string, unknown> | undefined;
+    const type = payload?.type;
+    if (type === "task_started") {
+      result.phase = "answering";
+      if (isDate(record.timestamp)) result.lastPromptAt = record.timestamp;
+    }
     else if (type === "task_complete") { result.phase = "idle"; if (isDate(record.timestamp)) result.lastReplyAt = record.timestamp; }
     else if (type === "turn_aborted") result.phase = "idle";
+    else if (type === "token_count") {
+      const info = payload?.info as Record<string, unknown> | undefined;
+      // 累计 total_token_usage 不是最近一轮，没有 last_token_usage 就不显示占用。
+      const latest = info?.last_token_usage;
+      if (!latest || typeof latest !== "object") continue;
+      const usage = usageFrom(latest as Record<string, unknown>, tokenCount(info?.model_context_window));
+      if (usage) result.usage = usage;
+    }
   }
   return result;
 }
@@ -94,7 +130,21 @@ function claudeActivity(records: Record<string, unknown>[], sessionId: string): 
     if (record.type === "user" && record.isMeta !== true) {
       const content = (record.message as Record<string, unknown> | undefined)?.content;
       const toolResult = Array.isArray(content) && content.length > 0 && content.every((item) => (item as Record<string, unknown>)?.type === "tool_result");
-      if (!toolResult) result.phase = "answering";
+      if (!toolResult) {
+        result.phase = "answering";
+        if (isDate(record.timestamp)) result.lastPromptAt = record.timestamp;
+      }
+    } else if (record.type === "assistant") {
+      const messageUsage = (record.message as Record<string, unknown> | undefined)?.usage as Record<string, unknown> | undefined;
+      if (messageUsage) {
+        const cached = (tokenCount(messageUsage.cache_read_input_tokens) ?? 0) + (tokenCount(messageUsage.cache_creation_input_tokens) ?? 0);
+        const usage = usageFrom({
+          input_tokens: messageUsage.input_tokens,
+          output_tokens: messageUsage.output_tokens,
+          cached_input_tokens: cached || undefined,
+        });
+        if (usage) result.usage = usage;
+      }
     } else if (record.type === "system" && record.subtype === "turn_duration") {
       result.phase = "idle";
       if (isDate(record.timestamp)) result.lastReplyAt = record.timestamp;
@@ -117,6 +167,18 @@ function codexRollout(root: string, id: string, files: string[]) {
   finally { db?.close(); }
 }
 
+/** Grok usage.json 的最后一轮是当前上下文占用；会话累计值不拿来冒充窗口百分比。 */
+async function grokUsage(filename: string): Promise<SessionUsage | undefined> {
+  try {
+    const info = await stat(filename);
+    if (!info.isFile() || info.size > 1_048_576) return undefined;
+    const parsed = JSON.parse(await readFile(filename, "utf8")) as Record<string, unknown>;
+    const turns = Array.isArray(parsed.turns) ? parsed.turns : [];
+    const latest = (turns.length ? turns[turns.length - 1] : parsed.session) as Record<string, unknown> | undefined;
+    return usageFrom(latest);
+  } catch { return undefined; }
+}
+
 /** 按能力矩阵读取原生记录；没有能力、未绑定原生 ID 或读不到时返回 null，调用方保持四态。 */
 export async function readNativeSessionActivity(session: TaskSession, env: NodeJS.ProcessEnv = process.env): Promise<NativeSessionActivity | null> {
   const agentId = session.agent?.agentId;
@@ -125,7 +187,11 @@ export async function readNativeSessionActivity(session: TaskSession, env: NodeJ
   try {
     if (agentId === "grok") {
       const root = session.nativeHistoryRoot || env.GROK_HOME || path.join(os.homedir(), ".grok");
-      return grokActivity(await tail(path.join(root, "sessions", encodeURIComponent(session.cwd), session.nativeSessionId, "events.jsonl")));
+      const directory = path.join(root, "sessions", encodeURIComponent(session.cwd), session.nativeSessionId);
+      const activity = grokActivity(await tail(path.join(directory, "events.jsonl")));
+      const usage = await grokUsage(path.join(directory, "usage.json"));
+      if (usage) activity.usage = usage;
+      return activity;
     }
     if (agentId === "claude") {
       const root = session.nativeHistoryRoot || env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");

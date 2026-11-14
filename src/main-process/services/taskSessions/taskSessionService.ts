@@ -96,7 +96,10 @@ export class TaskSessionService {
       await this.initialize();
       if (typeof taskId !== "string" || !taskId) throw new Error("TASK_INVALID");
       await this.loadTask(taskId);
-      for (const session of this.sessions) if (session.taskId === taskId) await this.refreshNativeMetadata(session);
+      for (const session of this.sessions) if (session.taskId === taskId) {
+        await this.refreshNativeMetadata(session);
+        await this.refreshRecordedActivity(session);
+      }
       return this.publish();
     });
   }
@@ -146,23 +149,49 @@ export class TaskSessionService {
     if (activity.phase !== session.phase || activity.waitingReason !== session.waitingReason) {
       session.phase = activity.phase; session.waitingReason = activity.waitingReason; changed = true;
     }
-    if (this.advanceReply(session, activity.lastReplyAt)) {
+    if (this.applyUsage(session, activity.usage)) changed = true;
+    if (this.advanceTurnTimes(session, activity.lastReplyAt, activity.lastPromptAt)) {
       await this.repository.save(session, { preserveUpdateTime: true });
       changed = true;
     }
     return changed;
   }
-  /** 回复时间只前进；返回是否推进。 */
-  private advanceReply(session: TaskSession, lastReplyAt?: string) {
-    if (!lastReplyAt || (session.lastReplyAt && Date.parse(lastReplyAt) <= Date.parse(session.lastReplyAt))) return false;
-    session.lastReplyAt = lastReplyAt;
+  /** 进入任务时补读已停止和归档会话。用量只留在内存；回复和提问时间只前进，写库但不更新元数据时间。 */
+  private async refreshRecordedActivity(session: TaskSession) {
+    if (session.kind !== "agent" || !session.nativeSessionId) return false;
+    const activity = await this.readActivity(session, this.titleEnvironments.get(session.id));
+    const usageChanged = this.applyUsage(session, activity?.usage);
+    const timesChanged = this.advanceTurnTimes(session, activity?.lastReplyAt, activity?.lastPromptAt);
+    if (timesChanged) await this.repository.save(session, { preserveUpdateTime: true });
+    return usageChanged || timesChanged;
+  }
+  private applyUsage(session: TaskSession, usage: TaskSession["usage"]) {
+    if (!usage) return false;
+    if (JSON.stringify(session.usage) === JSON.stringify(usage)) return false;
+    session.usage = usage;
     return true;
+  }
+  /** 已有时间不回退；没有新时间时保留原值。 */
+  private laterTime(current: string | undefined, next?: string) {
+    if (!next || (current && Date.parse(next) <= Date.parse(current))) return current;
+    return next;
+  }
+  /** 回复和提问时间只前进；返回是否有任一时间被推进。 */
+  private advanceTurnTimes(session: TaskSession, lastReplyAt?: string, lastPromptAt?: string) {
+    const reply = this.laterTime(session.lastReplyAt, lastReplyAt);
+    const prompt = this.laterTime(session.lastPromptAt, lastPromptAt);
+    const changed = reply !== session.lastReplyAt || prompt !== session.lastPromptAt;
+    if (reply) session.lastReplyAt = reply;
+    if (prompt) session.lastPromptAt = prompt;
+    return changed;
   }
   /** 结束前补读回复时间及尚未取得的原生身份/标题，避免在下一次状态检查前退出造成遗漏。 */
   private async captureFinalReply(session: TaskSession) {
     if (session.kind !== "agent") return;
     try {
-      this.advanceReply(session, (await this.readActivity(session, this.titleEnvironments.get(session.id)))?.lastReplyAt);
+      const activity = await this.readActivity(session, this.titleEnvironments.get(session.id));
+      this.advanceTurnTimes(session, activity?.lastReplyAt, activity?.lastPromptAt);
+      this.applyUsage(session, activity?.usage);
       if (!session.title || !session.resumable) await this.refreshNativeMetadata(session);
     }
     catch { /* 读取失败保留上次回复时间，不阻断停止流程。 */ }

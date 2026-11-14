@@ -34,7 +34,7 @@ test("Grok events：回合、权限等待与回复时间", async () => {
       { type: "permission_requested", tool_name: "Bash", ts: "2026-11-07T01:00:01.000Z" },
     ].map((row) => JSON.stringify(row)).join("\n"));
     assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), {
-      phase: "waitingPermission", waitingReason: "Bash",
+      phase: "waitingPermission", waitingReason: "Bash", lastPromptAt: "2026-11-07T01:00:00.000Z",
     });
     await writeFile(filename, [
       { type: "turn_started", ts: "2026-11-07T01:00:00.000Z" },
@@ -43,7 +43,7 @@ test("Grok events：回合、权限等待与回复时间", async () => {
       { type: "turn_ended", outcome: "completed", ts: "2026-11-07T01:00:03.000Z" },
     ].map((row) => JSON.stringify(row)).join("\n"));
     assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), {
-      phase: "idle", waitingReason: undefined, lastReplyAt: "2026-11-07T01:00:03.000Z",
+      phase: "idle", waitingReason: undefined, lastReplyAt: "2026-11-07T01:00:03.000Z", lastPromptAt: "2026-11-07T01:00:00.000Z",
     });
     await writeFile(filename, JSON.stringify({ type: "turn_ended", outcome: "cancelled", ts: "2026-11-07T01:00:04.000Z" }));
     assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), { phase: "idle", waitingReason: undefined });
@@ -56,10 +56,14 @@ test("Grok events：回合、权限等待与回复时间", async () => {
       { type: "phase_changed", phase: "not_a_real_phase", ts: "2026-11-07T01:01:05.000Z" },
     ].map((row) => JSON.stringify(row)).join("\n"));
     assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), {
-      phase: "waitingPermission", waitingReason: "Bash",
+      phase: "waitingPermission", waitingReason: "Bash", lastPromptAt: "2026-11-07T01:01:00.000Z",
     });
     await writeFile(filename, JSON.stringify({ type: "phase_changed", phase: "waiting_for_model", ts: "2026-11-07T01:02:00.000Z" }));
-    assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), { phase: "waitingModel", waitingReason: undefined });
+    await writeFile(path.join(directory, "usage.json"), JSON.stringify({ turns: [{ inputTokens: 1200, outputTokens: 30, cachedReadTokens: 400, reasoningTokens: 10 }] }));
+    assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), {
+      phase: "waitingModel", waitingReason: undefined,
+      usage: { inputTokens: 1200, outputTokens: 30, cachedTokens: 400, reasoningTokens: 10 },
+    });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -99,6 +103,21 @@ test("Codex rollout：经 state sqlite 定位；task_complete 才算回复", asy
     db.prepare("INSERT INTO threads (id, rollout_path) VALUES (?, ?)").run(id, rollout);
     db.close();
     const session = { ...base, agent: { agentId: "codex" } };
+    assert.deepEqual(await readNativeSessionActivity(session, { CODEX_HOME: root }), {
+      phase: "idle", lastReplyAt: "2026-11-07T03:00:01.000Z", lastPromptAt: "2026-11-07T03:00:00.000Z",
+    });
+    await writeFile(rollout, [
+      { type: "event_msg", timestamp: "2026-11-07T03:00:01.000Z", payload: { type: "task_complete" } },
+      { type: "event_msg", payload: { type: "token_count", info: { model_context_window: 200000, last_token_usage: { input_tokens: 50000, output_tokens: 10, cached_input_tokens: 1000, reasoning_output_tokens: 20 } } } },
+    ].map((row) => JSON.stringify(row)).join("\n"));
+    assert.deepEqual(await readNativeSessionActivity(session, { CODEX_HOME: root }), {
+      phase: "idle", lastReplyAt: "2026-11-07T03:00:01.000Z",
+      usage: { inputTokens: 50000, outputTokens: 10, cachedTokens: 1000, reasoningTokens: 20, contextWindow: 200000 },
+    });
+    await writeFile(rollout, [
+      { type: "event_msg", timestamp: "2026-11-07T03:00:01.000Z", payload: { type: "task_complete" } },
+      { type: "event_msg", payload: { type: "token_count", info: { model_context_window: 200000, total_token_usage: { input_tokens: 180000, output_tokens: 20, cached_input_tokens: 50000 } } } },
+    ].map((row) => JSON.stringify(row)).join("\n"));
     assert.deepEqual(await readNativeSessionActivity(session, { CODEX_HOME: root }), {
       phase: "idle", lastReplyAt: "2026-11-07T03:00:01.000Z",
     });

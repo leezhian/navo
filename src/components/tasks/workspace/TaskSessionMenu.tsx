@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Archive, ArchiveRestore, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Link, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AgentId } from "@/shared/agentTypes";
 import type { TaskSession } from "@/shared/taskSessionTypes";
@@ -10,6 +10,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuPortal, Co
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { SessionActionDialog, type SessionDialogAction } from "./SessionActionDialog";
 import { useSessionReadAction } from "@/hooks/useSessionReadAction";
+import { copySessionLink } from "@/utils/copySessionLink";
 
 interface TaskSessionMenuProps {
   /** 菜单始终作用于右击的会话，不依赖当前选中项。 */
@@ -59,6 +60,7 @@ export function TaskSessionMenu({ session, children, agentChoices, canCreate, pe
             </ContextMenuItem>) : <ContextMenuItem disabled>{t("taskCreate:agent.empty")}</ContextMenuItem>}
           </ContextMenuSubContent></ContextMenuPortal>
         </ContextMenuSub>
+        <ContextMenuItem onSelect={() => { selectedAction.current = true; void copySessionLink(session.taskId, session.id); }}><Link />{t("tasks:runtime.copySessionLink")}</ContextMenuItem>
         <ContextMenuSeparator />
         {!archived && <ContextMenuItem disabled={pending || !onArchive} onSelect={() => { selectedAction.current = true; onArchive?.(); }}><Archive />{t("tasks:runtime.archiveSession")}</ContextMenuItem>}
         <ContextMenuItem variant="destructive" disabled={pending || !nativeSupported} onSelect={() => openAction("delete")}><Trash2 />{t("tasks:runtime.deleteSession")}</ContextMenuItem>

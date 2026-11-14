@@ -21,6 +21,9 @@
     "changed": "Content changed in another view or by an Agent. Keep your draft and reopen the latest content before trying again.",
     "workspaceBusy": "Stop sessions, terminals or initialization commands using this workspace first.",
     "archived": "Archived {{count}}",
+    "archivedSearch": "Find an archived session…",
+    "archivedEmpty": "No archived sessions found",
+    "readArchived": "Read this archived session",
     "restoreSession": "Archived {{date}} · Click to restore without starting",
     "snapshot": "This session only has a startup snapshot. Restart to connect live context where the CLI supports it.",
     "file": "The context file updates with task changes. The Agent is instructed to reread it each turn; reading is not guaranteed. Click to copy a reminder for the existing terminal.",
@@ -375,6 +378,10 @@
     "deleteNativeDescription": "Stop and permanently delete the native CLI history and Navo record for “{{name}}”. The task, repositories and working directories are kept. This cannot be undone.",
     "nativeActionsUnavailable": "Reliable native session management is not available for this agent yet.",
     "nativeActionFailed": "The native CLI operation failed. The Navo record is kept. Check the CLI, file permissions, or retry later.",
+    "copySessionLink": "Copy session link",
+    "archivedReadOnly": "Read-only. Restore it to keep working.",
+    "archivedOpenTrace": "Use the trace control to read this session's native history.",
+    "archivedNoTranscript": "Terminal scrollback is not saved. Install and enable session trace to read the native history, or restore the session to continue.",
     "markRead": "Mark as read",
     "markUnread": "Mark as unread",
     "phase": {
@@ -389,13 +396,15 @@
     "hover": {
       "lastActive": "Last active",
       "lastReply": "Last reply",
+      "lastPrompt": "Last prompt",
       "workspace": "Workspace",
       "status": "Process status",
       "phase": "Phase",
       "config": "Launch config",
       "error": "Failure",
       "waitingReason": "Waiting for",
-      "unread": "Unread"
+      "unread": "Unread",
+      "contextPercent": "Context {{percent}}%"
     },
     "notify": {
       "replyTitle": "{{name}} replied",
@@ -409,6 +418,7 @@
   },
   "taskLink": {
     "missing": "This task was not found on this device. It may have been deleted or belong to another device.",
+    "sessionMissing": "This session was not found on this device. It may have been deleted.",
     "failed": "Could not open the task link. Please open the link again."
   }
 }

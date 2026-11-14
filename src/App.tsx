@@ -17,7 +17,7 @@ import { useSettingsStore } from "./stores/settingsStore";
 import { Button } from "./components/ui/button";
 import { getSettingsError } from "./services/settingsErrors";
 import { subscribeTaskSessions } from "./stores/taskSessionStore";
-import { useTaskLinks } from "./hooks/useTaskLinks";
+import { taskLinkErrorKey, useTaskLinks } from "./hooks/useTaskLinks";
 import { useSessionNotifications } from "./hooks/useSessionNotifications";
 import { SessionAlertStack } from "./components/layout/SessionAlertStack";
 
@@ -40,6 +40,7 @@ function App() {
   const [creatingTask, setCreatingTask] = useState(false);
   const { t } = useTranslation(["common", "settings", "tasks"]);
   const { loaded, loading, loadError, saveError, saving, bootstrap, retrySave } = useSettingsStore();
+  const linkErrorKey = taskLinks.error ? taskLinkErrorKey(taskLinks.error) : null;
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -68,8 +69,8 @@ function App() {
         </div>}
         <span role="status" className="sr-only">{saving ? t("common:status.saving") : ""}</span>
         <SessionAlertStack alerts={sessionAlerts.alerts} onDismiss={sessionAlerts.dismiss} onOpen={openNotifiedTask} />
-        {taskLinks.error && <div role="alert" className="settings-save-alert">
-          <span>{t(taskLinks.error === "missing" ? "tasks:taskLink.missing" : taskLinks.error === "noteMissing" ? "tasks:notes.notFound" : "tasks:taskLink.failed")}</span>
+        {linkErrorKey && <div role="alert" className="settings-save-alert">
+          <span>{t(linkErrorKey)}</span>
           <Button className="h-7 text-xs" variant="secondary" onClick={taskLinks.dismiss}>{t("common:actions.close")}</Button>
         </div>}
         <div className="h-full" hidden={navigation.section !== "tasks" || taskTabs.activeTaskId !== null}><TaskBoard /></div>
