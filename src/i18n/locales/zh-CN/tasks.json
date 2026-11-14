@@ -368,19 +368,35 @@
     "nativeActionsUnavailable": "此 Agent 暂无可靠的原生会话管理能力。",
     "nativeActionFailed": "CLI 会话记录操作失败，Navo 记录已保留。请检查 CLI、文件权限或稍后重试。",
     "markRead": "标为已读",
+    "markUnread": "标为未读",
     "phase": {
       "answering": "回答中",
+      "reasoning": "思考中",
+      "executingTool": "执行工具",
+      "waitingModel": "等待模型",
       "idle": "空闲",
       "waitingPermission": "等待权限",
       "waitingPermissionWithReason": "等待权限（{{reason}}）"
     },
     "hover": {
       "lastActive": "最近活动",
+      "lastReply": "最近回复",
       "workspace": "工作范围",
       "status": "进程状态",
       "phase": "运行相位",
       "waitingReason": "等待原因",
+      "config": "运行配置",
+      "error": "失败原因",
       "unread": "未读"
+    },
+    "notify": {
+      "replyTitle": "{{name}} 已回复",
+      "replyBody": "回复结束",
+      "permissionTitle": "{{name}} 需要权限",
+      "permissionBody": "等待权限：{{reason}}",
+      "permissionFallback": "等待权限",
+      "failureTitle": "{{name}} 失败",
+      "failureBody": "出错停止"
     }
   },
   "taskLink": {

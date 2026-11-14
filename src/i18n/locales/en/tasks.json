@@ -376,19 +376,35 @@
     "nativeActionsUnavailable": "Reliable native session management is not available for this agent yet.",
     "nativeActionFailed": "The native CLI operation failed. The Navo record is kept. Check the CLI, file permissions, or retry later.",
     "markRead": "Mark as read",
+    "markUnread": "Mark as unread",
     "phase": {
       "answering": "Answering",
+      "reasoning": "Thinking",
+      "executingTool": "Running a tool",
+      "waitingModel": "Waiting for the model",
       "idle": "Idle",
       "waitingPermission": "Waiting for permission",
       "waitingPermissionWithReason": "Waiting for permission ({{reason}})"
     },
     "hover": {
       "lastActive": "Last active",
+      "lastReply": "Last reply",
       "workspace": "Workspace",
       "status": "Process status",
       "phase": "Phase",
+      "config": "Launch config",
+      "error": "Failure",
       "waitingReason": "Waiting for",
       "unread": "Unread"
+    },
+    "notify": {
+      "replyTitle": "{{name}} replied",
+      "replyBody": "Reply finished",
+      "permissionTitle": "{{name}} needs permission",
+      "permissionBody": "Waiting for permission: {{reason}}",
+      "permissionFallback": "Waiting for permission",
+      "failureTitle": "{{name}} failed",
+      "failureBody": "Stopped with an error"
     }
   },
   "taskLink": {

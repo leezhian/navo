@@ -12,7 +12,7 @@ const id = "3211c729-32c4-47d1-bde3-a89b73ea021d";
 const base = { kind: "agent", cwd: "/test/project", nativeSessionId: id, status: "running" };
 
 test("能力矩阵：Grok 全套，Claude/Codex 仅回合，Antigravity 无信号", () => {
-  assert.deepEqual(NATIVE_ACTIVITY_CAPABILITIES.grok.phases, ["answering", "idle", "waitingPermission"]);
+  assert.deepEqual(NATIVE_ACTIVITY_CAPABILITIES.grok.phases, ["answering", "reasoning", "executingTool", "waitingModel", "waitingPermission", "idle"]);
   assert.equal(NATIVE_ACTIVITY_CAPABILITIES.grok.waitingReason, true);
   assert.equal(NATIVE_ACTIVITY_CAPABILITIES.grok.reply, true);
   assert.deepEqual(NATIVE_ACTIVITY_CAPABILITIES.claude.phases, ["answering", "idle"]);
@@ -47,6 +47,19 @@ test("Grok events：回合、权限等待与回复时间", async () => {
     });
     await writeFile(filename, JSON.stringify({ type: "turn_ended", outcome: "cancelled", ts: "2026-11-07T01:00:04.000Z" }));
     assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), { phase: "idle", waitingReason: undefined });
+    await writeFile(filename, [
+      { type: "turn_started", ts: "2026-11-07T01:01:00.000Z" },
+      { type: "phase_changed", phase: "streaming_reasoning", ts: "2026-11-07T01:01:01.000Z" },
+      { type: "phase_changed", phase: "tool_execution", ts: "2026-11-07T01:01:02.000Z" },
+      { type: "phase_changed", phase: "permission_prompt", ts: "2026-11-07T01:01:03.000Z" },
+      { type: "permission_requested", tool_name: "Bash", ts: "2026-11-07T01:01:04.000Z" },
+      { type: "phase_changed", phase: "not_a_real_phase", ts: "2026-11-07T01:01:05.000Z" },
+    ].map((row) => JSON.stringify(row)).join("\n"));
+    assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), {
+      phase: "waitingPermission", waitingReason: "Bash",
+    });
+    await writeFile(filename, JSON.stringify({ type: "phase_changed", phase: "waiting_for_model", ts: "2026-11-07T01:02:00.000Z" }));
+    assert.deepEqual(await readNativeSessionActivity(session, { GROK_HOME: root }), { phase: "waitingModel", waitingReason: undefined });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

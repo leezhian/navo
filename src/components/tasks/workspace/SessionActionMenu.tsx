@@ -6,6 +6,7 @@ import { useTaskSessionStore } from "@/stores/taskSessionStore";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SessionActionDialog, type SessionDialogAction } from "./SessionActionDialog";
+import { useSessionReadAction } from "@/hooks/useSessionReadAction";
 
 interface SessionActionMenuProps {
   /** 所有操作只作用于当前会话，不删除任务或工作目录。 */
@@ -17,6 +18,8 @@ export function SessionActionMenu({ session, taskArchived = false }: SessionActi
   const { t } = useTranslation(["tasks", "common"]);
   const pending = useTaskSessionStore((state) => state.pending);
   const [action, setAction] = useState<SessionDialogAction | null>(null);
+  const readAction = useSessionReadAction(session);
+  const ReadIcon = readAction.icon;
   const nativeSupported = Boolean(session.nativeSessionId && ["claude", "grok"].includes(session.agent?.agentId ?? ""));
   const running = session.status === "running" || session.status === "starting";
   const canRestart = Boolean(session.resumable && session.nativeSessionId);
@@ -29,6 +32,7 @@ export function SessionActionMenu({ session, taskArchived = false }: SessionActi
       <DropdownMenuContent align="end" className="w-48" onCloseAutoFocus={(event) => { if (action) event.preventDefault(); }}>
         {!session.archivedAt && <>
         <DropdownMenuItem className="text-xs" disabled={!nativeSupported || pending} onSelect={() => openAction("rename")}><Pencil className="size-3.5" />{t("tasks:runtime.renameSession")}</DropdownMenuItem>
+        <DropdownMenuItem className="text-xs" onSelect={() => readAction.run()}><ReadIcon className="size-3.5" />{readAction.label}</DropdownMenuItem>
         <DropdownMenuSeparator />
         {running && <DropdownMenuItem className="text-xs" disabled={pending || taskArchived || !canRestart} title={!canRestart ? t("tasks:runtime.restartUnavailable") : undefined} onSelect={() => void useTaskSessionStore.getState().restart(session.id, false)}><RotateCcw className="size-3.5" />{t("tasks:runtime.restartAgent")}</DropdownMenuItem>}
         <DropdownMenuItem className="text-xs" disabled={pending || !running} onSelect={() => void useTaskSessionStore.getState().stop(session.id)}><Power className="size-3.5" />{t("tasks:runtime.shutdownAgent")}</DropdownMenuItem>

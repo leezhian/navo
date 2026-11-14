@@ -141,6 +141,28 @@
       "indicatorSymbols": "+/-"
     }
   },
+  "notifications": {
+    "description": "Choose how Navo tells you what your agents are doing. Desktop notifications show while Navo is in the background. In-app alerts show while you are using it.",
+    "topics": "What to notify you about",
+    "desktop": "Desktop",
+    "inApp": "In Navo",
+    "channelLabel": "{{topic}}, {{channel}}",
+    "sound": "Play a sound with desktop notifications",
+    "includeForeground": "Notify even for the task you're looking at",
+    "includeForegroundDescription": "Otherwise Navo stays quiet about the task open in the window you're using.",
+    "topic": {
+      "replies": "Replies",
+      "repliesDescription": "An agent finished replying and it's your turn.",
+      "questions": "Questions",
+      "questionsDescription": "An agent asks you something and waits for your answer.",
+      "permissions": "Permission requests",
+      "permissionsDescription": "An agent wants permission to do something.",
+      "approvals": "Approval requests",
+      "approvalsDescription": "An agent asks you to approve an action only you can approve. Until that request exists, the switch is saved and nothing is sent.",
+      "errors": "Errors",
+      "errorsDescription": "A session stops because something went wrong."
+    }
+  },
   "navigation": {
     "label": "Settings categories",
     "search": "Search settings",
@@ -149,6 +171,7 @@
   },
   "pages": {
     "general": "General",
+    "notifications": "Notifications",
     "appearance": "Appearance",
     "resources": "Repos & Folders",
     "integrations": "Integrations",

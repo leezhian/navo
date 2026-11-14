@@ -37,6 +37,7 @@
   --trace-input: #446caa;
   --trace-model: #7d60a7;
   --trace-tool: #976721;
+  --session-waiting: #9a6b2f;
   --trace-context: #3c795b;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
@@ -79,6 +80,7 @@
   --trace-input: #9cb9e7;
   --trace-model: #bfa4dc;
   --trace-tool: #d5b274;
+  --session-waiting: #d7b07a;
   --trace-context: #9bc7ab;
   --sidebar: oklch(0.25 0 0);
   --sidebar-foreground: oklch(0.985 0 0);

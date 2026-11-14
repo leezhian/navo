@@ -139,6 +139,28 @@
       "indicatorSymbols": "+/-"
     }
   },
+  "notifications": {
+    "description": "选择 Navo 如何告诉你 Agent 的进展。桌面通知在 Navo 处于后台时出现，应用内提醒在你使用 Navo 时出现。",
+    "topics": "要通知的内容",
+    "desktop": "桌面",
+    "inApp": "应用内",
+    "channelLabel": "{{topic}}，{{channel}}",
+    "sound": "桌面通知时播放提示音",
+    "includeForeground": "正在查看的任务也通知",
+    "includeForegroundDescription": "关闭后，当前窗口里打开的任务保持安静。",
+    "topic": {
+      "replies": "回复",
+      "repliesDescription": "Agent 回复结束，轮到你了。",
+      "questions": "提问",
+      "questionsDescription": "Agent 提出问题，并等待你的回答。",
+      "permissions": "权限请求",
+      "permissionsDescription": "Agent 需要你的许可才能继续。",
+      "approvals": "批准请求",
+      "approvalsDescription": "Agent 请求一项只有你能批准的操作。还没有这类请求时，开关会保存，不会发出提醒。",
+      "errors": "错误",
+      "errorsDescription": "会话因为出错而停止。"
+    }
+  },
   "navigation": {
     "label": "设置分类",
     "search": "搜索设置",
@@ -147,6 +169,7 @@
   },
   "pages": {
     "general": "常规",
+    "notifications": "通知",
     "appearance": "外观",
     "resources": "仓库与文件夹",
     "integrations": "集成",

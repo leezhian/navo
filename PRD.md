@@ -19,6 +19,7 @@ Navo 是面向本地开发者的 Agent 开发环境（ADE），将任务、项�
 | Issue | [Issue 页面](docs/prd/issues.md) |
 | 设置入口与共用规则 | [设置概览](docs/prd/settings/README.md) |
 | 设置 → 常规 | [常规设置](docs/prd/settings/general.md) |
+| 设置 → 通知 | [通知](docs/prd/settings/notifications.md) |
 | 设置 → 外观 | [外观设置](docs/prd/settings/appearance.md) |
 | 设置 → Agents | [Agents 设置](docs/prd/settings/agents.md) |
 | 设置 → 仓库与文件夹 | [仓库与文件夹](docs/prd/settings/resources.md) |

@@ -65,6 +65,25 @@ export interface ReviewSession {
   rawDiffPath?: string;
 }
 
+/** 同一类提醒可以分别发到系统桌面和应用内。 */
+export interface NotificationChannel {
+  desktop: boolean;
+  inApp: boolean;
+}
+
+/** 对齐可确认的会话事件。提问和批准先保存偏好，没有可靠信号时不发出。 */
+export interface NotificationPreferences {
+  replies: NotificationChannel;
+  questions: NotificationChannel;
+  permissions: NotificationChannel;
+  approvals: NotificationChannel;
+  errors: NotificationChannel;
+  /** 只伴随桌面通知，应用内提醒不另外出声。 */
+  sound: boolean;
+  /** 打开后，当前窗口正在查看的任务也会提醒。 */
+  includeForeground: boolean;
+}
+
 export interface AppSettings {
   /** 上次成功使用的打开方式；目标不可用时临时回退文件管理器。 */
   lastWorkspaceOpenTarget: WorkspaceOpenTarget;
@@ -80,6 +99,8 @@ export interface AppSettings {
   branchPrefix: string;
   /** Agent 生命周期尚未接入，本阶段只保存偏好。 */
   keepAwakeDuringAgent: boolean;
+  /** 会话提醒：桌面通知、应用内提醒、提示音，以及是否打扰正在查看的任务。 */
+  notifications: NotificationPreferences;
   /** 诊断日志文件位置；空值使用应用用户目录下的默认日志。 */
   logFilePath: string;
   theme: ThemePreference;

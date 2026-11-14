@@ -36,12 +36,28 @@ async function tail(filename: string) {
 const isDate = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
 const toolName = (value: unknown) => typeof value === "string" && /^[\w.:-]{1,80}$/.test(value) ? value : undefined;
 
-/** Grok events.jsonl：turn_started／turn_ended 与 permission_requested／permission_resolved。 */
+/** 只映射本机 events.jsonl 里出现过的 phase_changed 值；其余相位忽略，避免把未知事件猜成状态。 */
+const GROK_PHASES: Record<string, TaskSessionPhase> = {
+  streaming_text: "answering",
+  streaming_reasoning: "reasoning",
+  tool_execution: "executingTool",
+  waiting_for_model: "waitingModel",
+  permission_prompt: "waitingPermission",
+};
+
+/** Grok events.jsonl：phase_changed 细分回合内相位；turn_ended 结束回合，permission_* 补充工具名。 */
 function grokActivity(records: Record<string, unknown>[]): NativeSessionActivity {
   const result: NativeSessionActivity = {};
   for (const record of records) {
     switch (record.type) {
       case "turn_started": result.phase = "answering"; result.waitingReason = undefined; break;
+      case "phase_changed": {
+        const phase = typeof record.phase === "string" ? GROK_PHASES[record.phase] : undefined;
+        if (!phase) break;
+        result.phase = phase;
+        if (phase !== "waitingPermission") result.waitingReason = undefined;
+        break;
+      }
       case "turn_ended":
         result.phase = "idle"; result.waitingReason = undefined;
         if (record.outcome === "completed" && isDate(record.ts)) result.lastReplyAt = record.ts;

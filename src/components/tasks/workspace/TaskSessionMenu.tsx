@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Archive, ArchiveRestore, CheckCheck, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AgentId } from "@/shared/agentTypes";
 import type { TaskSession } from "@/shared/taskSessionTypes";
@@ -9,7 +9,7 @@ import { useTaskSessionStore } from "@/stores/taskSessionStore";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuPortal, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { SessionActionDialog, type SessionDialogAction } from "./SessionActionDialog";
-import { useSessionUnread } from "@/hooks/useSessionUnread";
+import { useSessionReadAction } from "@/hooks/useSessionReadAction";
 
 interface TaskSessionMenuProps {
   /** 菜单始终作用于右击的会话，不依赖当前选中项。 */
@@ -36,8 +36,8 @@ export function TaskSessionMenu({ session, children, agentChoices, canCreate, pe
   const selectedAction = useRef(false);
   const archived = Boolean(session.archivedAt);
   const nativeSupported = Boolean(session.nativeSessionId && ["claude", "grok"].includes(session.agent?.agentId ?? ""));
-  const { unread, markRead } = useSessionUnread();
-  const hasUnread = !archived && unread(session);
+  const readAction = useSessionReadAction(session);
+  const ReadIcon = readAction.icon;
   function openAction(next: SessionDialogAction) {
     useTaskSessionStore.setState({ error: null });
     selectedAction.current = true;
@@ -50,7 +50,7 @@ export function TaskSessionMenu({ session, children, agentChoices, canCreate, pe
         {archived ? <ContextMenuItem disabled={pending || !onRestore} onSelect={() => { selectedAction.current = true; onRestore?.(); }}><ArchiveRestore />{t("common:actions.restore")}</ContextMenuItem> : <>
           <ContextMenuItem disabled={!onOpen} onSelect={() => { selectedAction.current = true; onOpen?.(); }}>{t("common:actions.open")}</ContextMenuItem>
           <ContextMenuItem disabled={pending || !nativeSupported} onSelect={() => openAction("rename")}><Pencil />{t("tasks:runtime.renameSession")}</ContextMenuItem>
-          <ContextMenuItem disabled={!hasUnread} onSelect={() => { selectedAction.current = true; markRead(session); }}><CheckCheck />{t("tasks:runtime.markRead")}</ContextMenuItem>
+          <ContextMenuItem onSelect={() => { selectedAction.current = true; readAction.run(); }}><ReadIcon />{readAction.label}</ContextMenuItem>
         </>}
         <ContextMenuSub><ContextMenuSubTrigger className="data-disabled:pointer-events-none data-disabled:opacity-50" disabled={pending || !canCreate || !onNewSession}>{t("tasks:runtime.newSessionFrom")}</ContextMenuSubTrigger>
           <ContextMenuPortal><ContextMenuSubContent className="w-48 [&_svg]:size-3.5!">

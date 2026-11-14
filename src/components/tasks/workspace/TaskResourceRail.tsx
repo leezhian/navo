@@ -25,6 +25,7 @@ import { ArchivedSessions } from "./ArchivedSessions";
 import { TaskInitializationPanel } from "./TaskInitializationPanel";
 import { SessionHoverDetails } from "./SessionHoverDetails";
 import { useSessionUnread } from "@/hooks/useSessionUnread";
+import { sessionActivityText } from "@/utils/sessionActivityLabel";
 
 interface TaskResourceRailProps {
   /** 只展示真实关联资源，不填充 demo 条目。 */
@@ -121,11 +122,8 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
         const workspace = session.workspace;
         const canCreate = task.status !== "ARCHIVED" && Boolean(workspace && (workspace.kind === "all" || task.resources?.some((resource) => resource.resourceId === workspace.resourceId)));
         const hasUnread = unread(session);
-        const statusLabel = session.status === "running" && session.phase
-          ? (session.phase === "waitingPermission" && session.waitingReason
-            ? t("tasks:runtime.phase.waitingPermissionWithReason", { reason: session.waitingReason })
-            : t(`tasks:runtime.phase.${session.phase}`))
-          : t(`tasks:runtime.status.${session.status}`);
+        const activity = sessionActivityText(session);
+        const statusLabel = "reason" in activity ? t(activity.key, { reason: activity.reason }) : t(activity.key);
         return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={archivePending} onOpen={() => onSelect(session, true)} onArchive={() => onArchive(session.id)} onNewSession={onNewSessionFrom}>
         <div className="task-context-session" data-active={session.id === activeId} data-unread={hasUnread || undefined}>
         <SessionHoverDetails session={session} workspaceLabel={workspaceLabel} unread={hasUnread}>

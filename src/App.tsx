@@ -11,12 +11,15 @@ import "./App.css";
 import { useEffect, useState } from "react";
 import { TaskCreateDialog } from "./components/tasks/create/TaskCreateDialog";
 import { useTaskStore, subscribeTaskChanges } from "./stores/taskStore";
+import { useTaskTabsStore } from "./stores/taskTabsStore";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "./stores/settingsStore";
 import { Button } from "./components/ui/button";
 import { getSettingsError } from "./services/settingsErrors";
 import { subscribeTaskSessions } from "./stores/taskSessionStore";
 import { useTaskLinks } from "./hooks/useTaskLinks";
+import { useSessionNotifications } from "./hooks/useSessionNotifications";
+import { SessionAlertStack } from "./components/layout/SessionAlertStack";
 
 function App() {
   useEffect(subscribeTaskSessions, []);
@@ -25,6 +28,15 @@ function App() {
   const navigation = useAppNavigation();
   const taskLinks = useTaskLinks(navigation.selectTasks);
   const taskTabs = useTaskTabs();
+  const openNotifiedTask = (taskId: string) => {
+    navigation.selectSection("tasks");
+    useTaskTabsStore.getState().openTask(taskId);
+  };
+  const sessionAlerts = useSessionNotifications({
+    settings: settings.notifications,
+    onOpenTask: openNotifiedTask,
+    workspaceVisible: navigation.section === "tasks" && taskTabs.activeTaskId !== null,
+  });
   const [creatingTask, setCreatingTask] = useState(false);
   const { t } = useTranslation(["common", "settings", "tasks"]);
   const { loaded, loading, loadError, saveError, saving, bootstrap, retrySave } = useSettingsStore();
@@ -55,6 +67,7 @@ function App() {
           <span>{t("settings:errors.unsaved")} {getSettingsError(saveError)}</span><Button className="h-7 text-xs" variant="secondary" onClick={retrySave}>{t("common:actions.retry")}</Button>
         </div>}
         <span role="status" className="sr-only">{saving ? t("common:status.saving") : ""}</span>
+        <SessionAlertStack alerts={sessionAlerts.alerts} onDismiss={sessionAlerts.dismiss} onOpen={openNotifiedTask} />
         {taskLinks.error && <div role="alert" className="settings-save-alert">
           <span>{t(taskLinks.error === "missing" ? "tasks:taskLink.missing" : taskLinks.error === "noteMissing" ? "tasks:notes.notFound" : "tasks:taskLink.failed")}</span>
           <Button className="h-7 text-xs" variant="secondary" onClick={taskLinks.dismiss}>{t("common:actions.close")}</Button>

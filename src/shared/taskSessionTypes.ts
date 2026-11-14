@@ -3,7 +3,7 @@ import type { AgentId } from "./agentTypes";
 
 export type TaskSessionStatus = "starting" | "running" | "stopped" | "failed";
 /** 进程运行中时，按 Agent 能力矩阵从原生结构化记录确认的运行相位；不替代进程四态。 */
-export type TaskSessionPhase = "answering" | "idle" | "waitingPermission";
+export type TaskSessionPhase = "answering" | "reasoning" | "executingTool" | "waitingModel" | "idle" | "waitingPermission";
 export type TaskSessionWorkspace = { kind: "all" } | { kind: "resource"; resourceId: string; name: string; branch: string };
 export interface TaskSession {
   id: string;
