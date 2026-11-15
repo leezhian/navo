@@ -1,8 +1,10 @@
 import type { IssueItem } from "../domain/issues";
 import type { TaskBranchSnapshot } from "./taskBranchTypes";
+import type { ChangeGitStatus } from "./changeGitStatus";
 import type { TaskAgentSelection } from "./agentCapabilities";
 import type { Task, TaskStatus } from "../domain/tasks";
 import type { AddTaskResourcesInput, TaskFileReference, TaskNoteUpdate } from "./taskResourceTypes";
+import type { TaskFileInspect, TaskFilePreview, TaskManagedFileKind, TaskResourceBatchResult, TaskResourceCleanupPlan, TaskResourceRef } from "./taskResourceLifecycle";
 import type { WorkspaceOpenOptions, WorkspaceOpenTarget } from "./workspaceOpenTypes";
 import type { TaskDeletionConfirmation, TaskDeletionOptions, TaskDeletionPreview, TaskWorktreeDeletionPreview } from "./taskDeletionTypes";
 import type { TaskNoteCommentInput, TaskNoteVersion } from "./taskNoteTypes";
@@ -54,6 +56,9 @@ export interface TaskAttachment {
   id: string;
   name: string;
   size: number;
+  description?: string;
+  /** 资源级归档时间；归档后退出活动列表和共享上下文。 */
+  archivedAt?: string;
   /** 仅传输用于展示的缩略图，不将原文件二进制写入数据库。 */
   preview?: string;
 }
@@ -64,6 +69,8 @@ export interface TaskWebLink {
   url: string;
   /** 空字符串时使用 URL 作为展示名称。 */
   title: string;
+  /** 资源级归档时间；归档后退出活动列表和共享上下文。 */
+  archivedAt?: string;
 }
 
 export interface CreateTaskInput {
@@ -89,6 +96,8 @@ export interface TaskBootstrap {
 export interface TasksApi {
   /** 只读获取任务关联仓库的分支、文件统计与提交列表。 */
   loadBranch(taskId: string, resourceId: string): Promise<TaskBranchSnapshot>;
+  /** 只读读取已关联工作区的 Git 状态，供 CHANGES 悬停卡使用。 */
+  inspectChangeGitStatus(taskId: string, resourceId: string): Promise<ChangeGitStatus>;
   workspaceOpenOptions(taskId: string, resourceId: string): Promise<WorkspaceOpenOptions>;
   openWorkspace(taskId: string, resourceId: string, target: WorkspaceOpenTarget): Promise<void>;
   addResources(taskId: string, input: AddTaskResourcesInput): Promise<Task>;
@@ -114,6 +123,19 @@ export interface TasksApi {
   chooseResourceFile(): Promise<TaskFileReference | null>;
   releaseResourceFiles(ids: string[]): Promise<void>;
   revealResourceFile(taskId: string, fileId: string): Promise<void>;
+  inspectManagedFile(taskId: string, kind: TaskManagedFileKind, fileId: string): Promise<TaskFileInspect>;
+  previewManagedFile(taskId: string, kind: TaskManagedFileKind, fileId: string): Promise<TaskFilePreview>;
+  updateFileMeta(taskId: string, kind: TaskManagedFileKind, fileId: string, patch: { name?: string; description?: string }): Promise<Task>;
+  saveFileCopy(taskId: string, kind: TaskManagedFileKind, fileId: string): Promise<boolean>;
+  updateWebLink(taskId: string, linkId: string, title: string): Promise<Task>;
+  archiveResources(taskId: string, items: TaskResourceRef[]): Promise<TaskResourceBatchResult>;
+  restoreResources(taskId: string, items: TaskResourceRef[]): Promise<TaskResourceBatchResult>;
+  detachResources(taskId: string, items: TaskResourceRef[]): Promise<TaskResourceBatchResult>;
+  deleteAttachments(taskId: string, ids: string[]): Promise<TaskResourceBatchResult>;
+  inspectResourceCleanup(taskId: string): Promise<TaskResourceCleanupPlan>;
+  applyResourceCleanup(taskId: string): Promise<TaskResourceBatchResult>;
+  undoResourceChange(taskId: string): Promise<Task>;
+  dismissResourceUndo(taskId: string): Promise<void>;
   load(): Promise<TaskBootstrap>;
   importLegacy(tasks: Task[]): Promise<Task[]>;
   create(input: CreateTaskInput): Promise<Task>;

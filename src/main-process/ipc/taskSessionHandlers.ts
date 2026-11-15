@@ -29,8 +29,11 @@ export async function archiveTaskWithSessions<Result>(taskId: string, closeTermi
   await initialization?.cancel(taskId);
   return sessions ? sessions.archiveTask(taskId, closeTerminals, operation) : operation();
 }
+export function isTaskWorkspaceBusy(taskId: string, resourceId: string) {
+  return Boolean(initialization?.isRunning(taskId) || sessions?.isWorkspaceBusy(taskId, resourceId));
+}
 export function withIdleTaskWorkspace<Result>(taskId: string, resourceId: string, operation: () => Promise<Result>) {
-  if (initialization?.isRunning(taskId)) throw new Error("TASK_WORKSPACE_BUSY");
+  if (isTaskWorkspaceBusy(taskId, resourceId)) throw new Error("TASK_WORKSPACE_BUSY");
   return sessions ? sessions.withIdleWorkspace(taskId, resourceId, operation) : operation();
 }
 export function startInitialTaskSession(task: Task, owner: WebContents) {
@@ -77,6 +80,7 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
       pluginRoot: path.join(app.getPath("userData"), "task-mcp-plugins"),
     }));
   sessions = service;
+  tasks.setWorkspaceBusyChecker(isTaskWorkspaceBusy);
   unsubscribeTasks?.();
   unsubscribeTasks = onTaskPublished((record) => { void service.updateTaskContext(record.id).catch(() => undefined); });
   initialization = new TaskInitializationService(new TaskInitializationRepository(path.join(app.getPath("userData"), "app.db"), namespace), service, task, publishTask);

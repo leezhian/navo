@@ -125,10 +125,10 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         button('任务上下文').click();await wait(()=>document.querySelector('.task-context-container'),'Context did not reopen');
         if(document.querySelector('.task-context-title'))throw new Error('Context title must be removed');
         const resourceButton=document.querySelector('.task-context-toolbar button');
-        if(!resourceButton||resourceButton.disabled||resourceButton.textContent.trim()!=='添加资源')throw new Error('Add resource must open the unified resource dialog');
+        if(!resourceButton||resourceButton.disabled||resourceButton.textContent.trim()!=='管理资源')throw new Error('Manage resources must open the unified resource dialog');
         const resourceBounds=resourceButton.getBoundingClientRect();
         const toolbarBounds=resourceButton.parentElement.getBoundingClientRect();
-        if(resourceButton.dataset.variant!=='outline'||resourceBounds.height!==28||Math.abs(resourceBounds.width-toolbarBounds.width)>1||Math.abs(resourceBounds.left-toolbarBounds.left)>1)throw new Error('Add resource must be a full-width 28px outline button');
+        if(resourceButton.dataset.variant!=='outline'||resourceBounds.height!==28||Math.abs(resourceBounds.width-toolbarBounds.width)>1||Math.abs(resourceBounds.left-toolbarBounds.left)>1)throw new Error('Manage resources must be a full-width 28px outline button');
         const titleCluster=document.querySelector('.task-workbench-title');
         const titleBounds=titleCluster.querySelector('h2').getBoundingClientRect();
         const menuBounds=titleCluster.querySelector('button[aria-label="任务操作"]').getBoundingClientRect();

@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { copyFile, stat } from "node:fs/promises";
 import type { IpcMainInvokeEvent } from "electron";
-import { stat } from "node:fs/promises";
 import type { AddTaskResourcesInput, TaskNoteUpdate } from "../../shared/taskResourceTypes";
+import type { TaskManagedFileKind, TaskResourceRef } from "../../shared/taskResourceLifecycle";
 import { ipcChannels } from "../../shared/ipcChannels";
 import type { TaskService } from "../services/taskService";
 import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
@@ -18,7 +19,7 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
     if (!window || event.senderFrame !== event.sender.mainFrame) throw new Error("WINDOW_UNAVAILABLE");
     if (!owners.has(event.sender.id)) {
       owners.add(event.sender.id);
-      event.sender.once("destroyed", () => { tasks.resourceBindings.files.release(event.sender.id); tasks.worktreeDeletion.forgetOwner(event.sender.id); owners.delete(event.sender.id); });
+      event.sender.once("destroyed", () => { tasks.resourceBindings.files.release(event.sender.id); tasks.worktreeDeletion.forgetOwner(event.sender.id); tasks.resourceLifecycle.forgetOwner(event.sender.id); owners.delete(event.sender.id); });
     }
     return window;
   }
@@ -87,5 +88,49 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
     const filename = await tasks.resourceBindings.filePath(taskId, id);
     if (!(await stat(filename)).isFile()) throw new Error("TASK_ATTACHMENT_MISSING");
     shell.showItemInFolder(filename);
+  });
+  ipcMain.handle(ipcChannels.tasksInspectFile, (event, taskId: string, kind: TaskManagedFileKind, id: string) => {
+    owner(event); return tasks.inspectManagedFile(taskId, kind, id);
+  });
+  ipcMain.handle(ipcChannels.tasksPreviewFile, (event, taskId: string, kind: TaskManagedFileKind, id: string) => {
+    owner(event); return tasks.previewManagedFile(taskId, kind, id);
+  });
+  ipcMain.handle(ipcChannels.tasksUpdateFileMeta, (event, taskId: string, kind: TaskManagedFileKind, id: string, patch: { name?: string; description?: string }) => {
+    owner(event); return tasks.updateFileMeta(taskId, kind, id, patch).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksSaveFileCopy, async (event, taskId: string, kind: TaskManagedFileKind, id: string) => {
+    const window = owner(event);
+    const file = await tasks.resolveManagedFile(taskId, kind, id);
+    const result = await dialog.showSaveDialog(window, { defaultPath: file.name });
+    if (event.sender.isDestroyed() || result.canceled || !result.filePath) return false;
+    await copyFile(file.path, result.filePath);
+    return true;
+  });
+  ipcMain.handle(ipcChannels.tasksUpdateWebLink, (event, taskId: string, id: string, title: string) => {
+    owner(event); return tasks.updateWebLink(taskId, id, title).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksArchiveResources, (event, taskId: string, items: TaskResourceRef[]) => {
+    owner(event); return tasks.archiveResources(taskId, items, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));
+  });
+  ipcMain.handle(ipcChannels.tasksRestoreResources, (event, taskId: string, items: TaskResourceRef[]) => {
+    owner(event); return tasks.restoreResources(taskId, items, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));
+  });
+  ipcMain.handle(ipcChannels.tasksDetachResources, (event, taskId: string, items: TaskResourceRef[]) => {
+    owner(event); return tasks.detachResources(taskId, items, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));
+  });
+  ipcMain.handle(ipcChannels.tasksDeleteAttachment, (event, taskId: string, ids: string[]) => {
+    owner(event); return tasks.deleteAttachments(taskId, ids, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));
+  });
+  ipcMain.handle(ipcChannels.tasksInspectResourceCleanup, (event, taskId: string) => {
+    owner(event); return tasks.inspectResourceCleanup(taskId);
+  });
+  ipcMain.handle(ipcChannels.tasksApplyResourceCleanup, (event, taskId: string) => {
+    owner(event); return tasks.applyResourceCleanup(taskId, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));
+  });
+  ipcMain.handle(ipcChannels.tasksUndoResourceChange, (event, taskId: string) => {
+    owner(event); return tasks.undoResourceChange(taskId, event.sender.id).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksDismissResourceUndo, (event, taskId: string) => {
+    owner(event); tasks.dismissResourceUndo(taskId);
   });
 }

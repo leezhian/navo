@@ -46,11 +46,19 @@ export function useTaskResourceDraft(task: Task, category: TaskResourceCategory)
     } catch (failure) { if (alive.current) setError(failure); }
     finally { busyRef.current = false; if (alive.current) setBusy(false); }
   }
-  const duplicateLink = isTaskLinkUrl(url.trim()) && (task.webLinks ?? []).some((link) => new URL(link.url).href === new URL(url.trim()).href);
+  const sameHref = (left: string, right: string) => { try { return new URL(left).href === new URL(right).href; } catch { return false; } };
+  const archivedIds = new Set((task.archivedLinks ?? []).map((item) => item.id));
+  const duplicateLink = isTaskLinkUrl(url.trim()) && (task.webLinks ?? []).some((link) => sameHref(link.url, url.trim()));
+  const archivedLink = isTaskLinkUrl(url.trim()) && (task.archivedWebLinks ?? []).some((link) => sameHref(link.url, url.trim()));
   const duplicateFile = file !== null && (task.files ?? []).some((item) => item.path === file.path);
-  const count = category === "repositories" ? repositoriesReady ? repositories.length : 0 : category === "issues" ? issues.length : category === "pullRequests" ? prs.length
-    : category === "links" ? Number(isTaskLinkUrl(url.trim()) && !duplicateLink)
-    : category === "notes" ? Number(Boolean(content.trim())) : category === "files" ? Number(file !== null && !duplicateFile) : 0;
+  const archivedFile = file !== null && (task.archivedFiles ?? []).some((item) => item.path === file.path);
+  const selectedIssues = category === "pullRequests" ? prs : issues;
+  const archivedIssue = (category === "issues" || category === "pullRequests") && selectedIssues.some((item) => archivedIds.has(item.id));
+  const activeIssueCount = selectedIssues.filter((item) => !archivedIds.has(item.id)).length;
+  const alreadyArchived = archivedLink || archivedFile || archivedIssue;
+  const count = category === "repositories" ? repositoriesReady ? repositories.length : 0 : category === "issues" || category === "pullRequests" ? activeIssueCount
+    : category === "links" ? Number(isTaskLinkUrl(url.trim()) && !duplicateLink && !archivedLink)
+    : category === "notes" ? Number(Boolean(content.trim())) : category === "files" ? Number(file !== null && !duplicateFile && !archivedFile) : 0;
 
   async function submit() {
     if (busyRef.current || !count) return false;
@@ -59,8 +67,8 @@ export function useTaskResourceDraft(task: Task, category: TaskResourceCategory)
     requests.current[category] = requestId;
     const input: AddTaskResourcesInput = { requestId, links: [], webLinks: [], notes: [], fileIds: [] };
     if (category === "repositories") input.resources = repositories.map(({ resourceId, mode, sourceBranch, useExistingBranch }) => ({ resourceId, mode, sourceBranch, targetBranch: "", ...(useExistingBranch ? { useExistingBranch } : {}) }));
-    if (category === "issues") input.links = issues;
-    if (category === "pullRequests") input.links = prs;
+    if (category === "issues") input.links = issues.filter((item) => !archivedIds.has(item.id));
+    if (category === "pullRequests") input.links = prs.filter((item) => !archivedIds.has(item.id));
     if (category === "links") input.webLinks = [{ id: requestId, url: url.trim(), title: linkTitle.trim() }];
     if (category === "notes") input.notes = [{ id: requestId, title: noteTitle.trim(), content }];
     if (category === "files" && file) input.fileIds = [file.id];
@@ -80,5 +88,5 @@ export function useTaskResourceDraft(task: Task, category: TaskResourceCategory)
     }
     finally { busyRef.current = false; setBusy(false); }
   }
-  return { repositorySelection, issues, setIssues, prs, setPrs, url, setUrl, linkTitle, setLinkTitle, noteTitle, setNoteTitle, content, setContent, file, chooseFile, busy, error, added, count, duplicateLink, duplicateFile, submit };
+  return { repositorySelection, issues, setIssues, prs, setPrs, url, setUrl, linkTitle, setLinkTitle, noteTitle, setNoteTitle, content, setContent, file, chooseFile, busy, error, added, count, duplicateLink, duplicateFile, alreadyArchived, submit };
 }

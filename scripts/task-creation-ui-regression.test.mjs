@@ -800,7 +800,7 @@ test("任务创建界面完整流程与卡片菜单", { timeout: 60000 }, async 
             await waitFor(() => document.querySelector('[data-status="ARCHIVED"] .task-card'), 'Archive failed');
             document.querySelector('.task-card').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:80,clientY:80}));
             await waitFor(() => document.querySelector('[role="menu"]'), 'Missing archived menu');
-            if (document.querySelector('[role="menu"]').textContent.includes('添加资源')) throw new Error('Archived task has Add resource action');
+            if (document.querySelector('[role="menu"]').textContent.includes('管理资源')) throw new Error('Archived task has Manage resources action');
             [...document.querySelectorAll('[role="menuitem"]')].find(item => item.textContent.trim() === '恢复').click();
             await waitFor(() => document.querySelector('[data-status="TODO"] .task-card'), 'Restore failed');
             await menu('删除');

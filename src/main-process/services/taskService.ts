@@ -24,6 +24,8 @@ import { TaskWorkspaceBindings } from "./taskWorkspaceBindings";
 import { isTaskResourceInput } from "../../utils/taskResourceInput";
 import { assignWorkspaceIdentities } from "./taskWorkspaceIdentity";
 import { TaskContentRepository } from "./taskContentRepository";
+import { TaskResourceLifecycleService } from "./taskResourceLifecycleService";
+import type { TaskManagedFileKind, TaskResourceRef } from "../../shared/taskResourceLifecycle";
 import { TaskWorktreeDeletionService } from "./taskWorktreeDeletionService";
 import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
 import { planWorktreeInitialization, TaskInitializationRepository } from "./taskInitializationRepository";
@@ -42,7 +44,9 @@ export class TaskService {
   readonly resourceBindings: TaskResourceBindings;
   private readonly workspaceBindings: TaskWorkspaceBindings;
   private readonly content: TaskContentRepository;
+  readonly resourceLifecycle: TaskResourceLifecycleService;
   private readonly initializationReady: Promise<void>;
+  private workspaceBusy?: (taskId: string, resourceId: string) => boolean;
 
   constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings,
     private readonly resolveAgent?: (selection: TaskAgentSelection) => Promise<TaskAgentSelection>) {
@@ -55,7 +59,12 @@ export class TaskService {
     this.resources = new ResourceService(path.join(userData, "resources.json"));
     this.deletion = new TaskDeletionService(this.repository);
     this.resourceBindings = new TaskResourceBindings(this.repository, path.join(userData, "app.db"), namespace);
+    this.resourceLifecycle = new TaskResourceLifecycleService(this.repository, path.join(userData, "app.db"), namespace, userData, (taskId, resourceId) => this.workspaceBusy?.(taskId, resourceId) ?? false);
     this.workspaceBindings = new TaskWorkspaceBindings(this.repository, path.join(userData, "app.db"), namespace, getSettings, (id) => this.inspectResource(id), () => this.resources.list());
+  }
+
+  setWorkspaceBusyChecker(checker: (taskId: string, resourceId: string) => boolean) {
+    this.workspaceBusy = checker;
   }
 
   private serialize<Result>(operation: () => Promise<Result>): Promise<Result> {
@@ -66,30 +75,69 @@ export class TaskService {
 
   async flush() { await this.queue; }
   addResources(id: string, input: AddTaskResourcesInput, ownerId: number) {
-    return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => input?.resources !== undefined
-      ? this.workspaceBindings.add(id, input) : this.resourceBindings.add(id, input, ownerId)));
+    return diagnosticOperation("task.resources.add", { taskId: id }, () => this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return input?.resources !== undefined
+      ? this.workspaceBindings.add(id, input) : this.resourceBindings.add(id, input, ownerId); }));
   }
   createAgentNote(id: string, note: TaskNoteInput, sessionId: string, authorize: () => void) {
     return diagnosticOperation("task.note.create", { taskId: id, operationId: sessionId }, () => this.serialize(() => this.resourceBindings.createAgentNote(id, note, sessionId, authorize)));
   }
   updateNote(id: string, note: TaskNoteUpdate, expectedVersion: number, authorize?: () => void, sessionId?: string) {
-    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => this.resourceBindings.updateNote(id, note, expectedVersion, authorize, sessionId)));
+    return diagnosticOperation("task.note.update", { taskId: id }, () => this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.updateNote(id, note, expectedVersion, authorize, sessionId); }));
   }
   updatePrompt(id: string, content: string, expected: string, expectedVersion?: number) {
-    return this.serialize(async () => { await this.content.updatePrompt(id, content, expected, expectedVersion); return requireTask(await this.repository.load() ?? [], id); });
+    return this.serialize(async () => { this.resourceLifecycle.invalidateTask(id); await this.content.updatePrompt(id, content, expected, expectedVersion); return requireTask(await this.repository.load() ?? [], id); });
   }
   noteHistory(id: string, noteId: string) { return this.serialize(() => this.resourceBindings.noteHistory(id, noteId)); }
   restoreNote(id: string, noteId: string, version: number, expectedVersion: number) {
-    return this.serialize(() => this.resourceBindings.restoreNote(id, noteId, version, expectedVersion));
+    return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.restoreNote(id, noteId, version, expectedVersion); });
   }
   commentNote(id: string, input: import("../../shared/taskNoteTypes").TaskNoteCommentInput, authorize?: () => void, sessionId?: string) {
-    return this.serialize(() => this.resourceBindings.commentNote(id, input, authorize, sessionId));
+    return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.commentNote(id, input, authorize, sessionId); });
   }
   changeNoteComment(id: string, commentId: string, expectedUpdatedAt: string, patch: { body?: string; resolved?: boolean; remove?: boolean }, authorize?: () => void) {
-    return this.serialize(() => this.resourceBindings.changeNoteComment(id, commentId, expectedUpdatedAt, patch, authorize));
+    return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.changeNoteComment(id, commentId, expectedUpdatedAt, patch, authorize); });
   }
   detachResource(id: string, input: TaskResourceRemoval) {
-    return this.serialize(async () => { await this.content.detach(id, input); return requireTask(await this.repository.load() ?? [], id); });
+    return this.serialize(async () => { this.resourceLifecycle.invalidateTask(id); await this.content.detach(id, input); return requireTask(await this.repository.load() ?? [], id); });
+  }
+  archiveResources(id: string, items: TaskResourceRef[], ownerId: number) {
+    return this.serialize(() => this.resourceLifecycle.archiveResources(id, items, ownerId));
+  }
+  restoreResources(id: string, items: TaskResourceRef[], ownerId: number) {
+    return this.serialize(() => this.resourceLifecycle.restoreResources(id, items, ownerId));
+  }
+  detachResources(id: string, items: TaskResourceRef[], ownerId: number) {
+    return this.serialize(() => this.resourceLifecycle.detachResources(id, items, ownerId));
+  }
+  deleteAttachments(id: string, ids: string[], ownerId: number) {
+    return this.serialize(() => this.resourceLifecycle.deleteAttachments(id, ids, ownerId));
+  }
+  inspectResourceCleanup(id: string) {
+    return this.serialize(() => this.resourceLifecycle.inspectCleanup(id));
+  }
+  applyResourceCleanup(id: string, ownerId: number) {
+    return this.serialize(() => this.resourceLifecycle.applyCleanup(id, ownerId));
+  }
+  undoResourceChange(id: string, ownerId: number) {
+    return this.serialize(() => this.resourceLifecycle.undo(id, ownerId));
+  }
+  dismissResourceUndo(id: string) {
+    this.resourceLifecycle.invalidateTask(id);
+  }
+  inspectManagedFile(id: string, kind: TaskManagedFileKind, fileId: string) {
+    return this.serialize(() => this.resourceLifecycle.inspectFile(id, kind, fileId));
+  }
+  previewManagedFile(id: string, kind: TaskManagedFileKind, fileId: string) {
+    return this.serialize(() => this.resourceLifecycle.previewFile(id, kind, fileId));
+  }
+  updateFileMeta(id: string, kind: TaskManagedFileKind, fileId: string, patch: { name?: string; description?: string }) {
+    return this.serialize(() => this.resourceLifecycle.updateFileMeta(id, kind, fileId, patch));
+  }
+  updateWebLink(id: string, linkId: string, title: string) {
+    return this.serialize(() => this.resourceLifecycle.updateWebLink(id, linkId, title));
+  }
+  resolveManagedFile(id: string, kind: TaskManagedFileKind, fileId: string) {
+    return this.serialize(() => this.resourceLifecycle.resolveFilePath(id, kind, fileId));
   }
   inspectWorktreeDeletion(id: string, resourceId: string, ownerId: number) {
     return this.serialize(() => this.worktreeDeletion.preview(id, resourceId, ownerId));
@@ -98,7 +146,7 @@ export class TaskService {
     return this.serialize(() => this.worktreeDeletion.remove(id, resourceId, confirmation, ownerId));
   }
   deleteNote(id: string, noteId: string, expectedVersion: number, authorize?: () => void) {
-    return diagnosticOperation("task.note.delete", { taskId: id }, () => this.serialize(() => this.resourceBindings.deleteNote(id, noteId, expectedVersion, authorize)));
+    return diagnosticOperation("task.note.delete", { taskId: id }, () => this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.deleteNote(id, noteId, expectedVersion, authorize); }));
   }
 
   private attachmentDirectory(id: string) {

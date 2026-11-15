@@ -20,7 +20,8 @@ export function readTaskNotes(database: DatabaseSync, namespace: string, taskId:
       sortOrder: Number(row.sort_order), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
       lastEditor: row.last_editor === "agent" ? "agent" : row.last_editor === "user" ? "user" : "unknown",
       ...(row.last_editor_session ? { lastEditorSessionId: String(row.last_editor_session) } : {}),
-      comments: readTaskNoteComments(database, namespace, taskId, String(row.id)) }));
+      comments: readTaskNoteComments(database, namespace, taskId, String(row.id)),
+      ...(row.archived_at ? { archivedAt: String(row.archived_at) } : {}) }));
 }
 
 /** 由调用方的任务事务包裹；来源只取可信会话，用户提交的附加字段不入库。 */

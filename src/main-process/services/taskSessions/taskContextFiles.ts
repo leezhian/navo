@@ -72,7 +72,7 @@ export class TaskContextFiles {
         promptNoteId: TASK_PROMPT_ID, promptVersion: task.promptVersion ?? 1, promptComments: task.promptComments ?? [] },
       workspaces: (task.resources ?? []).map((resource) => ({ id: resource.resourceId, name: resource.name, path: resource.workingPath, branch: resource.targetBranch || resource.sourceBranch })),
       issues: task.links ?? [], links: task.webLinks ?? [], files: task.files ?? [],
-      attachments: (task.attachments ?? []).map((attachment, index) => ({ id: attachment.id, name: attachment.name, path: attachments[index] })), notes: task.notes ?? [],
+      attachments: (task.attachments ?? []).map((attachment, index) => ({ id: attachment.id, name: attachment.name, path: attachments[index], ...(attachment.description ? { description: attachment.description } : {}) })), notes: task.notes ?? [],
     };
     const temporary = path.join(file.directory, `.context-${randomUUID()}.tmp`);
     try {

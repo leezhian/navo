@@ -30,9 +30,9 @@ export class TaskRepository {
       const promptSnapshot = database.prepare("SELECT actor,session_id,created_at FROM task_note_history WHERE namespace=? AND task_id=? AND note_id=? AND version=?").get(this.namespace, taskId, TASK_PROMPT_ID, Number(row.prompt_version));
       const agent = database.prepare("SELECT data FROM task_agents WHERE namespace = ? AND task_id = ?").get(this.namespace, taskId);
       const resources = database.prepare("SELECT data FROM task_resources WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
-      const links = database.prepare("SELECT data FROM task_links WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
-      const webLinks = database.prepare("SELECT id,url,title FROM task_web_links WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
-      const attachments = database.prepare("SELECT id,name,size FROM task_attachments WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
+      const links = splitArchived(database.prepare("SELECT data FROM task_links WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId).map((item) => JSON.parse(String(item.data))));
+      const webLinks = database.prepare("SELECT id,url,title,archived_at FROM task_web_links WHERE namespace = ? AND task_id = ? ORDER BY position").all(this.namespace, taskId);
+      const attachments = database.prepare("SELECT id,name,size,description,archived_at FROM task_attachments WHERE namespace = ? AND task_id = ? ORDER BY rowid").all(this.namespace, taskId);
       return {
         ...readTaskExtraResources(database, this.namespace, taskId),
         ...(agent ? { agent: JSON.parse(String(agent.data)) } : {}),
@@ -46,9 +46,12 @@ export class TaskRepository {
         projectName: String(row.project_name), status: row.status as Task["status"],
         archivedFrom: row.archived_from === "TODO" || row.archived_from === "DONE" ? row.archived_from : undefined,
         resources: resources.map((item) => JSON.parse(String(item.data))),
-        links: links.map((item) => JSON.parse(String(item.data))),
-        webLinks: webLinks.map((item) => ({ id: String(item.id), url: String(item.url), title: String(item.title) })),
-        attachments: attachments.map((item) => ({ id: String(item.id), name: String(item.name), size: Number(item.size) })),
+        links: links.active,
+        archivedLinks: links.archived,
+        webLinks: splitArchived(webLinks.map((item) => ({ id: String(item.id), url: String(item.url), title: String(item.title), ...(item.archived_at ? { archivedAt: String(item.archived_at) } : {}) }))).active,
+        archivedWebLinks: splitArchived(webLinks.map((item) => ({ id: String(item.id), url: String(item.url), title: String(item.title), ...(item.archived_at ? { archivedAt: String(item.archived_at) } : {}) }))).archived,
+        attachments: splitArchived(attachments.map((item) => ({ id: String(item.id), name: String(item.name), size: Number(item.size), ...(item.description ? { description: String(item.description) } : {}), ...(item.archived_at ? { archivedAt: String(item.archived_at) } : {}) }))).active,
+        archivedAttachments: splitArchived(attachments.map((item) => ({ id: String(item.id), name: String(item.name), size: Number(item.size), ...(item.description ? { description: String(item.description) } : {}), ...(item.archived_at ? { archivedAt: String(item.archived_at) } : {}) }))).archived,
       };
     });
   }
@@ -86,9 +89,9 @@ export class TaskRepository {
       });
       for (const link of task.links ?? []) database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run(this.namespace, task.id, link.id, JSON.stringify(link));
       task.webLinks?.forEach((link, position) => {
-        database.prepare("INSERT INTO task_web_links VALUES (?,?,?,?,?,?)").run(this.namespace, task.id, link.id, position, link.url, link.title);
+        database.prepare("INSERT INTO task_web_links (namespace,task_id,id,position,url,title) VALUES (?,?,?,?,?,?)").run(this.namespace, task.id, link.id, position, link.url, link.title);
       });
-      for (const file of attachments) database.prepare("INSERT INTO task_attachments VALUES (?,?,?,?,?,?)")
+      for (const file of attachments) database.prepare("INSERT INTO task_attachments (namespace,task_id,id,name,size,storage_name) VALUES (?,?,?,?,?,?)")
         .run(this.namespace, task.id, file.id, file.name, file.size, file.storageName);
       database.prepare("INSERT OR IGNORE INTO task_state VALUES (?,1)").run(this.namespace);
       database.prepare("DELETE FROM task_operations WHERE namespace = ? AND id = ?").run(this.namespace, task.id);
@@ -207,4 +210,8 @@ function transaction<Result>(database: DatabaseSync, operation: () => Result): R
     void writeDiagnosticEvent("database.transaction_failed", { error });
     database.exec("ROLLBACK"); throw error;
   }
+}
+
+function splitArchived<T extends { archivedAt?: string }>(items: T[]) {
+  return { active: items.filter((item) => !item.archivedAt), archived: items.filter((item) => item.archivedAt) };
 }

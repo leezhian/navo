@@ -30,6 +30,13 @@ const messages: Record<string, TranslationKey<"tasks" | "taskCreate">> = {
   TASK_ATTACHMENT_MISSING: "taskCreate:errors.attachmentMissing",
   TASK_CREATE_RETAINED: "taskCreate:errors.retained",
   TASK_BUSY: "tasks:errors.busy",
+  TASK_UNDO_EXPIRED: "tasks:resources.undoExpired",
+  TASK_FILE_RENAME_EMPTY: "tasks:resources.renameRefused.empty",
+  TASK_FILE_RENAME_SEPARATOR: "tasks:resources.renameRefused.separator",
+  TASK_FILE_RENAME_RESERVED: "tasks:resources.renameRefused.reserved",
+  TASK_FILE_RENAME_COLLISION: "tasks:resources.renameRefused.collision",
+  TASK_FILE_RENAME_MISSING: "tasks:resources.renameRefused.missing",
+  TASK_FILE_RENAME_TOO_LONG: "tasks:resources.renameRefused.tooLong",
   TASK_LEGACY_INVALID: "tasks:errors.legacyInvalid",
 };
 

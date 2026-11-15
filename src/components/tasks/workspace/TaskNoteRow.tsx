@@ -23,8 +23,11 @@ interface TaskNoteRowProps {
   onDelete?: (id: string) => void;
   /** 进入笔记标题就地改名；任务正文不提供。 */
   onRename?: (id: string, trigger: HTMLButtonElement) => void;
+  /** 活动笔记可归档；已归档笔记可恢复。任务正文不传入。 */
+  onArchive?: () => void;
+  onRestore?: () => void;
 }
-export function TaskNoteRow({ taskId, note, active, deleteDisabled, onOpen, onDelete, onRename }: TaskNoteRowProps) {
+export function TaskNoteRow({ taskId, note, active, deleteDisabled, onOpen, onDelete, onRename, onArchive, onRestore }: TaskNoteRowProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const trigger = useRef<HTMLButtonElement>(null);
   const selectedAction = useRef(false);
@@ -50,6 +53,8 @@ export function TaskNoteRow({ taskId, note, active, deleteDisabled, onOpen, onDe
       <ContextMenuItem disabled={!note.content.trim()} onSelect={() => void run(() => getTasksApi().exportNote(taskId, note.id))}><Download />{t("tasks:notes.export")}</ContextMenuItem>
       <ContextMenuItem onSelect={() => void copy()}><Copy aria-hidden="true" />{t("tasks:notes.copy")}</ContextMenuItem>
       <ContextMenuItem onSelect={() => void run(() => navigator.clipboard.writeText(taskLink(taskId, note.id)))}><Link />{t("tasks:notes.copyLink")}</ContextMenuItem>
+      {onArchive && <ContextMenuItem disabled={deleteDisabled} onSelect={() => { selectedAction.current = true; onArchive(); }}>{t("tasks:resources.archive")}</ContextMenuItem>}
+      {onRestore && <ContextMenuItem disabled={deleteDisabled} onSelect={() => { selectedAction.current = true; onRestore(); }}>{t("tasks:resources.restore")}</ContextMenuItem>}
       {onDelete && <><ContextMenuSeparator />
         <ContextMenuItem variant="destructive" disabled={deleteDisabled} onSelect={() => { selectedAction.current = true;onDelete(note.id); }}><Trash2 aria-hidden="true" />{t("common:actions.delete")}</ContextMenuItem>
       </>}
