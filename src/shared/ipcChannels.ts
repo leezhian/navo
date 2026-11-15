@@ -14,6 +14,7 @@ export const ipcChannels = {
 
   resourcesDetectCommands: "resources:detect-commands",
   tasksLoadBranch: "tasks:load-branch",
+  tasksInspectChangeGitStatus: "tasks:inspect-change-status",
   taskSessionsList: "task-sessions:list",
   taskSessionsRefreshTitles: "task-sessions:refresh-titles",
   taskSessionsStart: "task-sessions:start",

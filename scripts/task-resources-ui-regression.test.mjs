@@ -99,7 +99,7 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           window.failSave=false;await wait(()=>!button('添加并继续').disabled,'Directory retry must be enabled');button('添加并继续').click();
           await wait(()=>directoryRow('backend').textContent.includes('仓库已添加'),'Added repository should show an existing-binding notice');
           if(directoryRow('backend').querySelector('[role="checkbox"]').disabled)throw Error('Added repository must remain selectable for another worktree');
-          await wait(()=>document.querySelector('.task-context-change button[title="/fixture/worktrees/backend"]')?.textContent==='navo/12345678','CHANGES did not refresh the added workspace branch');
+          await wait(()=>document.querySelector('.task-context-change[data-resource-id="backend"] button')?.textContent==='navo/12345678','CHANGES did not refresh the added workspace branch');
           const directoryCalls=window.submissions.filter(item=>item.input.resources);
           if(directoryCalls.length!==2||directoryCalls[0].input.requestId!==directoryCalls[1].input.requestId||directoryCalls[1].input.resources[0].mode!=='worktree'||directoryCalls[1].input.resources[0].targetBranch!=='')throw Error('Directory retry/configuration payload incorrect');
           button('添加仓库').click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===2,'Nested quick-add missing');

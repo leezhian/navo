@@ -92,6 +92,7 @@ const api: NavoApi = {
   },
   tasks: {
     loadBranch: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.tasksLoadBranch, taskId, resourceId),
+    inspectChangeGitStatus: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.tasksInspectChangeGitStatus, taskId, resourceId),
     load: () => ipcRenderer.invoke(ipcChannels.tasksLoad),
     importLegacy: (value) => ipcRenderer.invoke(ipcChannels.tasksImportLegacy, value),
     create: (value) => ipcRenderer.invoke(ipcChannels.tasksCreate, value),

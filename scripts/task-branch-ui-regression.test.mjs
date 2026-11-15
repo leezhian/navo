@@ -52,7 +52,7 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           const pane=()=>document.querySelector('.task-branch-pane');const dialog=()=>document.querySelector('[data-slot="dialog-content"]');
           await wait(()=>pane()?.textContent.includes('live-repo-a'),'Real branch snapshot missing');
           const selectedChange=()=>document.querySelector('.task-context-change[data-active="true"] button[aria-pressed="true"]');
-          if(selectedChange()?.title!=='/fixture/repo-a')throw Error('Default branch must highlight its CHANGES item');
+          if(selectedChange()?.closest('.task-context-change')?.dataset.resourceId!=='repo-a')throw Error('Default branch must highlight its CHANGES item');
           const heading=document.querySelector('.task-workbench-heading');
           if(!button('收起分支栏')?.querySelector('.lucide-panel-right-close')||button('显示分支栏'))throw Error('Visible branch pane must show the hide action and closing-direction icon');
           if(button('显示终端').getBoundingClientRect().left>=button('收起分支栏').getBoundingClientRect().left)throw Error('Terminal controls must precede the branch toggle');
@@ -76,8 +76,8 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           button('打开完整 Diff').click();await wait(()=>window.diffRequests.some(request=>request.mode==='branch'&&request.targetBranch==='main'),'Commit scope must open old branch comparison');
           await wait(()=>dialog(),'Branch diff dialog missing');dialog().querySelector('button[aria-label="关闭"]').click();await wait(()=>!dialog(),'Branch Diff close failed');
           window.holdBranch='repo-a';window.notifyChanges();await wait(()=>window.releaseBranch,'Deferred refresh did not start');
-          document.querySelector('.task-context-change button[title="/fixture/repo-b"]').click();await wait(()=>pane().textContent.includes('live-repo-b'),'Repository switch failed');
-          if(selectedChange()?.title!=='/fixture/repo-b')throw Error('Selection must follow the displayed repository');
+          document.querySelector('.task-context-change[data-resource-id="repo-b"] button').click();await wait(()=>pane().textContent.includes('live-repo-b'),'Repository switch failed');
+          if(selectedChange()?.closest('.task-context-change')?.dataset.resourceId!=='repo-b')throw Error('Selection must follow the displayed repository');
           window.releaseBranch();await new Promise(resolve=>setTimeout(resolve,60));if(pane().textContent.includes('live-repo-a'))throw Error('Stale response leaked across repositories');
           window.failBranch=true;window.dispatchEvent(new Event('focus'));await wait(()=>pane().querySelector('[role="alert"]'),'Read failures must not look like an empty repository');
           if(!pane().textContent.includes('live-repo-b'))throw Error('Failed background refresh must retain the prior snapshot');
@@ -105,7 +105,7 @@ test("正式分支栏：仓库隔离、文件筛选、旧 Diff 弹窗及窄屏�
           dialog().querySelector('button[aria-label="关闭"]').focus();escape();await wait(()=>!dialog(),'Escape must close nested Diff');
           if(branchSheet()?.dataset.state!=='open')throw Error('Closing full Diff must not close its branch Sheet');
           button('任务上下文').click();await wait(()=>!branchSheet()&&document.querySelector('.task-context-sheet[data-state="open"]'),'Context and branch Sheets must switch exclusively');
-          document.querySelector('.task-context-change button[title="/fixture/repo-b"]').click();await wait(()=>branchSheet()?.dataset.state==='open'&&!document.querySelector('.task-context-sheet'),'Repository click must switch back to the right Sheet');
+          document.querySelector('.task-context-change[data-resource-id="repo-b"] button').click();await wait(()=>branchSheet()?.dataset.state==='open'&&!document.querySelector('.task-context-sheet'),'Repository click must switch back to the right Sheet');
           await wait(()=>branchSheet().contains(document.activeElement),'Closing context must not steal branch Sheet focus');
           button('关闭分支栏').click();await wait(()=>!pane(),'Overlay close failed');
           await window.setBranchLocale('en');await wait(()=>button('Show branch pane'),'Hidden branch tooltip must support English');

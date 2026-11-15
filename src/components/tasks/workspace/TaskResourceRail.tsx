@@ -24,6 +24,7 @@ import { TaskSessionMenu } from "./TaskSessionMenu";
 import { ArchivedSessions } from "./ArchivedSessions";
 import { TaskInitializationPanel } from "./TaskInitializationPanel";
 import { SessionHoverDetails } from "./SessionHoverDetails";
+import { ChangeHoverDetails } from "./ChangeHoverDetails";
 import { useSessionUnread } from "@/hooks/useSessionUnread";
 import { sessionActivityText } from "@/utils/sessionActivityLabel";
 
@@ -145,10 +146,13 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
     </ResourceGroup>
     <ResourceGroup title="CHANGES" count={repos.length} onAdd={onAddResource && (() => onAddResource("repositories"))}>
       {repos.map((resource) => <TaskChangeMenu key={resource.resourceId} task={task} resource={resource} sessions={terminals} agentChoices={agentChoices} pending={archivePending}
-        onOpen={() => onReview(resource)} onRunCommand={onRunCommand} onNewSession={onNewSession} onNewTerminal={onNewTerminal} onOpenError={onWorkspaceOpenError}><div className="task-context-change" data-active={resource.resourceId === activeResourceId}>
-        <button className="task-context-row flex-1" data-active={resource.resourceId === activeResourceId} aria-pressed={resource.resourceId === activeResourceId} onClick={() => onReview(resource)} title={resource.workingPath}>
+        onOpen={() => onReview(resource)} onRunCommand={onRunCommand} onNewSession={onNewSession} onNewTerminal={onNewTerminal} onOpenError={onWorkspaceOpenError}><div className="task-context-change" data-resource-id={resource.resourceId} data-active={resource.resourceId === activeResourceId}>
+        <ChangeHoverDetails taskId={task.id} resource={resource}>
+        <button className="task-context-row flex-1" data-active={resource.resourceId === activeResourceId} aria-pressed={resource.resourceId === activeResourceId} onClick={() => onReview(resource)}>
         <ContextItemIcon><GitBranch /></ContextItemIcon><span className="task-context-change-heading min-w-0 flex-1"><span className="block truncate">{resource.targetBranch || resource.sourceBranch}</span></span>
-        </button><div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} />
+        </button>
+        </ChangeHoverDetails>
+        <div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} />
           <WorkspaceCommandActions resource={resource} sessions={terminals} disabled={archivePending || task.status === "ARCHIVED" || !onWorkspaceOpenError} onRun={onRunCommand} />
         </div>
       </div></TaskChangeMenu>)}

@@ -1,5 +1,6 @@
 import type { IssueItem } from "../domain/issues";
 import type { TaskBranchSnapshot } from "./taskBranchTypes";
+import type { ChangeGitStatus } from "./changeGitStatus";
 import type { TaskAgentSelection } from "./agentCapabilities";
 import type { Task, TaskStatus } from "../domain/tasks";
 import type { AddTaskResourcesInput, TaskFileReference, TaskNoteUpdate } from "./taskResourceTypes";
@@ -89,6 +90,8 @@ export interface TaskBootstrap {
 export interface TasksApi {
   /** 只读获取任务关联仓库的分支、文件统计与提交列表。 */
   loadBranch(taskId: string, resourceId: string): Promise<TaskBranchSnapshot>;
+  /** 只读读取已关联工作区的 Git 状态，供 CHANGES 悬停卡使用。 */
+  inspectChangeGitStatus(taskId: string, resourceId: string): Promise<ChangeGitStatus>;
   workspaceOpenOptions(taskId: string, resourceId: string): Promise<WorkspaceOpenOptions>;
   openWorkspace(taskId: string, resourceId: string, target: WorkspaceOpenTarget): Promise<void>;
   addResources(taskId: string, input: AddTaskResourcesInput): Promise<Task>;
