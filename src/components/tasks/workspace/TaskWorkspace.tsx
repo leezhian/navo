@@ -14,6 +14,8 @@ import { getTaskSessionsApi } from "@/services/taskSessionApi";
 import { getTasksApi } from "@/services/taskApi";
 import type { TaskResourceCategory } from "@/shared/taskResourceTypes";
 import { TaskAddResourcesDialog } from "../resources/TaskAddResourcesDialog";
+import { TaskFilePreviewPane } from "./TaskFilePreviewPane";
+import { TaskResourceUndoBar, dismissTaskResourceUndo, useDismissResourceUndo } from "./TaskResourceUndoBar";
 import { IconTooltip } from "@/components/ui/icon-tooltip";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -99,11 +101,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
   }, [updateLayout]);
   const [narrow, setNarrow] = useState(false);
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
-  const [rightContent, setRightContent] = useState<{ kind: "branch" } | { kind: "note"; id: string }>({ kind: "branch" });
+  const [rightContent, setRightContent] = useState<{ kind: "branch" } | { kind: "note"; id: string } | { kind: "file"; source: "file" | "attachment"; id: string }>({ kind: "branch" });
   const [selectedResource, setSelectedResource] = useState<string>();
   const repositories = task.resources?.filter((resource) => resource.mode !== "folder") ?? [];
   const branchResource = repositories.find((resource) => resource.resourceId === selectedResource) ?? repositories[0];
   const noteEditor = useTaskNoteEditor(task, rightContent.kind === "note" ? rightContent.id : undefined, () => setRightOpen(false));
+  useDismissResourceUndo(task.id);
   const [preview, setPreview] = useState<{ title: string; body: string } | null>(null);
   const [review, setReview] = useState<{ session: ReviewSession; mode: CompareMode; targetBranch: string; filePath?: string } | null>(null);
   const [addCategory, setAddCategory] = useState<TaskResourceCategory | null>(null);
@@ -130,10 +133,11 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
   const visibleTerminal = terminalOpen && terminals.length > 0;
   const showAgentPane = agentPaneOpen && (!expanded || !visibleTerminal);
   const contentWidth = workspaceWidth - (contextOpen && !narrow ? railWidth + 8 : 0);
-  const rightOverlay = contentWidth < 640 && (agentPaneOpen || rightContent.kind === "note");
-  const visibleRight = Boolean((rightContent.kind === "branch" ? branchResource : noteEditor.note) && rightOpen && (!expanded || !visibleTerminal));
+  const rightOverlay = contentWidth < 640 && (agentPaneOpen || rightContent.kind === "note" || rightContent.kind === "file");
+  const visibleRight = Boolean((rightContent.kind === "branch" ? branchResource : rightContent.kind === "note" ? noteEditor.note : rightContent.kind === "file") && rightOpen && (!expanded || !visibleTerminal));
   const visibleBranch = visibleRight && rightContent.kind === "branch";
   const visibleNote = visibleRight && rightContent.kind === "note";
+  const visibleFile = visibleRight && rightContent.kind === "file";
   const showUpper = showAgentPane || (visibleRight && !rightOverlay);
   const terminalFillsSpace = !showUpper;
   const extension = useExtensions();
@@ -252,6 +256,31 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
     if (rightContent.kind === "note" && rightContent.id === id) open();
     else noteEditor.leave(open);
   }
+  function showFile(source: "file" | "attachment", id: string) {
+    noteEditor.leave(() => {
+      setRightContent({ kind: "file", source, id }); setRightOpen(true); setExpanded(false);
+      if (narrow) setContextOpen(false);
+    });
+  }
+  function openManagedFile(source: "file" | "attachment", id: string) {
+    void (async () => {
+      try {
+        const inspected = await getTasksApi().inspectManagedFile(task.id, source, id);
+        if (inspected.exists && inspected.previewType === "unsupported") {
+          if (source === "file") await getTasksApi().revealResourceFile(task.id, id);
+          else await getTaskSessionsApi().revealAttachment(task.id, id);
+          return;
+        }
+        showFile(source, id);
+      } catch {
+        setPreview({ title: t("tasks:runtime.resourceError"), body: t("tasks:runtime.resourceErrorDetail") });
+      }
+    })();
+  }
+  function closeResourceWindow() {
+    dismissTaskResourceUndo(task.id);
+    setAddCategory(null);
+  }
   function closeRight() { noteEditor.leave(() => setRightOpen(false)); }
   function toggleContext() {
     const toggle = () => { setContextOpen(!contextOpen); if (narrow) setRightOpen(false); };
@@ -319,9 +348,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
     onSession={(id) => {
       const session = agents.find((item) => item.id === id);
       if (session) noteEditor.leave(() => { selectContextSession(session, true); if (rightOverlay) setRightOpen(false); });
-    }} /> : branchResource ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={closeRight} onOpenDiff={showReview} /> : null;
-  const rightTitle = t(rightContent.kind === "note" ? "tasks:notes.title" : "tasks:branch.title");
-  const rightCloseLabel = t(rightContent.kind === "note" ? "tasks:notes.close" : "tasks:branch.close");
+    }} /> : rightContent.kind === "file" ? <TaskFilePreviewPane taskId={task.id} kind={rightContent.source} fileId={rightContent.id} readOnly={task.status === "ARCHIVED"} onClose={closeRight}
+      onReveal={() => runResource(() => rightContent.source === "file" ? getTasksApi().revealResourceFile(task.id, rightContent.id) : getTaskSessionsApi().revealAttachment(task.id, rightContent.id))} />
+    : branchResource ? <TaskBranchPane key={branchResource.resourceId + branchResource.workingPath} taskId={task.id} resource={branchResource} onClose={closeRight} onOpenDiff={showReview} /> : null;
+  const rightTitle = t(rightContent.kind === "note" ? "tasks:notes.title" : rightContent.kind === "file" ? "tasks:resources.previewTitle" : "tasks:branch.title");
+  const rightCloseLabel = t(rightContent.kind === "note" ? "tasks:notes.close" : rightContent.kind === "file" ? "tasks:resources.previewClose" : "tasks:branch.close");
+  const rightResizeLabel = t(rightContent.kind === "note" ? "tasks:notes.resize" : rightContent.kind === "file" ? "tasks:resources.previewResize" : "tasks:branch.resize");
   return <div ref={rootRef} className="task-workbench" data-narrow={narrow} data-context-open={contextOpen}>
     <header className="task-workbench-heading">
       <IconTooltip ref={contextTriggerRef} label={t("tasks:runtime.context")} aria-expanded={contextOpen} size="icon-sm" onClick={toggleContext}>{contextOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</IconTooltip>
@@ -341,6 +373,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
         {onOpenPage && <Button variant="ghost" size="icon-sm" aria-label={t("tasks:details.close")} onClick={() => noteEditor.leave(onClose)}><X /></Button>}
       </div>
     </header>
+    <TaskResourceUndoBar taskId={task.id} />
     {error && <div role="alert" className="task-workbench-error">{t(error === "SESSION_INITIALIZATION_REQUIRED" ? "tasks:context.setupBlocked" : "tasks:runtime.operationFailed")}<Button variant="ghost" size="sm" onClick={() => useTaskSessionStore.setState({ error: null })}>{t("common:actions.close")}</Button></div>}
     <div className="task-workbench-layout" ref={setLayoutContainer}>
         <TaskContextPanel narrow={narrow} open={contextOpen} onOpenChange={setContextOpen} width={railWidth} container={layoutContainer} triggerRef={contextTriggerRef}>
@@ -354,10 +387,10 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
             archivePending={pending} onArchive={(id) => void useTaskSessionStore.getState().archive(id)}
             onSelect={selectContextSession} onRestored={selectRestored}
             newSessionControl={newSessionControl} newTerminalControl={newTerminalControl} onReview={showBranch}
-            onAddResource={setAddCategory} onFile={(id) => runResource(() => getTasksApi().revealResourceFile(task.id, id))}
+            onAddResource={setAddCategory} onFile={(id) => openManagedFile("file", id)} activeFile={visibleFile && rightContent.kind === "file" ? { kind: rightContent.source, id: rightContent.id } : undefined}
             onWorkspaceOpenError={() => setPreview({ title: t("tasks:workspaceOpen.failed"), body: t("tasks:workspaceOpen.failedDetail") })}
             onPreview={(title, body) => setPreview({ title, body })}
-            onAttachment={(id) => runResource(() => getTaskSessionsApi().revealAttachment(task.id, id))}
+            onAttachment={(id) => openManagedFile("attachment", id)}
             onLink={(id) => runResource(() => getTaskSessionsApi().openLink(task.id, id))} />
         </TaskContextPanel>
         {contextOpen && !narrow && <WorkspaceSeparator label={t("tasks:runtime.resizeContext")} value={railWidth} min={160} max={300} onDelta={(delta) => setRailWidth((width) => Math.max(160, Math.min(300, (rootRef.current?.clientWidth ?? 620) - 320, width + delta)))} />}
@@ -368,7 +401,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
           emptySessionControl={<NewSessionMenu choices={agentChoices} resources={task.resources} disabled={pending} onCreate={(id, resourceId) => void addAgent(id, resourceId)} withLabel />}
           onClosePane={() => { invalidateSelection("agent"); setAgentPaneOpen(false); }} /></div>}
         {visibleRight && !rightOverlay && <>
-          {showAgentPane && <WorkspaceSeparator label={t(rightContent.kind === "note" ? "tasks:notes.resize" : "tasks:branch.resize")} value={rightWidth} min={268} max={540} onDelta={(delta) => setRightWidth((width) => Math.max(268, Math.min(540, contentWidth - 288, width - delta)))} />}
+          {showAgentPane && <WorkspaceSeparator label={rightResizeLabel} value={rightWidth} min={268} max={540} onDelta={(delta) => setRightWidth((width) => Math.max(268, Math.min(540, contentWidth - 288, width - delta)))} />}
           <div className="task-branch-container" style={showAgentPane ? { width: Math.min(rightWidth, contentWidth - 288) } : { flex: 1 }}>{rightPane}</div>
         </>}
         </div>}
@@ -398,7 +431,12 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
     </DialogContent></Dialog>
     <ReviewDialog session={review?.session ?? null} open={review !== null} initialCompareMode={review?.mode} initialTargetBranch={review?.targetBranch} initialFilePath={review?.filePath} onOpenChange={(open) => { if (!open) setReview(null); }} settings={settings} resolvedTheme={resolvedTheme} onSettingsChange={updateSettings} />
     <TaskNoteDialogs editor={noteEditor} />
-    {addCategory && <TaskAddResourcesDialog task={task} initialCategory={addCategory} onClose={() => setAddCategory(null)} />}
+    {addCategory && <TaskAddResourcesDialog task={task} initialCategory={addCategory} onClose={closeResourceWindow}
+      onOpenFile={(kind, id) => { closeResourceWindow(); openManagedFile(kind, id); }}
+      onOpenNote={(id) => { closeResourceWindow(); const trigger = contextTriggerRef.current; if (trigger) showNote(id, trigger); }}
+      onOpenLink={(id) => runResource(() => getTaskSessionsApi().openLink(task.id, id))}
+      onOpenRepository={(resourceId) => { const resource = task.resources?.find((item) => item.resourceId === resourceId); closeResourceWindow(); if (resource && resource.mode !== "folder") showBranch(resource); else if (resource) setPreview({ title: resource.name, body: resource.workingPath }); }}
+      onPreview={(title, body) => { closeResourceWindow(); setPreview({ title, body }); }} />}
   </div>;
 }
 

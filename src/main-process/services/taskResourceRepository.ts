@@ -6,11 +6,17 @@ import { insertInitialization } from "./taskInitializationRepository";
 import type { StoredInitializationStep } from "./taskInitializationRepository";
 import { insertTaskNote, readTaskNotes } from "./taskNoteRepository";
 
+function optionalArchived<T extends { archivedAt?: string }>(items: T[]) {
+  return { active: items.filter((item) => !item.archivedAt), archived: items.filter((item) => item.archivedAt) };
+}
+
 export function readTaskExtraResources(database: DatabaseSync, namespace: string, taskId: string) {
-  const notes = readTaskNotes(database, namespace, taskId);
-  const files: TaskFileReference[] = database.prepare("SELECT id,name,path,size FROM task_file_references WHERE namespace=? AND task_id=? ORDER BY rowid").all(namespace, taskId)
-    .map((row) => ({ id: String(row.id), name: String(row.name), path: String(row.path), size: Number(row.size) }));
-  return { notes, files };
+  const notes = optionalArchived(readTaskNotes(database, namespace, taskId));
+  const files = optionalArchived(database.prepare("SELECT id,name,path,size,description,archived_at FROM task_file_references WHERE namespace=? AND task_id=? ORDER BY rowid").all(namespace, taskId)
+    .map((row) => ({ id: String(row.id), name: String(row.name), path: String(row.path), size: Number(row.size),
+      ...(row.description ? { description: String(row.description) } : {}),
+      ...(row.archived_at ? { archivedAt: String(row.archived_at) } : {}) } as TaskFileReference)));
+  return { notes: notes.active, archivedNotes: notes.archived, files: files.active, archivedFiles: files.archived };
 }
 
 export class TaskResourceRepository {
@@ -79,7 +85,7 @@ export class TaskResourceRepository {
         for (const link of input.webLinks) {
           const url = new URL(link.url).href;
           if (urls.has(url)) continue;
-          database.prepare("INSERT INTO task_web_links VALUES (?,?,?,?,?,?)").run(namespace, taskId, link.id, position++, url, link.title.trim());
+          database.prepare("INSERT INTO task_web_links (namespace,task_id,id,position,url,title) VALUES (?,?,?,?,?,?)").run(namespace, taskId, link.id, position++, url, link.title.trim());
           urls.add(url);
           changed = true;
         }
@@ -88,7 +94,7 @@ export class TaskResourceRepository {
           changed = true;
         }
         for (const file of files) {
-          const result = database.prepare("INSERT INTO task_file_references VALUES (?,?,?,?,?,?) ON CONFLICT(namespace,task_id,path) DO NOTHING").run(namespace, taskId, file.id, file.name, file.path, file.size);
+          const result = database.prepare("INSERT INTO task_file_references (namespace,task_id,id,name,path,size) VALUES (?,?,?,?,?,?) ON CONFLICT(namespace,task_id,path) DO NOTHING").run(namespace, taskId, file.id, file.name, file.path, file.size);
           if (result.changes) changed = true;
         }
         if (changed) this.touchTask(database, taskId);

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Task, TaskStatus } from "@/domain/tasks";
 import type { CreateTaskInput } from "@/shared/taskTypes";
 import type { AddTaskResourcesInput, TaskNoteUpdate } from "@/shared/taskResourceTypes";
+import type { TaskResourceBatchResult, TaskResourceRef } from "@/shared/taskResourceLifecycle";
 import type { TaskDeletionConfirmation } from "@/shared/taskDeletionTypes";
 import { getTasksApi } from "@/services/taskApi";
 import { clearLegacyTasks, readLegacyTasks } from "@/services/adeData";
@@ -26,6 +27,14 @@ interface TaskState {
   commentNote: (id: string, input: import("@/shared/taskNoteTypes").TaskNoteCommentInput) => Promise<Task>;
   changeNoteComment: (id: string, commentId: string, expected: string, patch: { body?: string; resolved?: boolean; remove?: boolean }) => Promise<Task>;
   detachResource: (id: string, input: import("@/shared/taskContextTypes").TaskResourceRemoval) => Promise<Task>;
+  archiveResources: (id: string, items: TaskResourceRef[]) => Promise<TaskResourceBatchResult>;
+  restoreResources: (id: string, items: TaskResourceRef[]) => Promise<TaskResourceBatchResult>;
+  detachResources: (id: string, items: TaskResourceRef[]) => Promise<TaskResourceBatchResult>;
+  deleteAttachments: (id: string, ids: string[]) => Promise<TaskResourceBatchResult>;
+  applyResourceCleanup: (id: string) => Promise<TaskResourceBatchResult>;
+  undoResourceChange: (id: string) => Promise<Task>;
+  updateFileMeta: (id: string, kind: "file" | "attachment", fileId: string, patch: { name?: string; description?: string }) => Promise<Task>;
+  updateWebLink: (id: string, linkId: string, title: string) => Promise<Task>;
   deleteWorktree: (id: string, resourceId: string, confirmation: TaskDeletionConfirmation) => Promise<Task>;
   deleteNote: (id: string, noteId: string, expectedVersion: number) => Promise<Task>;
   rename: (id: string, title: string) => Promise<boolean>;
@@ -50,6 +59,16 @@ export const useTaskStore = create<TaskState>((set, get) => {
       const updated = latestTask(await operation());
       set({ tasks: get().tasks.map((task) => task.id === updated.id ? updated : task) });
       return updated;
+    } finally { set({ pending: false }); }
+  }
+  async function updateBatch(operation: () => Promise<TaskResourceBatchResult>) {
+    if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
+    set({ pending: true, error: null });
+    try {
+      const result = await operation();
+      const updated = latestTask(result.task);
+      set({ tasks: get().tasks.map((task) => task.id === updated.id ? updated : task) });
+      return { ...result, task: updated };
     } finally { set({ pending: false }); }
   }
   async function mutate(operation: () => Promise<Task[]>, optimistic?: Task[]) {
@@ -82,6 +101,14 @@ export const useTaskStore = create<TaskState>((set, get) => {
     commentNote: (id, input) => updateTask(() => getTasksApi().commentNote(id, input)),
     changeNoteComment: (id, commentId, expected, patch) => updateTask(() => getTasksApi().changeNoteComment(id, commentId, expected, patch)),
     detachResource: (id, input) => updateTask(() => getTasksApi().detachResource(id, input)),
+    archiveResources: (id, items) => updateBatch(() => getTasksApi().archiveResources(id, items)),
+    restoreResources: (id, items) => updateBatch(() => getTasksApi().restoreResources(id, items)),
+    detachResources: (id, items) => updateBatch(() => getTasksApi().detachResources(id, items)),
+    deleteAttachments: (id, ids) => updateBatch(() => getTasksApi().deleteAttachments(id, ids)),
+    applyResourceCleanup: (id) => updateBatch(() => getTasksApi().applyResourceCleanup(id)),
+    undoResourceChange: (id) => updateTask(() => getTasksApi().undoResourceChange(id)),
+    updateFileMeta: (id, kind, fileId, patch) => updateTask(() => getTasksApi().updateFileMeta(id, kind, fileId, patch)),
+    updateWebLink: (id, linkId, title) => updateTask(() => getTasksApi().updateWebLink(id, linkId, title)),
     deleteWorktree: (id, resourceId, confirmation) => updateTask(() => getTasksApi().deleteWorktree(id, resourceId, confirmation)),
     deleteNote: (id, noteId, expectedVersion) => updateTask(() => getTasksApi().deleteNote(id, noteId, expectedVersion)),
     async create(input) {

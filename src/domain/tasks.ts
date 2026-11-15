@@ -33,12 +33,19 @@ export interface Task {
   description?: string;
   resources?: TaskResource[];
   links?: IssueItem[];
+  /** 清理归档的 Issue / PR，不进入活动列表和共享上下文。 */
+  archivedLinks?: IssueItem[];
   /** 用户添加的文档、规范等普通网页链接。 */
   webLinks?: TaskWebLink[];
   attachments?: TaskAttachment[];
   /** 直接绑定的原文件路径，与创建任务时复制的附件分开存储。 */
   files?: TaskFileReference[];
   notes?: TaskNote[];
+  /** 已归档的笔记，不进入活动列表和共享上下文。 */
+  archivedNotes?: TaskNote[];
+  archivedFiles?: TaskFileReference[];
+  archivedAttachments?: TaskAttachment[];
+  archivedWebLinks?: TaskWebLink[];
   /** 归档前的状态，用于恢复；旧记录缺省恢复 TODO。 */
   archivedFrom?: "TODO" | "DONE";
 }

@@ -34,7 +34,11 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
         detachResource:async(id,input)=>{window.detached=input;task={...task,files:task.files.filter(file=>file.id!==input.id)};return structuredClone(task);},
         updateNote:async(id,note,version)=>{if(id!==task.id)throw Error('Wrong task');if(window.failNote)throw Error('TASK_BUSY');const current=task.notes.find(item=>item.id===note.id);if(!current)throw Error('TASK_NOTE_NOT_FOUND');if(current.version!==version)throw Error('TASK_CONTENT_CHANGED');task={...task,notes:task.notes.map(item=>item.id===note.id?{...item,...note,title:note.title.trim(),version:version+1,updatedAt:new Date().toISOString()}:item)};return structuredClone(task);},
         deleteNote:async(id,noteId,version)=>{if(id!==task.id)throw Error('Wrong task');if(window.failNote)throw Error('TASK_BUSY');if(task.notes.find(item=>item.id===noteId)?.version!==version)throw Error('TASK_CONTENT_CHANGED');task={...task,notes:task.notes.filter(item=>item.id!==noteId)};return structuredClone(task);},
-        chooseResourceFile:async()=>({id:'11111111-1111-4111-8111-111111111111',name:'spec.md',path:'/fixture/spec.md',size:4}),releaseResourceFiles:async ids=>window.releases.push(...ids),revealResourceFile:async(...args)=>window.reveals.push(args)},
+        chooseResourceFile:async()=>({id:'11111111-1111-4111-8111-111111111111',name:'spec.md',path:'/fixture/spec.md',size:4}),releaseResourceFiles:async ids=>window.releases.push(...ids),revealResourceFile:async(...args)=>window.reveals.push(args),
+        inspectManagedFile:async(id,kind,fileId)=>({kind,id:fileId,name:'spec.md',description:'',size:4,mtime:'2026-10-07T00:00:00.000Z',exists:true,source:kind==='file'?'path':'attachment',location:'/fixture/spec.md',previewType:'markdown'}),
+        previewManagedFile:async()=>({type:'markdown',text:'# spec',size:4}),
+        inspectResourceCleanup:async()=>({missingFiles:[],mergedPullRequests:[]}),
+        dismissResourceUndo:async()=>{}},
         agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:[]},installations:[],entries:{}})}};
       window.remoteNoteUpdate=(title,content)=>{task={...task,notes:task.notes.map(note=>note.title===title?{...note,content,version:note.version+1}:note)};useTaskStore.setState({tasks:[structuredClone(task)]});};
       window.savedNote=title=>task.notes.find(note=>note.title===title);
@@ -74,7 +78,7 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           document.querySelector('button[aria-label="添加 NOTES"]').click();await wait(()=>category()==='notes','Category add must focus Notes');
           button('文件').click();await wait(()=>category()==='files','Files missing');button('选择文件…').click();await wait(()=>!button('添加到任务').disabled,'File cannot be submitted');button('添加到任务').click();
           await wait(()=>!dialog()&&document.querySelector('.task-context-rail').textContent.includes('spec.md'),'File binding not reflected');
-          [...document.querySelectorAll('.task-context-row')].find(item=>item.textContent==='spec.md').click();await wait(()=>window.reveals.length===1,'Bound file must reveal original');
+          [...document.querySelectorAll('.task-context-row')].find(item=>item.textContent==='spec.md').click();await wait(()=>document.querySelector('[data-file-preview]')?.textContent.includes('spec.md'),'Bound file must open in-app preview');if(window.reveals.length)throw Error('Previewable markdown must not reveal in Finder');
           document.querySelector('button[aria-label="添加 LINKS"]').click();await wait(()=>category()==='links','LINKS add must focus Links');
           await fill(dialog().querySelector('input[type="url"]'),'javascript:alert(1)');if(!button('添加到任务').disabled)throw Error('Unsafe URL accepted');
           await fill(dialog().querySelector('input[type="url"]'),'https://example.com/spec');button('添加到任务').click();await wait(()=>!dialog(),'Link add failed');
@@ -143,7 +147,7 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           button('取消',notePane()).click();await wait(()=>confirmation(),'Conflict draft discard missing');button('放弃修改',confirmation()).click();await wait(()=>!confirmation()&&!notePane().querySelector('textarea'),'Conflict draft discard failed');
           if(!notePane().textContent.includes('Newer Agent body'))throw Error('Preview must show latest saved note after discarding draft');
           document.querySelector('button[aria-label="添加 NOTES"]').click();await wait(()=>category()==='notes','Add another note failed');
-          await fill(dialog().querySelector('input'),'Second note');await fill(dialog().querySelector('textarea'),'Keep the second note');button('添加到任务').click();await wait(()=>!dialog()&&noteRow('Second note'),'Second note missing');
+          await fill(dialog().querySelector('input:not([type=checkbox])'),'Second note');await fill(dialog().querySelector('textarea'),'Keep the second note');button('添加到任务').click();await wait(()=>!dialog()&&noteRow('Second note'),'Second note missing');
           noteRow('Second note').click();await wait(()=>notePane().textContent.includes('Keep the second note'),'Note switching did not update preview');
           noteAction('编辑笔记').click();await wait(()=>notePane().querySelector('textarea'),'Second note editor missing');await fill(notePane().querySelector('textarea'),'Second draft');
           noteRow('Edited note').click();await wait(()=>notePane().textContent.includes('Newer Agent body')&&!notePane().querySelector('textarea'),'Note switch failed');
@@ -153,7 +157,7 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           await noteMenu('Second note');if(getComputedStyle(noteMenuItem('打开')).fontSize!=='12px'||noteMenuItem('删除').dataset.variant!=='destructive')throw Error('Notes must use shared context menu styles');
           if(!notePane().textContent.includes('Newer Agent body'))throw Error('Right click must not change selected note');noteMenuItem('打开').click();await wait(()=>notePane().textContent.includes('Keep the second note'),'Context Open did not preview selected note');
           noteRow('Edited note').click();await wait(()=>notePane().textContent.includes('Newer Agent body'),'Restore first note failed');
-          document.querySelector('button[aria-label="添加 NOTES"]').click();await wait(()=>category()==='notes','Add temporary note failed');await fill(dialog().querySelector('input'),'Temporary note');await fill(dialog().querySelector('textarea'),'Temporary body');button('添加到任务').click();await wait(()=>!dialog()&&noteRow('Temporary note'),'Temporary note missing');
+          document.querySelector('button[aria-label="添加 NOTES"]').click();await wait(()=>category()==='notes','Add temporary note failed');await fill(dialog().querySelector('input:not([type=checkbox])'),'Temporary note');await fill(dialog().querySelector('textarea'),'Temporary body');button('添加到任务').click();await wait(()=>!dialog()&&noteRow('Temporary note'),'Temporary note missing');
           noteAction('编辑笔记').click();await wait(()=>notePane().querySelector('textarea'),'Protected editor missing');await fill(notePane().querySelector('textarea'),'Protected draft');
           await noteMenu('Temporary note');noteMenuItem('删除').click();await wait(()=>confirmation(),'Context Delete confirmation missing');if(!confirmation().textContent.includes('Temporary note'))throw Error('Context Delete targets wrong note: '+confirmation().textContent);
           button('取消',confirmation()).click();await wait(()=>!confirmation(),'Context Delete cancel failed');if(!noteRow('Temporary note')||notePane().querySelector('textarea').value!=='Protected draft')throw Error('Cancel deleted note or lost other draft');

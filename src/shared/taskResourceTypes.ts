@@ -13,6 +13,8 @@ export interface TaskNoteUpdate extends TaskNoteInput {
   sortOrder?: number;
 }
 export interface TaskNote extends TaskNoteInput {
+  /** 资源级归档时间；归档后退出活动列表和共享上下文。 */
+  archivedAt?: string;
   /** 最近保存者与原创建者分开记录，历史迁移无法确认时为 unknown。 */
   lastEditor?: import("./taskNoteTypes").TaskNoteActor;
   lastEditorSessionId?: string;
@@ -33,6 +35,9 @@ export interface TaskFileReference {
   /** 系统选择器确认后的规范路径；绑定不复制、不修改原文件。 */
   path: string;
   size: number;
+  description?: string;
+  /** 资源级归档时间；归档后退出活动列表和共享上下文。 */
+  archivedAt?: string;
 }
 export interface AddTaskResourcesInput {
   /** 同一提交重试沿用，避免响应丢失后重复添加笔记或文件。 */

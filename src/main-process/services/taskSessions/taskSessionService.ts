@@ -494,11 +494,14 @@ export class TaskSessionService {
       return this.publish();
     });
   }
+  isWorkspaceBusy(taskId: string, resourceId: string) {
+    return this.sessions.some((session) => session.taskId === taskId && ["starting", "running"].includes(session.status)
+      && (session.workspace?.kind !== "resource" || session.workspace.resourceId === resourceId));
+  }
   withIdleWorkspace<Result>(taskId: string, resourceId: string, operation: () => Promise<Result>) {
     return this.serialize(async () => {
       await this.initialize();
-      if (this.sessions.some((session) => session.taskId === taskId && ["starting", "running"].includes(session.status)
-        && (session.workspace?.kind !== "resource" || session.workspace.resourceId === resourceId))) throw new Error("TASK_WORKSPACE_BUSY");
+      if (this.isWorkspaceBusy(taskId, resourceId)) throw new Error("TASK_WORKSPACE_BUSY");
       return operation();
     });
   }

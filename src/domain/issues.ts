@@ -21,4 +21,6 @@ export interface IssueItem {
   status: IssueStatus;
   /** 条目更新时间，预览以 ISO 日期存储。 */
   date: string;
+  /** 清理归档时间；活动列表中的条目不带该字段。 */
+  archivedAt?: string;
 }

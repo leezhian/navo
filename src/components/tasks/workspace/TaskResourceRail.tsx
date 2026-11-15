@@ -27,6 +27,11 @@ import { SessionHoverDetails } from "./SessionHoverDetails";
 import { ChangeHoverDetails } from "./ChangeHoverDetails";
 import { useSessionUnread } from "@/hooks/useSessionUnread";
 import { sessionActivityText } from "@/utils/sessionActivityLabel";
+import { aggregateTaskWebLinks } from "@/utils/taskWebLinks";
+import { useTaskStore } from "@/stores/taskStore";
+import { useTaskResourceUndoStore } from "@/stores/taskResourceUndoStore";
+import { TaskWebLinkMenu } from "./TaskWebLinkMenu";
+import type { TaskResourceRef } from "@/shared/taskResourceLifecycle";
 
 interface TaskResourceRailProps {
   /** 只展示真实关联资源，不填充 demo 条目。 */
@@ -71,8 +76,10 @@ interface TaskResourceRailProps {
   onLink: (id: string) => void;
   /** 正式页打开统一资源窗口；独立 demo 可省略以保持只读。 */
   onAddResource?: (category: TaskResourceCategory) => void;
-  /** 定位原文件，不走复制附件接口。 */
+  /** 打开原路径文件的应用内预览；不支持的类型由工作台回退到访达。 */
   onFile?: (id: string) => void;
+  /** 右侧文件预览打开时高亮对应 LINKS 条目。 */
+  activeFile?: { kind: "file" | "attachment"; id: string };
   /** 打开外部应用失败时由工作台展示错误；demo 不传时禁用外部操作。 */
   onWorkspaceOpenError?: () => void;
 }
@@ -103,7 +110,7 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
-export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, onRestored, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, onWorkspaceOpenError }: TaskResourceRailProps) {
+export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, onRestored, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, activeFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate"]);
   const { unread } = useSessionUnread();
   const sessionsLoaded = useTaskSessionStore(state => state.loaded);
@@ -115,6 +122,23 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
   const folders = task.resources?.filter((resource) => resource.mode === "folder") ?? [];
   const prs = task.links?.filter((link) => link.group === "PR") ?? [];
   const issues = task.links?.filter((link) => link.group === "ISSUE") ?? [];
+  const archivedPrs = task.archivedLinks?.filter((link) => link.group === "PR") ?? [];
+  const archivedIssues = task.archivedLinks?.filter((link) => link.group === "ISSUE") ?? [];
+  const webLinks = aggregateTaskWebLinks(task.webLinks ?? []);
+  const archivedWebLinks = aggregateTaskWebLinks(task.archivedWebLinks ?? []);
+  const readOnly = task.status === "ARCHIVED";
+  async function applyBatch(operation: () => Promise<{ undoExpiresAt: string | null } & object>) {
+    const result = await operation() as import("@/shared/taskResourceLifecycle").TaskResourceBatchResult;
+    useTaskResourceUndoStore.getState().remember(task.id, result);
+  }
+  function archiveItems(items: TaskResourceRef[], restore = false) {
+    return applyBatch(() => restore
+      ? useTaskStore.getState().restoreResources(task.id, items)
+      : useTaskStore.getState().archiveResources(task.id, items));
+  }
+  const linksCount = (task.attachments?.length ?? 0) + (task.webLinks?.length ?? 0) + (task.files?.length ?? 0) + folders.length
+    + (task.archivedAttachments?.length ?? 0) + (task.archivedWebLinks?.length ?? 0) + (task.archivedFiles?.length ?? 0);
+  const notesCount = (task.notes?.length ?? 0) + 1 + (task.archivedNotes?.length ?? 0);
   return <aside ref={scrollRef} className="task-context-rail" aria-label={t("tasks:runtime.context")}>
     <TaskInitializationPanel task={task} />
     <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories")}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
@@ -160,17 +184,78 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
     {terminals.length > 0 && <ResourceGroup title={t("tasks:runtime.terminals")} count={terminals.length} action={newTerminalControl}>
       {terminals.map((session) => <button key={session.id} className="task-context-row" data-active={session.id === activeTerminalId} aria-pressed={session.id === activeTerminalId} onClick={() => onSelect(session)} title={session.cwd}><ContextItemIcon><Terminal /></ContextItemIcon><span className="truncate">{session.title}</span></button>)}
     </ResourceGroup>}
-    <ResourceGroup title="PULL REQUESTS" count={prs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}>{prs.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}</ResourceGroup>
-    <ResourceGroup title="ISSUES" count={issues.length} onAdd={onAddResource && (() => onAddResource("issues"))}>{issues.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}</ResourceGroup>
-    <ResourceGroup title="LINKS" count={(task.attachments?.length ?? 0) + (task.webLinks?.length ?? 0) + (task.files?.length ?? 0) + folders.length} onAdd={onAddResource && (() => onAddResource("links"))}>
-      {folders.map((folder) => <TaskResourceMenu key={folder.resourceId} task={task} resource={{ kind: "workspace", id: folder.resourceId }}><button className="task-context-row" onClick={() => onPreview(folder.name, folder.workingPath)}><ContextItemIcon><FolderGit2 /></ContextItemIcon><span className="truncate">{folder.name}</span></button></TaskResourceMenu>)}
-      {task.attachments?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "attachment", id: file.id }}><button className="task-context-row" title={file.name} onClick={() => onAttachment(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button></TaskResourceMenu>)}
-      {task.files?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "file", id: file.id }}><button className="task-context-row" title={file.path} disabled={!onFile} onClick={() => onFile?.(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button></TaskResourceMenu>)}
-      {task.webLinks?.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "link", id: link.id }}><button className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button></TaskResourceMenu>)}
+    <ResourceGroup title="PULL REQUESTS" count={prs.length + archivedPrs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}>
+      {prs.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}
+      <RailArchiveList title={t("tasks:resources.archived.toggle")} count={archivedPrs.length}>
+        {archivedPrs.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}
+          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "issue", id: link.id }], true)}>
+          <button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button>
+        </TaskResourceMenu>)}
+      </RailArchiveList>
     </ResourceGroup>
-    <ResourceGroup title="NOTES" count={(task.notes?.length ?? 0) + 1} onAdd={onAddResource && (() => onAddResource("notes"))}>
+    <ResourceGroup title="ISSUES" count={issues.length + archivedIssues.length} onAdd={onAddResource && (() => onAddResource("issues"))}>
+      {issues.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}
+      <RailArchiveList title={t("tasks:resources.archived.toggle")} count={archivedIssues.length}>
+        {archivedIssues.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}
+          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "issue", id: link.id }], true)}>
+          <button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button>
+        </TaskResourceMenu>)}
+      </RailArchiveList>
+    </ResourceGroup>
+    <ResourceGroup title="LINKS" count={linksCount} onAdd={onAddResource && (() => onAddResource("links"))}>
+      {folders.map((folder) => <TaskChangeMenu key={folder.resourceId} variant="folder" task={task} resource={folder} sessions={terminals} agentChoices={agentChoices} pending={archivePending}
+        onOpen={() => onPreview(folder.name, folder.workingPath)} onRunCommand={onRunCommand} onNewSession={onNewSession} onNewTerminal={onNewTerminal} onOpenError={onWorkspaceOpenError}>
+        <button className="task-context-row" onClick={() => onPreview(folder.name, folder.workingPath)}><ContextItemIcon><FolderGit2 /></ContextItemIcon><span className="truncate">{folder.name}</span></button>
+      </TaskChangeMenu>)}
+      {task.attachments?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "attachment", id: file.id }} mode="delete"
+        onArchive={readOnly ? undefined : () => void archiveItems([{ kind: "attachment", id: file.id }])}>
+        <button className="task-context-row" title={file.name} data-active={activeFile?.kind === "attachment" && activeFile.id === file.id} onClick={() => onAttachment(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button>
+      </TaskResourceMenu>)}
+      {task.files?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "file", id: file.id }}
+        onArchive={readOnly ? undefined : () => void archiveItems([{ kind: "file", id: file.id }])}>
+        <button className="task-context-row" title={file.path} data-active={activeFile?.kind === "file" && activeFile.id === file.id} disabled={!onFile} onClick={() => onFile?.(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button>
+      </TaskResourceMenu>)}
+      {webLinks.map((link) => <TaskWebLinkMenu key={link.id} task={task} link={link} onOpen={() => onLink(link.id)}>
+        <button className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button>
+      </TaskWebLinkMenu>)}
+      <RailArchiveList title={t("tasks:resources.archived.toggle")} count={(task.archivedAttachments?.length ?? 0) + (task.archivedFiles?.length ?? 0) + archivedWebLinks.length}>
+        {task.archivedAttachments?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "attachment", id: file.id }} mode="delete"
+          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "attachment", id: file.id }], true)}>
+          <button className="task-context-row" title={file.name} onClick={() => onAttachment(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button>
+        </TaskResourceMenu>)}
+        {task.archivedFiles?.map((file) => <TaskResourceMenu key={file.id} task={task} resource={{ kind: "file", id: file.id }}
+          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "file", id: file.id }], true)}>
+          <button className="task-context-row" title={file.path} disabled={!onFile} onClick={() => onFile?.(file.id)}><ContextItemIcon><FileText /></ContextItemIcon><span className="truncate">{file.name}</span></button>
+        </TaskResourceMenu>)}
+        {archivedWebLinks.map((link) => <TaskWebLinkMenu key={link.id} task={task} link={link} archived onOpen={() => onLink(link.id)}>
+          <button className="task-context-row" title={link.url} onClick={() => onLink(link.id)}><ContextItemIcon><Link2 /></ContextItemIcon><span className="truncate">{link.title || link.url}</span></button>
+        </TaskWebLinkMenu>)}
+      </RailArchiveList>
+    </ResourceGroup>
+    <ResourceGroup title="NOTES" count={notesCount} onAdd={onAddResource && (() => onAddResource("notes"))}>
       <TaskNoteRow taskId={task.id} note={{ id: TASK_PROMPT_ID, title: t("tasks:context.prompt"), content: task.description ?? "" }} active={activeNoteId === TASK_PROMPT_ID} deleteDisabled onOpen={onNote} />
-      {task.notes?.map((note) => <TaskNoteRow key={note.id} taskId={task.id} note={note} active={note.id === activeNoteId} deleteDisabled={noteDeleteDisabled} onOpen={onNote} onDelete={onDeleteNote} onRename={onRenameNote} />)}
+      {task.notes?.map((note) => <TaskNoteRow key={note.id} taskId={task.id} note={note} active={note.id === activeNoteId} deleteDisabled={noteDeleteDisabled || readOnly} onOpen={onNote} onDelete={onDeleteNote} onRename={onRenameNote}
+        onArchive={readOnly ? undefined : () => void archiveItems([{ kind: "note", id: note.id }])} />)}
+      <RailArchiveList title={t("tasks:resources.archived.toggle")} count={task.archivedNotes?.length ?? 0}>
+        {task.archivedNotes?.map((note) => <TaskNoteRow key={note.id} taskId={task.id} note={note} active={false} deleteDisabled={noteDeleteDisabled || readOnly} onOpen={() => onPreview(note.title || t("tasks:resources.untitledNote"), note.content)}
+          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "note", id: note.id }], true)} />)}
+      </RailArchiveList>
     </ResourceGroup>
   </aside>;
+}
+
+interface RailArchiveListProps {
+  title: string;
+  count: number;
+  children: ReactNode;
+}
+function RailArchiveList({ title, count, children }: RailArchiveListProps) {
+  const [open, setOpen] = useState(false);
+  if (count === 0) return null;
+  return <div className="mt-1">
+    <button type="button" data-archived-toggle className="flex w-full items-center gap-1 px-1 py-0.5 text-[10px] text-muted-foreground" aria-expanded={open} onClick={() => setOpen(!open)}>
+      {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}<span>{title}</span><small>{count}</small>
+    </button>
+    {open && <div data-resource-archived className="task-context-items">{children}</div>}
+  </div>;
 }

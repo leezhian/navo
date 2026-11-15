@@ -36,9 +36,11 @@ interface TaskChangeMenuProps {
   onNewSession?: (agentId: AgentId, resourceId: string) => void;
   onNewTerminal?: (resourceId: string) => void;
   onOpenError?: () => void;
+  /** 普通文件夹只保留打开方式、复制路径和在此新建会话／终端。 */
+  variant?: "repository" | "folder";
 }
 
-export function TaskChangeMenu({ task, resource, sessions, children, agentChoices, pending, onOpen, onRunCommand, onNewSession, onNewTerminal, onOpenError }: TaskChangeMenuProps) {
+export function TaskChangeMenu({ task, resource, sessions, children, agentChoices, pending, onOpen, onRunCommand, onNewSession, onNewTerminal, onOpenError, variant = "repository" }: TaskChangeMenuProps) {
   const { t } = useTranslation(["tasks", "common", "taskCreate"]);
   const opening = useWorkspaceOpenActions(task.id, resource, onOpenError);
   const commands = useWorkspaceCommands(resource, sessions, onRunCommand);
@@ -62,14 +64,14 @@ export function TaskChangeMenu({ task, resource, sessions, children, agentChoice
       {!!opening.options?.editors.length && <ContextMenuSeparator />}
       <ContextMenuItem onSelect={() => void opening.open({ kind: "fileManager" })}><FolderOpen />{t("tasks:workspaceOpen.fileManager")}</ContextMenuItem>
       <ContextMenuItem disabled={!opening.options?.externalTerminal} onSelect={() => void opening.open({ kind: "terminal" })}><Terminal />{t("tasks:workspaceOpen.terminal")}</ContextMenuItem>
-      {opening.options?.remote && <ContextMenuItem onSelect={() => void opening.open({ kind: "remote" })}><RepositoryProviderIcon provider={opening.options.remote.provider} />{t("tasks:workspaceOpen.provider", { provider: opening.options.remote.provider })}</ContextMenuItem>}
+      {variant === "repository" && opening.options?.remote && <ContextMenuItem onSelect={() => void opening.open({ kind: "remote" })}><RepositoryProviderIcon provider={opening.options.remote.provider} />{t("tasks:workspaceOpen.provider", { provider: opening.options.remote.provider })}</ContextMenuItem>}
     </ContextMenuSubContent></ContextMenuPortal></ContextMenuSub>
     <ContextMenuSeparator />
     <ContextMenuSub><ContextMenuSubTrigger className="data-disabled:pointer-events-none data-disabled:opacity-50" disabled={disabled || !onNewSession}>{t("tasks:changesMenu.newSession")}</ContextMenuSubTrigger><ContextMenuPortal><ContextMenuSubContent className="w-48 [&_svg]:size-3.5!">
       {agentChoices.length ? agentChoices.map((agent) => <ContextMenuItem key={agent.id} disabled={!agent.ready || disabled} onSelect={() => onNewSession?.(agent.id, resource.resourceId)}><AgentProviderIcon agentId={agent.id} /><span>{agentNames[agent.id]}</span></ContextMenuItem>) : <ContextMenuItem disabled>{t("taskCreate:agent.empty")}</ContextMenuItem>}
     </ContextMenuSubContent></ContextMenuPortal></ContextMenuSub>
     <ContextMenuItem disabled={disabled || !onNewTerminal} onSelect={() => onNewTerminal?.(resource.resourceId)}>{t("tasks:changesMenu.newTerminal")}</ContextMenuItem>
-    <ContextMenuSub><ContextMenuSubTrigger className="data-disabled:pointer-events-none data-disabled:opacity-50" disabled={disabled || !onOpenError}>{t("tasks:changesMenu.runCommand")}</ContextMenuSubTrigger><ContextMenuPortal><ContextMenuSubContent className="w-48 [&_svg]:size-3.5!">
+    {variant === "repository" && <ContextMenuSub><ContextMenuSubTrigger className="data-disabled:pointer-events-none data-disabled:opacity-50" disabled={disabled || !onOpenError}>{t("tasks:changesMenu.runCommand")}</ContextMenuSubTrigger><ContextMenuPortal><ContextMenuSubContent className="w-48 [&_svg]:size-3.5!">
       {!commands.menuCommands.length && <ContextMenuItem disabled>{t("tasks:commands.empty")}</ContextMenuItem>}
       {commands.menuCommands.map((command) => {
         const active = commands.running.find((session) => session.command?.id === command.id);
@@ -80,15 +82,15 @@ export function TaskChangeMenu({ task, resource, sessions, children, agentChoice
       {commands.error !== null && <ContextMenuItem onSelect={() => void useResourceStore.getState().refresh()}>{t("common:actions.retry")}</ContextMenuItem>}
       <ContextMenuSeparator />
       <ContextMenuItem disabled={!commands.repository || disabled} onSelect={() => setManaging(true)}><Settings2 />{t("tasks:commands.manage")}</ContextMenuItem>
-    </ContextMenuSubContent></ContextMenuPortal></ContextMenuSub>
+    </ContextMenuSubContent></ContextMenuPortal></ContextMenuSub>}
     <ContextMenuSeparator />
-    <ContextMenuItem disabled={!branch} onSelect={() => void copy(branch)}>{t("tasks:changesMenu.copyBranch")}</ContextMenuItem>
-    <ContextMenuItem onSelect={() => void copy(resource.workingPath)}>{t("tasks:changesMenu.copyPath")}</ContextMenuItem>
-    <ContextMenuItem disabled={!opening.options?.remoteUrl} onSelect={() => void copy(opening.options?.remoteUrl ?? "")}>{t("tasks:changesMenu.copyRemote")}</ContextMenuItem>
+    {variant === "repository" && <ContextMenuItem disabled={!branch} onSelect={() => void copy(branch)}>{t("tasks:changesMenu.copyBranch")}</ContextMenuItem>}
+    <ContextMenuItem onSelect={() => void copy(resource.workingPath)}>{t(variant === "folder" ? "tasks:changesMenu.copyDirectoryPath" : "tasks:changesMenu.copyPath")}</ContextMenuItem>
+    {variant === "repository" && <ContextMenuItem disabled={!opening.options?.remoteUrl} onSelect={() => void copy(opening.options?.remoteUrl ?? "")}>{t("tasks:changesMenu.copyRemote")}</ContextMenuItem>}
   </>;
   return <div ref={row}>
     <TaskResourceMenu task={task} resource={{ kind: "workspace", id: resource.resourceId }} actions={actions}
-      trailingActions={resource.mode === "worktree" && <ContextMenuItem variant="destructive" disabled={disabled || !resource.ownership || !onOpenError} onSelect={() => setDeleting(true)}>{t("tasks:changesMenu.deleteWorktree")}</ContextMenuItem>}>
+      trailingActions={variant === "repository" && resource.mode === "worktree" && <ContextMenuItem variant="destructive" disabled={disabled || !resource.ownership || !onOpenError} onSelect={() => setDeleting(true)}>{t("tasks:changesMenu.deleteWorktree")}</ContextMenuItem>}>
       {children}
     </TaskResourceMenu>
     {copyFailed && <p role="alert" className="px-2 text-xs text-destructive">{t("tasks:changesMenu.copyFailed")}</p>}
