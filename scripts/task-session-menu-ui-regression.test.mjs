@@ -19,7 +19,9 @@ async function browserAssertions() {
   await wait(() => document.querySelector('#source'), 'Fixture missing'); await open();
   if (window.selected !== 'other') throw Error('Right click selected a different session');
   const labels = [...item('Open').closest('[role="menu"]').querySelectorAll('[role="menuitem"]')].map(node => node.textContent);
-  if (labels.join('|') !== 'Open|Rename session|New session from this one|Archive session|Delete session') throw Error('Wrong session menu order');
+  // 已读/未读标签按会话状态二选一，其余条目顺序固定；复制会话链接插在归档之前。
+  const expected = ['Open', 'Rename session', /^(Mark as (un)?read)$/, 'New session from this one', 'Copy session link', 'Archive session', 'Delete session'];
+  if (labels.length !== expected.length || expected.some((want, index) => want === null ? false : want instanceof RegExp ? !want.test(labels[index]) : labels[index] !== want)) throw Error('Wrong session menu order');
   for (const [label, icon] of [['Rename session', 'pencil'], ['Archive session', 'archive'], ['Delete session', 'trash-2']]) if (!item(label).querySelector('.lucide-' + icon)) throw Error('Missing icon for ' + label);
   if (item('Delete session').dataset.variant !== 'destructive' || getComputedStyle(item('Open')).fontSize !== '12px') throw Error('Menu style mismatch');
   item('Open').click(); await wait(() => window.selected === 'source', 'Open did not select source');
@@ -61,7 +63,7 @@ async function browserAssertions() {
   const openArchived = async () => { archivedRow().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2, clientX: 100, clientY: 100 })); await wait(() => item('Restore'), 'Archived context menu missing'); };
   await wait(archivedRow, 'Archived row missing'); await openArchived();
   const archivedLabels = [...item('Restore').closest('[role="menu"]').querySelectorAll('[role="menuitem"]')].map(node => node.textContent);
-  if (archivedLabels.join('|') !== 'Restore|New session from this one|Delete session') throw Error('Archived session must expose exactly three actions');
+  if (archivedLabels.join('|') !== 'Restore|New session from this one|Copy session link|Delete session') throw Error('Archived session must expose restore, source creation, link copy and delete');
   if (window.restores.length) throw Error('Right click restored the session');
   item('New session from this one').focus(); item('New session from this one').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
   await wait(() => item('Claude Code'), 'Archived Agent submenu missing'); item('Claude Code').click();
