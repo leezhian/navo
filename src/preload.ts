@@ -143,6 +143,33 @@ const api: NavoApi = {
     inspectDeletion: (id, options, action) => ipcRenderer.invoke(ipcChannels.tasksInspectDeletion, id, options, action),
     remove: (id, confirmation) => ipcRenderer.invoke(ipcChannels.tasksRemove, id, confirmation),
   },
+  integrations: {
+    list: () => ipcRenderer.invoke(ipcChannels.integrationsList),
+    connect: (input) => ipcRenderer.invoke(ipcChannels.integrationsConnect, input),
+    cancel: (id) => ipcRenderer.invoke(ipcChannels.integrationsCancel, id),
+    disconnect: (id) => ipcRenderer.invoke(ipcChannels.integrationsDisconnect, id),
+    refreshStatuses: () => ipcRenderer.invoke(ipcChannels.integrationsRefreshStatuses),
+    authState: (id) => ipcRenderer.invoke(ipcChannels.integrationsAuthState, id),
+    onChanged: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(ipcChannels.integrationsChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.integrationsChanged, handler);
+    },
+  },
+  issues: {
+    list: (options) => ipcRenderer.invoke(ipcChannels.issuesList, options),
+    get: (id, options) => ipcRenderer.invoke(ipcChannels.issuesGet, id, options),
+    resolveUrl: (value) => ipcRenderer.invoke(ipcChannels.issuesResolveUrl, value),
+    importLocal: (items) => ipcRenderer.invoke(ipcChannels.issuesImportLocal, items),
+    ensureNote: (taskId, issueId) => ipcRenderer.invoke(ipcChannels.issuesEnsureNote, taskId, issueId),
+    worktreesForPullRequest: (taskId, pullRequestId) => ipcRenderer.invoke(ipcChannels.issuesWorktreesForPullRequest, taskId, pullRequestId),
+    pullRequestForWorktree: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.issuesPullRequestForWorktree, taskId, resourceId),
+    onChanged: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(ipcChannels.issuesChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.issuesChanged, handler);
+    },
+  },
   settings: {
     load: () => ipcRenderer.invoke(ipcChannels.settingsLoad),
     save: (settings: AppSettings) => ipcRenderer.invoke(ipcChannels.settingsSave, settings),

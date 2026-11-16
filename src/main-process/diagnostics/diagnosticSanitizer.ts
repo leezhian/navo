@@ -58,6 +58,14 @@ export function sanitizedStack(value: unknown): string[] | undefined {
   });
 }
 
+
+/** 只去掉日志里可能出现的平台 token，保留字段名和校验错误说明。 */
+export function redactDiagnosticSecret(value: string) {
+  return value
+    .replace(/\b(gh[pours]_|github_pat_|glpat-|lin_api_|glsoat-|gloas-)[A-Za-z0-9_]+/gi, "[redacted]")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]");
+}
+
 export function makeDiagnosticEntry(event: DiagnosticEvent, metadata: DiagnosticMetadata = {}, includeStack = true): DiagnosticEntry | null {
   try {
     if (!isDiagnosticEvent(event)) return null;
@@ -74,6 +82,21 @@ export function makeDiagnosticEntry(event: DiagnosticEvent, metadata: Diagnostic
     if (["darwin", "win32", "linux"].includes(metadata.platform ?? "")) data.platform = metadata.platform;
     if (["TODO", "DONE", "ARCHIVED"].includes(metadata.status ?? "")) data.status = metadata.status;
     if (reasons.has(metadata.reason ?? "")) data.reason = metadata.reason;
+    if (typeof metadata.httpStatus === "number" && Number.isInteger(metadata.httpStatus) && metadata.httpStatus >= 100 && metadata.httpStatus <= 599) {
+      data.httpStatus = metadata.httpStatus;
+    }
+    if (typeof metadata.providerId === "string" && ["github", "github-enterprise", "gitlab", "gitlab-self-hosted", "linear"].includes(metadata.providerId)) {
+      data.providerId = metadata.providerId;
+    }
+    if (Array.isArray(metadata.graphqlErrors)) {
+      const errors = metadata.graphqlErrors.slice(0, 8).flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const type = typeof item.type === "string" && /^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(item.type) ? item.type : undefined;
+        const message = typeof item.message === "string" ? redactDiagnosticSecret(item.message).slice(0, 200) : undefined;
+        return type || message ? [{ ...(type ? { type } : {}), ...(message ? { message } : {}) }] : [];
+      });
+      if (errors.length) data.graphqlErrors = errors;
+    }
     if (metadata.extensionId === "session-trace") data.extensionId = metadata.extensionId;
     if (["page", "detail", "timeline"].includes(metadata.queryKind ?? "")) data.queryKind = metadata.queryKind;
     if (Array.isArray(metadata.changedFields)) data.changedFields = [...new Set(metadata.changedFields.filter((key) => Object.prototype.hasOwnProperty.call(defaultSettings, key)))].slice(0, 32);

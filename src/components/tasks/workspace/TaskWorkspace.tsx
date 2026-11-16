@@ -1,3 +1,5 @@
+import type { IssueItem } from "@/domain/issues";
+import { IssueRemoteDetails } from "@/components/issues/IssueRemoteDetails";
 import { useExtensions } from "@/hooks/useExtensions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVisibleSessionResume } from "@/hooks/useVisibleSessionResume";
@@ -108,6 +110,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
   const noteEditor = useTaskNoteEditor(task, rightContent.kind === "note" ? rightContent.id : undefined, () => setRightOpen(false));
   useDismissResourceUndo(task.id);
   const [preview, setPreview] = useState<{ title: string; body: string } | null>(null);
+  const [issuePreview, setIssuePreview] = useState<{ item: IssueItem; refreshToken: number } | null>(null);
   const [review, setReview] = useState<{ session: ReviewSession; mode: CompareMode; targetBranch: string; filePath?: string } | null>(null);
   const [addCategory, setAddCategory] = useState<TaskResourceCategory | null>(null);
   const [renameRequest, setRenameRequest] = useState(0);
@@ -390,6 +393,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
             onAddResource={setAddCategory} onFile={(id) => openManagedFile("file", id)} activeFile={visibleFile && rightContent.kind === "file" ? { kind: rightContent.source, id: rightContent.id } : undefined}
             onWorkspaceOpenError={() => setPreview({ title: t("tasks:workspaceOpen.failed"), body: t("tasks:workspaceOpen.failedDetail") })}
             onPreview={(title, body) => setPreview({ title, body })}
+            onIssuePreview={(item, refresh) => setIssuePreview((current) => ({ item, refreshToken: refresh ? (current?.item.id === item.id ? current.refreshToken + 1 : 1) : 0 }))}
             onAttachment={(id) => openManagedFile("attachment", id)}
             onLink={(id) => runResource(() => getTaskSessionsApi().openLink(task.id, id))} />
         </TaskContextPanel>
@@ -426,7 +430,11 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
         {rightPane}
       </TaskPanelSheet>}
     </div>
-    <Dialog open={preview !== null} onOpenChange={(open) => { if (!open) setPreview(null); }}><DialogContent aria-describedby={undefined} className="sm:max-w-lg">
+        <Dialog open={issuePreview !== null} onOpenChange={(open) => { if (!open) setIssuePreview(null); }}><DialogContent aria-describedby={undefined} className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogTitle>{issuePreview?.item.title}</DialogTitle>
+      {issuePreview && <IssueRemoteDetails issue={issuePreview.item} refreshToken={issuePreview.refreshToken} onLoaded={(item) => setIssuePreview((current) => current ? { ...current, item } : current)} />}
+    </DialogContent></Dialog>
+<Dialog open={preview !== null} onOpenChange={(open) => { if (!open) setPreview(null); }}><DialogContent aria-describedby={undefined} className="sm:max-w-lg">
       <DialogTitle>{preview?.title}</DialogTitle><p className="whitespace-pre-wrap break-words text-sm leading-6">{preview?.body}</p>
     </DialogContent></Dialog>
     <ReviewDialog session={review?.session ?? null} open={review !== null} initialCompareMode={review?.mode} initialTargetBranch={review?.targetBranch} initialFilePath={review?.filePath} onOpenChange={(open) => { if (!open) setReview(null); }} settings={settings} resolvedTheme={resolvedTheme} onSettingsChange={updateSettings} />

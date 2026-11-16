@@ -1,6 +1,7 @@
 import { LabsSettingsPage } from "./LabsSettingsPage";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { useSettingsNavigationStore } from "@/stores/settingsNavigationStore";
 import { Bell, Bot, Folder, Info, Palette, Plug, Search, Settings, FlaskConical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,6 @@ import { SettingsPageHeader } from "./settingsPrimitives";
 import type { AppSettings, ResolvedTheme } from "@/domain/types";
 import "./settings.css";
 
-type SettingsPage = "general" | "notifications" | "appearance" | "agents" | "resources" | "integrations" | "labs" | "about";
 const settingsNavigation = [
   { id: "general" as const, title: "settings:pages.general" as const, icon: Settings },
   { id: "notifications" as const, title: "settings:pages.notifications" as const, icon: Bell },
@@ -41,7 +41,8 @@ interface SettingsPanelProps {
 export function SettingsPanel({ resolvedTheme, settings, updateSettings }: SettingsPanelProps) {
   const { t } = useTranslation(["common", "settings", "agents"]);
   const translate = t;
-  const [activePage, setActivePage] = useState<SettingsPage>("general");
+  const activePage = useSettingsNavigationStore((state) => state.page);
+  const setActivePage = useSettingsNavigationStore((state) => state.setPage);
   const [searchKeyword, setSearchKeyword] = useState("");
   const visibleNavigation = settingsNavigation.filter((item) => t(item.title).toLowerCase().includes(searchKeyword.trim().toLowerCase()));
 

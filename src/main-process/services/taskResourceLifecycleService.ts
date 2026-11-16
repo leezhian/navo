@@ -572,7 +572,12 @@ export class TaskResourceLifecycleService {
     const result: TaskResourceRef[] = [];
     for (const item of items) {
       if (!item || typeof item.kind !== "string" || typeof item.id !== "string") throw new Error("TASK_INVALID");
-      if (item.id.includes("/") || item.id.includes("\\")) throw new Error("TASK_INVALID");
+      // Issue 缓存键含 owner/repo，斜杠合法；其他资源 id 不能带路径分隔符。
+      if (item.kind === "issue") {
+        if (!item.id.trim() || item.id.includes("\\") || item.id.includes("\0")) throw new Error("TASK_INVALID");
+      } else if (item.id.includes("/") || item.id.includes("\\")) {
+        throw new Error("TASK_INVALID");
+      }
       const key = item.kind + ":" + item.id;
       if (seen.has(key)) continue;
       seen.add(key);

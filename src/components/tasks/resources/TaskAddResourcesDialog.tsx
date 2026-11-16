@@ -45,7 +45,7 @@ interface TaskAddResourcesDialogProps {
 export function TaskAddResourcesDialog({
   task, initialCategory, onClose, onOpenFile, onOpenNote, onOpenLink, onOpenRepository, onPreview,
 }: TaskAddResourcesDialogProps) {
-  const { t } = useTranslation(["tasks", "common", "taskCreate"]);
+  const { t } = useTranslation(["tasks", "common", "taskCreate", "issues"]);
   const [category, setCategory] = useState(initialCategory);
   const [addingRepository, setAddingRepository] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -127,7 +127,12 @@ export function TaskAddResourcesDialog({
             {category === "repositories" && <TaskResourcePickerContent excludedIds={(updatedTask.resources ?? []).filter((resource) => resource.mode === "folder").map((resource) => resource.repositoryId ?? resource.resourceId)} addedResources={updatedTask.resources}
               repositoriesDirectory={repositoriesDirectory} selection={draft.repositorySelection} disabled={draft.busy || pending} adding={addingRepository} onAddingChange={setAddingRepository} />}
             {isIssue && <><TaskIssuePickerContent key={category} group={issueGroup} selected={category === "issues" ? draft.issues : draft.prs} onChange={category === "issues" ? draft.setIssues : draft.setPrs} lockedIds={(updatedTask.links ?? []).filter((item) => item.group === issueGroup).map((item) => item.id)} disabled={disabled} />{draft.alreadyArchived && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyArchived")}</p>}</>}
-            {category === "links" && <div className="space-y-3"><TaskWebLinkFields url={draft.url} title={draft.linkTitle} onUrlChange={draft.setUrl} onTitleChange={draft.setLinkTitle} disabled={disabled} invalid={Boolean(draft.url.trim()) && !isTaskLinkUrl(draft.url.trim())} />{draft.duplicateLink && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyLinked")}</p>}{draft.alreadyArchived && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyArchived")}</p>}</div>}
+            {category === "links" && <div className="space-y-3"><TaskWebLinkFields url={draft.url} title={draft.linkTitle} onUrlChange={(value) => { draft.setPreferPlainLink(false); draft.setUrl(value); }} onTitleChange={draft.setLinkTitle} disabled={disabled} invalid={Boolean(draft.url.trim()) && !isTaskLinkUrl(draft.url.trim())} />
+              {draft.resolving && <p className="text-xs text-muted-foreground">{t("issues:menu.resolving")}</p>}
+              {draft.resolveError && <p role="status" className="text-xs text-muted-foreground">{t(`issues:menu.resolve.${draft.resolveError}` as "issues:menu.resolve.notFound", { defaultValue: t("issues:menu.resolve.unreadable") })}</p>}
+              {draft.resolvedIssue && !draft.preferPlainLink && <p className="text-xs text-muted-foreground">{draft.resolvedIssue.group} · {draft.resolvedIssue.title}</p>}
+              {(draft.resolvedIssue || draft.resolveError) && <Button type="button" variant="link" className="h-auto px-0 text-xs" disabled={disabled} onClick={() => draft.setPreferPlainLink(true)}>{t("issues:menu.asLink")}</Button>}
+              {draft.duplicateLink && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyLinked")}</p>}{draft.alreadyArchived && <p className="text-xs text-muted-foreground">{t("tasks:resources.alreadyArchived")}</p>}</div>}
             {category === "notes" && <><Input aria-label={t("tasks:resources.noteTitle")} placeholder={t("tasks:resources.noteTitle")} value={draft.noteTitle} maxLength={160} disabled={disabled} onChange={(event) => draft.setNoteTitle(event.target.value)} className="h-8 text-xs" />
               <div className="flex min-h-56 flex-1 flex-col"><TaskMarkdownEditor value={draft.content} onChange={draft.setContent} disabled={disabled} /></div>
             </>}

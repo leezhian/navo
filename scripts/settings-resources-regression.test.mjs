@@ -92,12 +92,15 @@ test("资源读取不显示加载文案，刷新保留列表和空状态，失�
   await emptyRefresh;
 });
 
-test("集成列表显示五个平台图标，自托管版本共用品牌标识且连接仍禁用", async () => {
-  const providers = await load("src/services/integrationApi.ts").loadIntegrationStatuses();
+test("集成列表显示五个平台图标，自托管版本共用品牌标识且连接可用", async () => {
+  const providers = load("src/shared/integrationTypes.ts").INTEGRATION_PROVIDERS.map((item) => ({ ...item, connected: item.id === "github", oauthAvailable: item.id === "github", account: item.id === "github" ? { login: "kim" } : undefined }));
   const icons = load("src/components/settings/IntegrationProviderIcon.tsx");
   const primitives = load("src/components/settings/settingsPrimitives.tsx");
   const { IntegrationsSettingsPage } = createLoader({
-    "@/stores/integrationStore": { useIntegrationStore: () => ({ providers, loading: false, refresh: async () => undefined }) },
+    "@/stores/integrationStore": { useIntegrationStore: () => ({ providers, loading: false, authSession: null, authError: null, tokenCheck: null, refresh: async () => undefined, refreshStatuses: async () => undefined, connect: async () => undefined, cancel: async () => undefined, disconnect: async () => undefined, pollAuth: async () => undefined, clearAuth: () => undefined }) },
+    "@/stores/settingsNavigationStore": { useSettingsNavigationStore: (select) => select({ highlightProvider: null, clearHighlight: () => undefined }) },
+    "@/components/ui/input": { Input: "input" },
+    "@/components/ui/dialog": { Dialog: () => null, DialogContent: "div", DialogDescription: "p", DialogFooter: "div", DialogHeader: "div", DialogTitle: "h2" },
     "react-i18next": { useTranslation: () => ({ t: translate }) },
     "@/components/ui/button": { Button: "button" },
     "@/components/ui/icon-tooltip": { IconTooltip: () => null },
@@ -107,7 +110,8 @@ test("集成列表显示五个平台图标，自托管版本共用品牌标识�
   const html = renderToStaticMarkup(createElement(IntegrationsSettingsPage));
   assert.equal((html.match(/<svg /g) ?? []).length, 5);
   assert.equal((html.match(/fill="currentColor"/g) ?? []).length, 5);
-  assert.equal((html.match(/disabled=""/g) ?? []).length, 5);
+  assert.equal((html.match(/disabled=""/g) ?? []).length, 0);
+  assert.ok(html.includes("kim"));
   for (const provider of providers) assert.ok(html.includes(provider.name));
   const renderIcon = (provider) => renderToStaticMarkup(createElement(icons.IntegrationProviderIcon, { provider }));
   assert.equal(renderIcon("github"), renderIcon("github-enterprise"));
@@ -398,7 +402,7 @@ test("旧 JSON 迁入 SQLite 并保留备份，重新加载只读取数据库", 
   const database = new DatabaseSync(path.join(directory, "app.db"));
   try {
     assert.equal(database.prepare("PRAGMA journal_mode").get().journal_mode, "wal");
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 16);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 17);
     assert.equal(JSON.parse(database.prepare("SELECT value FROM settings WHERE key = ?").get("theme").value), "dark");
   } finally { database.close(); }
   await writeFile(jsonPath, "invalid legacy JSON");
@@ -473,9 +477,9 @@ test("SQLite 文件或字段损坏不回退旧 JSON，也不覆盖原数据", as
     database.prepare("UPDATE settings SET value = ? WHERE key = ?").run("{invalid", "theme");
     await assert.rejects(service.loadSettings(), /INVALID_SETTINGS/);
     assert.equal(database.prepare("SELECT value FROM settings WHERE key = 'theme'").get().value, "{invalid");
-    database.exec("PRAGMA user_version = 17");
+    database.exec("PRAGMA user_version = 18");
     await assert.rejects(service.saveSettings(defaultSettings), /INVALID_SETTINGS/);
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 17);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 18);
   } finally { database.close(); }
 });
 

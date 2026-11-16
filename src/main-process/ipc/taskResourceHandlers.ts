@@ -11,6 +11,7 @@ import { withIdleTaskWorkspace, initializeTask } from "./taskSessionHandlers";
 import { publishTask } from "./taskEvents";
 import { writeDiagnosticEvent } from "../diagnostics/diagnosticLogger";
 import { exportTaskNote } from "../services/taskNoteExport";
+import { getTaskIssueLinker } from "./taskHandlers";
 
 export function registerTaskResourceHandlers(tasks: TaskService) {
   const owners = new Set<number>();
@@ -26,6 +27,8 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
   ipcMain.handle(ipcChannels.tasksAddResources, (event, taskId: string, input: AddTaskResourcesInput) => {
     owner(event);return tasks.addResources(taskId, input, event.sender.id).then((task) => {
       publishTask(task);
+      const added = Array.isArray(input?.links) ? input.links : [];
+      if (added.length) void getTaskIssueLinker()?.afterIssuesAdded(taskId, added).catch(() => undefined);
       if (input.resources) void initializeTask(task, event.sender).catch((error) => writeDiagnosticEvent("session.start.failed", { taskId, error }));
       return task;
     });
@@ -116,7 +119,15 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
     owner(event); return tasks.restoreResources(taskId, items, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));
   });
   ipcMain.handle(ipcChannels.tasksDetachResources, (event, taskId: string, items: TaskResourceRef[]) => {
-    owner(event); return tasks.detachResources(taskId, items, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));
+    owner(event);
+    return (async () => {
+      const before = (await tasks.repository.load())?.find((task) => task.id === taskId);
+      const ids = new Set(Array.isArray(items) ? items.filter((item) => item?.kind === "issue").map((item) => item.id) : []);
+      const pullRequests = [...(before?.links ?? []), ...(before?.archivedLinks ?? [])].filter((link) => link.group === "PR" && ids.has(link.id)).map((link) => link.id);
+      const result = await tasks.detachResources(taskId, items, event.sender.id);
+      await getTaskIssueLinker()?.rememberDetached(taskId, pullRequests).catch(() => undefined);
+      return { ...result, task: publishTask(result.task) };
+    })();
   });
   ipcMain.handle(ipcChannels.tasksDeleteAttachment, (event, taskId: string, ids: string[]) => {
     owner(event); return tasks.deleteAttachments(taskId, ids, event.sender.id).then((result) => ({ ...result, task: publishTask(result.task) }));

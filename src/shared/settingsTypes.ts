@@ -75,10 +75,4 @@ export interface CloneProgress {
   message: string;
 }
 
-export interface IntegrationStatus {
-  id: "gitlab" | "gitlab-self-hosted" | "github" | "github-enterprise" | "linear";
-  name: string;
-  /** 本阶段只提供占位数据，不代表远端状态。 */
-  connected: false;
-  placeholder: true;
-}
+export type { IntegrationStatus } from "./integrationTypes";

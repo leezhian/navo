@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,6 +12,9 @@ import { useIssueStore } from "@/stores/issueStore";
 import type { IssueGroup, IssueItem } from "@/domain/issues";
 import { issueStatuses } from "@/components/issues/issueConstants";
 import { formatDate } from "@/i18n";
+import { resolveIssueUrl } from "@/services/integrationApi";
+import { looksLikeProviderIssueQuery } from "@/utils/issueActions";
+import type { IssueResolveResult } from "@/shared/integrationTypes";
 
 interface TaskIssuePickerContentProps {
   /** 与创建任务共用列表、筛选和可调宽度预览。 */
@@ -30,15 +33,43 @@ export function TaskIssuePickerContent({ group, selected, onChange, lockedIds = 
   const [filters, setFilters] = useState<FilterValues>({ keyword: "", provider: "", repository: "", taskLink: "unlinked", prState: "any" });
   const selectedIds = new Set(selected.filter((item) => item.group === group).map((item) => item.id));
   const [preview, setPreview] = useState<IssueItem | null>(null);
+  const [resolved, setResolved] = useState<IssueItem | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
   const linked = linkedIssueKeys(tasks);
-  const visible = loaded ? filterTaskIssues(items, filters, linked) : [];
+  const base = loaded ? filterTaskIssues(items, filters, linked) : [];
+  const visible = resolved && resolved.group === group && !base.some((item) => item.id === resolved.id) ? [resolved, ...base] : base;
   const providers = [...new Set(items.flatMap((item) => item.provider ? [item.provider] : []))].sort();
   const repositories = [...new Set(items.map(issueRepository))].sort();
-  const visiblePreview = visible.find((item) => item.id === preview?.id);
+  const visiblePreview = visible.find((item) => item.id === preview?.id) ?? (preview?.id === resolved?.id ? resolved : null);
+
+  useEffect(() => {
+    const keyword = filters.keyword.trim();
+    if (!looksLikeProviderIssueQuery(keyword)) { setResolved(null); setResolveError(null); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setResolving(true);
+      void resolveIssueUrl(keyword).then((result: IssueResolveResult) => {
+        if (cancelled) return;
+        if ("item" in result && result.item) {
+          setResolved(result.item.group === group ? result.item : null);
+          setResolveError(result.item.group === group ? null : "unsupported");
+          setPreview(result.item.group === group ? result.item : null);
+        } else {
+          setResolved(null);
+          setResolveError(("error" in result && result.error) || "unreadable");
+        }
+      }).catch(() => { if (!cancelled) { setResolved(null); setResolveError("unreadable"); } })
+        .finally(() => { if (!cancelled) setResolving(false); });
+    }, 300);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [filters.keyword, group]);
+
   function toggle(id: string) {
     if (disabled || lockedIds.includes(id)) return;
     const next = new Set(selectedIds); if (next.has(id)) next.delete(id); else next.add(id);
-    onChange(items.filter((item) => next.has(item.id)));
+    const catalog = resolved ? [...items.filter((item) => item.id !== resolved.id), resolved] : items;
+    onChange(catalog.filter((item) => next.has(item.id)));
   }
   return <>
       <div className="flex min-w-0 items-center gap-2 overflow-x-auto p-0.5" data-issue-picker-toolbar="">
@@ -46,6 +77,8 @@ export function TaskIssuePickerContent({ group, selected, onChange, lockedIds = 
           onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))} aria-label={t("taskCreate:links.search")} placeholder={t("taskCreate:links.searchPlaceholder")} />
         <TaskIssueFilters group={group} providers={providers} repositories={repositories} value={filters} onChange={setFilters} />
       </div>
+      {resolving && <p className="text-xs text-muted-foreground">{t("issues:menu.resolving")}</p>}
+      {resolveError && <p role="status" className="text-xs text-muted-foreground">{t(`issues:menu.resolve.${resolveError}` as "issues:menu.resolve.notFound", { defaultValue: t("issues:menu.resolve.unreadable") })}</p>}
       {!loaded && error !== null && <div role="alert" className="flex items-center gap-2 text-xs text-destructive">
         <span>{t("taskCreate:links.loadError")}</span><Button variant="ghost" size="sm" disabled={loading} onClick={() => void bootstrap()}>{t("common:actions.retry")}</Button>
       </div>}

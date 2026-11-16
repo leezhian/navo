@@ -19,6 +19,8 @@ import { WorkspaceCommandActions } from "./WorkspaceCommandActions";
 import { TaskNoteRow } from "./TaskNoteRow";
 import { TASK_PROMPT_ID } from "@/shared/taskContextTypes";
 import { TaskResourceMenu } from "./TaskResourceMenu";
+import { TaskIssueMenu } from "./TaskIssueMenu";
+import type { IssueItem } from "@/domain/issues";
 import { TaskChangeMenu } from "./TaskChangeMenu";
 import { TaskSessionMenu } from "./TaskSessionMenu";
 import { ArchivedSessions } from "./ArchivedSessions";
@@ -72,6 +74,8 @@ interface TaskResourceRailProps {
   newTerminalControl: ReactNode;
   onReview: (resource: TaskResource) => void;
   onPreview: (title: string, body: string) => void;
+  /** 打开 PR/Issue 平台详情；refresh 为 true 时强制单项刷新。 */
+  onIssuePreview?: (item: IssueItem, refresh?: boolean) => void;
   onAttachment: (id: string) => void;
   onLink: (id: string) => void;
   /** 正式页打开统一资源窗口；独立 demo 可省略以保持只读。 */
@@ -100,7 +104,7 @@ function ContextItemIcon({ children }: ContextItemIconProps) {
   return <span className="task-context-item-icon">{children}</span>;
 }
 function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupProps) {
-  const { t } = useTranslation(["tasks", "common"]);
+  const { t } = useTranslation(["tasks", "common", "issues"]);
   const [open, setOpen] = useState(true);
   if (count === 0) return null;
   return <section className="task-context-group">
@@ -110,8 +114,8 @@ function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupP
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
-export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, onRestored, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onAttachment, onLink, onAddResource, onFile, activeFile, onWorkspaceOpenError }: TaskResourceRailProps) {
-  const { t } = useTranslation(["tasks", "taskCreate"]);
+export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, onRestored, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onIssuePreview, onAttachment, onLink, onAddResource, onFile, activeFile, onWorkspaceOpenError }: TaskResourceRailProps) {
+  const { t } = useTranslation(["tasks", "taskCreate", "issues"]);
   const { unread } = useSessionUnread();
   const sessionsLoaded = useTaskSessionStore(state => state.loaded);
   const scrollRef = useReadingPosition<HTMLElement>(readingPositionKey(task.id, "context"), sessionsLoaded);
@@ -170,7 +174,8 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
     </ResourceGroup>
     <ResourceGroup title="CHANGES" count={repos.length} onAdd={onAddResource && (() => onAddResource("repositories"))}>
       {repos.map((resource) => <TaskChangeMenu key={resource.resourceId} task={task} resource={resource} sessions={terminals} agentChoices={agentChoices} pending={archivePending}
-        onOpen={() => onReview(resource)} onRunCommand={onRunCommand} onNewSession={onNewSession} onNewTerminal={onNewTerminal} onOpenError={onWorkspaceOpenError}><div className="task-context-change" data-resource-id={resource.resourceId} data-active={resource.resourceId === activeResourceId}>
+        onOpen={() => onReview(resource)} onRunCommand={onRunCommand} onNewSession={onNewSession} onNewTerminal={onNewTerminal} onOpenError={onWorkspaceOpenError}
+        onOpenPullRequest={onIssuePreview ? (item) => onIssuePreview(item) : undefined}><div className="task-context-change" data-resource-id={resource.resourceId} data-active={resource.resourceId === activeResourceId}>
         <ChangeHoverDetails taskId={task.id} resource={resource}>
         <button className="task-context-row flex-1" data-active={resource.resourceId === activeResourceId} aria-pressed={resource.resourceId === activeResourceId} onClick={() => onReview(resource)}>
         <ContextItemIcon><GitBranch /></ContextItemIcon><span className="task-context-change-heading min-w-0 flex-1"><span className="block truncate">{resource.targetBranch || resource.sourceBranch}</span></span>
@@ -185,21 +190,32 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
       {terminals.map((session) => <button key={session.id} className="task-context-row" data-active={session.id === activeTerminalId} aria-pressed={session.id === activeTerminalId} onClick={() => onSelect(session)} title={session.cwd}><ContextItemIcon><Terminal /></ContextItemIcon><span className="truncate">{session.title}</span></button>)}
     </ResourceGroup>}
     <ResourceGroup title="PULL REQUESTS" count={prs.length + archivedPrs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}>
-      {prs.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}
+      {prs.map((link) => <TaskIssueMenu key={link.id} task={task} item={link}
+        onOpen={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}
+        onRefresh={() => onIssuePreview?.(link, true)}
+        onGoWorktree={(resourceId) => { const resource = task.resources?.find((item) => item.resourceId === resourceId); if (resource) onReview(resource); }}>
+        <button className="task-context-row" title={link.autoLinked ? String(t("issues:menu.autoLinked")) : link.title} onClick={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button>
+      </TaskIssueMenu>)}
       <RailArchiveList title={t("tasks:resources.archived.toggle")} count={archivedPrs.length}>
-        {archivedPrs.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}
-          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "issue", id: link.id }], true)}>
-          <button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button>
-        </TaskResourceMenu>)}
+        {archivedPrs.map((link) => <TaskIssueMenu key={link.id} task={task} item={link} archived
+          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "issue", id: link.id }], true)}
+          onOpen={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}>
+          <button className="task-context-row" title={link.title} onClick={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}><ContextItemIcon><GitPullRequest /></ContextItemIcon><span className="truncate">{link.title}</span></button>
+        </TaskIssueMenu>)}
       </RailArchiveList>
     </ResourceGroup>
     <ResourceGroup title="ISSUES" count={issues.length + archivedIssues.length} onAdd={onAddResource && (() => onAddResource("issues"))}>
-      {issues.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}><button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button></TaskResourceMenu>)}
+      {issues.map((link) => <TaskIssueMenu key={link.id} task={task} item={link}
+        onOpen={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}
+        onRefresh={() => onIssuePreview?.(link, true)}>
+        <button className="task-context-row" title={link.title} onClick={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button>
+      </TaskIssueMenu>)}
       <RailArchiveList title={t("tasks:resources.archived.toggle")} count={archivedIssues.length}>
-        {archivedIssues.map((link) => <TaskResourceMenu key={link.id} task={task} resource={{ kind: "issue", id: link.id }}
-          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "issue", id: link.id }], true)}>
-          <button className="task-context-row" title={link.title} onClick={() => onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · "))}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button>
-        </TaskResourceMenu>)}
+        {archivedIssues.map((link) => <TaskIssueMenu key={link.id} task={task} item={link} archived
+          onRestore={readOnly ? undefined : () => void archiveItems([{ kind: "issue", id: link.id }], true)}
+          onOpen={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}>
+          <button className="task-context-row" title={link.title} onClick={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}><ContextItemIcon><CircleDot /></ContextItemIcon><span className="truncate">{link.title}</span></button>
+        </TaskIssueMenu>)}
       </RailArchiveList>
     </ResourceGroup>
     <ResourceGroup title="LINKS" count={linksCount} onAdd={onAddResource && (() => onAddResource("links"))}>

@@ -1,4 +1,6 @@
 import type { IssueItem } from "@/domain/issues";
+// 回归测试的轻量 TS 加载器只解析相对导入，这里不能用 @/ 别名。
+import { issueLabelNames } from "../domain/issues";
 import type { IssueFilters } from "@/domain/issueView";
 import type { ViewSortOptions } from "@/domain/viewSort";
 import { compareViewValues } from "./viewSort";
@@ -8,7 +10,7 @@ export function filterIssues(issues: IssueItem[], filters: IssueFilters): IssueI
     (filters.groups.length === 0 || filters.groups.includes(issue.group))
     && (filters.statuses.length === 0 || filters.statuses.includes(issue.status))
     && (filters.projects.length === 0 || filters.projects.includes(issue.projectName))
-    && (filters.tags.length === 0 || filters.tags.includes(issue.tag))
+    && (filters.tags.length === 0 || filters.tags.some((tag) => issueLabelNames(issue).includes(tag)))
   ));
 }
 

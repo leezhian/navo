@@ -2,11 +2,12 @@ import { formatDate } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, CircleDot, GitPullRequest } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Collapsible } from "radix-ui";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import { issueGroups, issueStatuses, issueTags } from "./issueConstants";
+import { issueGroups, issueStatuses } from "./issueConstants";
+import { IssueLabels } from "./IssueLabels";
 import { useIssueStore } from "@/stores/issueStore";
 import type { IssueGroup, IssueItem } from "@/domain/issues";
 import type { IssueDisplayOptions } from "@/domain/issueView";
@@ -15,6 +16,8 @@ import { IssueDetails } from "./IssueDetails";
 import { IssueToolbar } from "./IssueToolbar";
 import { IssueBoard } from "./IssueBoard";
 import { IssueEmptyState } from "./IssueEmptyState";
+import { IssueFailureBanner } from "./IssueFailureBanner";
+import { useIntegrationStore } from "@/stores/integrationStore";
 import { ResizableWorkspace } from "@/components/layout/ResizableWorkspace";
 
 
@@ -55,7 +58,7 @@ function IssueRow({ issue, selected, onSelect, display }: IssueRowProps) {
     <li>
       <Button className="issue-row" variant="ghost" aria-pressed={selected} aria-label={translate("issues:actions.viewLabel", { group: issue.group, title: issue.title })} data-selected={selected} onClick={onSelect}>
       <span className="issue-row-main">
-        {display.showTag && <span className="issue-tag" data-tag={issue.tag}>{translate(issueTags[issue.tag])}</span>}
+        {display.showTag && <IssueLabels issue={issue} />}
         <span className="issue-row-title" title={issue.title}>{issue.title}</span>
       </span>
       {showMetadata && <span className="issue-row-metadata">
@@ -115,7 +118,19 @@ function IssueSection({ group, icon: GroupIcon, issues, visible, display, select
 export function IssueList() {
   const { t: translate } = useTranslation(["common", "issues"]);
   const issues = useIssueStore((state) => state.items);
-  const refresh = useIssueStore((state) => state.refresh);
+  const refreshStore = useIssueStore((state) => state.refresh);
+  const failures = useIssueStore((state) => state.failures);
+  const providers = useIntegrationStore((state) => state.providers);
+  const refreshProviders = useIntegrationStore((state) => state.refresh);
+  const hasConnections = providers.some((provider) => provider.connected);
+  const refresh = () => refreshStore({ force: true });
+  useEffect(() => {
+    void refreshProviders();
+    void refreshStore();
+    const onFocus = () => { void refreshStore(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refreshStore, refreshProviders]);
   const view = useIssueView(issues);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const selectedIssue = view.visibleIssues.find((issue) => issue.id === selectedIssueId);
@@ -131,7 +146,8 @@ export function IssueList() {
       <div className="issue-panel-content">
         <IssueToolbar issues={issues} filters={view.filters} display={view.display} projectNames={view.projectNames} hasFilters={view.hasFilters}
           onFiltersChange={view.setFilters} onDisplayChange={view.setDisplay} onClearFilters={view.clearFilters} onRefresh={refresh} />
-        {isEmpty && <IssueEmptyState hasItems={issues.length > 0} />}
+        <IssueFailureBanner failures={failures} onRetry={() => void refresh()} />
+        {isEmpty && <IssueEmptyState hasItems={issues.length > 0} hasConnections={hasConnections || issues.length > 0} />}
         {!isEmpty && view.display.mode === "board" && <IssueBoard issues={view.visibleIssues} display={view.display}
           groups={visibleGroups}
           selectedIssueId={selectedIssueId} onSelectIssue={setSelectedIssueId} />}

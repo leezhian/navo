@@ -14,6 +14,7 @@ import { stopAllProjectWatchers } from "./main-process/services/projectChangeWat
 import { flushTasks, registerTaskHandlers } from "./main-process/ipc/taskHandlers";
 import { shutdownTaskSessions } from "./main-process/ipc/taskSessionHandlers";
 import { registerSettingsHandlers, stopResourceOperations } from "./main-process/ipc/settingsHandlers";
+import { registerIntegrationHandlers } from "./main-process/ipc/integrationHandlers";
 import { flushDiagnosticLog, initializeDiagnosticLog, writeDiagnosticEvent } from "./main-process/services/diagnosticLogService";
 import { bindProcessDiagnostics, bindWindowDiagnostics, registerDiagnosticHandlers } from "./main-process/diagnostics/diagnosticRuntime";
 import { flushSettings, getCurrentSettings, loadSettings } from "./main-process/services/settingsService";
@@ -107,6 +108,7 @@ function startApplication() {
     registerDiagnosticHandlers();
     updateApplicationMenu(getCurrentSettings().locale);
     registerSettingsHandlers();
+    registerIntegrationHandlers();
     registerAgentHandlers();
     registerTaskHandlers();
     await registerExtensionHandlers();

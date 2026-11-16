@@ -11,13 +11,39 @@ import { registerTaskResourceHandlers } from "./taskResourceHandlers";
 import { registerTaskWorkspaceOpenHandlers } from "./taskWorkspaceOpenHandlers";
 import { registerTaskBranchHandlers } from "./taskBranchHandlers";
 import { publishTask } from "./taskEvents";
+import path from "node:path";
+import { TaskIssueLinker } from "../services/integrations/taskIssueLinker";
+import { getIntegrationService } from "../services/integrations/integrationRuntime";
+import { gitValue } from "../services/taskGit";
+import type { IssueItem } from "../../domain/issues";
 
 let tasks: TaskService | null = null;
+let linker: TaskIssueLinker | null = null;
 export async function flushTasks() { await tasks?.flush(); }
+export function getTaskIssueLinker() { return linker; }
+
+function createLinker(service: TaskService, namespace: string) {
+  const integrations = getIntegrationService();
+  return new TaskIssueLinker({
+    filename: path.join(app.getPath("userData"), "app.db"),
+    namespace,
+    loadTasks: async () => (await service.repository.load()) ?? [],
+    addResources: (taskId, input) => service.addResources(taskId, input, -1),
+    inspectWorktree: async (workingPath) => ({
+      branch: await gitValue(workingPath, ["branch", "--show-current"]).catch(() => null),
+      remoteUrl: await gitValue(workingPath, ["remote", "get-url", "origin"]).catch(() => null),
+    }),
+    getItem: (id, options) => integrations.getItem(id, options),
+    cachedPullRequests: () => integrations.cachedPullRequests(),
+    viewerLogin: (item: IssueItem) => integrations.viewerLoginFor(item),
+    publish: (task) => { publishTask(task); },
+  });
+}
 
 export function registerTaskHandlers() {
   const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection);
   tasks = service;
+  linker = createLinker(service, app.isPackaged ? "production" : "development");
   registerTaskResourceHandlers(service);
   registerTaskWorkspaceOpenHandlers(service);
   registerTaskBranchHandlers(service);
@@ -28,6 +54,8 @@ export function registerTaskHandlers() {
   ipcMain.handle(ipcChannels.tasksCreate, async (event, value: CreateTaskInput) => {
     const task = await service.create(value, event.sender.id);
     startInitialTaskSession(task, event.sender);
+    const issues = (task.links ?? []).filter((link) => link.group === "ISSUE" || link.group === "PR");
+    if (issues.length) void linker?.afterIssuesAdded(task.id, issues).catch(() => undefined);
     return task;
   });
   ipcMain.handle(ipcChannels.tasksInspectResource, (_event, id: string) => service.inspectResource(id));

@@ -259,3 +259,17 @@ test("显示名修改不改原路径；附件改名冲突被拒绝；链接标�
   assert.deepEqual(proposedManagedFileName("", "a.txt"), { reason: "empty" });
   assert.deepEqual(proposedManagedFileName("a/b", "a.txt"), { reason: "separator" });
 });
+
+test("解除关联允许 Issue 缓存键中的仓库路径斜杠，文件 id 仍拒绝斜杠", async (context) => {
+  const { lifecycle, tasks, bindings } = await fixture(context);
+  const item = issue("github:github.com:leezhian/resume-session:ISSUE:3", "ISSUE", "todo", "test");
+  await bindings.add("existing", { requestId: randomUUID(), links: [item], webLinks: [], notes: [], fileIds: [] }, 1);
+  const detached = await lifecycle.detachResources("existing", [{ kind: "issue", id: item.id }], 1);
+  assert.ok(detached.applied.some((entry) => entry.id === item.id));
+  const after = (await tasks.load()).find((task) => task.id === "existing");
+  assert.ok(!(after.links ?? []).some((link) => link.id === item.id));
+  await assert.rejects(
+    lifecycle.detachResources("existing", [{ kind: "file", id: "folder/secret" }], 1),
+    (error) => error instanceof Error && error.message === "TASK_INVALID",
+  );
+});

@@ -8,8 +8,9 @@ import { addTaskContext } from "./migrations/addTaskContext";
 import { addTaskNoteMetadata } from "./migrations/addTaskNoteMetadata";
 import { addTaskNoteCollaboration } from "./migrations/addTaskNoteCollaboration";
 import { addTaskResourceArchive } from "./migrations/addTaskResourceArchive";
+import { addIntegrations } from "./migrations/addIntegrations";
 
-export const APP_SCHEMA_VERSION = 16;
+export const APP_SCHEMA_VERSION = 17;
 
 export async function openAppDatabase(filePath: string) {
   return diagnosticOperation("database.open", {}, async () => {
@@ -110,6 +111,7 @@ export async function openAppDatabase(filePath: string) {
           addTaskNoteMetadata(database);
           addTaskNoteCollaboration(database);
           addTaskResourceArchive(database);
+          addIntegrations(database);
           database.exec("COMMIT");
           void writeDiagnosticEvent("database.migrate.succeeded", { fromVersion: version, toVersion: APP_SCHEMA_VERSION });
         } catch (error) {

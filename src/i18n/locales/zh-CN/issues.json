@@ -1,6 +1,51 @@
 {
   "details": {
-    "close": "关闭条目详情"
+    "close": "关闭条目详情",
+    "updated": "更新于 {{time}}",
+    "author": "作者",
+    "assignees": "负责人",
+    "labels": "标签",
+    "milestone": "里程碑",
+    "branch": "分支",
+    "checks": "检查",
+    "merge": "合并状态",
+    "nativeStatus": "平台状态",
+    "comments": "评论",
+    "commentsLinear": "暂不支持读取 Linear 评论",
+    "loadEarlier": "加载更早的评论",
+    "refreshComments": "刷新评论",
+    "number": "编号",
+    "provider": "平台",
+    "updatedJustNow": "刚刚更新",
+    "updatedMinutes": "更新于 {{count}} 分钟前",
+    "retry": "重试",
+    "reconnect": "重新连接",
+    "openSettings": "打开设置",
+    "mine": "我的",
+    "review": "评审",
+    "fork": "来自 fork",
+    "approved": "已批准",
+    "notApproved": "未批准",
+    "checkState": {
+      "failing": "失败",
+      "pending": "进行中",
+      "passing": "通过"
+    },
+    "mergeState": {
+      "clean": "可合并",
+      "conflict": "有冲突",
+      "blocked": "被阻止"
+    },
+    "failure": {
+      "notFound": "条目已被删除或不存在，关联已保留，可自行解除。",
+      "forbidden": "无权访问该条目，关联已保留，可自行解除。",
+      "disconnected": "平台未连接，显示的是上次数据。",
+      "unauthorized": "登录已过期，显示的是上次数据。",
+      "expired": "登录已过期，显示的是上次数据。",
+      "rejected": "授权被拒绝，显示的是上次数据。",
+      "rateLimited": "请求过于频繁，稍后再试。",
+      "unreachable": "刷新失败，显示的是上次数据。"
+    }
   },
   "display": {
     "label": "Issue 显示选项",
@@ -14,7 +59,10 @@
   "empty": {
     "matches": "暂无匹配条目",
     "assignedTitle": "暂无分配给你的 PR 或 Issue",
-    "assignedDescription": "此列表展示你创建、被分配或被提及的工作。如需浏览组织中的其他内容，请前往新建任务 → Issues > 全部可见。"
+    "assignedDescription": "此列表展示你创建、被分配或被提及的工作。",
+    "connectTitle": "连接你的代码托管平台",
+    "connectDescription": "连接后会显示与你相关的未结束 PR 和 Issue。",
+    "mention": "提及"
   },
   "toolbar": {
     "label": "Issue 列表工具栏"
@@ -41,5 +89,45 @@
   },
   "counts": {
     "items_other": "{{count}} 个条目"
+  },
+  "banner": {
+    "expired": "{{name}}：登录已过期",
+    "unreachable": "{{name}}：无法连接服务器",
+    "unreadable": "{{name}}：无法读取返回内容",
+    "orgDenied": "{{name}}：组织拒绝访问",
+    "reconnect": "重新连接",
+    "reconnectSelfHosted": "在设置中重新连接",
+    "retry": "重试",
+    "openSettings": "打开设置"
+  },
+  "source": {
+    "local": "本地",
+    "offline": "离线"
+  },
+  "menu": {
+    "openIn": "在 {{platform}} 中打开",
+    "copyLink": "复制链接",
+    "copyTitle": "复制标题",
+    "copyNumber": "复制编号",
+    "copyBranch": "复制分支名",
+    "refresh": "刷新",
+    "goWorktree": "前往 Worktree",
+    "goWorktreeNone": "任务中没有与该 PR 源仓库和源分支一致的工作区",
+    "chooseWorktree": "选择 Worktree",
+    "openPullRequest": "打开对应 PR",
+    "generateNote": "生成正文笔记",
+    "noteCreated": "已生成正文笔记",
+    "noteExists": "已有对应的正文笔记",
+    "noteFailed": "未能读取 Issue 正文",
+    "autoLinked": "按分支自动关联",
+    "asLink": "作为普通链接添加",
+    "resolving": "正在识别链接…",
+    "resolve": {
+      "disconnected": "平台未连接，将作为普通链接添加。",
+      "notFound": "找不到该条目，可作为普通链接添加。",
+      "forbidden": "无权访问该条目，可作为普通链接添加。",
+      "unreachable": "无法连接平台，可作为普通链接添加。",
+      "unreadable": "读取失败，可作为普通链接添加。"
+    }
   }
 }

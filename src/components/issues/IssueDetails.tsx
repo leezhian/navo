@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { issueStatuses, issueTags } from "./issueConstants";
+import { issueStatuses } from "./issueConstants";
+import { IssueLabels } from "./IssueLabels";
+import { IssueRemoteDetails } from "./IssueRemoteDetails";
 import type { IssueItem } from "@/domain/issues";
 
 interface IssueDetailsProps {
@@ -16,6 +18,7 @@ interface IssueDetailsProps {
 export function IssueDetails({ issue, onClose }: IssueDetailsProps) {
   const { t: translate } = useTranslation(["common", "issues"]);
   const reducedMotion = useReducedMotion();
+  const remote = issue.source !== "local" && Boolean(issue.providerId);
 
   return (
     <div className="task-details-inner">
@@ -36,11 +39,12 @@ export function IssueDetails({ issue, onClose }: IssueDetailsProps) {
         >
           <h3 className="task-details-title">{issue.title}</h3>
           <dl className="task-details-metadata">
-            <div><dt>{translate("common:fields.tag")}</dt><dd><span className="issue-tag" data-tag={issue.tag}>{translate(issueTags[issue.tag])}</span></dd></div>
+            <div><dt>{translate("common:fields.tag")}</dt><dd><IssueLabels issue={issue} /></dd></div>
             <div><dt>{translate("common:fields.project")}</dt><dd>{issue.projectName}</dd></div>
             <div><dt>{translate("common:fields.status")}</dt><dd><span className="issue-status" data-status={issue.status}>{translate(issueStatuses[issue.status])}</span></dd></div>
             <div><dt>{translate("common:fields.time")}</dt><dd><time dateTime={issue.date}>{formatDate(issue.date)}</time></dd></div>
           </dl>
+          {remote ? <div className="mt-4"><IssueRemoteDetails issue={issue} /></div> : null}
         </motion.div>
       </AnimatePresence>
     </div>

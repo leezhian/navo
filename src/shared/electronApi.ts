@@ -130,6 +130,28 @@ export interface NavoApi {
     report(report: RendererDiagnosticReport): Promise<void>;
   };
   tasks: TasksApi;
+  integrations: {
+    list(): Promise<import("./integrationTypes").IntegrationStatus[]>;
+    connect(input: import("./integrationTypes").IntegrationConnectInput): Promise<import("./integrationTypes").IntegrationConnectResult>;
+    cancel(id: import("./integrationTypes").IntegrationProviderId): Promise<void>;
+    disconnect(id: import("./integrationTypes").IntegrationProviderId): Promise<void>;
+    refreshStatuses(): Promise<import("./integrationTypes").IntegrationStatus[]>;
+    authState(id: import("./integrationTypes").IntegrationProviderId): Promise<import("./integrationTypes").IntegrationAuthState>;
+    onChanged(listener: () => void): () => void;
+  };
+  issues: {
+    list(options?: { refresh?: boolean }): Promise<import("./integrationTypes").IssueListResult>;
+    get(id: string, options?: { refresh?: boolean; commentsPage?: number }): Promise<import("../domain/issues").IssueItem | null>;
+    resolveUrl(value: string): Promise<import("./integrationTypes").IssueResolveResult>;
+    importLocal(items: import("../domain/issues").IssueItem[]): Promise<void>;
+    /** 为任务中的 Issue 补生成正文笔记；已有（含归档）时返回 exists。 */
+    ensureNote(taskId: string, issueId: string): Promise<"created" | "exists" | "skipped" | "failed">;
+    /** 与 PR 源仓库、源分支完全一致的任务工作区 resourceId。 */
+    worktreesForPullRequest(taskId: string, pullRequestId: string): Promise<{ resourceId: string; name: string; branch: string }[]>;
+    /** 本任务已关联或缓存中与该工作区匹配的 PR；不额外 fetch。 */
+    pullRequestForWorktree(taskId: string, resourceId: string): Promise<import("../domain/issues").IssueItem | null>;
+    onChanged(listener: () => void): () => void;
+  };
   settings: {
     /** 读取磁盘配置及主进程提供的当前日志文件路径。 */
     load(): Promise<SettingsBootstrap>;

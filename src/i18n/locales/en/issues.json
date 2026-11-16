@@ -1,6 +1,51 @@
 {
   "details": {
-    "close": "Close item details"
+    "close": "Close item details",
+    "updated": "Updated {{time}}",
+    "author": "Author",
+    "assignees": "Assignees",
+    "labels": "Labels",
+    "milestone": "Milestone",
+    "branch": "Branch",
+    "checks": "Checks",
+    "merge": "Merge status",
+    "nativeStatus": "Provider status",
+    "comments": "Comments",
+    "commentsLinear": "Linear comments are not supported yet",
+    "loadEarlier": "Load earlier comments",
+    "refreshComments": "Refresh comments",
+    "number": "Number",
+    "provider": "Provider",
+    "updatedJustNow": "Updated just now",
+    "updatedMinutes": "Updated {{count}} min ago",
+    "retry": "Retry",
+    "reconnect": "Reconnect",
+    "openSettings": "Open settings",
+    "mine": "Mine",
+    "review": "Review",
+    "fork": "From fork",
+    "approved": "Approved",
+    "notApproved": "Not approved",
+    "checkState": {
+      "failing": "Failing",
+      "pending": "In progress",
+      "passing": "Passing"
+    },
+    "mergeState": {
+      "clean": "Mergeable",
+      "conflict": "Conflicts",
+      "blocked": "Blocked"
+    },
+    "failure": {
+      "notFound": "This item was deleted or no longer exists. The link is kept; detach it if you like.",
+      "forbidden": "You no longer have access to this item. The link is kept; detach it if you like.",
+      "disconnected": "Platform not connected. Showing last data.",
+      "unauthorized": "Sign-in expired. Showing last data.",
+      "expired": "Sign-in expired. Showing last data.",
+      "rejected": "Authorization rejected. Showing last data.",
+      "rateLimited": "Too many requests. Try again later.",
+      "unreachable": "Refresh failed. Showing last data."
+    }
   },
   "display": {
     "label": "Issue display options",
@@ -14,7 +59,10 @@
   "empty": {
     "matches": "No matching items",
     "assignedTitle": "No assigned PRs or issues",
-    "assignedDescription": "This list shows work you authored, are assigned, or were mentioned in. To browse everything else in your organizations, use New task → Issues > All visible."
+    "assignedDescription": "This list shows work you authored, are assigned, or were mentioned in.",
+    "connectTitle": "Connect your code hosts",
+    "connectDescription": "After connecting, this page shows open PRs and issues related to you.",
+    "mention": "Mentioned"
   },
   "toolbar": {
     "label": "Issue toolbar"
@@ -42,5 +90,45 @@
   "counts": {
     "items_other": "{{count}} items",
     "items_one": "{{count}} item"
+  },
+  "banner": {
+    "expired": "{{name}}: sign-in expired",
+    "unreachable": "{{name}}: cannot reach the server",
+    "unreadable": "{{name}}: could not read the response",
+    "orgDenied": "{{name}}: organization access denied",
+    "reconnect": "Reconnect",
+    "reconnectSelfHosted": "Reconnect in Settings",
+    "retry": "Retry",
+    "openSettings": "Open Settings"
+  },
+  "source": {
+    "local": "Local",
+    "offline": "Offline"
+  },
+  "menu": {
+    "openIn": "Open in {{platform}}",
+    "copyLink": "Copy link",
+    "copyTitle": "Copy title",
+    "copyNumber": "Copy number",
+    "copyBranch": "Copy branch name",
+    "refresh": "Refresh",
+    "goWorktree": "Go to worktree",
+    "goWorktreeNone": "No worktree in this task matches the PR's source repository and branch",
+    "chooseWorktree": "Choose worktree",
+    "openPullRequest": "Open matching PR",
+    "generateNote": "Generate body note",
+    "noteCreated": "Body note created",
+    "noteExists": "A body note already exists",
+    "noteFailed": "Couldn't read the issue body",
+    "autoLinked": "Auto-linked by branch",
+    "asLink": "Add as plain link",
+    "resolving": "Recognizing link…",
+    "resolve": {
+      "disconnected": "Platform not connected; it will be added as a plain link.",
+      "notFound": "Item not found; you can add it as a plain link.",
+      "forbidden": "No access to this item; you can add it as a plain link.",
+      "unreachable": "Can't reach the platform; you can add it as a plain link.",
+      "unreadable": "Couldn't read it; you can add it as a plain link."
+    }
   }
 }

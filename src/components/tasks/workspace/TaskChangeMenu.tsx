@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { FolderOpen, LoaderCircle, Play, Settings2, Square, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,8 @@ import { useWorkspaceCommands } from "@/hooks/useWorkspaceCommands";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useResourceStore } from "@/stores/resourceStore";
 import { TaskResourceMenu } from "./TaskResourceMenu";
+import { pullRequestForWorktree } from "@/services/integrationApi";
+import type { IssueItem } from "@/domain/issues";
 import { WorkspaceTargetIcon } from "./WorkspaceTargetIcon";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { TaskWorktreeDeleteDialog } from "./TaskWorktreeDeleteDialog";
@@ -36,19 +38,28 @@ interface TaskChangeMenuProps {
   onNewSession?: (agentId: AgentId, resourceId: string) => void;
   onNewTerminal?: (resourceId: string) => void;
   onOpenError?: () => void;
+  /** 打开与该工作区匹配的已关联或缓存 PR。 */
+  onOpenPullRequest?: (item: IssueItem) => void;
   /** 普通文件夹只保留打开方式、复制路径和在此新建会话／终端。 */
   variant?: "repository" | "folder";
 }
 
-export function TaskChangeMenu({ task, resource, sessions, children, agentChoices, pending, onOpen, onRunCommand, onNewSession, onNewTerminal, onOpenError, variant = "repository" }: TaskChangeMenuProps) {
-  const { t } = useTranslation(["tasks", "common", "taskCreate"]);
+export function TaskChangeMenu({ task, resource, sessions, children, agentChoices, pending, onOpen, onRunCommand, onNewSession, onNewTerminal, onOpenError, onOpenPullRequest, variant = "repository" }: TaskChangeMenuProps) {
+  const { t } = useTranslation(["tasks", "common", "taskCreate", "issues"]);
   const opening = useWorkspaceOpenActions(task.id, resource, onOpenError);
   const commands = useWorkspaceCommands(resource, sessions, onRunCommand);
   const repositoriesDirectory = useSettingsStore((state) => state.settings.repositoriesDirectory);
   const [managing, setManaging] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [matchingPr, setMatchingPr] = useState<IssueItem | null | undefined>(undefined);
   const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (variant !== "repository" || !onOpenPullRequest) { setMatchingPr(null); return; }
+    let cancelled = false;
+    void pullRequestForWorktree(task.id, resource.resourceId).then((item) => { if (!cancelled) setMatchingPr(item); }).catch(() => { if (!cancelled) setMatchingPr(null); });
+    return () => { cancelled = true; };
+  }, [variant, onOpenPullRequest, task.id, resource.resourceId, task.links, task.contextVersion]);
   const disabled = pending || task.status === "ARCHIVED";
   const branch = resource.targetBranch || resource.sourceBranch;
   async function copy(value: string) {
@@ -87,6 +98,7 @@ export function TaskChangeMenu({ task, resource, sessions, children, agentChoice
     {variant === "repository" && <ContextMenuItem disabled={!branch} onSelect={() => void copy(branch)}>{t("tasks:changesMenu.copyBranch")}</ContextMenuItem>}
     <ContextMenuItem onSelect={() => void copy(resource.workingPath)}>{t(variant === "folder" ? "tasks:changesMenu.copyDirectoryPath" : "tasks:changesMenu.copyPath")}</ContextMenuItem>
     {variant === "repository" && <ContextMenuItem disabled={!opening.options?.remoteUrl} onSelect={() => void copy(opening.options?.remoteUrl ?? "")}>{t("tasks:changesMenu.copyRemote")}</ContextMenuItem>}
+    {variant === "repository" && onOpenPullRequest && matchingPr && <ContextMenuItem onSelect={() => onOpenPullRequest(matchingPr)}>{t("issues:menu.openPullRequest")}</ContextMenuItem>}
   </>;
   return <div ref={row}>
     <TaskResourceMenu task={task} resource={{ kind: "workspace", id: resource.resourceId }} actions={actions}
