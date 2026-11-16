@@ -22,7 +22,8 @@ function trimPath(value: string) {
 }
 
 function pathTail(cwd: string) {
-  return cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? "";
+  const segments = cwd.split(/[\\/]/).filter(Boolean);
+  return segments[segments.length - 1] ?? "";
 }
 
 /** 资源会话按 ID 找；旧记录只按去掉尾部分隔符的目录精确匹配。 */
