@@ -9,7 +9,7 @@ import { createLoader } from "./helpers/load-typescript.mjs";
 const load = createLoader();
 const { TaskRepository } = load("src/main-process/services/taskRepository.ts");
 const { TaskResourceBindings } = load("src/main-process/services/taskResourceBindings.ts");
-const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
+const { openAppDatabase, APP_SCHEMA_VERSION } = load("src/main-process/services/appDatabase.ts");
 const { taskPrompt } = load("src/main-process/services/taskSessions/taskContext.ts");
 const task = { id: "existing", title: "Existing task", description: "original", date: "2026-10-07", projectName: "repo", status: "TODO" };
 const input = (changes = {}) => ({ requestId: randomUUID(), links: [], webLinks: [], notes: [], fileIds: [], ...changes });
@@ -81,7 +81,7 @@ test("v9 任务库升级资源表后保留既有任务，不生成笔记或文�
   let database = await openAppDatabase(filename);
   database.exec("DROP TABLE task_resource_batches; DROP TABLE task_notes; DROP TABLE task_file_references; PRAGMA user_version=9");database.close();
   database = await openAppDatabase(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 16);database.close();
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, APP_SCHEMA_VERSION);database.close();
   const migrated = await tasks.load();
   assert.equal(migrated.length, 2);assert.equal(migrated[0].title, task.title);
   assert.deepEqual(migrated[0].notes, []);assert.deepEqual(migrated[0].files, []);

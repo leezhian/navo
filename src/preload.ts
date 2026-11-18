@@ -180,6 +180,7 @@ const api: NavoApi = {
   },
   resources: {
     list: () => ipcRenderer.invoke(ipcChannels.resourcesList),
+    chooseRepositoriesFolder: () => ipcRenderer.invoke(ipcChannels.resourcesChooseRepositoriesFolder),
     detectCommands: (localPath) => ipcRenderer.invoke(ipcChannels.resourcesDetectCommands, localPath),
     inspectGit: (localPath, forceRefresh) => ipcRenderer.invoke(ipcChannels.resourcesInspectGit, localPath, forceRefresh),
     save: (params: SaveResourceParams) => ipcRenderer.invoke(ipcChannels.resourcesSave, params),

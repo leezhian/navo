@@ -10,7 +10,7 @@ const load = createLoader();
 const { TaskRepository } = load("src/main-process/services/taskRepository.ts");
 const { TaskResourceBindings } = load("src/main-process/services/taskResourceBindings.ts");
 const { TaskNoteRepository } = load("src/main-process/services/taskNoteRepository.ts");
-const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
+const { openAppDatabase, APP_SCHEMA_VERSION } = load("src/main-process/services/appDatabase.ts");
 const { TaskContextServer } = load("src/main-process/services/taskSessions/taskContextServer.ts");
 const { TaskContextFiles } = load("src/main-process/services/taskSessions/taskContextFiles.ts");
 const base = { id: "task", title: "Task", description: "Prompt", date: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z", projectName: "", status: "TODO" };
@@ -40,7 +40,7 @@ test("v12 笔记迁移保留正文与顺序，时间取任务原值，升级及�
   assert.deepEqual(migrated.notes.map(note => [note.id, note.version, note.origin, note.sortOrder, note.createdAt, note.updatedAt]),
     ids.map((id, index) => [id, 1, "user", index, base.date, base.updatedAt]));
   assert.equal(migrated.notes[1].content, "# 正文 1");assert.equal((await task("other")).notes[0].sortOrder, 0);
-  db = await openAppDatabase(filename);assert.equal(db.prepare("PRAGMA user_version").get().user_version, 16);db.close();
+  db = await openAppDatabase(filename);assert.equal(db.prepare("PRAGMA user_version").get().user_version, APP_SCHEMA_VERSION);db.close();
   assert.deepEqual((await new TaskRepository(filename, "test").load()).find(task => task.id === base.id), migrated);
   await tasks.completeDeletion(base.id);assert.equal(await task(), undefined);
 });

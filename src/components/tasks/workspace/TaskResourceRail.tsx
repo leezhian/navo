@@ -79,7 +79,7 @@ interface TaskResourceRailProps {
   onAttachment: (id: string) => void;
   onLink: (id: string) => void;
   /** 正式页打开统一资源窗口；独立 demo 可省略以保持只读。 */
-  onAddResource?: (category: TaskResourceCategory) => void;
+  onAddResource?: (category: TaskResourceCategory, showList?: boolean) => void;
   /** 打开原路径文件的应用内预览；不支持的类型由工作台回退到访达。 */
   onFile?: (id: string) => void;
   /** 右侧文件预览打开时高亮对应 LINKS 条目。 */
@@ -145,7 +145,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
   const notesCount = (task.notes?.length ?? 0) + 1 + (task.archivedNotes?.length ?? 0);
   return <aside ref={scrollRef} className="task-context-rail" aria-label={t("tasks:runtime.context")}>
     <TaskInitializationPanel task={task} />
-    <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories")}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
+    <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories", true)}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
     <ResourceGroup title={t("tasks:runtime.sessions")} count={agents.length + archived.length} action={newSessionControl}>
       <ArchivedSessions sessions={archived} task={task} onRestored={onRestored} onOpen={onSelect} agentChoices={agentChoices} onNewSessionFrom={onNewSessionFrom} />
       {agents.map((session) => {

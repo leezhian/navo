@@ -14,6 +14,8 @@ export interface ResourceRecord {
   kind: "repo" | "folder";
   name: string;
   localPath: string;
+  /** 任务关联历史：未关联过时省略；旧关联没有可核实的时间时为 null。 */
+  lastTaskUse?: string | null;
   remoteUrl?: string;
   /** 资源用途说明；旧记录缺省为空。 */
   description?: string;

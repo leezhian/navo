@@ -18,6 +18,7 @@ async function temporaryDirectory(context) {
 }
 
 const load = createLoader();
+const { APP_SCHEMA_VERSION } = load("src/main-process/services/appDatabase.ts");
 const { resources, namespaces } = load("src/i18n/resources.ts");
 const { createInstance } = await import("i18next");
 const testI18n = createInstance();
@@ -26,6 +27,18 @@ const translate = testI18n.getFixedT("zh-CN", namespaces);
 const { defaultSettings, normalizeAppSettings } = load("src/domain/settings.ts");
 const { resolveResourcePath, validateCloneUrl, validateRepositoryName, redactCloneOutput } = load("src/main-process/services/resourcePaths.ts");
 const { getRepositoryName, getFolderName } = load("src/utils/resourceNames.ts");
+
+test("仓库发现只返回直接子目录中的 Git 仓库，支持 worktree，不跟随链接或登记候选", async context => {
+  const { discoverResourceDirectories } = load("src/main-process/services/discoverResourceDirectories.ts");
+  const parent = await temporaryDirectory(context);
+  await mkdir(path.join(parent, "repo", ".git"), { recursive: true });
+  await mkdir(path.join(parent, "worktree"));
+  await writeFile(path.join(parent, "worktree", ".git"), "gitdir: ../repo/.git/worktrees/feature");
+  await mkdir(path.join(parent, "plain", "nested", ".git"), { recursive: true });
+  await mkdir(path.join(parent, ".hidden", ".git"), { recursive: true });
+  await symlink(path.join(parent, "repo"), path.join(parent, "alias"));
+  assert.deepEqual(await discoverResourceDirectories(parent), [path.join(parent, "repo"), path.join(parent, "worktree")]);
+});
 
 test("设置分区说明使用 14px，条目描述保持原有 12px", () => {
   const { SettingsSectionHeader, SettingsRow } = load("src/components/settings/settingsPrimitives.tsx");
@@ -402,7 +415,7 @@ test("旧 JSON 迁入 SQLite 并保留备份，重新加载只读取数据库", 
   const database = new DatabaseSync(path.join(directory, "app.db"));
   try {
     assert.equal(database.prepare("PRAGMA journal_mode").get().journal_mode, "wal");
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 17);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, APP_SCHEMA_VERSION);
     assert.equal(JSON.parse(database.prepare("SELECT value FROM settings WHERE key = ?").get("theme").value), "dark");
   } finally { database.close(); }
   await writeFile(jsonPath, "invalid legacy JSON");
@@ -477,9 +490,10 @@ test("SQLite 文件或字段损坏不回退旧 JSON，也不覆盖原数据", as
     database.prepare("UPDATE settings SET value = ? WHERE key = ?").run("{invalid", "theme");
     await assert.rejects(service.loadSettings(), /INVALID_SETTINGS/);
     assert.equal(database.prepare("SELECT value FROM settings WHERE key = 'theme'").get().value, "{invalid");
-    database.exec("PRAGMA user_version = 18");
+    const unsupportedVersion = APP_SCHEMA_VERSION + 1;
+    database.exec(`PRAGMA user_version = ${unsupportedVersion}`);
     await assert.rejects(service.saveSettings(defaultSettings), /INVALID_SETTINGS/);
-    assert.equal(database.prepare("PRAGMA user_version").get().user_version, 18);
+    assert.equal(database.prepare("PRAGMA user_version").get().user_version, unsupportedVersion);
   } finally { database.close(); }
 });
 

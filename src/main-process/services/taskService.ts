@@ -237,11 +237,11 @@ export class TaskService {
                 { resourceId: step.resource.resourceId }, () => createWorkspace(step, persist), { started: true });
             } else await createWorkspace(step, persist);
           }
-          const resources = manifest.steps.map((step) => step.resource);
+          const createdAt = new Date().toISOString();
+          const resources = manifest.steps.map(({ resource }) => ({ ...resource, addedAt: createdAt }));
           const description = input.description.trim();
           // 单个 Issue/PR 作为任务命名来源；多个条目无法确定主项时沿用描述首行。
           const initialTitle = input.links.length === 1 ? input.links[0].title.trim() : description.split(/\r?\n/)[0].trim();
-          const createdAt = new Date().toISOString();
           const task: Task = {
             ...(agent ? { agent } : {}),
             id: input.requestId, title: Array.from(initialTitle).slice(0, 80).join(""),

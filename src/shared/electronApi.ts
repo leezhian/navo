@@ -168,6 +168,8 @@ export interface NavoApi {
   };
   resources: {
     list(): Promise<ResourceRecord[]>;
+    /** 用户通过原生对话框选择父目录，仅返回发现的仓库，不自动登记或绑定。 */
+    chooseRepositoriesFolder(): Promise<string[] | null>;
     /** 只读扫描 Node.js 配置，不执行项目代码；返回可编辑的检测草稿。 */
     detectCommands(localPath: string): Promise<import("./resourceCommandDetection").ResourceCommandDetection>;
     /** 只读查询 Git remote；配置未变化时复用内存缓存，手动刷新可强制重新读取。 */

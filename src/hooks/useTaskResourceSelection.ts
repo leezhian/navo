@@ -10,7 +10,7 @@ interface ResourceSelection {
   draft: TaskResourceDraft | null;
 }
 
-export function useTaskResourceSelection(defaultMode: AppSettings["defaultTaskMode"]) {
+export function useTaskResourceSelection(defaultMode: AppSettings["defaultTaskMode"], mode: "single" | "multiple" = "multiple") {
   const [selections, setSelections] = useState<ResourceSelection[]>([]);
   const [error, setError] = useState<unknown>(null);
   const requests = useRef(new Map<string, symbol>());
@@ -26,10 +26,11 @@ export function useTaskResourceSelection(defaultMode: AppSettings["defaultTaskMo
       return;
     }
     if (requests.current.has(resourceId)) return;
+    if (mode === "single") requests.current.clear();
     const request = Symbol(resourceId);
     requests.current.set(resourceId, request);
     setError(null);
-    setSelections((current) => [...current, { resourceId, draft: null }]);
+    setSelections((current) => [...(mode === "single" ? [] : current), { resourceId, draft: null }]);
     void getTasksApi().inspectResource(resourceId).then((info) => {
       if (requests.current.get(resourceId) !== request) return;
       const draft = createTaskResourceDraft(info, defaultMode);

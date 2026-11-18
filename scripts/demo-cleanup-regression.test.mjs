@@ -11,7 +11,7 @@ import { createLoader } from "./helpers/load-typescript.mjs";
 
 const load = createLoader();
 const { isLegacyDemoTask, isLegacyDemoIssue } = load("src/shared/legacyDemoRecords.ts");
-const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
+const { openAppDatabase, APP_SCHEMA_VERSION } = load("src/main-process/services/appDatabase.ts");
 const { removeLegacyDemoRecords } = load("src/main-process/services/migrations/removeLegacyDemoRecords.ts");
 const demoTask = { id: "task-01", title: "设计任务与工作区的组织方式", date: "2026-09-30", projectName: "navo", status: "TODO" };
 const demoIssue = { id: "issue-01", title: "支持跨项目任务共享上下文", date: "2026-09-30", projectName: "navo", group: "ISSUE", tag: "feature", status: "progress", provider: "GitHub", repository: "demo/navo" };
@@ -75,7 +75,7 @@ test("SQLite v4 清理只移除确认的 demo 和假关联，不触碰设置、�
   database.prepare("INSERT INTO task_links VALUES (?,?,?,?)").run("development", real.id, "real-issue", JSON.stringify({ ...demoIssue, id: "real-issue" }));
   database.exec("PRAGMA user_version = 4"); database.close();
   database = await openAppDatabase(filename);
-  assert.equal(database.prepare("PRAGMA user_version").get().user_version, 16);
+  assert.equal(database.prepare("PRAGMA user_version").get().user_version, APP_SCHEMA_VERSION);
   assert.equal(database.prepare("SELECT 1 FROM tasks WHERE namespace='development' AND id=?").get(demoTask.id), undefined);
   assert.equal(database.prepare("SELECT description FROM tasks WHERE id=?").get(real.id).description, real.description);
   assert.ok(database.prepare("SELECT 1 FROM tasks WHERE namespace='protected'").get());

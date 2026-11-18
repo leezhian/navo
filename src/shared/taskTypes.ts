@@ -44,6 +44,8 @@ export interface TaskResource extends Omit<TaskResourceInput, "resourceId"> {
   name: string;
   originalPath: string;
   workingPath: string;
+  /** 工作目录实际绑定时间；旧记录缺省时不推断。 */
+  addedAt?: string;
   /** 创建成功时记录的文件系统身份；旧记录缺失时不推断可删除归属。 */
   ownership?: {
     path: string; directoryId: string; gitDirectory: string; commonDirectory: string; commonDirectoryId: string; branchCreated?: boolean;

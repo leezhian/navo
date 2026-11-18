@@ -109,6 +109,7 @@ export const ipcChannels = {
   settingsRevealLogFile: "settings:reveal-log-file",
   settingsLogsStatus: "settings:logs-status",
   resourcesList: "resources:list",
+  resourcesChooseRepositoriesFolder: "resources:chooseRepositoriesFolder",
   resourcesInspectGit: "resources:inspect-git",
   resourcesSave: "resources:save",
   resourcesRemove: "resources:remove",

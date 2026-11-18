@@ -17,8 +17,10 @@ import { looksLikeProviderIssueQuery } from "@/utils/issueActions";
 import type { IssueResolveResult } from "@/shared/integrationTypes";
 
 interface TaskIssuePickerContentProps {
-  /** 与创建任务共用列表、筛选和可调宽度预览。 */
+  /** 只显示当前选择的 Issue 或 PR 类别。 */
   group: IssueGroup;
+  /** 创建任务时可预览候选项；资源窗口只展示可勾选的列表。 */
+  showPreview?: boolean;
   selected: IssueItem[];
   onChange: (items: IssueItem[]) => void;
   /** 已绑定当前任务的条目不可再次添加。 */
@@ -26,7 +28,7 @@ interface TaskIssuePickerContentProps {
   disabled?: boolean;
 }
 
-export function TaskIssuePickerContent({ group, selected, onChange, lockedIds = [], disabled = false }: TaskIssuePickerContentProps) {
+export function TaskIssuePickerContent({ group, selected, onChange, showPreview = true, lockedIds = [], disabled = false }: TaskIssuePickerContentProps) {
   const { t } = useTranslation(["common", "taskCreate", "issues"]);
   const items = useIssueStore((state) => state.items).filter((item) => item.group === group);
   const { tasks, loaded, loading, error, bootstrap } = useTasks();
@@ -54,7 +56,7 @@ export function TaskIssuePickerContent({ group, selected, onChange, lockedIds = 
         if ("item" in result && result.item) {
           setResolved(result.item.group === group ? result.item : null);
           setResolveError(result.item.group === group ? null : "unsupported");
-          setPreview(result.item.group === group ? result.item : null);
+          if (showPreview) setPreview(result.item.group === group ? result.item : null);
         } else {
           setResolved(null);
           setResolveError(("error" in result && result.error) || "unreadable");
@@ -63,7 +65,7 @@ export function TaskIssuePickerContent({ group, selected, onChange, lockedIds = 
         .finally(() => { if (!cancelled) setResolving(false); });
     }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [filters.keyword, group]);
+  }, [filters.keyword, group, showPreview]);
 
   function toggle(id: string) {
     if (disabled || lockedIds.includes(id)) return;
@@ -71,9 +73,20 @@ export function TaskIssuePickerContent({ group, selected, onChange, lockedIds = 
     const catalog = resolved ? [...items.filter((item) => item.id !== resolved.id), resolved] : items;
     onChange(catalog.filter((item) => next.has(item.id)));
   }
+  const Row = showPreview ? "div" : "label";
+  const rows = <>
+    {visible.map((item) => <Row key={item.id} className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/70" data-selected={selectedIds.has(item.id)}>
+      <Checkbox aria-label={t("common:selection.selectItem", { title: item.title })} disabled={disabled || lockedIds.includes(item.id)} checked={selectedIds.has(item.id) || lockedIds.includes(item.id)} onCheckedChange={() => toggle(item.id)} />
+      {showPreview ? <button type="button" className="min-w-0 flex-1 cursor-default truncate text-left text-xs" title={item.title}
+        aria-label={t("common:selection.previewItem", { title: item.title })} onClick={() => setPreview(item)}>{item.title}</button>
+        : <span className="min-w-0 flex-1 truncate text-xs" title={item.title}>{item.title}</span>}
+      <span className="max-w-28 shrink-0 truncate text-xs text-muted-foreground" title={item.provider ?? t("taskCreate:links.unknownProvider")}>{item.provider ?? t("taskCreate:links.unknownProvider")}</span>
+    </Row>)}
+    {loaded && visible.length === 0 && <p className="p-4 text-xs text-muted-foreground">{t("issues:empty.matches")}</p>}
+  </>;
   return <>
       <div className="flex min-w-0 items-center gap-2 overflow-x-auto p-0.5" data-issue-picker-toolbar="">
-        <Input disabled={disabled} autoFocus className="w-52 min-w-36 shrink text-xs md:text-xs" value={filters.keyword}
+        <Input disabled={disabled} autoFocus={showPreview} className="w-52 min-w-36 shrink text-xs md:text-xs" value={filters.keyword}
           onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))} aria-label={t("taskCreate:links.search")} placeholder={t("taskCreate:links.searchPlaceholder")} />
         <TaskIssueFilters group={group} providers={providers} repositories={repositories} value={filters} onChange={setFilters} />
       </div>
@@ -82,22 +95,12 @@ export function TaskIssuePickerContent({ group, selected, onChange, lockedIds = 
       {!loaded && error !== null && <div role="alert" className="flex items-center gap-2 text-xs text-destructive">
         <span>{t("taskCreate:links.loadError")}</span><Button variant="ghost" size="sm" disabled={loading} onClick={() => void bootstrap()}>{t("common:actions.retry")}</Button>
       </div>}
-      <TaskIssuePanels busy={!loaded && loading} preview={
+      {showPreview ? <TaskIssuePanels busy={!loaded && loading} preview={
         visiblePreview ? <><h3 className="break-words text-sm font-medium">{visiblePreview.title}</h3><dl className="mt-4 space-y-3 text-xs">
           <div><dt className="text-muted-foreground">{t("common:fields.project")}</dt><dd className="mt-1 break-words">{visiblePreview.projectName}</dd></div>
           <div><dt className="text-muted-foreground">{t("common:fields.status")}</dt><dd className="mt-1">{t(issueStatuses[visiblePreview.status])}</dd></div>
           <div><dt className="text-muted-foreground">{t("common:fields.time")}</dt><dd className="mt-1">{formatDate(visiblePreview.date)}</dd></div>
         </dl></> : <p className="text-xs text-muted-foreground">{t("taskCreate:links.emptyPreview")}</p>
-      }>
-          {visible.map((item) => <div key={item.id} className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/70" data-selected={selectedIds.has(item.id)}>
-            <Checkbox aria-label={t("common:selection.selectItem", { title: item.title })} disabled={disabled || lockedIds.includes(item.id)} checked={selectedIds.has(item.id) || lockedIds.includes(item.id)} onCheckedChange={() => toggle(item.id)} />
-            <button type="button" className="min-w-0 flex-1 cursor-default truncate text-left text-xs" title={item.title}
-              aria-label={t("common:selection.previewItem", { title: item.title })} onClick={() => setPreview(item)}>
-              {item.title}
-            </button>
-            <span className="max-w-28 shrink-0 truncate text-xs text-muted-foreground" title={item.provider ?? t("taskCreate:links.unknownProvider")}>{item.provider ?? t("taskCreate:links.unknownProvider")}</span>
-          </div>)}
-          {loaded && visible.length === 0 && <p className="p-4 text-xs text-muted-foreground">{t("issues:empty.matches")}</p>}
-      </TaskIssuePanels>
+      }>{rows}</TaskIssuePanels> : <div aria-busy={!loaded && loading}>{rows}</div>}
   </>;
 }

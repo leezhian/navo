@@ -10,6 +10,7 @@ import type { StoredInitializationStep } from "./taskInitializationRepository";
 import { recordTaskNoteVersion } from "./taskNoteHistory";
 import { TASK_PROMPT_ID } from "../../shared/taskContextTypes";
 import { readTaskNoteComments } from "./taskNoteComments";
+import { recordRepositoryUsage } from "./repositoryUsage";
 
 export interface StoredAttachment extends TaskAttachment {
   storageName: string;
@@ -84,6 +85,7 @@ export class TaskRepository {
       if (task.agent) database.prepare("INSERT INTO task_agents VALUES (?,?,?)").run(this.namespace, task.id, JSON.stringify(task.agent));
       task.resources?.forEach((resource, position) => {
         database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(this.namespace, task.id, position, JSON.stringify(resource));
+        recordRepositoryUsage(database, this.namespace, resource);
         if (resource.mode === "worktree" && resource.ownership) database.prepare("INSERT INTO managed_workspaces VALUES (?,?,?,?,?)")
           .run(this.namespace, task.id, resource.workingPath, resource.targetBranch, resource.originalPath);
       });
