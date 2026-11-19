@@ -277,20 +277,21 @@ export class TaskResourceLifecycleService {
   async applyCleanup(taskId: string, ownerId: number) {
     const { applied, skipped, undo } = await this.mutate(taskId, (database) => {
       const plan = this.cleanupPlan(database, taskId);
-      const missing = plan.missingFiles.map((item) => ({ kind: item.kind, id: item.id }));
-      const merged = plan.mergedPullRequests.map((item) => ({ kind: "issue" as const, id: item.id }));
+      const missing: TaskResourceRef[] = [...plan.missingFiles.map((item) => ({ kind: item.kind, id: item.id })),
+        ...plan.missingFolders.map((item) => ({ kind: "workspace", id: item.id }))];
+      const completedLinks = [...plan.mergedPullRequests, ...plan.closedIssues].map((item) => ({ kind: "issue" as const, id: item.id }));
       const detached = this.detachMany(database, taskId, missing, false, false);
       const now = new Date().toISOString();
       const undo: UndoItem[] = [...detached.undo];
       const applied: TaskResourceRef[] = [...detached.applied];
       const skipped: TaskResourceSkip[] = [...detached.skipped];
       let changed = detached.changed;
-      for (const item of merged) {
+      for (const item of completedLinks) {
         const row = database.prepare("SELECT data FROM task_links WHERE namespace=? AND task_id=? AND link_id=?").get(this.namespace, taskId, item.id);
         if (!row) { skipped.push({ ...item, reason: "notFound" }); continue; }
         const link = JSON.parse(String(row.data)) as IssueItem & { archivedAt?: string };
         if (link.archivedAt) { skipped.push({ ...item, reason: "notFound" }); continue; }
-        if (link.group !== "PR" || link.status !== "merged") { skipped.push({ ...item, reason: "notAllowed" }); continue; }
+        if (!((link.group === "PR" && link.status === "merged") || (link.group === "ISSUE" && link.status === "closed"))) { skipped.push({ ...item, reason: "notAllowed" }); continue; }
         database.prepare("UPDATE task_links SET data=? WHERE namespace=? AND task_id=? AND link_id=?")
           .run(JSON.stringify({ ...link, archivedAt: now }), this.namespace, taskId, item.id);
         applied.push(item);
@@ -319,12 +320,22 @@ export class TaskResourceLifecycleService {
       }
     }
     const mergedPullRequests: TaskResourceCleanupPlan["mergedPullRequests"] = [];
+    const closedIssues: TaskResourceCleanupPlan["closedIssues"] = [];
     for (const row of database.prepare("SELECT link_id,data FROM task_links WHERE namespace=? AND task_id=?").all(this.namespace, taskId)) {
       const link = JSON.parse(String(row.data)) as IssueItem & { archivedAt?: string };
       if (link.archivedAt) continue;
       if (link.group === "PR" && link.status === "merged") mergedPullRequests.push({ id: String(row.link_id), title: link.title });
+      if (link.group === "ISSUE" && link.status === "closed") closedIssues.push({ id: String(row.link_id), title: link.title });
     }
-    return { missingFiles, mergedPullRequests };
+    const missingFolders = this.workspaceRows(database, taskId).flatMap(({ resource }) => {
+      if (resource.mode !== "folder" || this.workspaceDetachReason(database, taskId, resource.resourceId)) return [];
+      try { statSync(resource.workingPath); return []; }
+      catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        return code === "ENOENT" || code === "ENOTDIR" ? [{ id: resource.resourceId, name: resource.name }] : [];
+      }
+    });
+    return { missingFiles, missingFolders, mergedPullRequests, closedIssues };
   }
 
   private pathExists(target: string) {
@@ -572,7 +583,12 @@ export class TaskResourceLifecycleService {
     const result: TaskResourceRef[] = [];
     for (const item of items) {
       if (!item || typeof item.kind !== "string" || typeof item.id !== "string") throw new Error("TASK_INVALID");
-      if (item.id.includes("/") || item.id.includes("\\")) throw new Error("TASK_INVALID");
+      // Issue 缓存键含 owner/repo，斜杠合法；其他资源 id 不能带路径分隔符。
+      if (item.kind === "issue") {
+        if (!item.id.trim() || item.id.includes("\\") || item.id.includes("\0")) throw new Error("TASK_INVALID");
+      } else if (item.id.includes("/") || item.id.includes("\\")) {
+        throw new Error("TASK_INVALID");
+      }
       const key = item.kind + ":" + item.id;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -611,7 +627,7 @@ export class TaskResourceLifecycleService {
   private readManaged(database: DatabaseSync, taskId: string, item: TaskResourceRef): { archivedAt?: string } | null {
     if (item.kind === "note") {
       if (item.id === TASK_PROMPT_ID || !UUID.test(item.id)) return null;
-      const row = database.prepare("SELECT archived_at FROM task_notes WHERE namespace=? AND task_id=? AND id=?").get(this.namespace, taskId, item.id);
+      const row = database.prepare("SELECT archived_at FROM task_notes WHERE namespace=? AND task_id=? AND id=? AND deleted_at IS NULL").get(this.namespace, taskId, item.id);
       return row ? { archivedAt: row.archived_at ? String(row.archived_at) : undefined } : null;
     }
     if (item.kind === "file") {

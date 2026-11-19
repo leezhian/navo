@@ -2,7 +2,8 @@ import { useTranslation } from "react-i18next";
 import type { IssueItem } from "@/domain/issues";
 import type { IssueDisplayOptions } from "@/domain/issueView";
 import { formatDate } from "@/i18n";
-import { issueStatuses, issueTags } from "./issueConstants";
+import { issueStatuses } from "./issueConstants";
+import { IssueLabels } from "./IssueLabels";
 
 interface IssueCardProps {
   /** PR 或 ISSUE 数据，类型不因拖拽改变。 */
@@ -30,7 +31,7 @@ export function IssueCard({ issue, display, selected = false, onSelect }: IssueC
         onSelect();
       }}>
       <div className="issue-card-heading">
-        {display.showTag && <span className="issue-tag" data-tag={issue.tag}>{translate(issueTags[issue.tag])}</span>}
+        {display.showTag && <IssueLabels issue={issue} />}
         <h3 className="task-title" title={issue.title}>{issue.title}</h3>
       </div>
       {showMetadata && <div className="issue-card-metadata">

@@ -1,9 +1,8 @@
-import type { IntegrationStatus } from "@/shared/settingsTypes";
-
+import type { IntegrationProviderId } from "@/shared/integrationTypes";
 import { githubPath, gitlabPath } from "@/components/icons/repositoryProviderPaths";
 
 // 平台图形来自 Simple Icons；云端与自托管版本共用同一平台标识。
-const providerPaths: Record<IntegrationStatus["id"], string> = {
+const providerPaths: Record<IntegrationProviderId, string> = {
   github: githubPath,
   "github-enterprise": githubPath,
   gitlab: gitlabPath,
@@ -13,7 +12,7 @@ const providerPaths: Record<IntegrationStatus["id"], string> = {
 
 interface IntegrationProviderIconProps {
   /** 支持的平台标识；相邻的文字名称提供无障碍描述。 */
-  provider: IntegrationStatus["id"];
+  provider: IntegrationProviderId;
 }
 
 export function IntegrationProviderIcon({ provider }: IntegrationProviderIconProps) {

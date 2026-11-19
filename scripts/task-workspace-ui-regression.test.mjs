@@ -271,7 +271,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         await wait(()=>rows().length===0,'Last archived row must disappear');
         await wait(()=>document.querySelector('#status [aria-label="No session"]'),'Archived records must not affect tab status');
         const archivedToggle=[...document.querySelectorAll('.task-context-rail button')].find(button=>button.textContent==='Archived 2');if(!archivedToggle||archivedToggle.getAttribute('aria-expanded')!=='false')throw Error('Archived list must start collapsed');archivedToggle.click();
-        await wait(()=>document.querySelector('button[title*="Click to restore"]'),'Archived rows missing');const launchesBeforeRestore=window.creates.length;document.querySelector('button[title*="Click to restore"]').click();await wait(()=>rows().length===1,'Restore must return an active row');if(window.creates.length!==launchesBeforeRestore)throw Error('Restore must not launch');rows()[0].querySelector('button[aria-label="Archive session"]').click();await wait(()=>rows().length===0,'Rearchive failed');
+        const archivedRow=()=>[...document.querySelectorAll('.task-context-rail .task-context-row')].find(row=>row.textContent.includes('CLI renamed name'));
+        await wait(()=>archivedRow(),'Archived rows missing');const launchesBeforeRestore=window.creates.length;archivedRow().dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));const menuRestore=()=>[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.closest('[role="menu"]')?.dataset.state==='open'&&['恢复','Restore'].includes(item.textContent.trim()));await wait(()=>menuRestore(),'Restore menu missing');menuRestore().click();await wait(()=>rows().length===1,'Restore must return an active row');if(window.creates.length!==launchesBeforeRestore)throw Error('Restore must not launch');const rearchive=()=>rows()[0].querySelector('button[aria-label="Archive session"]');await wait(()=>rearchive()&&!rearchive().disabled,'Rearchive button missing');rearchive().click();await wait(()=>rows().length===0,'Rearchive failed');
         if(!document.querySelector('.task-context-rail').textContent.includes('Archived 2'))throw new Error('Archived-only session group must remain');
         if(!document.querySelector('.task-session-empty button'))throw new Error('Task must still allow creating a new session');
         const menuItem=label=>[...document.querySelectorAll('[role="menuitem"]')].find(element=>element.closest('[role="menu"]')?.dataset.state==='open'&&(element.querySelector(':scope > span')?.textContent||element.textContent).trim()===label);
@@ -281,7 +282,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(document.querySelector('[role="dialog"]')||document.querySelector('[role="combobox"]'))throw new Error('New session must only show the Agent menu');
         menuItem('Grok Build').click();await wait(()=>rows().length===1,'Agent selection did not create session');
         const request=window.creates[window.creates.length-1];if(request.agentId!=='grok'||request.agent||request.resourceId)throw new Error('New session must only submit Agent ID, not inherited configuration');
-        if(document.querySelector('.task-agent-pane').textContent.includes('hidden-model')||document.querySelector('.task-session-config')||button('Stop session'))throw new Error('Session chrome must hide configuration and stop action');
+        if(!document.querySelector('.task-agent-pane').textContent.includes('hidden-model')||document.querySelector('.task-session-config')||button('Stop session'))throw new Error('Session chrome must echo launch config and keep stop in the actions menu');
         const createdCount=window.creates.length,stoppedCount=window.stops.length,destroyedCount=window.destroyed.length;
         button('Close pane').click();await wait(()=>!document.querySelector('.task-agent-pane'),'Close pane must remove the module');
         await wait(()=>!document.querySelector('.task-context-group-heading button[aria-label="New session"]')?.disabled,'Creation did not settle');
@@ -310,7 +311,7 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(window.restarts[1].resume!==false)throw new Error('Running restart must stop the old process before resuming');
         await openDropdown(button('Session actions'));await wait(()=>menuItem('Rename session'),'Session menu missing');
         for(const label of ['Archive session','Delete session'])if(!menuItem(label))throw new Error('Missing '+label);
-        if(menuItem('Rename session').nextElementSibling?.getAttribute('role')!=='separator'||menuItem('Archive session').nextElementSibling!==menuItem('Delete session'))throw new Error('Archive and delete must share a group separated from rename');
+        if(menuItem('Rename session').nextElementSibling?.getAttribute('role')!=='menuitem'||menuItem('Archive session').previousElementSibling?.getAttribute('role')!=='separator')throw new Error('Archive and delete must share a group separated from rename');
         menuItem('Rename session').click();await wait(()=>document.querySelector('input[aria-label="Session name"]'),'Rename dialog missing');
         const field=document.querySelector('input[aria-label="Session name"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'Renamed native session');field.dispatchEvent(new Event('input',{bubbles:true}));await pause();
         const dialogButton=label=>[...document.querySelectorAll('[role="dialog"] button')].find(element=>element.textContent.trim()===label);

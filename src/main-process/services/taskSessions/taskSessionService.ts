@@ -29,6 +29,9 @@ import { TaskContextServer } from "./taskContextServer";
 import { TaskContextFiles } from "./taskContextFiles";
 import { SessionWorkspaceMcp } from "./sessionWorkspaceMcp";
 import type { TaskContextNoteActions } from "./taskNoteTools";
+import { SessionStatusLineServer } from "./sessionStatusLineServer";
+import { prepareStatusLineLaunch } from "./statusLineLaunch";
+import type { StatusLineObservation } from "./statusLinePayload";
 
 const MAX_SESSIONS = 32;
 const ACTIVITY_FLUSH_DELAY_MS = 1000;
@@ -47,6 +50,17 @@ export class TaskSessionService {
   private activeSessions = new Set<TaskSession>();
   private readonly contextServer: TaskContextServer;
   private readonly contextFiles = new TaskContextFiles();
+  /** 保留最后一次已验证快照供停止后查看；重启时清除，凭证仍随每次运行撤销。 */
+  private statusLineObservations = new Map<string, StatusLineObservation & { terminalId: string }>();
+  private readonly statusLineServer = new SessionStatusLineServer((id, terminalId, observation) => {
+    const session = this.sessions.find((item) => item.id === id);
+    if (this.closing || !session || session.archivedAt || session.terminalId !== terminalId || !["starting", "running"].includes(session.status)) return false;
+    if (session.nativeSessionId && session.nativeSessionId !== observation.nativeSessionId) return false;
+    // Antigravity 新对话尚未绑定时暂存，精确绑定完成后才展示。
+    this.statusLineObservations.set(id, { ...observation, terminalId });
+    if (this.applyUsage(session, undefined)) this.publish();
+    return true;
+  });
   constructor(private readonly repository: SessionRepository, private readonly agents: AgentService,
     private readonly loadTask: (id: string) => Promise<Task>, private readonly settings: () => AppSettings,
     private readonly changed: (sessions: TaskSession[]) => void,
@@ -115,6 +129,7 @@ export class TaskSessionService {
       ...(titleChanged && title ? { title, titleSource: "cli" as const } : {}) };
     await this.repository.save(updated);
     Object.assign(session, updated);
+    this.applyUsage(session, undefined);
     return true;
   }
   /** 只对保留了精确关联信息的 Codex/Antigravity 补绑，旧记录和其他 CLI 不做无效轮询。 */
@@ -166,9 +181,13 @@ export class TaskSessionService {
     return usageChanged || timesChanged;
   }
   private applyUsage(session: TaskSession, usage: TaskSession["usage"]) {
-    if (!usage) return false;
-    if (JSON.stringify(session.usage) === JSON.stringify(usage)) return false;
-    session.usage = usage;
+    const observed = this.statusLineObservations.get(session.id);
+    const statusLine = observed?.terminalId === session.terminalId && observed.nativeSessionId === session.nativeSessionId ? observed.usage : undefined;
+    if (!usage && !statusLine) return false;
+    // 回调确认的窗口快照优先于日志里只有 token 计数的记录，避免下一次活动刷新又隐藏百分比。
+    const next = statusLine ? { ...session.usage, ...usage, ...statusLine } : usage;
+    if (JSON.stringify(session.usage) === JSON.stringify(next)) return false;
+    session.usage = next;
     return true;
   }
   /** 已有时间不回退；没有新时间时保留原值。 */
@@ -249,6 +268,7 @@ export class TaskSessionService {
   }
   private async releaseContext(session: TaskSession) {
     this.contextServer.revoke(session.id);
+    this.statusLineServer.revoke(session.id);
     await this.contextFiles.release(session.id);
     await this.workspaceMcp.release(session.id);
   }
@@ -330,6 +350,7 @@ export class TaskSessionService {
   private async launch(session: TaskSession, task: Task, owner: WebContents, resume: boolean, resourceId?: string | null, command?: ResourceCommand, finished?: (code: number | null) => void) {
     void writeDiagnosticEvent("session.start.started", { taskId: task.id, operationId: session.id });
     try {
+      this.statusLineObservations.delete(session.id); delete session.usage;
       const directoryId = session.workspace?.kind === "resource" ? session.workspace.resourceId : session.workspace?.kind === "all" ? null : resourceId;
       const context = session.cwd ? { cwd: session.cwd, prompt: taskPrompt(task) } : await prepareTaskContext(task, this.settings().tasksDirectory, directoryId);
       if (session.agent) context.prompt += "\nAttachments (reference files):\n" + (await this.attachmentPaths(task)).map((filename) => JSON.stringify(filename)).join("\n");
@@ -341,7 +362,11 @@ export class TaskSessionService {
           const current = await this.loadTask(task.id);
           if (current.status === "ARCHIVED") throw new Error("SESSION_BUSY");
           return this.contextFiles.prepare(session.id, current, this.settings().tasksDirectory, await this.attachmentPaths(current));
-        }, session.nativeLaunchId, () => this.attachWorkspace(session, task.id, context.cwd)) : undefined;
+        }, session.nativeLaunchId, () => this.attachWorkspace(session, task.id, context.cwd), (env, help, args) => {
+          const agent = session.agent?.agentId;
+          return agent === "claude" || agent === "antigravity" ? prepareStatusLineLaunch({ agent, cwd: context.cwd, env, help, args,
+            nativeHistoryRoot: session.nativeHistoryRoot, connect: () => this.statusLineServer.connect(session.id, session.terminalId, agent) }) : Promise.resolve(undefined);
+        }) : undefined;
       if (launch) session.contextMode = launch.contextMode;
       delete session.contextSyncFailed;
       if (launch) this.titleEnvironments.set(session.id, { GROK_HOME: launch.env.GROK_HOME, CLAUDE_CONFIG_DIR: launch.env.CLAUDE_CONFIG_DIR });
@@ -357,7 +382,7 @@ export class TaskSessionService {
         retainOnExit: Boolean(command),
         onActivity: () => this.recordActivity(session, terminalId),
         onFinish: () => {
-          if (session.terminalId === terminalId) this.contextServer.revoke(session.id);
+          if (session.terminalId === terminalId) { this.contextServer.revoke(session.id); this.statusLineServer.revoke(session.id); }
           // 正常退出同一轮还会触发 onExit；关闭/强停只有 onFinish。
           queueMicrotask(() => finished?.(null));
           void this.serialize(async () => {
@@ -550,6 +575,7 @@ export class TaskSessionService {
         await this.repository.remove(id);
         this.sessions = this.sessions.filter((item) => item.id !== id);
         this.owners.delete(id); this.titleEnvironments.delete(id);
+        this.statusLineObservations.delete(id);
       } finally { this.publish(); }
       return this.sessions;
     });
@@ -611,6 +637,7 @@ export class TaskSessionService {
       try {
         const result = await operation();
         this.sessions = this.sessions.filter((item) => item.taskId !== taskId);
+        for (const id of this.statusLineObservations.keys()) if (!this.sessions.some((session) => session.id === id)) this.statusLineObservations.delete(id);
         return result;
       } finally { this.publish(); }
     });
@@ -626,6 +653,8 @@ export class TaskSessionService {
     await this.workspaceMcp.close();
     await this.contextServer.close();
     await this.contextFiles.close();
+    await this.statusLineServer.close();
+    this.statusLineObservations.clear();
   }
   private async attachWorkspace(session: TaskSession, taskId: string, cwd: string) {
     if (session.agent?.agentId !== "grok" && session.agent?.agentId !== "antigravity") return undefined;

@@ -63,8 +63,8 @@ test('评论保存真实引用、幂等、回复过期线程、并发编辑、�
  await assert.rejects(f.notes.changeComment(base.id,id,comment.updatedAt,{body:'Stale'}),/TASK_CONTENT_CHANGED/);
  await f.notes.changeComment(base.id,id,resolved.updatedAt,{remove:true});assert.equal((await f.current()).notes[0].comments.length,0);
  await f.notes.comment(base.id,{...input,id:randomUUID(),noteVersion:2,quote:'- [x] check'});
- await f.notes.remove(base.id,f.note.id,2);assert.deepEqual(await f.notes.history(base.id,f.note.id),[]);
- const db=await openAppDatabase(f.file);assert.equal(db.prepare('SELECT COUNT(*) n FROM task_note_comments WHERE note_id=?').get(f.note.id).n,0);db.close();
+ await f.notes.remove(base.id,f.note.id,2);assert.equal((await f.notes.history(base.id,f.note.id)).length,2);
+ const db=await openAppDatabase(f.file);assert.equal(db.prepare('SELECT COUNT(*) n FROM task_note_comments WHERE note_id=?').get(f.note.id).n,1);db.close();
 });
 
 test('升级旧笔记只保留当前基线和原更新时间，不伪造以前的版本',async t=>{

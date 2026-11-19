@@ -39,7 +39,8 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "save": "Save",
-    "add": "Add"
+    "add": "Add",
+    "copied": "Copied"
   },
   "selection": {
     "selectItem": "Select: {{title}}",

@@ -78,11 +78,12 @@ function fixture(initial = [], readTitle = async () => null, options = {}) {
   const nativeCalls = [];
   const runtime = createLoader({
     ...(options.readBinding ? { "./nativeSessionBinding": { readNativeSessionBinding: options.readBinding } } : {}),
-    "./agentLaunch": { prepareAgentLaunch: async (...args) => { options.launchCalls?.push(args); if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); options.prompts?.push(args[3]); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); return { command: "/mock/cli", args: [], env: {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
+    ...(options.statusLineLaunch ? { "./statusLineLaunch": { prepareStatusLineLaunch: options.statusLineLaunch } } : {}),
+    "./agentLaunch": { prepareAgentLaunch: async (...args) => { options.launchCalls?.push(args); if (failLaunch) throw new Error("AGENT_UNAVAILABLE"); options.prompts?.push(args[3]); if (options.context) options.context.push(await args[6]()); if (options.contextFiles) options.contextFiles.push(await args[8]()); const statusLine = options.statusLineLaunch ? await args[11]({}, "--settings", []) : undefined; return { command: "/mock/cli", args: statusLine?.args ?? [], env: statusLine?.env ?? {}, contextMode: options.context ? "dynamic" : options.contextFiles ? "file" : "snapshot" }; } },
     "./taskContext": { prepareTaskContext: options.prepareTaskContext ?? (async () => ({ cwd: os.tmpdir(), prompt: "task context" })), taskPrompt: options.taskPrompt ?? (() => "task context") },
     "../terminal/terminalService": {
       resolveShell: () => "/bin/zsh",
-      createTerminal: (params, owner, launch) => { launches++; processes.set(params.sessionId, { params, owner, launch }); },
+      createTerminal: (params, owner, launch) => { launches++; if (options.failTerminal) throw new Error("SPAWN_FAILED"); processes.set(params.sessionId, { params, owner, launch }); },
       destroyTerminal: ({ sessionId }) => { const process = processes.get(sessionId); processes.delete(sessionId); process?.launch.onFinish(); },
     },
   });
@@ -751,4 +752,59 @@ test("退出或停止前补读回复时间，只前进不回退，避免轮询�
   await runtime.service.restart(second.id, true, runtime.owner);
   await runtime.service.stop(second.id, runtime.owner);
   assert.equal(runtime.saved.get(second.id).lastReplyAt, "2026-11-07T02:00:00.000Z");
+});
+
+test('状态栏真实 HTTP 回调更新对应运行，日志刷新不覆盖窗口，停止、重启及失败撤销旧凭证', async context => {
+  const connections = [];
+  const runtime = fixture([], async () => null, {
+    statusLineLaunch: async input => { const connection = await input.connect(); connections.push(connection); return { env: { NAVO_STATUSLINE_URL: connection.url, NAVO_STATUSLINE_TOKEN: connection.token }, args: ['--settings', '{}'] }; },
+    readActivity: async () => ({ usage: { inputTokens: 10, outputTokens: 2 } }),
+  });context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: 'agent' }, runtime.owner);
+  let session = (await runtime.service.list())[0]; const first = connections[0];
+  const post = (connection, id = session.nativeSessionId, percent = 25) => fetch(connection.url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${connection.token}` }, body: JSON.stringify({ session_id: id, context_window: { context_window_size: 200000, used_percentage: percent } }) });
+  assert.equal((await post(first)).status, 204);
+  session = (await runtime.service.list())[0];assert.equal(session.usage.contextTokens, 50000);
+  assert.equal(runtime.events.at(-1)[0].usage.contextWindow, 200000);
+  const { sessionContextPercent } = load('src/utils/sessionUsageLabel.ts');
+  assert.equal(sessionContextPercent(session.usage), 25);
+  await runtime.service.refreshTitles(task.id);assert.equal(sessionContextPercent((await runtime.service.list())[0].usage), 25);
+  assert.equal((await post(first, '4211c729-32c4-47d1-bde3-a89b73ea021d', 99)).status, 409);
+  await runtime.service.stop(session.id, runtime.owner);
+  assert.equal((await post(first)).status, 401);assert.equal(sessionContextPercent((await runtime.service.list())[0].usage), 25);
+  await runtime.service.restart(session.id, true, runtime.owner);
+  session = (await runtime.service.list())[0];assert.equal(session.usage, undefined);
+  assert.equal((await post(first)).status, 401);assert.notEqual(connections[1].token, first.token);
+  assert.equal((await post(connections[1], session.nativeSessionId, 40)).status, 204);
+  runtime.processes.get(session.terminalId).launch.onFinish();
+  assert.equal((await post(connections[1])).status, 401);
+});
+
+test('Antigravity 状态栏先于原生身份绑定时暂存，精确绑定后展示', async context => {
+  const nativeId = '3211c729-32c4-47d1-bde3-a89b73ea021d'; let bound = false, connection;
+  const runtime = fixture([], async () => null, {
+    task: { ...task, agent: { ...selection, agentId: 'antigravity' } },
+    readBinding: async () => bound ? { id: nativeId } : null,
+    statusLineLaunch: async input => { connection = await input.connect(); return { env: {}, args: [] }; },
+  });context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: 'agent' }, runtime.owner);
+  assert.equal((await runtime.service.list())[0].nativeSessionId, undefined);
+  const result = await fetch(connection.url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${connection.token}` }, body: JSON.stringify({ product: 'antigravity', conversation_id: nativeId, context_window: { context_window_size: 200000, used_percentage: 12 } }) });
+  assert.equal(result.status, 204);assert.equal((await runtime.service.list())[0].usage, undefined);
+  bound = true;await runtime.service.refreshTitles(task.id);
+  assert.equal((await runtime.service.list())[0].usage.contextTokens, 24000);
+  const session = (await runtime.service.list())[0];
+  await runtime.service.archive(session.id, runtime.owner);
+  assert.equal((await fetch(connection.url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${connection.token}` }, body: '{}' })).status, 401);
+});
+
+test('状态栏已准备但 PTY 启动失败时撤销凭证', async context => {
+  let connection;
+  const runtime = fixture([], async () => null, { failTerminal: true,
+    statusLineLaunch: async input => { connection = await input.connect(); return { env: {}, args: [] }; },
+  });context.after(() => runtime.service.shutdown());
+  await runtime.service.start({ taskId: task.id, kind: 'agent' }, runtime.owner);
+  assert.equal((await runtime.service.list())[0].status, 'failed');
+  const result = await fetch(connection.url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${connection.token}` }, body: '{}' });
+  assert.equal(result.status, 401);
 });

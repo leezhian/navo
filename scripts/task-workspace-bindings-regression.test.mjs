@@ -12,6 +12,8 @@ const load = createLoader({ electron: { nativeImage: { createFromPath: () => ({ 
 const { TaskService } = load("src/main-process/services/taskService.ts");
 const { ResourceService } = load("src/main-process/services/resourceService.ts");
 const { TaskResourceRepository } = load("src/main-process/services/taskResourceRepository.ts");
+const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
+const { readRepositoryUsage } = load("src/main-process/services/repositoryUsage.ts");
 const { defaultSettings } = load("src/domain/settings.ts");
 const { prepareWorkspace, createWorkspace, createWorkspaceDirectory } = load("src/main-process/services/taskWorkspaces.ts");
 const execute = promisify(execFile);
@@ -68,6 +70,35 @@ test("已有任务追加真实 Worktree，原子保存、并发重试幂等及�
   assert.equal(preview.items[0].worktreeAction, "delete");
   await restarted.remove(task.id, { token: preview.token }, 1);
   await assert.rejects(access(workspace.workingPath));await access(repo.localPath);
+  const database = await openAppDatabase(path.join(directory, "app.db"));
+  try { assert.equal(readRepositoryUsage(database, "production").get(repo.id), workspace.addedAt); }
+  finally { database.close(); }
+});
+
+test("旧关联按仓库标识回填推荐，不编造时间；解除关联后保留且隔离开发环境", async (context) => {
+  const { directory, service, task, resource, input } = await fixture(context);
+  const first = await resource("assets", false);
+  const second = await resource("docs", false);
+  const updated = await service.addResources(task.id, payload([await input(first), await input(second)]), 1);
+  const filename = path.join(directory, "app.db");
+  const legacy = await openAppDatabase(filename);
+  try {
+    legacy.exec("DROP TABLE repository_usage; PRAGMA user_version = 17");
+    const { addedAt, ...undated } = updated.resources[0];
+    assert.ok(addedAt);
+    legacy.prepare("UPDATE task_resources SET data=? WHERE namespace=? AND task_id=? AND position=0")
+      .run(JSON.stringify({ ...undated, repositoryId: first.id, resourceId: "old-workspace" }), "production", task.id);
+  } finally { legacy.close(); }
+  const detached = await service.detachResources(task.id, [{ kind: "workspace", id: "old-workspace" }], 1);
+  assert.equal(detached.task.resources.length, 1);
+  const database = await openAppDatabase(filename);
+  try {
+    const history = readRepositoryUsage(database, "production");
+    assert.equal(history.get(first.id), null);
+    assert.equal(history.get(second.id), updated.resources[1].addedAt);
+    assert.equal(history.has("old-workspace"), false);
+    assert.equal(readRepositoryUsage(database, "development").size, 0);
+  } finally { database.close(); }
 });
 
 test("追加当前分支、原仓库新分支和普通文件夹，保留原关联及任务内容", async (context) => {

@@ -9,8 +9,9 @@ import type { TaskContextConnection } from "./taskContextServer";
 import { nativeLaunchReference } from "./nativeSessionBinding";
 import { helpOffersAddDir } from "./antigravityWorkspacePlugin";
 import type { WorkspaceMcpAttachment } from "./sessionWorkspaceMcp";
+import type { StatusLineLaunch } from "./statusLineLaunch";
 
-export async function prepareAgentLaunch(agents: AgentService, selection: TaskAgentSelection, nativeId: string, prompt: string, resume: boolean, nativeHistoryRoot?: string, connectContext?: () => Promise<TaskContextConnection>, dynamicPrompt?: string, prepareContextFile?: () => Promise<string>, nativeLaunchId?: string, attachWorkspace?: () => Promise<WorkspaceMcpAttachment | undefined>) {
+export async function prepareAgentLaunch(agents: AgentService, selection: TaskAgentSelection, nativeId: string, prompt: string, resume: boolean, nativeHistoryRoot?: string, connectContext?: () => Promise<TaskContextConnection>, dynamicPrompt?: string, prepareContextFile?: () => Promise<string>, nativeLaunchId?: string, attachWorkspace?: () => Promise<WorkspaceMcpAttachment | undefined>, attachStatusLine?: (env: NodeJS.ProcessEnv, help: string, args: string[]) => Promise<StatusLineLaunch | undefined>) {
   const { configurations } = await agents.repository.read();
   const config = configurations.find((item) => item.id === selection.agentId);
   if (!config?.enabled) throw new Error("AGENT_UNAVAILABLE");
@@ -41,9 +42,11 @@ export async function prepareAgentLaunch(agents: AgentService, selection: TaskAg
   const fileArgs = fileInstructions && selection.agentId === "grok" && helpText.includes("--rules") ? ["--rules", fileInstructions] : [];
   if (context) { Object.assign(env, context.env); prompt = (dynamicPrompt ?? prompt) + "\n\n" + CONTEXT_INSTRUCTIONS; }
   else if (fileInstructions) prompt = (dynamicPrompt ?? prompt) + "\n\n" + fileInstructions;
+  const statusLine = await attachStatusLine?.(env, helpText, config.args);
+  if (statusLine) Object.assign(env, statusLine.env);
   return { command: installation.binaryPath, env,
     contextMode: context ? "dynamic" as const : fileInstructions ? "file" as const : "snapshot" as const,
-    args: [...config.args, ...(context?.args ?? []), ...fileArgs, ...agentLaunchArguments(selection, nativeId, prompt, resume, helpText)] };
+    args: [...(statusLine?.args ?? config.args), ...(context?.args ?? []), ...fileArgs, ...agentLaunchArguments(selection, nativeId, prompt, resume, helpText)] };
 }
 
 /** Grok/Antigravity 的配置写入失败时退回文件，不把动态模式标成已连接。 */

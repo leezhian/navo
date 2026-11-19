@@ -4,6 +4,9 @@ import { ipcChannels } from "../../shared/ipcChannels";
 import type { CloneResourceParams, SaveResourceParams } from "../../shared/settingsTypes";
 import { loadSettings, saveSettings } from "../services/settingsService";
 import { ResourceService } from "../services/resourceService";
+import { openAppDatabase } from "../services/appDatabase";
+import { readRepositoryUsage } from "../services/repositoryUsage";
+import { discoverResourceDirectories } from "../services/discoverResourceDirectories";
 import { inspectResourceGit } from "../services/resourceGitInfo";
 import { clearDiagnosticLog, getDiagnosticLogFilePath, getDiagnosticLogStatus, prepareDiagnosticLogFile } from "../services/diagnosticLogService";
 import { updateApplicationMenu } from "../applicationMenu";
@@ -36,7 +39,20 @@ export function registerSettingsHandlers() {
   ipcMain.handle(ipcChannels.settingsRevealLogFile, async () => {
     shell.showItemInFolder(await prepareDiagnosticLogFile());
   });
-  ipcMain.handle(ipcChannels.resourcesList, () => service.list());
+  ipcMain.handle(ipcChannels.resourcesList, async () => {
+    const records = await service.list();
+    const database = await openAppDatabase(path.join(app.getPath("userData"), "app.db"));
+    try {
+      const usage = readRepositoryUsage(database, app.isPackaged ? "production" : "development");
+      return records.map((record) => usage.has(record.id) ? { ...record, lastTaskUse: usage.get(record.id) } : record);
+    } finally { database.close(); }
+  });
+  ipcMain.handle(ipcChannels.resourcesChooseRepositoriesFolder, async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    if (!owner || event.senderFrame !== event.sender.mainFrame) throw new Error("WINDOW_UNAVAILABLE");
+    const result = await dialog.showOpenDialog(owner, { properties: ["openDirectory"] });
+    return result.canceled || !result.filePaths[0] ? null : discoverResourceDirectories(result.filePaths[0]);
+  });
   ipcMain.handle(ipcChannels.resourcesDetectCommands, (event, localPath: string) => {
     if (event.senderFrame !== event.sender.mainFrame || !BrowserWindow.fromWebContents(event.sender)) throw new Error("WINDOW_UNAVAILABLE");
     return service.detectCommands(localPath);

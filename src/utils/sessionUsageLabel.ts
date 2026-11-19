@@ -1,11 +1,9 @@
 import type { SessionUsage } from "@/shared/taskSessionTypes";
 
-/** 上下文占用用最近一轮的输入、输出和缓存之和；超过窗口或缺少窗口时不显示百分比。 */
+/** 只使用采集层确认的当前上下文，避免重复计入缓存或将整轮累计量当作占用。 */
 export function sessionContextPercent(usage: SessionUsage | undefined) {
-  if (!usage?.contextWindow) return undefined;
-  const parts = [usage.inputTokens, usage.outputTokens, usage.cachedTokens].filter((value): value is number => value !== undefined);
-  if (!parts.length) return undefined;
-  const occupied = parts.reduce((sum, value) => sum + value, 0);
-  if (occupied > usage.contextWindow) return undefined;
-  return Math.round((occupied / usage.contextWindow) * 100);
+  const occupied = usage?.contextTokens, window = usage?.contextWindow;
+  if (occupied === undefined || window === undefined || !Number.isSafeInteger(occupied) || !Number.isSafeInteger(window)
+    || occupied < 0 || window <= 0 || occupied > window) return undefined;
+  return Math.round((occupied / window) * 100);
 }

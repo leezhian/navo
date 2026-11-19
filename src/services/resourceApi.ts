@@ -9,6 +9,7 @@ function api() {
 
 export const resourceApi = {
   list: () => api().list(),
+  chooseRepositoriesFolder: () => api().chooseRepositoriesFolder(),
   detectCommands: (localPath: string) => api().detectCommands(localPath),
   inspectGit: (localPath: string, forceRefresh = false) => api().inspectGit(localPath, forceRefresh),
   save: (params: SaveResourceParams) => api().save(params),

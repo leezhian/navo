@@ -96,7 +96,12 @@ test('归档检索忽略空白，用量百分比不超过窗口', () => {
   assert.equal(archivedSessionMatches('计划', 'main', '  '), true);
   assert.equal(archivedSessionMatches('计划', 'main', 'MAIN'), true);
   assert.equal(archivedSessionMatches('计划', 'main', 'zzz'), false);
-  assert.equal(sessionContextPercent({ inputTokens: 40, outputTokens: 5, cachedTokens: 5, contextWindow: 200 }), 25);
-  assert.equal(sessionContextPercent({ inputTokens: 300, contextWindow: 200 }), undefined);
+  assert.equal(sessionContextPercent({ contextTokens: 50, contextWindow: 200 }), 25);
+  assert.equal(sessionContextPercent({ contextTokens: 300, contextWindow: 200 }), undefined);
   assert.equal(sessionContextPercent({ outputTokens: 10 }), undefined);
+  assert.equal(sessionContextPercent({ contextTokens: 0, contextWindow: 200 }), 0);
+  assert.equal(sessionContextPercent({ contextTokens: 50, contextWindow: 0 }), undefined);
+  assert.equal(sessionContextPercent({ contextTokens: NaN, contextWindow: 200 }), undefined);
+  assert.equal(sessionContextPercent({ contextTokens: -1, contextWindow: 200 }), undefined);
+  assert.equal(sessionContextPercent({ inputTokens: 40, cachedTokens: 5, contextWindow: 200 }), undefined);
 });

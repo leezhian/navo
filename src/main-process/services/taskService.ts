@@ -29,12 +29,15 @@ import type { TaskManagedFileKind, TaskResourceRef } from "../../shared/taskReso
 import { TaskWorktreeDeletionService } from "./taskWorktreeDeletionService";
 import type { TaskResourceRemoval } from "../../shared/taskContextTypes";
 import { planWorktreeInitialization, TaskInitializationRepository } from "./taskInitializationRepository";
+import { TaskProgressService } from "./taskProgressService";
+import { reopenTaskProgress, taskProgress } from "../../shared/taskProgress";
 
 const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TASK_STATUSES: TaskStatus[] = ["TODO", "DONE", "ARCHIVED"];
 
 export class TaskService {
   readonly repository: TaskRepository;
+  readonly progress: TaskProgressService;
   readonly files = new TaskAttachmentSelections();
   private readonly resources: ResourceService;
   private queue: Promise<unknown> = Promise.resolve();
@@ -49,8 +52,9 @@ export class TaskService {
   private workspaceBusy?: (taskId: string, resourceId: string) => boolean;
 
   constructor(private readonly userData: string, private readonly namespace: "development" | "production", private readonly getSettings: () => AppSettings,
-    private readonly resolveAgent?: (selection: TaskAgentSelection) => Promise<TaskAgentSelection>) {
+    private readonly resolveAgent?: (selection: TaskAgentSelection) => Promise<TaskAgentSelection>, publishProgress?: (task: Task) => void) {
     this.repository = new TaskRepository(path.join(userData, "app.db"), namespace);
+    this.progress = new TaskProgressService(this.repository, undefined, publishProgress);
     this.initializationReady = new TaskInitializationRepository(path.join(userData, "app.db"), namespace).recover();
     // 保留失败供队列调用者处理，同时避免启动阶段未订阅的 rejected promise。
     void this.initializationReady.catch(() => undefined);
@@ -88,6 +92,13 @@ export class TaskService {
     return this.serialize(async () => { this.resourceLifecycle.invalidateTask(id); await this.content.updatePrompt(id, content, expected, expectedVersion); return requireTask(await this.repository.load() ?? [], id); });
   }
   noteHistory(id: string, noteId: string) { return this.serialize(() => this.resourceBindings.noteHistory(id, noteId)); }
+  deletedNotes(id: string) { return this.serialize(() => this.resourceBindings.deletedNotes(id)); }
+  deleteNotes(id: string, notes: import("../../shared/taskResourceTypes").TaskNoteRemoval[]) {
+    return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.deleteNotes(id, notes); });
+  }
+  restoreDeletedNote(id: string, noteId: string, expectedVersion: number, version?: number) {
+    return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.restoreDeletedNote(id, noteId, expectedVersion, version); });
+  }
   restoreNote(id: string, noteId: string, version: number, expectedVersion: number) {
     return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.restoreNote(id, noteId, version, expectedVersion); });
   }
@@ -237,11 +248,11 @@ export class TaskService {
                 { resourceId: step.resource.resourceId }, () => createWorkspace(step, persist), { started: true });
             } else await createWorkspace(step, persist);
           }
-          const resources = manifest.steps.map((step) => step.resource);
+          const createdAt = new Date().toISOString();
+          const resources = manifest.steps.map(({ resource }) => ({ ...resource, addedAt: createdAt }));
           const description = input.description.trim();
           // 单个 Issue/PR 作为任务命名来源；多个条目无法确定主项时沿用描述首行。
           const initialTitle = input.links.length === 1 ? input.links[0].title.trim() : description.split(/\r?\n/)[0].trim();
-          const createdAt = new Date().toISOString();
           const task: Task = {
             ...(agent ? { agent } : {}),
             id: input.requestId, title: Array.from(initialTitle).slice(0, 80).join(""),
@@ -288,9 +299,14 @@ export class TaskService {
     if (status === "ARCHIVED") return this.archive(id, undefined, 0, beforeTaskId);
     return diagnosticOperation("task.move", { taskId: id, status }, async () => {
       return this.serialize(() => this.repository.update((tasks) => {
-        requireTask(tasks, id);
+        const previous = requireTask(tasks, id);
         if (!TASK_STATUSES.includes(status) || (beforeTaskId !== null && typeof beforeTaskId !== "string")) throw new Error("TASK_INVALID");
-        return moveTask(tasks, id, status, beforeTaskId);
+        const moved = moveTask(tasks, id, status, beforeTaskId);
+        // 看板拖到完成／待办也算手动进度操作；同列排序及归档不改变开发阶段。
+        if (moved === tasks || previous.status === status) return moved;
+        const current = taskProgress(previous);
+        const progress = status === "DONE" ? { ...current, manual: { stage: "done" as const, evidence: current.evidence } } : reopenTaskProgress(current);
+        return moved.map((task) => task.id === id ? { ...task, progress } : task);
       }));
     });
   }

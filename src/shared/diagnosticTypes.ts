@@ -4,7 +4,7 @@ export const DIAGNOSTIC_OPERATIONS = [
   "task.load", "task.migrate", "task.create", "task.rename", "task.move", "task.archive", "task.restore", "task.delete", "task.resources.add", "task.note.create", "task.note.update", "task.note.delete",
   "worktree.create", "worktree.rollback", "worktree.delete", "branch.create", "branch.delete",
   "attachment.select", "attachment.copy", "attachment.clear",
-  "session.start", "session.stop",
+  "session.start", "session.stop", "integration.fetch",
 ] as const;
 export type DiagnosticOperation = typeof DIAGNOSTIC_OPERATIONS[number];
 export const DIAGNOSTIC_RESULTS = ["started", "succeeded", "failed", "cancelled"] as const;
@@ -51,6 +51,12 @@ export interface DiagnosticMetadata {
   changedFields?: string[];
   /** 只交给白名单序列化器，不直接写入异常对象或原始 message。 */
   error?: unknown;
+  /** HTTP 状态码，仅用于集成拉取失败。 */
+  httpStatus?: number;
+  /** 集成平台 ID。 */
+  providerId?: string;
+  /** GraphQL errors 的 type 与 message，写入前须经 sanitizer 过滤。 */
+  graphqlErrors?: { type?: string; message?: string }[];
 }
 
 export interface DiagnosticEntry {

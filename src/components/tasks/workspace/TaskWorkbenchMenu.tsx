@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Archive, Check, Circle, CircleCheck, Copy, Ellipsis, FolderPlus, Link, Mail, MailOpen, Pencil, Power, RefreshCw, Trash2 } from "lucide-react";
+import { Archive, Check, CircleDot, Copy, Ellipsis, FolderPlus, Link, Mail, MailOpen, Pencil, Power, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import { useTaskStore } from "@/stores/taskStore";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TaskDeleteDialog } from "../TaskDeleteDialog";
 import { TaskAddResourcesDialog } from "../resources/TaskAddResourcesDialog";
+import { TaskProgressMenuItems } from "./TaskProgressMenu";
 
 interface TaskWorkbenchMenuProps {
   /** 菜单操作只作用于当前任务详情，确认流复用列表右键已有弹窗。 */
@@ -59,16 +60,6 @@ export function TaskWorkbenchMenu({ task, onRename, onNotice }: TaskWorkbenchMen
     }
   }
 
-  async function changeStatus(status: "TODO" | "DONE") {
-    if (busy || task.status === status) return;
-    const store = useTaskStore.getState();
-    if (archived) {
-      const restored = await store.restore(task.id);
-      if (!restored) return;
-    }
-    await store.move(task.id, status, null);
-  }
-
   async function closeAllAgents() {
     if (busy || runningAgents.length === 0) return;
     const stop = useTaskSessionStore.getState().stop;
@@ -111,17 +102,11 @@ export function TaskWorkbenchMenu({ task, onRename, onNotice }: TaskWorkbenchMen
           <Pencil className="size-3.5" />{t("common:actions.rename")}
         </DropdownMenuItem>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="text-xs" disabled={busy}>
-            <Circle className="size-3.5" />{t("tasks:actions.changeStatus")}
+          <DropdownMenuSubTrigger className="text-xs" disabled={busy || archived}>
+            <CircleDot className="size-3.5" />{t("tasks:progress.title")}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-40">
-            {(["TODO", "DONE"] as const).map((status) => (
-              <DropdownMenuItem key={status} className="text-xs" disabled={busy || (!archived && task.status === status)}
-                onSelect={() => void changeStatus(status)}>
-                {status === "TODO" ? <Circle className="size-3.5" /> : <CircleCheck className="size-3.5" />}
-                {t(status === "TODO" ? "tasks:actions.markTodo" : "tasks:actions.markDone")}
-              </DropdownMenuItem>
-            ))}
+          <DropdownMenuSubContent className="w-56">
+            <TaskProgressMenuItems task={task} disabled={busy} onError={(message) => { if (message) onNotice(t("tasks:progress.failed"), message); }} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         {readActions.available && <DropdownMenuItem className="text-xs" onSelect={readActions.toggleRead}>

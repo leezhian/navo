@@ -5,6 +5,7 @@ import { openAppDatabase } from "./appDatabase";
 import { insertInitialization } from "./taskInitializationRepository";
 import type { StoredInitializationStep } from "./taskInitializationRepository";
 import { insertTaskNote, readTaskNotes } from "./taskNoteRepository";
+import { recordRepositoryUsage } from "./repositoryUsage";
 
 function optionalArchived<T extends { archivedAt?: string }>(items: T[]) {
   return { active: items.filter((item) => !item.archivedAt), archived: items.filter((item) => item.archivedAt) };
@@ -44,9 +45,14 @@ export class TaskResourceRepository {
         .map((row) => ({ position: Number(row.position), resource: JSON.parse(String(row.data)) as TaskResource }));
       for (const resource of resources) {
         const current = stored.find((row) => row.resource.resourceId === resource.resourceId);
-        if (!current || JSON.stringify(current.resource) !== JSON.stringify(resource)) changed = true;
-        if (current) database.prepare("UPDATE task_resources SET data=? WHERE namespace=? AND task_id=? AND position=?").run(JSON.stringify(resource), namespace, taskId, current.position);
-        else database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(namespace, taskId, position++, JSON.stringify(resource));
+        const binding = { ...resource, addedAt: current ? current.resource.addedAt : new Date().toISOString() };
+        const data = JSON.stringify(binding);
+        if (!current || JSON.stringify(current.resource) !== data) changed = true;
+        if (current) database.prepare("UPDATE task_resources SET data=? WHERE namespace=? AND task_id=? AND position=?").run(data, namespace, taskId, current.position);
+        else {
+          database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(namespace, taskId, position++, data);
+          recordRepositoryUsage(database, namespace, binding);
+        }
         if (resource.mode === "worktree" && resource.ownership) database.prepare("INSERT OR IGNORE INTO managed_workspaces VALUES (?,?,?,?,?)")
           .run(namespace, taskId, resource.workingPath, resource.targetBranch, resource.originalPath);
       }

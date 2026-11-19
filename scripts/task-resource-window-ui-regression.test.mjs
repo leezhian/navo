@@ -33,13 +33,14 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
         archivedAttachments:[{id:'88888888-8888-4888-8888-888888888888',name:'old-copy.txt',size:4,archivedAt:'2026-10-06T00:00:00.000Z'}],
         archivedWebLinks:[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',url:'https://example.com/old',title:'Old link',archivedAt:'2026-10-06T00:00:00.000Z'}]};
       useTaskStore.setState({tasks:[task],loaded:true});
-      window.reveals=[];window.copies=[];window.archives=[];window.restores=[];window.detaches=[];window.deletes=[];window.undos=[];window.cleanups=[];window.titles=[];window.cleanupPlan={missingFiles:[],mergedPullRequests:[]};window.dismissed=false;window.undoAllowed=false;let lastSnapshot=null;
+      window.reveals=[];window.copies=[];window.archives=[];window.restores=[];window.detaches=[];window.deletes=[];window.undos=[];window.cleanups=[];window.titles=[];window.cleanupPlan={missingFolders:[],closedIssues:[],missingFiles:[],mergedPullRequests:[]};window.dismissed=false;window.undoAllowed=false;let lastSnapshot=null;
       const writeCopy=async(value)=>{window.copies.push(value);};
       if(navigator.clipboard)navigator.clipboard.writeText=writeCopy;else Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:writeCopy}});
       const previewType=name=>name.endsWith('.md')?'markdown':name.endsWith('.png')||name.endsWith('.jpg')?'image':name.endsWith('.pptx')||name.endsWith('.bin')?'unsupported':'text';
       const allFiles=()=>[...task.files,...(task.attachments??[]),...task.archivedFiles,...(task.archivedAttachments??[])];
       function publish(next){task=next;useTaskStore.setState({tasks:[structuredClone(task)]});return structuredClone(task);}
       const batch=(applied,skipped=[])=>({task:structuredClone(task),applied,skipped,undoExpiresAt:new Date(Date.now()+10000).toISOString()});
+      let deletedNotes=[];const noteHistory=new Map();window.noteDeletes=[];window.noteRestores=[];window.refreshCalls=[];window.failRefresh=true;window.failNoteDelete=false;window.failNoteRestore=false;
       window.navo={app:{onOpenTask:()=>()=>{},taskLinksReady:async()=>{}},settings:{chooseDirectory:async()=>'/fixture'},
         resources:{list:async()=>[],onCloneProgress:()=>()=>{}},review:{watchProject:async()=>{},unwatchProject:async()=>{},onProjectChanged:()=>()=>{}},
         agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:[]},installations:[],entries:{}})},
@@ -49,19 +50,26 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
           inspectManagedFile:async(id,kind,fileId)=>{const item=allFiles().find(file=>file.id===fileId)||{name:'unknown',path:'',size:0};return {kind,id:fileId,name:item.name,description:item.description??'',size:item.size??4,mtime:now,exists:true,source:kind==='file'?'path':'attachment',location:item.path||item.name,previewType:previewType(item.name)};},
           previewManagedFile:async(id,kind,fileId)=>{const item=allFiles().find(file=>file.id===fileId)||{name:'unknown'};const type=previewType(item.name);return type==='image'?{type,dataUrl:'data:image/png;base64,AAAA',size:4}:{type,text:'preview body',size:4};},
           revealResourceFile:async(...args)=>window.reveals.push(['file',...args]),
+          deletedNotes:async()=>structuredClone(deletedNotes),
+          noteHistory:async(taskId,noteId)=>structuredClone(noteHistory.get(noteId)??[]),
+          deleteNotes:async(taskId,items)=>{if(window.failNoteDelete)throw Error('TASK_BUSY');const notes=[...task.notes,...task.archivedNotes];for(const item of items){if(notes.find(note=>note.id===item.id)?.version!==item.version)throw Error('TASK_CONTENT_CHANGED');}window.noteDeletes.push(items);for(const item of items){const current=notes.find(note=>note.id===item.id);deletedNotes.push({...current,deletedAt:now});noteHistory.set(item.id,[{noteId:item.id,version:current.version,title:current.title,content:current.content,kind:'edit',actor:'user',createdAt:now},{noteId:item.id,version:1,title:current.title,content:'Earlier content',kind:'create',actor:'agent',createdAt:now}]);}return publish({...task,notes:task.notes.filter(note=>!items.some(item=>item.id===note.id)),archivedNotes:task.archivedNotes.filter(note=>!items.some(item=>item.id===note.id)),contextVersion:task.contextVersion+1});},
+          restoreDeletedNote:async(taskId,noteId,expected,version)=>{if(window.failNoteRestore)throw Error('TASK_BUSY');const note=deletedNotes.find(note=>note.id===noteId);if(note?.version!==expected)throw Error('TASK_CONTENT_CHANGED');const snapshot=noteHistory.get(noteId).find(item=>item.version===(version??expected));window.noteRestores.push({noteId,version:version??expected});deletedNotes=deletedNotes.filter(note=>note.id!==noteId);return publish({...task,notes:[...task.notes,{...note,title:snapshot.title,content:snapshot.content,version:note.version+1,deletedAt:undefined,archivedAt:undefined}],contextVersion:task.contextVersion+1});},
           inspectResourceCleanup:async()=>structuredClone(window.cleanupPlan),
           dismissResourceUndo:async()=>{window.dismissed=true;window.undoAllowed=false;},
           archiveResources:async(id,items)=>{window.archives.push(items);window.undoAllowed=true;window.dismissed=false;lastSnapshot=structuredClone(task);const kinds={note:'notes',file:'files',attachment:'attachments',link:'webLinks',issue:'links'};const archived={note:'archivedNotes',file:'archivedFiles',attachment:'archivedAttachments',link:'archivedWebLinks',issue:'archivedLinks'};const applied=[];for(const item of items){const list=task[kinds[item.kind]]??[];const current=list.find(entry=>entry.id===item.id);if(!current)continue;task={...task,contextVersion:task.contextVersion+1,[kinds[item.kind]]:list.filter(entry=>entry.id!==item.id),[archived[item.kind]]:[...(task[archived[item.kind]]??[]),{...current,archivedAt:now}]};applied.push(item);}return publish(task)&&batch(applied);},
           restoreResources:async(id,items)=>{window.restores.push(items);const kinds={note:'notes',file:'files',attachment:'attachments',link:'webLinks',issue:'links'};const archived={note:'archivedNotes',file:'archivedFiles',attachment:'archivedAttachments',link:'archivedWebLinks',issue:'archivedLinks'};const applied=[];for(const item of items){const list=task[archived[item.kind]]??[];const current=list.find(entry=>entry.id===item.id);if(!current)continue;const {archivedAt,...rest}=current;task={...task,contextVersion:task.contextVersion+1,[archived[item.kind]]:list.filter(entry=>entry.id!==item.id),[kinds[item.kind]]:[...(task[kinds[item.kind]]??[]),rest]};applied.push(item);}return publish(task)&&batch(applied);},
           detachResources:async(id,items)=>{lastSnapshot=structuredClone(task);window.undoAllowed=true;window.dismissed=false;const skipped=[];const applied=[];for(const item of items){if(item.kind==='workspace'&&(task.resources?.length??0)<=1){skipped.push({...item,reason:'lastWorkspace'});continue;}if(item.kind==='workspace')task={...task,resources:task.resources.filter(resource=>resource.resourceId!==item.id)};if(item.kind==='file')task={...task,files:task.files.filter(file=>file.id!==item.id)};if(item.kind==='link')task={...task,webLinks:task.webLinks.filter(link=>link.id!==item.id)};if(item.kind!=='workspace'||!skipped.some(entry=>entry.id===item.id))applied.push(item);}window.detaches.push({applied,skipped});task={...task,contextVersion:task.contextVersion+1};publish(task);return {...batch(applied,skipped),task:structuredClone(task)};},
           deleteAttachments:async(id,ids)=>{window.deletes.push(ids);window.undoAllowed=true;window.dismissed=false;task={...task,attachments:(task.attachments??[]).filter(file=>!ids.includes(file.id)),contextVersion:task.contextVersion+1};publish(task);return batch(ids.map(item=>({kind:'attachment',id:item})));},
-          applyResourceCleanup:async()=>{window.cleanups.push(window.cleanupPlan);const merged=window.cleanupPlan.mergedPullRequests??[];const moved=(task.links??[]).filter(link=>merged.some(item=>item.id===link.id)).map(link=>({...link,archivedAt:now}));const links=(task.links??[]).filter(link=>!merged.some(item=>item.id===link.id));window.cleanupPlan={missingFiles:[],mergedPullRequests:[]};window.undoAllowed=true;window.dismissed=false;publish({...task,links,archivedLinks:[...(task.archivedLinks??[]),...moved],contextVersion:task.contextVersion+1});return batch(moved.map(item=>({kind:'issue',id:item.id})));},
+          applyResourceCleanup:async()=>{window.cleanups.push(window.cleanupPlan);const merged=window.cleanupPlan.mergedPullRequests??[];const moved=(task.links??[]).filter(link=>merged.some(item=>item.id===link.id)).map(link=>({...link,archivedAt:now}));const links=(task.links??[]).filter(link=>!merged.some(item=>item.id===link.id));window.cleanupPlan={missingFolders:[],closedIssues:[],missingFiles:[],mergedPullRequests:[]};window.undoAllowed=true;window.dismissed=false;publish({...task,links,archivedLinks:[...(task.archivedLinks??[]),...moved],contextVersion:task.contextVersion+1});return batch(moved.map(item=>({kind:'issue',id:item.id})));},
           undoResourceChange:async()=>{if(!window.undoAllowed)throw new Error('TASK_UNDO_EXPIRED');window.undos.push(true);window.undoAllowed=false;if(lastSnapshot){const restored=lastSnapshot;lastSnapshot=null;return publish(restored);}return structuredClone(task);},
           updateFileMeta:async(id,kind,fileId,patch)=>{const list=kind==='file'?task.files:task.attachments;task={...task,[kind==='file'?'files':'attachments']:list.map(item=>item.id===fileId?{...item,...patch}:item),contextVersion:task.contextVersion+1};return publish(task);},
           updateWebLink:async(id,linkId,title)=>{window.titles.push(title);task={...task,webLinks:task.webLinks.map(link=>link.url.includes('example.com/spec')?{...link,title}:link)};return publish(task);},
           addResources:async()=>structuredClone(task),
         }};
       window.setTaskStatus=status=>{task={...task,status};publish(task);};
+      window.prepareSyncChecks=()=>{const remote=(id,group)=>({id,group,source:'remote',providerId:'github',provider:'GitHub',title:id,projectName:'repo',status:'todo',date:'2026-11-19'});publish({...task,notes:[{...note('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Recoverable note','Latest content'),version:2}],links:[...(task.links??[]),remote('remote-pr','PR'),remote('remote-failure','PR'),remote('remote-issue','ISSUE')],contextVersion:task.contextVersion+1});};
+      window.clearSyncIssues=()=>publish({...task,links:(task.links??[]).filter(item=>item.group!=='ISSUE'),archivedLinks:(task.archivedLinks??[]).filter(item=>item.group!=='ISSUE')});
+      window.navo.issues={get:async(id,options)=>{window.refreshCalls.push({id,options});await new Promise(resolve=>setTimeout(resolve,180));const item=task.links.find(item=>item.id===id);if(id==='remote-failure'&&window.failRefresh)return {...item,fetchError:'unreachable'};const next={...item,title:'Refreshed '+id,status:'closed'};publish({...task,links:task.links.map(link=>link.id===id?next:link),contextVersion:task.contextVersion+1});return next;}};
       window.storePending=()=>useTaskStore.getState().pending;window.expireUndo=()=>import('/src/stores/taskResourceUndoStore.ts').then(mod=>mod.useTaskResourceUndoStore.setState({expiresAt:new Date(Date.now()-1).toISOString()}));
       function Fixture(){const record=useTaskStore(state=>state.tasks[0]);return React.createElement(TooltipProvider,null,React.createElement('div',{style:{height:720,width:1100}},React.createElement(TaskWorkspace,{task:record,headingId:'task-title',onClose:()=>{}})));}
       createRoot(document.getElementById('root')).render(React.createElement(Fixture));
@@ -75,12 +83,15 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
       app.dock?.hide();const win=new BrowserWindow({show:false,width:1250,height:900,webPreferences:{backgroundThrottling:false}});
       const errors=[];win.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message);});
       try{await win.loadURL(${JSON.stringify("http://127.0.0.1:"+server.httpServer.address().port+"/__resource_window_test")});
+        win.webContents.debugger.attach();await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true});
         await win.webContents.executeJavaScript(\`(async()=>{
           const pause=()=>new Promise(resolve=>setTimeout(resolve,35));
           const wait=async(check,message)=>{for(let attempt=0;attempt<160;attempt++){if(check())return;await pause();}throw Error(message);};
           const dialog=()=>document.querySelector('[role="dialog"]');
           const button=(label,root=dialog())=>[...root.querySelectorAll('button')].find(item=>item.textContent.trim()===label);
           const category=()=>dialog()?.querySelector('[data-resource-category]')?.dataset.resourceCategory;
+          const tab=(label)=>[...dialog().querySelectorAll('[role="tab"]')].find(item=>item.querySelector('span')?.textContent===label);
+          const selectTab=(label)=>tab(label).dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));
           const menuItems=()=>[...document.querySelectorAll('[role="menuitem"]')];
           const itemsIn=(label)=>{const item=menuItems().find(entry=>entry.textContent===label);return item?[...item.closest('[role="menu"]').querySelectorAll('[role="menuitem"]')]:[];};
           const dismissMenu=async()=>{document.activeElement?.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',bubbles:true,cancelable:true}));document.body.click();await pause();};
@@ -88,29 +99,39 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
           await wait(()=>document.querySelector('.task-context-toolbar button'),'Workspace missing');
           document.querySelector('.task-context-toolbar button').click();
           await wait(()=>dialog()?.textContent.includes('资源窗口'),'Window title missing');
-          const cleanupBtn=dialog().querySelector('[data-cleanup]');
-          const closeBtn=dialog().querySelector('[data-slot="dialog-close"]');
-          if(!cleanupBtn||!closeBtn)throw Error('Cleanup or close button missing');
-          const overlap=(a,b)=>{const ra=a.getBoundingClientRect(),rb=b.getBoundingClientRect();return !(ra.right<=rb.left||ra.left>=rb.right||ra.bottom<=rb.top||ra.top>=rb.bottom);};
-          const inside=(el,box)=>{const r=el.getBoundingClientRect(),b=box.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=b.left-0.5&&r.right<=b.right+0.5&&r.top>=b.top-0.5&&r.bottom<=b.bottom+0.5;};
-          if(overlap(cleanupBtn,closeBtn)||cleanupBtn===closeBtn)throw Error('Cleanup and close buttons overlap');
-          if(!inside(cleanupBtn,dialog())||!inside(closeBtn,dialog()))throw Error('Cleanup or close is not fully visible');
+          if(!dialog().querySelector('[data-slot="dialog-description"]')?.textContent.includes('Agent 可以打开并读取'))throw Error('Resource window must explain who can read the resources');
           const cleanup=()=>dialog()?.querySelector('[data-cleanup]');
-          if(!cleanup()?.disabled)throw Error('Cleanup must start disabled when empty');
-          button('笔记').click();await wait(()=>category()==='notes','Notes tab missing');
+          const closeWindow=()=>dialog().querySelector('[data-slot="dialog-close"]').click();
+          if(cleanup()||dialog().querySelector('footer,input:not([type="checkbox"])')||!dialog().querySelector('[data-resource-add]'))throw Error('Default inventory must not show cleanup, add fields or footer');
+          const normalWidth=dialog().clientWidth;dialog().querySelector('[aria-label="最大化资源窗口"]').click();await wait(()=>dialog().clientWidth>normalWidth,'Resource window must expand');dialog().querySelector('[aria-label="还原窗口大小"]').click();await wait(()=>dialog().clientWidth===normalWidth,'Resource window did not restore size');
+          dialog().querySelector('[data-resource-add]').click();await wait(()=>dialog().querySelector('[data-resource-back]'),'Add page did not open');if(dialog().querySelector('[data-resource-existing]'))throw Error('Add page cannot also show the inventory');dialog().querySelector('[data-resource-back]').click();await wait(()=>dialog().querySelector('[data-resource-existing]'),'Back did not restore list');
+          const tablist=dialog().querySelector('[role="tablist"]');const tabs=[...tablist.querySelectorAll('[role="tab"]')];
+          if(tabs.length!==6||tabs.some(item=>item.offsetTop!==tabs[0].offsetTop)||tablist.getBoundingClientRect().bottom>dialog().querySelector('[role="tabpanel"]').getBoundingClientRect().top+1)throw Error('Resource tabs must occupy one horizontal row above the panel');
+          dialog().style.width='340px';
+          await wait(()=>dialog().clientWidth===340,'Narrow dialog did not finish resizing');
+          if(tablist.scrollWidth<=tablist.clientWidth||tabs.some(item=>item.offsetTop!==tabs[0].offsetTop)||dialog().scrollWidth>dialog().clientWidth+1)throw Error('At narrow widths only the horizontal tab strip should overflow');
+          dialog().style.removeProperty('width');
+          tab('仓库与文件夹').focus();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+          await wait(()=>category()==='issues'&&document.activeElement===tab('Issues'),'Arrow keys must switch tabs without search stealing focus');
+          const emptyState=()=>dialog().querySelector('[data-slot="empty"]');
+          if(!emptyState()?.querySelector('[data-resource-add]')||dialog().querySelector('[role="checkbox"], [data-batch-toolbar], [data-resource-existing]'))throw Error('An empty inventory must show Add in the empty state without selection controls');
+          emptyState().querySelector('[data-resource-add]').click();await wait(()=>dialog().querySelector('[data-resource-back]'),'Empty state Add did not open the picker');
+          selectTab('笔记');await wait(()=>category()==='notes','Notes tab missing');
           if(!dialog().querySelector('[data-resource-existing] [data-existing-id="11111111-1111-4111-8111-111111111111"]'))throw Error('Active note missing in window');
           dialog().querySelector('[data-archived-toggle]').click();
           await wait(()=>dialog().querySelector('[data-resource-archived] [data-existing-id="22222222-2222-4222-8222-222222222222"]'),'Archived note missing in window');
           button('恢复',dialog().querySelector('[data-resource-archived]')).click();
           await wait(()=>dialog().querySelector('[data-resource-existing] [data-existing-id="22222222-2222-4222-8222-222222222222"]'),'Restored note missing');
-          button('文件').click();await wait(()=>category()==='files','Files tab missing');
+          if(tab('笔记').lastElementChild.textContent!=='2')throw Error('Restoring a resource must update the active count on its tab');
+          selectTab('文件');await wait(()=>category()==='files','Files tab missing');
           if(!dialog().querySelector('[data-existing-id="33333333-3333-4333-8333-333333333333"]')||!dialog().querySelector('[data-existing-id="66666666-6666-4666-8666-666666666666"]'))throw Error('Existing files and attachments missing');
           dialog().querySelector('[data-archived-toggle]').click();
           await wait(()=>dialog().querySelector('[data-resource-archived] [data-existing-id="77777777-7777-4777-8777-777777777777"]')&&dialog().querySelector('[data-resource-archived] [data-existing-id="88888888-8888-4888-8888-888888888888"]'),'Archived files missing');
-          button('链接').click();await wait(()=>category()==='links','Links tab missing');
+          selectTab('链接');await wait(()=>category()==='links','Links tab missing');
           if([...dialog().querySelectorAll('[data-resource-existing] [data-existing-kind="link"]')].length!==2)throw Error('Duplicate URLs must aggregate into one row, and a distinct URL stays separate');
           dialog().querySelector('[data-archived-toggle]').click();
           await wait(()=>dialog().querySelector('[data-resource-archived] [data-existing-kind="link"]'),'Archived link missing');
+          dialog().querySelector('[data-resource-add]').click();await wait(()=>dialog().querySelector('[data-resource-back]'),'Links add page missing');
           const urlInput=dialog().querySelector('input[type="url"]');
           if(!urlInput)throw Error('Link URL field missing');
           const urlProto=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');
@@ -118,7 +139,7 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
           urlInput.dispatchEvent(new Event('input',{bubbles:true}));
           await wait(()=>dialog().textContent.includes('已在归档中'),'Archived link hint missing');
           if(!button('添加到任务')?.disabled)throw Error('Adding an archived link must stay disabled');
-          button('取消').click();await wait(()=>!dialog(),'Close after inventory failed');
+          closeWindow();await wait(()=>!dialog(),'Close after inventory failed');
           const row=name=>[...document.querySelectorAll('.task-context-row')].find(item=>item.textContent.includes(name));
           row('spec.md').click();await wait(()=>document.querySelector('[data-file-preview]')?.textContent.includes('spec.md'),'Markdown preview missing');
           if(!document.querySelector('[data-file-preview]').textContent.includes('原路径引用'))throw Error('Metadata source missing');
@@ -152,15 +173,16 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
           if(folderItems.some(item=>forbidden.includes(item.textContent.trim())))throw Error('Folder menu has repository-only items');
           await dismissMenu();
           document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Reopen for bulk missing');
-          button('文件').click();await wait(()=>category()==='files','Files for bulk missing');
-          dialog().querySelector('input[type="checkbox"][aria-label="全选"]').click();
+          selectTab('文件');await wait(()=>category()==='files','Files for bulk missing');
+          dialog().querySelector('[data-slot="checkbox"][aria-label="全选"]').click();
           await wait(()=>button('归档'),'Bulk archive missing');
           button('归档').click();
           await wait(()=>dialog()?.querySelector('[data-undo-bar]'),'Undo bar missing after archive');
+          if(!emptyState()||!dialog().querySelector('[data-archived-toggle]')||dialog().querySelector('[role="checkbox"]'))throw Error('Archiving the last active items must show the empty state and keep the archive accessible');
           await wait(()=>dialog()?.querySelector('[data-undo-button]:not(:disabled)'),'Undo button not enabled');
           dialog().querySelector('[data-undo-button]').click();
           await wait(()=>window.undos.length===1&&!dialog()?.querySelector('[data-undo-bar]'),'Undo click failed undos='+window.undos.length+' pending='+window.storePending()+' disabled='+(dialog()?.querySelector('[data-undo-button]')&&dialog().querySelector('[data-undo-button]').disabled)+' alert='+(dialog()?.querySelector('[data-undo-bar] [role="alert"]')&&dialog().querySelector('[data-undo-bar] [role="alert"]').textContent));
-          dialog().querySelector('input[type="checkbox"][aria-label="全选"]').click();
+          dialog().querySelector('[data-slot="checkbox"][aria-label="全选"]').click();
           await wait(()=>button('归档')&&button('解除关联')&&button('删除'),'Bulk actions missing after reselect');
           button('删除').click();
           await wait(()=>document.querySelector('[data-batch-confirm="delete"]'),'Delete confirm missing');
@@ -181,37 +203,37 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
           button('归档').click();await wait(()=>dialog()?.querySelector('[data-undo-bar]'),'Undo bar missing before expiry');
           await window.expireUndo();
           await wait(()=>!dialog()?.querySelector('[data-undo-bar]'),'Expired undo bar still visible');
-          button('仓库与文件夹').click();await wait(()=>category()==='repositories','Repos tab missing');
-          dialog().querySelector('input[type="checkbox"][aria-label="全选"]').click();
+          selectTab('仓库与文件夹');await wait(()=>category()==='repositories','Repos tab missing');
+          dialog().querySelector('[data-slot="checkbox"][aria-label="全选"]').click();
           await wait(()=>button('解除关联'),'Bulk detach missing');
           button('解除关联').click();
           await wait(()=>document.querySelector('[data-batch-confirm="detach"]'),'Bulk detach confirm missing');
           if(window.detaches.length)throw Error('Bulk detach must wait for confirm');
           button('解除关联',document.querySelector('[data-batch-confirm="detach"]')).click();
           await wait(()=>dialog().textContent.includes('已跳过')||dialog()?.querySelector('[data-undo-bar]')?.textContent.includes('已跳过'),'Skipped last workspace reason missing');
-          button('笔记').click();await wait(()=>category()==='notes','Notes tab missing before close');
-          dialog().querySelector('input[type="checkbox"][aria-label="全选"]').click();
+          selectTab('笔记');await wait(()=>category()==='notes','Notes tab missing before close');
+          dialog().querySelector('[data-slot="checkbox"][aria-label="全选"]').click();
           await wait(()=>button('归档'),'Notes archive missing before close');
           button('归档').click();
           await wait(()=>dialog()?.querySelector('[data-undo-bar]')&&!button('归档'),'Undo bar missing or selection still active before close');
           window.dismissed=false;
-          button('取消').click();await wait(()=>!dialog(),'Close window failed');
+          closeWindow();await wait(()=>!dialog(),'Close window failed');
           if(document.querySelector('[data-undo-bar]'))throw Error('Undo bar remained after closing the resource window');
           if(!window.dismissed)throw Error('dismissResourceUndo was not called on close');
           let rejected=false;try{await window.navo.tasks.undoResourceChange('existing');}catch(error){if(String(error).includes('TASK_UNDO_EXPIRED'))rejected=true;else throw error;}
           if(!rejected)throw Error('Undo still allowed after closing the window');
-          window.cleanupPlan={missingFiles:[{kind:'file',id:'33333333-3333-4333-8333-333333333333',name:'spec.md'}],mergedPullRequests:[{id:'pr-merged',title:'Merged PR'}]};
+          window.cleanupPlan={missingFolders:[],closedIssues:[],missingFiles:[{kind:'file',id:'33333333-3333-4333-8333-333333333333',name:'spec.md'}],mergedPullRequests:[{id:'pr-merged',title:'Merged PR'}]};
           document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Reopen missing');
-          await wait(()=>!cleanup()?.disabled,'Cleanup stayed disabled after plan arrived');
+          await wait(()=>cleanup()&&!cleanup().disabled,'Cleanup stayed disabled after plan arrived');
           cleanup().click();await wait(()=>document.querySelector('[data-cleanup-dialog]'),'Cleanup preview missing');
           if(!document.querySelector('[data-cleanup-dialog]').textContent.includes('spec.md'))throw Error('Cleanup preview did not list missing file');
           button('清理',document.querySelector('[data-cleanup-dialog]')).click();
           await wait(()=>window.cleanups.length===1&&!document.querySelector('[data-cleanup-dialog]'),'Cleanup apply missing');
-          button('Pull requests').click();await wait(()=>category()==='pullRequests','PR tab missing after cleanup');
+          selectTab('Pull requests');await wait(()=>category()==='pullRequests','PR tab missing after cleanup');
           if(dialog().querySelector('[data-resource-existing] [data-existing-id="pr-merged"]'))throw Error('Cleaned PR must leave the active list');
           dialog().querySelector('[data-archived-toggle]').click();
           await wait(()=>dialog().querySelector('[data-resource-archived] [data-existing-id="pr-merged"]'),'Archived PR missing in window');
-          button('取消').click();await wait(()=>!dialog(),'Close after cleanup failed');
+          closeWindow();await wait(()=>!dialog(),'Close after cleanup failed');
           const prGroup=[...document.querySelectorAll('.task-context-group')].find(group=>group.textContent.includes('PULL REQUESTS'));
           if(!prGroup)throw Error('PR rail group missing after cleanup');
           prGroup.querySelector('[data-archived-toggle]').click();
@@ -222,12 +244,47 @@ test("资源窗口现有条目、批量与归档恢复、清理、撤销、预�
           menuItems().find(item=>item.textContent==='恢复').click();
           await wait(()=>window.restores.some(items=>items.some(item=>item.kind==='issue'&&item.id==='pr-merged')),'Rail restore was not applied');
           await wait(()=>{const group=[...document.querySelectorAll('.task-context-group')].find(item=>item.textContent.includes('PULL REQUESTS'));return group&&[...group.querySelectorAll('.task-context-row')].some(row=>row.textContent.includes('Merged PR')&&!row.closest('[data-resource-archived]'));},'Restored PR missing from rail active list');
-          window.setTaskStatus('ARCHIVED');await pause();
+          window.prepareSyncChecks();await pause();
+          const refreshPr=()=>document.querySelector('button[aria-label="刷新 PULL REQUESTS"]');
+          refreshPr().click();await wait(()=>refreshPr().disabled,'Group refresh must disable repeated requests');
+          if(dialog())throw Error('Group refresh must not open a detail dialog');
+          await wait(()=>!refreshPr().disabled&&document.querySelector('.task-context-rail [role="alert"]'),'Partial group failure must be visible');
+          if(window.refreshCalls.length!==2||window.refreshCalls.some(item=>item.id==='remote-issue'||item.options.refresh!==true))throw Error('PR refresh must only request its remote entries');
+          if(!document.querySelector('.task-context-rail').textContent.includes('Refreshed remote-pr'))throw Error('Successful refresh must update the rail');
+          window.failRefresh=false;refreshPr().click();await wait(()=>!refreshPr().disabled&&!document.querySelector('.task-context-rail [role="alert"]'),'Group retry must clear the error');
+          document.querySelector('button[aria-label="刷新 ISSUES"]').click();await wait(()=>window.refreshCalls.some(item=>item.id==='remote-issue')&&!document.querySelector('button[aria-label="刷新 ISSUES"]').disabled,'Issue group refresh failed');
+          document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Resource dialog missing for deleted notes');
+          selectTab('笔记');await wait(()=>category()==='notes','Notes missing for deletion');
+          const noteRow=()=>dialog()?.querySelector('[data-existing-id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]');
+          noteRow().querySelector('[role="checkbox"]').click();await wait(()=>button('删除'),'Batch note delete missing');button('删除').click();
+          await wait(()=>document.querySelector('[data-batch-confirm="delete"]'),'Note delete confirm missing');
+          if(!document.querySelector('[data-batch-confirm="delete"]').textContent.includes('正文、历史和评论会保留'))throw Error('Note deletion must explain recovery rather than attachment removal');
+          button('取消',document.querySelector('[data-batch-confirm="delete"]')).click();await wait(()=>!document.querySelector('[data-batch-confirm]'),'Note delete cancel failed');
+          if(window.noteDeletes.length)throw Error('Cancel must not delete notes');
+          window.failNoteDelete=true;button('删除').click();await wait(()=>document.querySelector('[data-batch-confirm]'),'Second note confirm missing');button('删除',document.querySelector('[data-batch-confirm]')).click();
+          await wait(()=>dialog()?.querySelector('[role="alert"]'),'Failed note deletion needs an error');if(!noteRow())throw Error('Failure must keep the note');
+          window.failNoteDelete=false;button('删除').click();await wait(()=>document.querySelector('[data-batch-confirm]'),'Retry note confirm missing');button('删除',document.querySelector('[data-batch-confirm]')).click();
+          await wait(()=>!noteRow()&&dialog()?.querySelector('[data-deleted-toggle]')?.textContent.includes('(1)'),'Deleted note must move out of the active list');
+          if(!dialog()||dialog().querySelector('[role="checkbox"]'))throw Error('Deleting the last note must keep the dialog open and show the empty state');
+          dialog().querySelector('[data-deleted-toggle]').click();await wait(()=>dialog().querySelector('[data-deleted-note]'),'Deleted list did not expand');
+          button('历史版本与变更',dialog().querySelector('[data-deleted-note]')).click();await wait(()=>dialog().querySelector('[data-deleted-note-content]')?.textContent.includes('Latest content'),'Deleted history missing');
+          dialog().querySelector('[role="combobox"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await wait(()=>document.querySelector('[role="option"]'),'Version picker missing');
+          [...document.querySelectorAll('[role="option"]')].find(item=>item.textContent.startsWith('v1')).click();await wait(()=>dialog().querySelector('[data-deleted-note-content]').textContent.includes('Earlier content'),'Historical content missing');
+          window.failNoteRestore=true;button('恢复此版本').click();await wait(()=>dialog().querySelector('[data-deleted-notes] [role="alert"]'),'Restore failure must be visible');
+          if(noteRow())throw Error('Failed restore must not resurrect a note');
+          window.failNoteRestore=false;button('恢复此版本').click();await wait(()=>noteRow()&&!dialog().querySelector('[data-deleted-note]'),'Restore must return the note to active resources');
+          if(window.noteRestores[0].version!==1)throw Error('Restore must use the selected historical version');
+          noteRow().querySelector('[role="checkbox"]').click();await wait(()=>button('删除'),'Restored note delete missing');button('删除').click();await wait(()=>document.querySelector('[data-batch-confirm]'),'Restored note confirmation missing');button('删除',document.querySelector('[data-batch-confirm]')).click();
+          await wait(()=>!noteRow(),'Restored note did not return to Deleted');closeWindow();await wait(()=>!dialog(),'Close before read-only check failed');
+          window.clearSyncIssues();window.setTaskStatus('ARCHIVED');await pause();
           document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Archived window missing');
-          if(!cleanup()?.disabled)throw Error('Archived task cleanup must be disabled');
-          if(dialog().querySelector('input[type="checkbox"]'))throw Error('Archived task must not allow bulk selection');
+          if(cleanup()||dialog().querySelector('[data-resource-add]'))throw Error('Archived task must not offer add or cleanup');
+          if(dialog().querySelector('[role="checkbox"]'))throw Error('Archived task must not allow bulk selection');
           if(button('添加到任务')||button('归档')||button('解除关联'))throw Error('Archived task must be read-only');
-          button('笔记').click();await wait(()=>category()==='notes','Archived notes tab missing');
+          selectTab('Issues');await wait(()=>category()==='issues','Archived Issues tab missing');
+          if(!emptyState()||dialog().querySelector('[data-resource-add], [role="checkbox"]'))throw Error('Read-only empty tabs must not offer Add or selection');
+          selectTab('笔记');await wait(()=>category()==='notes','Archived notes tab missing');
+          dialog().querySelector('[data-deleted-toggle]').click();await wait(()=>dialog().querySelector('[data-deleted-note]'),'Read-only task must allow viewing Deleted');
           dialog().querySelector('[data-archived-toggle]')?.click();
           await pause();
           if(button('恢复'))throw Error('Archived task must not restore resources');

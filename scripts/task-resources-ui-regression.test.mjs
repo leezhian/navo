@@ -22,14 +22,15 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
       await i18n.changeLanguage('zh-CN');useSettingsStore.setState({loaded:true});
       let task={id:'existing',title:'任务资源测试',date:'2026-10-07',projectName:'navo',status:'TODO',resources:[{resourceId:'repo',name:'navo',mode:'current-branch',workingPath:'/test',targetBranch:'main',sourceBranch:'main'}],links:[],webLinks:[],files:[],notes:[]};
       const items=['ISSUE','PR'].map(group=>({id:group,title:group+' title',group,tag:'feature',status:group==='PR'?'review':'todo',projectName:'navo',provider:'GitHub',date:'2026-10-07'}));
-      useTaskStore.setState({tasks:[task],loaded:true});useIssueStore.setState({items});window.submissions=[];window.releases=[];window.reveals=[];
-      const records=[{id:'repo',name:'navo',kind:'repo',localPath:'/test',available:true},{id:'backend',name:'backend',kind:'repo',localPath:'/fixture/backend',available:true},{id:'assets',name:'assets',kind:'folder',localPath:'/fixture/assets',available:true}];
+      const previousTask={...task,id:'previous',resources:[{...task.resources[0],resourceId:'assets',mode:'folder',workingPath:'/fixture/assets',addedAt:new Date(Date.now()-86400000).toISOString()}]};
+      useTaskStore.setState({tasks:[task,previousTask],loaded:true});useIssueStore.setState({items});window.submissions=[];window.releases=[];window.reveals=[];
+      const records=[{id:'repo',name:'navo',kind:'repo',localPath:'/test',available:true},{id:'backend',name:'backend',kind:'repo',localPath:'/fixture/backend',available:true},{id:'assets',name:'assets',kind:'folder',localPath:'/fixture/assets',available:true,lastTaskUse:previousTask.resources[0].addedAt},...Array.from({length:5},(_,index)=>({id:'past-'+index,name:'Past '+index,kind:'repo',localPath:'/fixture/past-'+index,available:true,lastTaskUse:null}))];
       const linkListeners=new Set();let coldLink=true;window.deliverNote=noteId=>{for(const listener of linkListeners)listener({taskId:task.id,noteId});};const selectTasks=()=>{};
-      window.navo={app:{onOpenTask:callback=>{linkListeners.add(callback);return()=>linkListeners.delete(callback);},taskLinksReady:async()=>{if(coldLink){coldLink=false;window.deliverNote('task-prompt');}}},settings:{chooseDirectory:async()=>'/fixture/quick'},resources:{list:async()=>records,onCloneProgress:()=>()=>{},save:async value=>{const saved={...value,id:'quick',available:true};records.push(saved);return saved;}},
+      window.navo={app:{onOpenTask:callback=>{linkListeners.add(callback);return()=>linkListeners.delete(callback);},taskLinksReady:async()=>{if(coldLink){coldLink=false;window.deliverNote('task-prompt');}}},settings:{chooseDirectory:async()=>'/fixture/quick'},resources:{list:async()=>records,chooseRepositoriesFolder:async()=>['/fixture/discovered'],onCloneProgress:()=>()=>{},save:async value=>{const saved={...value,id:'quick',available:true};records.push(saved);return saved;}},
         review:{watchProject:async()=>{},unwatchProject:async()=>{},onProjectChanged:()=>()=>{}},
         tasks:{inspectResource:async id=>{const record=records.find(item=>item.id===id);return {resourceId:id,name:record.name,path:record.localPath,git:record.kind==='repo'?{root:record.localPath,currentBranch:'main',defaultSource:'refs/heads/main',branches:[{ref:'refs/heads/main',name:'main',kind:'local'}]}:null};},
         loadBranch:async()=>({projectPath:'/test',branchName:'main',baseBranch:'main',baseAvailable:true,files:{unstaged:[],staged:[],branch:[]},untrackedCount:0,commits:[],hasMoreCommits:false}),
-        addResources:async(id,input)=>{window.submissions.push({id,input});if(window.failSave)throw Error('TASK_BUSY');task={...task,resources:[...task.resources,...(input.resources??[]).map(resource=>{const record=records.find(item=>item.id===resource.resourceId);return {...resource,name:record.name,originalPath:record.localPath,workingPath:resource.mode==='worktree'?'/fixture/worktrees/'+record.id:record.localPath,targetBranch:resource.mode==='folder'?'':'navo/12345678'};})],links:[...task.links,...input.links],webLinks:[...task.webLinks,...input.webLinks],notes:[...task.notes,...input.notes.map((note,index)=>({...note,version:1,origin:'user',sortOrder:task.notes.length+index,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}))],files:input.fileIds.length?[{id:input.fileIds[0],name:'spec.md',path:'/fixture/spec.md',size:4}]:task.files};return structuredClone(task);},
+        addResources:async(id,input)=>{window.submissions.push({id,input});if(window.failSave)throw Error('TASK_BUSY');task={...task,resources:[...task.resources,...(input.resources??[]).map(resource=>{const record=records.find(item=>item.id===resource.resourceId);return {...resource,addedAt:new Date().toISOString(),name:record.name,originalPath:record.localPath,workingPath:resource.mode==='worktree'?'/fixture/worktrees/'+record.id:record.localPath,targetBranch:resource.mode==='folder'?'':'navo/12345678'};})],links:[...task.links,...input.links],webLinks:[...task.webLinks,...input.webLinks],notes:[...task.notes,...input.notes.map((note,index)=>({...note,version:1,origin:'user',sortOrder:task.notes.length+index,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}))],files:input.fileIds.length?[{id:input.fileIds[0],name:'spec.md',path:'/fixture/spec.md',size:4}]:task.files};return structuredClone(task);},
         updatePrompt:async(id,content,expected)=>{if(expected!==(task.description??''))throw Error('TASK_CONTENT_CHANGED');task={...task,description:content};window.promptSaved=content;return structuredClone(task);},
         detachResource:async(id,input)=>{window.detached=input;task={...task,files:task.files.filter(file=>file.id!==input.id)};return structuredClone(task);},
         updateNote:async(id,note,version)=>{if(id!==task.id)throw Error('Wrong task');if(window.failNote)throw Error('TASK_BUSY');const current=task.notes.find(item=>item.id===note.id);if(!current)throw Error('TASK_NOTE_NOT_FOUND');if(current.version!==version)throw Error('TASK_CONTENT_CHANGED');task={...task,notes:task.notes.map(item=>item.id===note.id?{...item,...note,title:note.title.trim(),version:version+1,updatedAt:new Date().toISOString()}:item)};return structuredClone(task);},
@@ -37,10 +38,11 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
         chooseResourceFile:async()=>({id:'11111111-1111-4111-8111-111111111111',name:'spec.md',path:'/fixture/spec.md',size:4}),releaseResourceFiles:async ids=>window.releases.push(...ids),revealResourceFile:async(...args)=>window.reveals.push(args),
         inspectManagedFile:async(id,kind,fileId)=>({kind,id:fileId,name:'spec.md',description:'',size:4,mtime:'2026-10-07T00:00:00.000Z',exists:true,source:kind==='file'?'path':'attachment',location:'/fixture/spec.md',previewType:'markdown'}),
         previewManagedFile:async()=>({type:'markdown',text:'# spec',size:4}),
-        inspectResourceCleanup:async()=>({missingFiles:[],mergedPullRequests:[]}),
+        deletedNotes:async()=>[],
+        inspectResourceCleanup:async()=>({missingFiles:[],missingFolders:[],mergedPullRequests:[],closedIssues:[]}),
         dismissResourceUndo:async()=>{}},
         agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:[]},installations:[],entries:{}})}};
-      window.remoteNoteUpdate=(title,content)=>{task={...task,notes:task.notes.map(note=>note.title===title?{...note,content,version:note.version+1}:note)};useTaskStore.setState({tasks:[structuredClone(task)]});};
+      window.remoteNoteUpdate=(title,content)=>{task={...task,notes:task.notes.map(note=>note.title===title?{...note,content,version:note.version+1}:note)};useTaskStore.setState({tasks:[structuredClone(task),previousTask]});};
       window.savedNote=title=>task.notes.find(note=>note.title===title);
       function Fixture(){const record=useTaskStore(state=>state.tasks[0]);const noteRequest=useTaskTabsStore(state=>state.noteRequest);useTaskLinks(selectTasks);return React.createElement(TooltipProvider,null,React.createElement('div',{style:{height:720,width:1100}},React.createElement(TaskWorkspace,{task:record,noteRequest,headingId:'task-title',onClose:()=>{}})));}
       createRoot(document.getElementById('root')).render(React.createElement(Fixture));
@@ -58,62 +60,85 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           const pause=()=>new Promise(resolve=>setTimeout(resolve,35));const wait=async(check,message)=>{for(let attempt=0;attempt<160;attempt++){if(check())return;await pause();}throw Error(message);};
           const dialog=()=>document.querySelector('[role="dialog"]');const button=(label,root=dialog())=>[...root.querySelectorAll('button')].find(item=>item.textContent.trim()===label);
           const category=()=>dialog()?.querySelector('[data-resource-category]')?.dataset.resourceCategory;
+          const tab=(label)=>[...dialog().querySelectorAll('[role="tab"]')].find(item=>item.querySelector('span')?.textContent===label);
+          const openAddTab=async(label)=>{tab(label).dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));await wait(()=>tab(label).getAttribute('aria-selected')==='true'&&dialog().querySelector('[data-resource-add]'),'Missing resource inventory: '+label);dialog().querySelector('[data-resource-add]').click();await wait(()=>dialog().querySelector('[data-resource-back]'),'Missing add view: '+label);};
           const fill=async(element,value)=>{const prototype=element.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}));await pause();};
           await wait(()=>document.querySelector('.task-context-toolbar button'),'Workspace missing');
           await wait(()=>document.querySelector('.task-note-pane'),'Cold note link must open Prompt after layout initializes');
           const promptPane=()=>document.querySelector('.task-note-pane');if(promptPane().querySelector('button[aria-label="删除笔记"]'))throw Error('Prompt must not be deletable');
           promptPane().querySelector('button[aria-label="编辑笔记"]').click();await wait(()=>promptPane().querySelector('textarea'),'Prompt editor missing');if(promptPane().querySelector('input'))throw Error('Prompt title must be fixed');await fill(promptPane().querySelector('textarea'),'Updated prompt');button('保存',promptPane()).click();await wait(()=>window.promptSaved==='Updated prompt'&&!promptPane().querySelector('textarea'),'Prompt save failed');if(!document.querySelector('.task-workbench-title').textContent.includes('任务资源测试'))throw Error('Prompt must preserve title');promptPane().querySelector('button[aria-label="关闭"]').click();await wait(()=>!promptPane(),'Close prompt failed');
           document.querySelector('.task-context-toolbar button').click();await wait(()=>category()==='repositories','Top add should open repositories');
-          button('笔记').click();await wait(()=>category()==='notes','Notes tab missing');
-          if(!button('添加到任务').disabled)throw Error('Empty note must be rejected');
+          dialog().querySelector('[data-existing-id="repo"] button[title="/test"]').click();await pause();
+          if(!dialog()?.querySelector('[data-existing-id="repo"][data-selected="true"]'))throw Error('Clicking an associated repo must select it without closing the inventory');
+          await openAddTab('笔记');await wait(()=>category()==='notes','Notes tab missing');
+          if(!button('添加到任务').disabled||button('预览'))throw Error('Empty note must be rejected and the note form must not offer preview');
           await fill(dialog().querySelector('textarea'),'# A note'+String.fromCharCode(10)+'Markdown body');
           window.failSave=true;button('添加到任务').click();await wait(()=>dialog().querySelector('[role="alert"]'),'Save error missing');
           if(!dialog().querySelector('textarea').value.includes('Markdown'))throw Error('Failure lost draft');
           window.failSave=false;await wait(()=>!button('添加并继续').disabled,'Retry button must become enabled');button('添加并继续').click();await wait(()=>dialog()?.querySelector('textarea').value==='','Keep adding must reset successful category');
           if(window.submissions[0].input.requestId!==window.submissions[1].input.requestId)throw Error('Retry must retain request ID');
           if(!document.querySelector('.task-context-rail').textContent.includes('未命名笔记'))throw Error('Note not reflected in context');
-          button('文件').click();await wait(()=>category()==='files','Files tab missing');button('选择文件…').click();await wait(()=>dialog().textContent.includes('/fixture/spec.md'),'Native file selection missing');
+          await openAddTab('文件');await wait(()=>category()==='files','Files tab missing');button('选择文件…').click();await wait(()=>dialog().textContent.includes('/fixture/spec.md'),'Native file selection missing');
           button('取消').click();await wait(()=>!dialog()&&window.releases.length===1,'Cancel must release file token');
           if(window.submissions.length!==2)throw Error('Cancel must not bind file');
           document.querySelector('button[aria-label="添加 NOTES"]').click();await wait(()=>category()==='notes','Category add must focus Notes');
-          button('文件').click();await wait(()=>category()==='files','Files missing');button('选择文件…').click();await wait(()=>!button('添加到任务').disabled,'File cannot be submitted');button('添加到任务').click();
+          await openAddTab('文件');await wait(()=>category()==='files','Files missing');button('选择文件…').click();await wait(()=>!button('添加到任务').disabled,'File cannot be submitted');button('添加到任务').click();
           await wait(()=>!dialog()&&document.querySelector('.task-context-rail').textContent.includes('spec.md'),'File binding not reflected');
           [...document.querySelectorAll('.task-context-row')].find(item=>item.textContent==='spec.md').click();await wait(()=>document.querySelector('[data-file-preview]')?.textContent.includes('spec.md'),'Bound file must open in-app preview');if(window.reveals.length)throw Error('Previewable markdown must not reveal in Finder');
           document.querySelector('button[aria-label="添加 LINKS"]').click();await wait(()=>category()==='links','LINKS add must focus Links');
           await fill(dialog().querySelector('input[type="url"]'),'javascript:alert(1)');if(!button('添加到任务').disabled)throw Error('Unsafe URL accepted');
           await fill(dialog().querySelector('input[type="url"]'),'https://example.com/spec');button('添加到任务').click();await wait(()=>!dialog(),'Link add failed');
-          document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Reopen failed');button('Issues').click();await wait(()=>category()==='issues','Issues missing');
-          if(!dialog().querySelector('[data-issue-picker-toolbar]')||!dialog().querySelector('[role="separator"]'))throw Error('Shared filters and resizable preview missing');
-          dialog().querySelector('button[role="checkbox"]').click();await wait(()=>!button('添加到任务').disabled,'Issue selection missing');button('添加到任务').click();await wait(()=>!dialog(),'Issue add failed');
+          document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Reopen failed');await openAddTab('Issues');await wait(()=>category()==='issues','Issues missing');
+          const verifyListOnly=()=>{if(!dialog().querySelector('[data-issue-picker-toolbar]')||dialog().querySelector('[role="separator"], aside, .task-issue-panels'))throw Error('Issue and PR tabs must offer filters without a preview pane');};
+          verifyListOnly();dialog().querySelector('label[data-selected] span[title]').click();await wait(()=>!button('添加到任务').disabled,'Issue title must toggle selection');button('添加到任务').click();await wait(()=>!dialog(),'Issue add failed');
           document.querySelector('button[aria-label="添加 ISSUES"]').click();await wait(()=>category()==='issues','ISSUES add must focus Issues');
           if(dialog().querySelector('button[role="checkbox"]'))throw Error('Already linked issue must be excluded by default unlinked filter');
-          button('Pull requests').click();await wait(()=>category()==='pullRequests','PR tab missing');dialog().querySelector('button[role="checkbox"]').click();await wait(()=>!button('添加到任务').disabled,'PR selection missing');button('添加到任务').click();await wait(()=>!dialog(),'PR add failed');
+          await openAddTab('Pull requests');await wait(()=>category()==='pullRequests','PR tab missing');verifyListOnly();dialog().querySelector('button[role="checkbox"]').click();await wait(()=>!button('添加到任务').disabled,'PR selection missing');button('添加到任务').click();await wait(()=>!dialog(),'PR add failed');
           document.querySelector('button[aria-label="添加 PULL REQUESTS"]').click();await wait(()=>category()==='pullRequests','PR plus must focus PR');button('取消').click();await wait(()=>!dialog(),'Close failed');
           if(window.submissions.some(item=>item.id!=='existing'))throw Error('Resources bound to wrong task');
           document.querySelector('button[aria-label="添加 CHANGES"]').click();await wait(()=>category()==='repositories','CHANGES plus must open repository picker');
           await wait(()=>dialog().querySelector('[data-resource-id="backend"]'),'Shared repository list missing');
           const directoryRow=id=>dialog()?.querySelector('[data-resource-id="'+id+'"]');
-          if(directoryRow('repo').querySelector('[role="checkbox"]').disabled||!directoryRow('repo').textContent.includes('仓库已添加'))throw Error('Already linked repository should show a notice, not be disabled');
-          directoryRow('backend').querySelector('[role="checkbox"]').click();await wait(()=>directoryRow('backend').querySelector('[aria-label="源分支"]'),'Selected directory controls missing');
+          const group=id=>directoryRow(id)?.closest('section')?.dataset.repositoryGroup;
+          if(group('repo')!=='suggested'||group('assets')!=='suggested'||group('past-4')!=='suggested'||group('backend')!=='other'||dialog().querySelectorAll('[data-repository-group="suggested"] [data-resource-id]').length!==7)throw Error('Suggested must include every previously linked repository, including current and undated bindings');
+          if(!directoryRow('assets').closest('section').querySelector('h4').textContent.includes('推荐')||directoryRow('repo').querySelector('time'))throw Error('Catalog must suggest recently linked resources without fabricating dates for legacy bindings');
+          const beforeDiscovery=window.submissions.length;
+          button('选择仓库父目录，自动查找其中的仓库…').click();await wait(()=>dialog().textContent.includes('/fixture/discovered'),'Discovered repository must appear in catalog');
+          if((await window.navo.resources.list()).some(record=>record.localPath==='/fixture/discovered')||window.submissions.length!==beforeDiscovery||dialog().querySelector('footer'))throw Error('Discovery must not register, select or bind repositories');
+          if(directoryRow('repo').querySelector('[data-pick-repository]').disabled||!directoryRow('repo').textContent.includes('仓库已添加'))throw Error('Already linked repository should show a notice, not be disabled');
+          directoryRow('repo').querySelector('[data-pick-repository]').click();await wait(()=>directoryRow('repo').querySelector('[aria-label="源分支"]'),'Already linked repository must expand for another branch');
+          directoryRow('backend').querySelector('[data-pick-repository]').click();await wait(()=>directoryRow('backend').querySelector('[aria-label="源分支"]'),'Selected directory controls missing');
+          const isolation=directoryRow('backend').querySelector('[role="checkbox"]');isolation.click();await wait(()=>button('创建分支',directoryRow('backend')),'Disabling isolation must offer Create branch');isolation.click();await wait(()=>button('创建工作树',directoryRow('backend')),'Enabling isolation must offer Create worktree');
+          if(directoryRow('repo').querySelector('[aria-label="源分支"]')||window.submissions.length!==beforeDiscovery||dialog().querySelector('footer'))throw Error('Expanding a second row must replace the first draft without binding');
           if(dialog().querySelector('[aria-label="目标分支"]'))throw Error('Task resource picker must not include target branch input');
-          button('链接').click();await wait(()=>category()==='links','Switch category failed');button('仓库与文件夹').click();await wait(()=>category()==='repositories','Switch back failed');
-          if(directoryRow('backend').querySelector('[role="checkbox"]').getAttribute('aria-checked')!=='true')throw Error('Category switching must preserve directory selection');
-          window.failSave=true;button('添加到任务').click();await wait(()=>dialog().querySelector('[role="alert"]'),'Directory save failure must be visible');
-          if(directoryRow('backend').querySelector('[role="checkbox"]').getAttribute('aria-checked')!=='true')throw Error('Failed add lost selected directory');
-          window.failSave=false;await wait(()=>!button('添加并继续').disabled,'Directory retry must be enabled');button('添加并继续').click();
+          await openAddTab('链接');await wait(()=>category()==='links','Switch category failed');await openAddTab('仓库与文件夹');await wait(()=>category()==='repositories','Switch back failed');
+          if(directoryRow('backend').querySelector('[data-pick-repository]').getAttribute('aria-expanded')!=='true')throw Error('Category switching must preserve directory selection');
+          window.failSave=true;button('创建工作树',directoryRow('backend')).click();await wait(()=>dialog().querySelector('[role="alert"]'),'Directory save failure must be visible');
+          if(directoryRow('backend').querySelector('[data-pick-repository]').getAttribute('aria-expanded')!=='true')throw Error('Failed add lost selected directory');
+          window.failSave=false;await wait(()=>!button('创建工作树',directoryRow('backend')).disabled,'Directory retry must be enabled');button('创建工作树',directoryRow('backend')).click();
           await wait(()=>directoryRow('backend').textContent.includes('仓库已添加'),'Added repository should show an existing-binding notice');
-          if(directoryRow('backend').querySelector('[role="checkbox"]').disabled)throw Error('Added repository must remain selectable for another worktree');
+          if(group('backend')!=='suggested')throw Error('Newly associated repository must move to Suggested immediately');
+          if(directoryRow('backend').querySelector('[data-pick-repository]').disabled)throw Error('Added repository must remain selectable for another worktree');
           await wait(()=>document.querySelector('.task-context-change[data-resource-id="backend"] button')?.textContent==='navo/12345678','CHANGES did not refresh the added workspace branch');
           const directoryCalls=window.submissions.filter(item=>item.input.resources);
           if(directoryCalls.length!==2||directoryCalls[0].input.requestId!==directoryCalls[1].input.requestId||directoryCalls[1].input.resources[0].mode!=='worktree'||directoryCalls[1].input.resources[0].targetBranch!=='')throw Error('Directory retry/configuration payload incorrect');
-          button('添加仓库').click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===2,'Nested quick-add missing');
+          dialog().querySelector('[data-resource-back]').click();await wait(()=>dialog().querySelector('[data-existing-id="backend"] [data-slot="checkbox"]'),'Added worktree missing from inventory');
+          dialog().querySelector('[data-existing-id="backend"] [data-slot="checkbox"]').click();await wait(()=>dialog().querySelector('[data-batch-toolbar]'),'Selection must replace Add with batch actions');
+          const batch=dialog().querySelector('[data-batch-toolbar]');
+          const detachButton=button('解除关联',batch);
+          if(!dialog().textContent.includes('已选 1 项，1 个工作树不支持归档')||!button('归档',batch).disabled||detachButton.disabled||!dialog().querySelector('[data-existing-id="backend"][data-selected="true"]')||dialog().querySelector('[aria-label="全选"]').getAttribute('aria-checked')!=='mixed')throw Error('Worktree selection must highlight the row, skip archive and allow detachment');
+          if(detachButton.dataset.variant!=='ghost'||getComputedStyle(detachButton).backgroundColor!=='rgba(0, 0, 0, 0)'||[...batch.querySelectorAll('button')].some(action=>action.dataset.size!=='sm'))throw Error('Batch actions must use sm size and detach must be a ghost button');
+          button('清除选择',batch).click();await wait(()=>dialog().querySelector('[data-resource-add]'),'Clearing selection must restore Add');
+          const addButton=dialog().querySelector('[data-resource-add]');
+          if(addButton.dataset.size!=='sm')throw Error('Add must use the same sm size as batch actions');
+          addButton.click();await wait(()=>directoryRow('backend'),'Repository picker did not reopen');
+          button('克隆…').click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===2,'Nested quick-add missing');
           const nested=()=>[...document.querySelectorAll('[data-slot="dialog-content"]')].at(-1);
           button('取消',nested()).click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===1,'Quick-add cancel must preserve resource dialog');
-          button('添加仓库').click();await wait(()=>document.querySelectorAll('[data-slot="dialog-content"]').length===2,'Quick-add reopen failed');
-          button('选择本地文件夹',nested()).click();await wait(()=>directoryRow('quick')?.querySelector('[role="checkbox"]').getAttribute('aria-checked')==='true','Quick-added folder must be auto-selected');
-          await wait(()=>!button('添加到任务').disabled,'Quick folder inspection missing');button('添加到任务').click();await wait(()=>!dialog(),'Directory submit must close dialog');
+          button('打开文件夹…').click();await wait(()=>directoryRow('quick')?.querySelector('[data-pick-repository]').getAttribute('aria-expanded')==='true','Quick-added folder must be auto-selected');
+          await wait(()=>!button('添加到任务',directoryRow('quick')).disabled,'Quick folder inspection missing');button('添加到任务',directoryRow('quick')).click();await wait(()=>group('quick')==='suggested'&&!directoryRow('quick').querySelector('[data-pick-repository][aria-expanded="true"]'),'Folder submit must stay in catalog');dialog().querySelector('[data-slot="dialog-close"]').click();await wait(()=>!dialog(),'Close catalog failed');
           if(![...document.querySelectorAll('.task-context-row')].some(row=>row.textContent==='quick'))throw Error('Plain folder must appear in LINKS');
-          document.querySelector('button[aria-label="添加 CHANGES"]').click();await wait(()=>directoryRow('assets'),'Repository picker reopen failed');directoryRow('assets').querySelector('[role="checkbox"]').click();button('取消').click();await wait(()=>!dialog(),'Cancel must close picker');
+          document.querySelector('button[aria-label="添加 CHANGES"]').click();await wait(()=>directoryRow('assets'),'Repository picker reopen failed');directoryRow('assets').querySelector('[data-pick-repository]').click();await wait(()=>button('取消',directoryRow('assets')),'Selected directory must offer inline cancellation');button('取消',directoryRow('assets')).click();await wait(()=>directoryRow('assets').querySelector('[aria-expanded="false"]'),'Cancel must only collapse this row');dialog().querySelector('[data-slot="dialog-close"]').click();await wait(()=>!dialog(),'Close picker failed');
           if([...document.querySelectorAll('.task-context-row')].some(row=>row.textContent==='assets'))throw Error('Cancelled directories must not bind to task');
           const notePane=()=>document.querySelector('.task-note-pane');const confirmation=()=>document.querySelector('[data-slot="dialog-content"]');
           const noteRow=title=>[...document.querySelectorAll('.task-context-row')].find(item=>item.title===title);
@@ -203,9 +228,14 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
           if(!document.querySelector('.task-context-rail').textContent.includes('任务正文'))throw Error('Deleting last note must preserve Prompt');
           const fileRow=document.querySelector('.task-context-row[title="/fixture/spec.md"]');fileRow.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,button:2,clientX:100,clientY:100}));await wait(()=>[...document.querySelectorAll('[role="menuitem"]')].some(item=>item.textContent==='解除关联'),'Resource unlink menu missing');[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.textContent==='解除关联').click();await wait(()=>dialog()?.textContent.includes('解除资源关联'),'Unlink must confirm');button('取消').click();await wait(()=>!dialog(),'Unlink cancellation failed');if(window.detached)throw Error('Cancel detached resource');
           if(!noteRow('/fixture/spec.md'))throw Error('Deleting note changed other resources');
-          document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog(),'Final preview missing');button('笔记').click();await wait(()=>category()==='notes','Notes preview missing');
-        })()\`);
-        if(process.env.NAVO_RESOURCE_SCREENSHOT){await win.webContents.executeJavaScript("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(resolve,200))))");await require('node:fs/promises').writeFile(process.env.NAVO_RESOURCE_SCREENSHOT,(await win.webContents.capturePage()).toPNG());}
+          document.querySelector('.task-context-toolbar button').click();await wait(()=>dialog()?.querySelector('[data-resource-add]'),'Final resource inventory missing');
+        })().catch(error=>{throw Error(error.stack)})\`);
+        if(process.env.NAVO_RESOURCE_SCREENSHOT){
+          const capture=async(suffix)=>{await win.webContents.executeJavaScript("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(resolve,200))))");const {dir,name,ext}=require('node:path').parse(process.env.NAVO_RESOURCE_SCREENSHOT);await require('node:fs/promises').writeFile(require('node:path').join(dir,name+suffix+ext),(await win.webContents.capturePage()).toPNG());};
+          await capture('');await win.webContents.executeJavaScript("document.querySelector('[data-resource-add]').click()");await capture('-add');
+          await win.webContents.executeJavaScript("document.querySelector('[role=dialog] [data-resource-id=backend] [data-pick-repository]').click()");await capture('-expanded');
+          await win.webContents.executeJavaScript("document.querySelector('[data-resource-back]').click()");await win.webContents.executeJavaScript("document.querySelector('[data-existing-id=backend] [data-slot=checkbox]').click()");await capture('-selected');
+        }
         if(errors.length)throw Error(errors.join('\\n'));console.log('RESOURCE_UI_OK');app.exit(0);
       }catch(error){console.error(error,errors.join('\\n'));app.exit(1);}
     });`);

@@ -35,7 +35,7 @@ test("详情内重命名与任务操作菜单接线", () => {
   assert.match(menu, /archive/);
   assert.match(menu, /restore/);
   assert.match(menu, /delete/);
-  assert.match(menu, /changeStatus/);
+  assert.match(menu, /TaskProgressMenuItems/);
   assert.match(menu, /closeAllAgents/);
   assert.match(menu, /refreshWorkspace/);
   assert.match(menu, /addResource/);

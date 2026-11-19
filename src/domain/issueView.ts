@@ -1,4 +1,4 @@
-import type { IssueGroup, IssueStatus, IssueTag } from "./issues";
+import type { IssueGroup, IssueStatus } from "./issues";
 import type { ViewSortOptions } from "./viewSort";
 
 export type IssueViewMode = "list" | "board";
@@ -8,7 +8,7 @@ export interface IssueFilters {
   groups: IssueGroup[];
   statuses: IssueStatus[];
   projects: string[];
-  tags: IssueTag[];
+  tags: string[];
 }
 
 export interface IssueDisplayOptions extends ViewSortOptions {

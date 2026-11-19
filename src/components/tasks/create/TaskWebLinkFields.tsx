@@ -12,12 +12,14 @@ interface TaskWebLinkFieldsProps {
   errorId?: string;
   descriptionId?: string;
   disabled?: boolean;
+  /** 独立表单聚焦 URL，资源窗口切换标签时不抢焦点。 */
+  autoFocus?: boolean;
 }
-export function TaskWebLinkFields({ url, title, onUrlChange, onTitleChange, invalid, errorId, descriptionId, disabled }: TaskWebLinkFieldsProps) {
+export function TaskWebLinkFields({ url, title, onUrlChange, onTitleChange, invalid, errorId, descriptionId, disabled, autoFocus = true }: TaskWebLinkFieldsProps) {
   const { t } = useTranslation(["taskCreate", "common"]);
   return <>
     <label className="grid gap-1.5 text-xs">{t("taskCreate:webLinks.url")}
-      <Input autoFocus required disabled={disabled} type="url" value={url} maxLength={TASK_LINK_URL_MAX_LENGTH} placeholder="https://" aria-invalid={invalid} aria-describedby={invalid ? errorId : undefined} className="h-8 text-xs" onChange={(event) => onUrlChange(event.target.value)} />
+      <Input autoFocus={autoFocus} required disabled={disabled} type="url" value={url} maxLength={TASK_LINK_URL_MAX_LENGTH} placeholder="https://" aria-invalid={invalid} aria-describedby={invalid ? errorId : undefined} className="h-8 text-xs" onChange={(event) => onUrlChange(event.target.value)} />
     </label>
     <label className="grid gap-1.5 text-xs">{t("common:fields.title")}
       <Input disabled={disabled} value={title} placeholder={t("taskCreate:webLinks.titlePlaceholder")} maxLength={TASK_LINK_TITLE_MAX_LENGTH} className="h-8 text-xs" onChange={(event) => onTitleChange(event.target.value)} />

@@ -59,12 +59,14 @@ export interface TaskSession {
   error?: string;
 }
 
-/** 来自 CLI 用量记录的非负整数。上下文窗口仅在该记录自己提供时存在。 */
+/** 来自 CLI 用量记录的非负整数。上下文窗口仅在原生记录提供时存在。 */
 export interface SessionUsage {
   inputTokens?: number;
   outputTokens?: number;
   cachedTokens?: number;
   reasoningTokens?: number;
+  /** CLI 当前上下文快照或最近一次请求的总量；已按各 CLI 的缓存口径去重，不是会话／回合累计量。 */
+  contextTokens?: number;
   contextWindow?: number;
 }
 

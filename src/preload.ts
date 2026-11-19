@@ -91,6 +91,7 @@ const api: NavoApi = {
     report: (report) => ipcRenderer.invoke(ipcChannels.diagnosticsReport, report),
   },
   tasks: {
+    setProgress: (id, stage) => ipcRenderer.invoke(ipcChannels.tasksSetProgress, id, stage),
     loadBranch: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.tasksLoadBranch, taskId, resourceId),
     inspectChangeGitStatus: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.tasksInspectChangeGitStatus, taskId, resourceId),
     load: () => ipcRenderer.invoke(ipcChannels.tasksLoad),
@@ -116,6 +117,9 @@ const api: NavoApi = {
       return () => ipcRenderer.removeListener(ipcChannels.tasksChanged, handler);
     },
     deleteNote: (id, noteId, expectedVersion) => ipcRenderer.invoke(ipcChannels.tasksDeleteNote, id, noteId, expectedVersion),
+    deleteNotes: (id, notes) => ipcRenderer.invoke(ipcChannels.tasksDeleteNotes, id, notes),
+    deletedNotes: (id) => ipcRenderer.invoke(ipcChannels.tasksDeletedNotes, id),
+    restoreDeletedNote: (id, noteId, expectedVersion, version) => ipcRenderer.invoke(ipcChannels.tasksRestoreDeletedNote, id, noteId, expectedVersion, version),
     chooseResourceFile: () => ipcRenderer.invoke(ipcChannels.tasksChooseResourceFile),
     releaseResourceFiles: (ids) => ipcRenderer.invoke(ipcChannels.tasksReleaseResourceFiles, ids),
     revealResourceFile: (id, fileId) => ipcRenderer.invoke(ipcChannels.tasksRevealResourceFile, id, fileId),
@@ -143,6 +147,33 @@ const api: NavoApi = {
     inspectDeletion: (id, options, action) => ipcRenderer.invoke(ipcChannels.tasksInspectDeletion, id, options, action),
     remove: (id, confirmation) => ipcRenderer.invoke(ipcChannels.tasksRemove, id, confirmation),
   },
+  integrations: {
+    list: () => ipcRenderer.invoke(ipcChannels.integrationsList),
+    connect: (input) => ipcRenderer.invoke(ipcChannels.integrationsConnect, input),
+    cancel: (id) => ipcRenderer.invoke(ipcChannels.integrationsCancel, id),
+    disconnect: (id) => ipcRenderer.invoke(ipcChannels.integrationsDisconnect, id),
+    refreshStatuses: () => ipcRenderer.invoke(ipcChannels.integrationsRefreshStatuses),
+    authState: (id) => ipcRenderer.invoke(ipcChannels.integrationsAuthState, id),
+    onChanged: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(ipcChannels.integrationsChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.integrationsChanged, handler);
+    },
+  },
+  issues: {
+    list: (options) => ipcRenderer.invoke(ipcChannels.issuesList, options),
+    get: (id, options) => ipcRenderer.invoke(ipcChannels.issuesGet, id, options),
+    resolveUrl: (value) => ipcRenderer.invoke(ipcChannels.issuesResolveUrl, value),
+    importLocal: (items) => ipcRenderer.invoke(ipcChannels.issuesImportLocal, items),
+    ensureNote: (taskId, issueId) => ipcRenderer.invoke(ipcChannels.issuesEnsureNote, taskId, issueId),
+    worktreesForPullRequest: (taskId, pullRequestId) => ipcRenderer.invoke(ipcChannels.issuesWorktreesForPullRequest, taskId, pullRequestId),
+    pullRequestForWorktree: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.issuesPullRequestForWorktree, taskId, resourceId),
+    onChanged: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(ipcChannels.issuesChanged, handler);
+      return () => ipcRenderer.removeListener(ipcChannels.issuesChanged, handler);
+    },
+  },
   settings: {
     load: () => ipcRenderer.invoke(ipcChannels.settingsLoad),
     save: (settings: AppSettings) => ipcRenderer.invoke(ipcChannels.settingsSave, settings),
@@ -153,6 +184,7 @@ const api: NavoApi = {
   },
   resources: {
     list: () => ipcRenderer.invoke(ipcChannels.resourcesList),
+    chooseRepositoriesFolder: () => ipcRenderer.invoke(ipcChannels.resourcesChooseRepositoriesFolder),
     detectCommands: (localPath) => ipcRenderer.invoke(ipcChannels.resourcesDetectCommands, localPath),
     inspectGit: (localPath, forceRefresh) => ipcRenderer.invoke(ipcChannels.resourcesInspectGit, localPath, forceRefresh),
     save: (params: SaveResourceParams) => ipcRenderer.invoke(ipcChannels.resourcesSave, params),

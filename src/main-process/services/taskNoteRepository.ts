@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { TaskNote, TaskNoteInput, TaskNoteUpdate } from "../../shared/taskResourceTypes";
+import type { TaskNote, TaskNoteInput, TaskNoteRemoval, TaskNoteUpdate } from "../../shared/taskResourceTypes";
 import { isTaskNoteId, isTaskNoteInput, isTaskNoteUpdate, isTaskNoteVersion } from "../../utils/taskNotes";
 import { openAppDatabase } from "./appDatabase";
 import { recordTaskNoteVersion, readTaskNoteHistory } from "./taskNoteHistory";
@@ -11,16 +11,17 @@ export class TaskNoteVersionConflict extends Error {
   constructor(readonly currentVersion: number) { super("TASK_CONTENT_CHANGED"); }
 }
 
-export function readTaskNotes(database: DatabaseSync, namespace: string, taskId: string): TaskNote[] {
+export function readTaskNotes(database: DatabaseSync, namespace: string, taskId: string, deleted = false): TaskNote[] {
   return database.prepare(`SELECT n.*,h.actor AS last_editor,h.session_id AS last_editor_session FROM task_notes n
     LEFT JOIN task_note_history h ON h.namespace=n.namespace AND h.task_id=n.task_id AND h.note_id=n.id AND h.version=n.version
-    WHERE n.namespace=? AND n.task_id=? ORDER BY n.sort_order,n.rowid`).all(namespace, taskId)
+    WHERE n.namespace=? AND n.task_id=? AND n.deleted_at IS ${deleted ? "NOT NULL" : "NULL"} ORDER BY n.sort_order,n.rowid`).all(namespace, taskId)
     .map((row) => ({ id: String(row.id), title: String(row.title), content: String(row.content), version: Number(row.version),
       origin: row.origin === "agent" ? "agent" : "user", ...(row.session_id ? { sessionId: String(row.session_id) } : {}),
       sortOrder: Number(row.sort_order), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
       lastEditor: row.last_editor === "agent" ? "agent" : row.last_editor === "user" ? "user" : "unknown",
       ...(row.last_editor_session ? { lastEditorSessionId: String(row.last_editor_session) } : {}),
       comments: readTaskNoteComments(database, namespace, taskId, String(row.id)),
+      ...(row.deleted_at ? { deletedAt: String(row.deleted_at) } : {}),
       ...(row.archived_at ? { archivedAt: String(row.archived_at) } : {}) }));
 }
 
@@ -74,14 +75,39 @@ export class TaskNoteRepository {
   }
 
   remove(taskId: string, noteId: string, expectedVersion: number, authorize?: () => void) {
-    if (!isTaskNoteId(noteId) || !isTaskNoteVersion(expectedVersion)) throw new Error("TASK_INVALID");
+    return this.removeMany(taskId, [{ id: noteId, version: expectedVersion }], authorize);
+  }
+
+  removeMany(taskId: string, notes: TaskNoteRemoval[], authorize?: () => void) {
+    if (!Array.isArray(notes) || !notes.length || notes.length > 200 || notes.some((note) => !note || !isTaskNoteId(note.id) || !isTaskNoteVersion(note.version))
+      || new Set(notes.map((note) => note.id)).size !== notes.length) throw new Error("TASK_INVALID");
     return this.mutate(taskId, (database) => {
-      this.requireNote(database, taskId, noteId, expectedVersion);
-      database.prepare("DELETE FROM task_notes WHERE namespace=? AND task_id=? AND id=?").run(this.namespace, taskId, noteId);
-      database.prepare("DELETE FROM task_note_comments WHERE namespace=? AND task_id=? AND note_id=?").run(this.namespace, taskId, noteId);
-      database.prepare("DELETE FROM task_note_history WHERE namespace=? AND task_id=? AND note_id=?").run(this.namespace, taskId, noteId);
+      for (const note of notes) this.requireNote(database, taskId, note.id, note.version);
+      const now = new Date().toISOString();
+      for (const note of notes) database.prepare("UPDATE task_notes SET deleted_at=? WHERE namespace=? AND task_id=? AND id=?").run(now, this.namespace, taskId, note.id);
       return true;
     }, authorize);
+  }
+
+  async deleted(taskId: string) {
+    const database = await openAppDatabase(this.filename);
+    try { return readTaskNotes(database, this.namespace, taskId, true).sort((left, right) => (right.deletedAt ?? "").localeCompare(left.deletedAt ?? "")); }
+    finally { database.close(); }
+  }
+
+  restoreDeleted(taskId: string, noteId: string, expectedVersion: number, version = expectedVersion) {
+    if (!isTaskNoteId(noteId) || !isTaskNoteVersion(expectedVersion) || !isTaskNoteVersion(version)) throw new Error("TASK_INVALID");
+    return this.mutate(taskId, (database) => {
+      const current = database.prepare("SELECT version FROM task_notes WHERE namespace=? AND task_id=? AND id=? AND deleted_at IS NOT NULL").get(this.namespace, taskId, noteId);
+      if (!current) throw new Error("TASK_NOTE_NOT_FOUND");
+      if (current.version !== expectedVersion) throw new TaskNoteVersionConflict(Number(current.version));
+      const snapshot = readTaskNoteHistory(database, this.namespace, taskId, noteId).find((item) => item.version === version);
+      if (!snapshot) throw new Error("TASK_NOTE_NOT_FOUND");
+      database.prepare("UPDATE task_notes SET title=?,content=?,version=version+1,updated_at=?,deleted_at=NULL,archived_at=NULL WHERE namespace=? AND task_id=? AND id=?")
+        .run(snapshot.title, snapshot.content, new Date().toISOString(), this.namespace, taskId, noteId);
+      recordTaskNoteVersion(database, this.namespace, taskId, noteId, "restore", undefined, version);
+      return true;
+    });
   }
 
   async history(taskId: string, noteId: string) {
@@ -137,6 +163,7 @@ export class TaskNoteRepository {
     return this.mutate(taskId, (database) => {
       const current = database.prepare("SELECT * FROM task_note_comments WHERE namespace=? AND task_id=? AND id=?").get(this.namespace, taskId, commentId);
       if (!current) throw new Error("TASK_NOTE_NOT_FOUND");
+      if (current.note_id !== TASK_PROMPT_ID && !database.prepare("SELECT 1 FROM task_notes WHERE namespace=? AND task_id=? AND id=? AND deleted_at IS NULL").get(this.namespace, taskId, current.note_id)) throw new Error("TASK_NOTE_NOT_FOUND");
       if (current.updated_at !== expectedUpdatedAt) throw new Error("TASK_CONTENT_CHANGED");
       if (patch.remove) database.prepare("DELETE FROM task_note_comments WHERE namespace=? AND task_id=? AND (id=? OR parent_id=?)").run(this.namespace, taskId, commentId, commentId);
       else {
@@ -155,7 +182,7 @@ export class TaskNoteRepository {
   private requireNote(database: DatabaseSync, taskId: string, noteId: string, expectedVersion: number) {
     const note = noteId === TASK_PROMPT_ID
       ? database.prepare("SELECT 'Prompt' AS title,description AS content,prompt_version AS version FROM tasks WHERE namespace=? AND id=?").get(this.namespace, taskId)
-      : database.prepare("SELECT title,content,version,sort_order FROM task_notes WHERE namespace=? AND task_id=? AND id=?").get(this.namespace, taskId, noteId);
+      : database.prepare("SELECT title,content,version,sort_order FROM task_notes WHERE namespace=? AND task_id=? AND id=? AND deleted_at IS NULL").get(this.namespace, taskId, noteId);
     if (!note) throw new Error("TASK_NOTE_NOT_FOUND");
     if (note.version !== expectedVersion) throw new TaskNoteVersionConflict(Number(note.version));
     return note;

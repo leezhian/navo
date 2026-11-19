@@ -34,7 +34,7 @@ const { TaskService } = load("src/main-process/services/taskService.ts");
 const { ResourceService } = load("src/main-process/services/resourceService.ts");
 const { defaultSettings } = load("src/domain/settings.ts");
 const { prepareWorkspace, createWorkspace, createWorkspaceDirectory } = load("src/main-process/services/taskWorkspaces.ts");
-const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
+const { openAppDatabase, APP_SCHEMA_VERSION } = load("src/main-process/services/appDatabase.ts");
 const execute = promisify(execFile);
 async function git(cwd, ...args) {
   return (await execute("git", args, { cwd, env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: os.devNull } })).stdout.trim();
@@ -86,7 +86,7 @@ test("数据库从设置 v1 升级，任务迁移一次且开发与正式数据�
   assert.deepEqual((await dev.load()).tasks, []);
   const upgraded = await openAppDatabase(path.join(directory, "app.db"));
   assert.equal(upgraded.prepare("SELECT value FROM settings WHERE key='theme'").get().value, '"dark"');
-  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 16);
+  assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, APP_SCHEMA_VERSION);
   upgraded.close();
 });
 
@@ -308,6 +308,8 @@ test("普通目录不执行 Git，附件只接收文件且复制后独立于原�
   await assert.rejects(service.create(input, 2), /TASK_ATTACHMENT_MISSING/);
   const task = await service.create(input, 1);
   assert.equal(task.resources[0].mode, "folder");
+  assert.equal(task.resources[0].addedAt, task.date);
+  assert.deepEqual((await service.load()).tasks.find((item) => item.id === task.id).resources, task.resources);
   assert.equal(task.attachments[0].name, "notes.txt");
   const copy = path.join(directory, "task-files", "production", task.id, selected[0].id + ".txt");
   await writeFile(original, "changed original");

@@ -10,24 +10,54 @@ import { registerTaskSessionHandlers, startInitialTaskSession, deleteTaskWithSes
 import { registerTaskResourceHandlers } from "./taskResourceHandlers";
 import { registerTaskWorkspaceOpenHandlers } from "./taskWorkspaceOpenHandlers";
 import { registerTaskBranchHandlers } from "./taskBranchHandlers";
+import { registerTaskProgressHandlers } from "./taskProgressHandlers";
 import { publishTask } from "./taskEvents";
+import path from "node:path";
+import { TaskIssueLinker } from "../services/integrations/taskIssueLinker";
+import { getIntegrationService } from "../services/integrations/integrationRuntime";
+import { gitValue } from "../services/taskGit";
+import type { IssueItem } from "../../domain/issues";
 
 let tasks: TaskService | null = null;
+let linker: TaskIssueLinker | null = null;
 export async function flushTasks() { await tasks?.flush(); }
+export function getTaskIssueLinker() { return linker; }
+
+function createLinker(service: TaskService, namespace: string) {
+  const integrations = getIntegrationService();
+  return new TaskIssueLinker({
+    filename: path.join(app.getPath("userData"), "app.db"),
+    namespace,
+    loadTasks: async () => (await service.repository.load()) ?? [],
+    addResources: (taskId, input) => service.addResources(taskId, input, -1),
+    inspectWorktree: async (workingPath) => ({
+      branch: await gitValue(workingPath, ["branch", "--show-current"]).catch(() => null),
+      remoteUrl: await gitValue(workingPath, ["remote", "get-url", "origin"]).catch(() => null),
+    }),
+    getItem: (id, options) => integrations.getItem(id, options),
+    cachedPullRequests: () => integrations.cachedPullRequests(),
+    viewerLogin: (item: IssueItem) => integrations.viewerLoginFor(item),
+    publish: (task) => { publishTask(task); },
+  });
+}
 
 export function registerTaskHandlers() {
-  const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection);
+  const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection, publishTask);
   tasks = service;
+  linker = createLinker(service, app.isPackaged ? "production" : "development");
   registerTaskResourceHandlers(service);
   registerTaskWorkspaceOpenHandlers(service);
   registerTaskBranchHandlers(service);
   registerTaskSessionHandlers(service);
+  const progress = registerTaskProgressHandlers(service);
   const owners = new Set<number>();
-  ipcMain.handle(ipcChannels.tasksLoad, () => service.load());
-  ipcMain.handle(ipcChannels.tasksImportLegacy, (_event, value: Task[]) => service.importLegacy(value));
+  ipcMain.handle(ipcChannels.tasksLoad, async () => { const result = await service.load(); void progress.refreshAll().catch(() => undefined); return result; });
+  ipcMain.handle(ipcChannels.tasksImportLegacy, async (_event, value: Task[]) => { const records = await service.importLegacy(value); void progress.refreshAll().catch(() => undefined); return records; });
   ipcMain.handle(ipcChannels.tasksCreate, async (event, value: CreateTaskInput) => {
     const task = await service.create(value, event.sender.id);
     startInitialTaskSession(task, event.sender);
+    const issues = (task.links ?? []).filter((link) => link.group === "ISSUE" || link.group === "PR");
+    if (issues.length) void linker?.afterIssuesAdded(task.id, issues).catch(() => undefined);
     return task;
   });
   ipcMain.handle(ipcChannels.tasksInspectResource, (_event, id: string) => service.inspectResource(id));

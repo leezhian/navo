@@ -10,6 +10,8 @@ import type { StoredInitializationStep } from "./taskInitializationRepository";
 import { recordTaskNoteVersion } from "./taskNoteHistory";
 import { TASK_PROMPT_ID } from "../../shared/taskContextTypes";
 import { readTaskNoteComments } from "./taskNoteComments";
+import { recordRepositoryUsage } from "./repositoryUsage";
+import { resolveTaskProgress, taskProgress } from "../../shared/taskProgress";
 
 export interface StoredAttachment extends TaskAttachment {
   storageName: string;
@@ -44,6 +46,7 @@ export class TaskRepository {
         promptComments: readTaskNoteComments(database, this.namespace, taskId, TASK_PROMPT_ID),
         initialization: readInitialization(database, this.namespace, taskId),
         projectName: String(row.project_name), status: row.status as Task["status"],
+        ...(row.progress ? { progress: JSON.parse(String(row.progress)) } : {}),
         archivedFrom: row.archived_from === "TODO" || row.archived_from === "DONE" ? row.archived_from : undefined,
         resources: resources.map((item) => JSON.parse(String(item.data))),
         links: links.active,
@@ -61,8 +64,8 @@ export class TaskRepository {
   }
 
   private insert(database: DatabaseSync, task: Task, position: number) {
-    database.prepare("INSERT INTO tasks (namespace,id,title,description,date,project_name,status,archived_from,position,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .run(this.namespace, task.id, task.title, task.description ?? "", task.date, task.projectName, task.status, task.archivedFrom ?? null, position, task.updatedAt || task.date);
+    database.prepare("INSERT INTO tasks (namespace,id,title,description,date,project_name,status,archived_from,position,updated_at,progress) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+      .run(this.namespace, task.id, task.title, task.description ?? "", task.date, task.projectName, task.status, task.archivedFrom ?? null, position, task.updatedAt || task.date, task.progress ? JSON.stringify(task.progress) : null);
     recordTaskNoteVersion(database, this.namespace, task.id, TASK_PROMPT_ID, "create");
   }
 
@@ -84,6 +87,7 @@ export class TaskRepository {
       if (task.agent) database.prepare("INSERT INTO task_agents VALUES (?,?,?)").run(this.namespace, task.id, JSON.stringify(task.agent));
       task.resources?.forEach((resource, position) => {
         database.prepare("INSERT INTO task_resources VALUES (?,?,?,?)").run(this.namespace, task.id, position, JSON.stringify(resource));
+        recordRepositoryUsage(database, this.namespace, resource);
         if (resource.mode === "worktree" && resource.ownership) database.prepare("INSERT INTO managed_workspaces VALUES (?,?,?,?,?)")
           .run(this.namespace, task.id, resource.workingPath, resource.targetBranch, resource.originalPath);
       });
@@ -107,11 +111,29 @@ export class TaskRepository {
       const updatedAt = new Date().toISOString();
       next.forEach((task, position) => database.prepare(`UPDATE tasks SET
         context_version = context_version + CASE WHEN title IS NOT ? THEN 1 ELSE 0 END,
-        updated_at = CASE WHEN title IS NOT ? OR status IS NOT ? OR archived_from IS NOT ? THEN ? ELSE updated_at END,
-        title = ?,status = ?,archived_from = ?,position = ? WHERE namespace = ? AND id = ?`)
-        .run(task.title, task.title, task.status, task.archivedFrom ?? null, updatedAt,
-          task.title, task.status, task.archivedFrom ?? null, position, this.namespace, task.id));
+        updated_at = CASE WHEN title IS NOT ? OR status IS NOT ? OR archived_from IS NOT ? OR progress IS NOT ? THEN ? ELSE updated_at END,
+        title = ?,status = ?,archived_from = ?,progress = ?,position = ? WHERE namespace = ? AND id = ?`)
+        .run(task.title, task.title, task.status, task.archivedFrom ?? null, task.progress ? JSON.stringify(task.progress) : null, updatedAt,
+          task.title, task.status, task.archivedFrom ?? null, task.progress ? JSON.stringify(task.progress) : null, position, this.namespace, task.id));
       return this.readTasks(database);
+    }));
+  }
+
+  /** Git 检查不持有事务；提交时重新读取任务并核对删除状态，只改当前任务进度。 */
+  updateProgress(id: string, operation: (task: Task) => Task): Promise<Task> {
+    return this.access((database) => transaction(database, () => {
+      const task = this.readTasks(database).find((task) => task.id === id);
+      if (!task) throw new Error("TASK_NOT_FOUND");
+      if (database.prepare("SELECT 1 FROM task_deletions WHERE namespace=? AND task_id=?").get(this.namespace, id)) throw new Error("TASK_BUSY");
+      const next = operation(task);
+      const progress = next.progress ? JSON.stringify(next.progress) : null;
+      if (task.status === next.status && JSON.stringify(task.progress) === JSON.stringify(next.progress)) return task;
+      // 暂时读失败不会制造任务活动，只有可见阶段或手动设置变化才更新时间。
+      const visibleProgress = (item: Task) => { const progress = taskProgress(item); return JSON.stringify([resolveTaskProgress(progress), progress.manual]); };
+      const updatedAt = task.status !== next.status || visibleProgress(task) !== visibleProgress(next) ? new Date().toISOString() : task.updatedAt;
+      database.prepare("UPDATE tasks SET status=?,progress=?,updated_at=? WHERE namespace=? AND id=?")
+        .run(next.status, progress, updatedAt, this.namespace, id);
+      return { ...next, updatedAt };
     }));
   }
 

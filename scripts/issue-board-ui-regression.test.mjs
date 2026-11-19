@@ -25,6 +25,8 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
       import App from '/src/App.tsx';
       import { useTaskStore } from '/src/stores/taskStore.ts';
       import { useIssueStore } from '/src/stores/issueStore.ts';
+      import { useIntegrationStore } from '/src/stores/integrationStore.ts';
+      useIntegrationStore.setState({ providers: [{ id: 'github', name: 'GitHub', connected: true, oauthAvailable: true }] });
       import { useSettingsStore } from '/src/stores/settingsStore.ts';
       import { defaultSettings } from '/src/domain/settings.ts';
       import i18n from '/src/i18n/index.ts';
@@ -48,6 +50,7 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
         { id: 'issue2', group: 'ISSUE', title: 'Issue Two', tag: 'discussion', projectName: 'navo', status: 'progress', date: '2026-10-02' },
       ] });
       window.issueItems = () => useIssueStore.getState().items;
+      window.navo.issues = { list: async () => ({ items: window.nextIssueItems ?? useIssueStore.getState().items, failures: [], fetchedAt: null, stale: false }), importLocal: async () => undefined, onChanged: () => () => {} };
       window.setIssueItems = (items) => useIssueStore.setState({ items });
       window.setLocale = (locale) => i18n.changeLanguage(locale);
       window.taskItems = () => useTaskStore.getState().tasks;
@@ -216,7 +219,7 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
               if (!document.querySelector('.issue-panel-content [role="toolbar"]')) throw new Error('Empty page must retain toolbar');
               await window.setLocale('en');
               await waitFor(() => emptyState()?.textContent.includes('No assigned PRs or issues'), 'Empty title must support English');
-              if (!emptyState().textContent.includes('This list shows work you authored, are assigned, or were mentioned in. To browse everything else in your organizations, use New task → Issues > All visible.')) throw new Error('Missing assigned empty description');
+              if (!emptyState().textContent.includes('This list shows work you authored, are assigned, or were mentioned in.')) throw new Error('Missing assigned empty description');
               await window.setLocale('zh-CN');
               window.setIssueItems(initialIssueItems);
               await waitFor(() => !emptyState(), 'Restoring data must clear the empty state');
@@ -373,9 +376,10 @@ test("Issue 空状态、属性排序、任务跨状态拖拽、列表看板与�
             if (issueRefresh().disabled) throw new Error('Issue and Tasks must have independent cooldowns');
             const issueIds = window.issueItems().map(item => item.id).reverse().join(',');
             const displayedIssueOrder = order('PR');
-            localStorage.setItem('navo:development:issues', JSON.stringify(window.issueItems().slice().reverse().map(item => ({ ...item, title: item.title + ' updated' }))));
+            window.nextIssueItems = window.issueItems().slice().reverse().map(item => ({ ...item, title: item.title + ' updated' }));
             issueRefresh().click();
             await waitFor(() => issueRefresh().disabled, 'Issue refresh must enter cooldown');
+            await waitFor(() => window.issueItems()[0]?.title.endsWith(' updated'), 'Issue refresh must load remote data');
             if (window.issueItems().map(item => item.id).join(',') !== issueIds || !window.issueItems()[0].title.endsWith(' updated') || order('PR') !== displayedIssueOrder) throw new Error('Issue refresh must read data and preserve sort settings');
             await mode('list');
             if (!issueRefresh().disabled) throw new Error('View switching must preserve cooldown');

@@ -21,6 +21,7 @@ test("归档 IPC 与状态拖拽均先停止会话，清理范围取自确认凭
     async move(id, status) { calls.push({ kind: "move", id, status }); records[0].status = status; return records; }
   }
   const load = createLoader({
+    "./taskProgressHandlers": { registerTaskProgressHandlers: () => ({ refreshAll: async () => undefined }) },
     electron: { app: { getPath: () => "/fixture", isPackaged: true }, BrowserWindow: { getAllWindows: () => [], fromWebContents: () => ({}) }, dialog: {}, ipcMain: { handle: (name, fn) => handlers.set(name, fn) } },
     "../services/taskService": { TaskService },
     "../services/settingsService": { getCurrentSettings: () => ({}) },

@@ -14,6 +14,8 @@ export interface ResourceRecord {
   kind: "repo" | "folder";
   name: string;
   localPath: string;
+  /** 任务关联历史：未关联过时省略；旧关联没有可核实的时间时为 null。 */
+  lastTaskUse?: string | null;
   remoteUrl?: string;
   /** 资源用途说明；旧记录缺省为空。 */
   description?: string;
@@ -75,10 +77,4 @@ export interface CloneProgress {
   message: string;
 }
 
-export interface IntegrationStatus {
-  id: "gitlab" | "gitlab-self-hosted" | "github" | "github-enterprise" | "linear";
-  name: string;
-  /** 本阶段只提供占位数据，不代表远端状态。 */
-  connected: false;
-  placeholder: true;
-}
+export type { IntegrationStatus } from "./integrationTypes";

@@ -91,10 +91,10 @@ test("旧库升级跳过坏会话，正常会话回填已知时间且不删除�
   const database = new DatabaseSync(filename);
   database.exec("PRAGMA user_version=10");
   database.close();
-  const { openAppDatabase } = load("src/main-process/services/appDatabase.ts");
+  const { openAppDatabase, APP_SCHEMA_VERSION } = load("src/main-process/services/appDatabase.ts");
   const upgraded = await openAppDatabase(filename);
   try {
-    assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, 16);
+    assert.equal(upgraded.prepare("PRAGMA user_version").get().user_version, APP_SCHEMA_VERSION);
     const saved = JSON.parse(upgraded.prepare("SELECT data FROM task_sessions WHERE id=?").get(session.id).data);
     assert.equal(saved.lastActiveAt, createdAt);
     assert.equal(saved.lastUpdateAt, createdAt);

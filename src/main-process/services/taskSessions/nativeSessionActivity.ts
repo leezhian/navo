@@ -17,7 +17,7 @@ export interface NativeSessionActivity {
   lastReplyAt?: string;
   /** 最近一次用户发起回合的时间。 */
   lastPromptAt?: string;
-  /** 最近一条用量。Codex 用上下文窗口；其余只保留 token 计数。 */
+  /** 最近一条用量；Grok 从 signals 读取上下文快照，Codex 读取单次请求总量与窗口。 */
   usage?: SessionUsage;
 }
 
@@ -116,7 +116,13 @@ function codexActivity(records: Record<string, unknown>[]): NativeSessionActivit
       const latest = info?.last_token_usage;
       if (!latest || typeof latest !== "object") continue;
       const usage = usageFrom(latest as Record<string, unknown>, tokenCount(info?.model_context_window));
-      if (usage) result.usage = usage;
+      if (usage) {
+        // Codex 的 input_tokens 已包含 cached_input_tokens，reasoning 也属于 output 的子集。
+        const occupied = tokenCount((latest as Record<string, unknown>).total_tokens)
+          ?? (usage.inputTokens !== undefined && usage.outputTokens !== undefined ? usage.inputTokens + usage.outputTokens : undefined);
+        if (occupied !== undefined) usage.contextTokens = occupied;
+        result.usage = usage;
+      }
     }
   }
   return result;
@@ -167,16 +173,25 @@ function codexRollout(root: string, id: string, files: string[]) {
   finally { db?.close(); }
 }
 
-/** Grok usage.json 的最后一轮是当前上下文占用；会话累计值不拿来冒充窗口百分比。 */
-async function grokUsage(filename: string): Promise<SessionUsage | undefined> {
+async function usageFile(filename: string): Promise<Record<string, unknown> | undefined> {
   try {
     const info = await stat(filename);
     if (!info.isFile() || info.size > 1_048_576) return undefined;
-    const parsed = JSON.parse(await readFile(filename, "utf8")) as Record<string, unknown>;
-    const turns = Array.isArray(parsed.turns) ? parsed.turns : [];
-    const latest = (turns.length ? turns[turns.length - 1] : parsed.session) as Record<string, unknown> | undefined;
-    return usageFrom(latest);
+    const parsed = JSON.parse(await readFile(filename, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined;
   } catch { return undefined; }
+}
+
+/** usage.json 是回合累计量；百分比必须取 signals.json 的当前上下文，不能把多次请求相加。 */
+async function grokUsage(directory: string): Promise<SessionUsage | undefined> {
+  const [parsed, signals] = await Promise.all([usageFile(path.join(directory, "usage.json")), usageFile(path.join(directory, "signals.json"))]);
+  const turns = Array.isArray(parsed?.turns) ? parsed.turns : [];
+  const latest = (turns.length ? turns[turns.length - 1] : parsed?.session) as Record<string, unknown> | undefined;
+  const usage = usageFrom(latest) ?? {};
+  const occupied = tokenCount(signals?.contextTokensUsed), window = tokenCount(signals?.contextWindowTokens);
+  if (occupied !== undefined) usage.contextTokens = occupied;
+  if (window !== undefined && window > 0) usage.contextWindow = window;
+  return Object.keys(usage).length ? usage : undefined;
 }
 
 /** 按能力矩阵读取原生记录；没有能力、未绑定原生 ID 或读不到时返回 null，调用方保持四态。 */
@@ -188,10 +203,12 @@ export async function readNativeSessionActivity(session: TaskSession, env: NodeJ
     if (agentId === "grok") {
       const root = session.nativeHistoryRoot || env.GROK_HOME || path.join(os.homedir(), ".grok");
       const directory = path.join(root, "sessions", encodeURIComponent(session.cwd), session.nativeSessionId);
-      const activity = grokActivity(await tail(path.join(directory, "events.jsonl")));
-      const usage = await grokUsage(path.join(directory, "usage.json"));
+      // 回合事件缺失不应阻断同一会话的独立用量快照。
+      const records = await tail(path.join(directory, "events.jsonl")).catch(() => null);
+      const activity = grokActivity(records ?? []);
+      const usage = await grokUsage(directory);
       if (usage) activity.usage = usage;
-      return activity;
+      return records || usage ? activity : null;
     }
     if (agentId === "claude") {
       const root = session.nativeHistoryRoot || env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
