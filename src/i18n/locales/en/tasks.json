@@ -568,7 +568,7 @@
       "error": "Failure",
       "waitingReason": "Waiting for",
       "unread": "Unread",
-      "contextPercent": "Context {{percent}}%"
+      "contextPercent": "Context usage {{percent}}%"
     },
     "notify": {
       "replyTitle": "{{name}} replied",

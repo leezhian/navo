@@ -50,7 +50,7 @@ export function SessionHoverDetails({ session, resources, children }: SessionHov
           <span className="truncate">{status}</span>
         </p>
         {configLine && <p className="mt-2 truncate text-background/90" title={configLine}>{configLine}</p>}
-        {percent !== undefined && <p className="mt-1 text-background/75">{t("tasks:runtime.hover.contextPercent", { percent })}</p>}
+        {session.kind === "agent" && percent !== undefined && <p className="mt-1 text-background/75">{t("tasks:runtime.hover.contextPercent", { percent })}</p>}
       </div>
       {place && (place.project || place.branch || place.path) && <div className="min-w-0 border-t border-background/15 pt-2">
         {place.project && <p className="truncate text-background/70">{place.project}</p>}

@@ -560,7 +560,7 @@
       "config": "运行配置",
       "error": "失败原因",
       "unread": "未读",
-      "contextPercent": "上下文 {{percent}}%"
+      "contextPercent": "上下文占用 {{percent}}%"
     },
     "notify": {
       "replyTitle": "{{name}} 已回复",

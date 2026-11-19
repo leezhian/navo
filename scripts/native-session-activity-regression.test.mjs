@@ -112,7 +112,7 @@ test("Codex rollout：经 state sqlite 定位；task_complete 才算回复", asy
     ].map((row) => JSON.stringify(row)).join("\n"));
     assert.deepEqual(await readNativeSessionActivity(session, { CODEX_HOME: root }), {
       phase: "idle", lastReplyAt: "2026-11-07T03:00:01.000Z",
-      usage: { inputTokens: 50000, outputTokens: 10, cachedTokens: 1000, reasoningTokens: 20, contextWindow: 200000 },
+      usage: { inputTokens: 50000, outputTokens: 10, cachedTokens: 1000, reasoningTokens: 20, contextTokens: 50010, contextWindow: 200000 },
     });
     await writeFile(rollout, [
       { type: "event_msg", timestamp: "2026-11-07T03:00:01.000Z", payload: { type: "task_complete" } },
@@ -130,4 +130,41 @@ test("无能力、无绑定或越界路径时返回 null", async () => {
   assert.equal(await readNativeSessionActivity({ ...base, agent: { agentId: "antigravity" } }), null);
   assert.equal(await readNativeSessionActivity({ ...base, agent: { agentId: "grok" }, nativeSessionId: undefined }), null);
   assert.equal(await readNativeSessionActivity({ ...base, agent: { agentId: "grok" }, nativeSessionId: "../escape" }), null);
+});
+
+test("Grok signals 原生上下文快照应显示 8%，不使用累计请求或整轮 token 猜测", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "navo-context-grok-"));
+  try {
+    const directory = path.join(root, "sessions", encodeURIComponent(base.cwd), id);
+    await mkdir(directory, { recursive: true });
+    await writeFile(path.join(directory, "events.jsonl"), '');
+    // 对应本机实际 schema；usage 的两次模型调用合计与当前上下文不是同一指标。
+    await writeFile(path.join(directory, "usage.json"), JSON.stringify({ turns: [{ inputTokens: 40577, outputTokens: 414, cachedReadTokens: 21120, modelCalls: 2 }] }));
+    await writeFile(path.join(directory, "signals.json"), JSON.stringify({ contextWindowUsage: 8, contextTokensUsed: 20794, contextWindowTokens: 256000 }));
+    const activity = await readNativeSessionActivity({ ...base, agent: { agentId: "grok" } }, { GROK_HOME: root });
+    const { sessionContextPercent } = createLoader()("src/utils/sessionUsageLabel.ts");
+    assert.equal(sessionContextPercent(activity?.usage), 8, '原生已给出当前上下文和窗口，但悬停详情没有百分比');
+    await rm(path.join(directory, 'events.jsonl'));
+    await rm(path.join(directory, 'usage.json'));
+    const snapshotOnly = await readNativeSessionActivity({ ...base, agent: { agentId: 'grok' } }, { GROK_HOME: root });
+    assert.equal(sessionContextPercent(snapshotOnly?.usage), 8, '独立上下文快照不依赖回合事件或累计用量文件');
+    await writeFile(path.join(directory, 'signals.json'), JSON.stringify({ contextTokensUsed: 20, contextWindowTokens: 0 }));
+    assert.equal(sessionContextPercent((await readNativeSessionActivity({ ...base, agent: { agentId: 'grok' } }, { GROK_HOME: root }))?.usage), undefined);
+    await writeFile(path.join(directory, 'signals.json'), '{incomplete');
+    assert.equal(await readNativeSessionActivity({ ...base, agent: { agentId: 'grok' } }, { GROK_HOME: root }), null);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("Codex 输入已包含缓存，高缓存命中时仍显示真实占用", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "navo-context-codex-"));
+  try {
+    const rollout = path.join(root, 'rollout.jsonl');
+    const db = new DatabaseSync(path.join(root, 'state_5.sqlite'));
+    db.exec('CREATE TABLE threads (id TEXT,rollout_path TEXT)');
+    db.prepare('INSERT INTO threads VALUES (?,?)').run(id, rollout); db.close();
+    await writeFile(rollout, JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info: { model_context_window: 200000, last_token_usage: { input_tokens: 150000, output_tokens: 1000, cached_input_tokens: 140000, total_tokens: 151000 } } } }));
+    const activity = await readNativeSessionActivity({ ...base, agent: { agentId: 'codex' } }, { CODEX_HOME: root });
+    const { sessionContextPercent } = createLoader()('src/utils/sessionUsageLabel.ts');
+    assert.equal(sessionContextPercent(activity?.usage), 76, '缓存属于输入子集，不能再相加后误判超过窗口');
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
