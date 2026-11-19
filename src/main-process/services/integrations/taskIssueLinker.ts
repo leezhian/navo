@@ -33,6 +33,38 @@ export class TaskIssueLinker {
     try { return operation(database); } finally { database.close(); }
   }
 
+  /** 只更新仍有关联的远端快照，保留每个任务自己的归档和自动关联标记。 */
+  async refreshLinkedItem(item: IssueItem) {
+    if (item.fetchError || !item.providerId || item.source === "local") return;
+    const changed = await this.access((database) => {
+      const taskIds = new Set<string>();
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        const rows = database.prepare(`SELECT links.task_id,links.data FROM task_links links
+          JOIN tasks ON tasks.namespace=links.namespace AND tasks.id=links.task_id
+          WHERE links.namespace=? AND links.link_id=? AND tasks.status!='ARCHIVED'
+          AND NOT EXISTS(SELECT 1 FROM task_deletions WHERE namespace=links.namespace AND task_id=links.task_id)`)
+          .all(this.deps.namespace, item.id);
+        for (const row of rows) {
+          const previous = JSON.parse(String(row.data)) as IssueItem;
+          if (previous.group !== item.group || previous.providerId !== item.providerId) continue;
+          const data = JSON.stringify({ ...item, autoLinked: previous.autoLinked, archivedAt: previous.archivedAt });
+          if (data === row.data) continue;
+          const taskId = String(row.task_id);
+          database.prepare("UPDATE task_links SET data=? WHERE namespace=? AND task_id=? AND link_id=?").run(data, this.deps.namespace, taskId, item.id);
+          database.prepare("UPDATE tasks SET updated_at=?,context_version=context_version+1 WHERE namespace=? AND id=?")
+            .run(new Date().toISOString(), this.deps.namespace, taskId);
+          taskIds.add(taskId);
+        }
+        database.exec("COMMIT");
+        return taskIds;
+      } catch (error) { database.exec("ROLLBACK"); throw error; }
+    });
+    if (changed.size) for (const task of await this.deps.loadTasks()) {
+      if (changed.has(task.id)) this.deps.publish?.(task);
+    }
+  }
+
   async exclusions(): Promise<Set<string>> {
     return this.access((database) => new Set(database.prepare("SELECT task_id,issue_id FROM issue_autolink_exclusions WHERE namespace=?")
       .all(this.deps.namespace).map((row) => `${String(row.task_id)}:${String(row.issue_id)}`)));
@@ -118,7 +150,9 @@ export class TaskIssueLinker {
     if (!task || task.status === "ARCHIVED") return "skipped";
     const link = [...(task.links ?? []), ...(task.archivedLinks ?? [])].find((item) => item.id === issueId);
     if (!link || link.group !== "ISSUE" || link.source === "local") return "skipped";
-    const allNotes = [...(task.notes ?? []), ...(task.archivedNotes ?? [])];
+    const deletedNotes = await this.access((database) => database.prepare("SELECT content FROM task_notes WHERE namespace=? AND task_id=? AND deleted_at IS NOT NULL")
+      .all(this.deps.namespace, taskId).map((row) => ({ content: String(row.content) })));
+    const allNotes = [...(task.notes ?? []), ...(task.archivedNotes ?? []), ...deletedNotes];
     let issue: IssueItem | null = link;
     if (!issue.body) {
       issue = await this.deps.getItem(issueId, { refresh: true }).catch(() => null);

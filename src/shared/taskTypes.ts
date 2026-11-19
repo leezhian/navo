@@ -122,6 +122,12 @@ export interface TasksApi {
   onChanged(listener: (task: Task) => void): () => void;
   /** 使用打开删除确认时的版本，避免删除确认期间被其他会话更新的笔记。 */
   deleteNote(taskId: string, noteId: string, expectedVersion: number): Promise<Task>;
+  /** 普通笔记软删除；每一项都按确认时版本校验，失败整批回滚。 */
+  deleteNotes(taskId: string, notes: import("./taskResourceTypes").TaskNoteRemoval[]): Promise<Task>;
+  /** 回收列表不混入活动资源或共享上下文；归档任务也可只读查看。 */
+  deletedNotes(taskId: string): Promise<import("./taskResourceTypes").TaskNote[]>;
+  /** 恢复到活动列表；可选历史版本，恢复生成新版本而非覆盖历史。 */
+  restoreDeletedNote(taskId: string, noteId: string, expectedVersion: number, version?: number): Promise<Task>;
   chooseResourceFile(): Promise<TaskFileReference | null>;
   releaseResourceFiles(ids: string[]): Promise<void>;
   revealResourceFile(taskId: string, fileId: string): Promise<void>;

@@ -37,6 +37,8 @@ interface TaskState {
   updateWebLink: (id: string, linkId: string, title: string) => Promise<Task>;
   deleteWorktree: (id: string, resourceId: string, confirmation: TaskDeletionConfirmation) => Promise<Task>;
   deleteNote: (id: string, noteId: string, expectedVersion: number) => Promise<Task>;
+  deleteNotes: (id: string, notes: import("@/shared/taskResourceTypes").TaskNoteRemoval[]) => Promise<Task>;
+  restoreDeletedNote: (id: string, noteId: string, expectedVersion: number, version?: number) => Promise<Task>;
   rename: (id: string, title: string) => Promise<boolean>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
   restore: (id: string) => Promise<boolean>;
@@ -111,6 +113,15 @@ export const useTaskStore = create<TaskState>((set, get) => {
     updateWebLink: (id, linkId, title) => updateTask(() => getTasksApi().updateWebLink(id, linkId, title)),
     deleteWorktree: (id, resourceId, confirmation) => updateTask(() => getTasksApi().deleteWorktree(id, resourceId, confirmation)),
     deleteNote: (id, noteId, expectedVersion) => updateTask(() => getTasksApi().deleteNote(id, noteId, expectedVersion)),
+    async deleteNotes(id, notes) {
+      const task = await updateTask(() => getTasksApi().deleteNotes(id, notes));
+      for (const note of notes) {
+        useTaskNoteDraftStore.getState().clear(id, note.id);
+        useTaskNoteDraftStore.getState().clearComment(id, note.id);
+      }
+      return task;
+    },
+    restoreDeletedNote: (id, noteId, expectedVersion, version) => updateTask(() => getTasksApi().restoreDeletedNote(id, noteId, expectedVersion, version)),
     async create(input) {
       if (get().pending || get().loading || !get().loaded) throw new Error("TASK_BUSY");
       set({ pending: true });

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import type { TaskResourceCategory } from "@/shared/taskResourceTypes";
 import type { TaskResourceCleanupPlan, TaskResourceRef } from "@/shared/taskResourceLifecycle";
+import { emptyResourceCleanupPlan, hasResourceCleanup } from "@/shared/taskResourceLifecycle";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useTaskResourceDraft } from "@/hooks/useTaskResourceDraft";
@@ -18,6 +19,7 @@ import { TaskResourceUndoBar } from "../workspace/TaskResourceUndoBar";
 import { TaskResourceManageList, type ResourceAction } from "./TaskResourceManageList";
 import { collectCategoryItems, toResourceRefs, type TaskManagedListItem } from "@/utils/taskResourceInventory";
 import { TaskResourceAddForm } from "./TaskResourceAddForm";
+import { TaskDeletedNotes } from "./TaskDeletedNotes";
 
 const categories = [
   { id: "repositories", icon: BookMarked }, { id: "issues", icon: CircleDot }, { id: "pullRequests", icon: GitPullRequest },
@@ -70,9 +72,9 @@ export function TaskAddResourcesDialog({
     void (async () => {
       try {
         const inspect = getTasksApi().inspectResourceCleanup;
-        const plan = inspect ? await inspect(updatedTask.id) : { missingFiles: [], mergedPullRequests: [] };
+        const plan = inspect ? await inspect(updatedTask.id) : emptyResourceCleanupPlan();
         if (!cancelled) setCleanupPlan(plan);
-      } catch { if (!cancelled) setCleanupPlan({ missingFiles: [], mergedPullRequests: [] }); }
+      } catch { if (!cancelled) setCleanupPlan(emptyResourceCleanupPlan()); }
     })();
     return () => { cancelled = true; };
   }, [updatedTask.id, updatedTask.contextVersion, updatedTask.updatedAt]);
@@ -99,13 +101,26 @@ export function TaskAddResourcesDialog({
     if (item.kind === "issue") onPreview?.(item.title, item.detail ?? "");
   }
 
-  const cleanupEmpty = !cleanupPlan || (cleanupPlan.missingFiles.length === 0 && cleanupPlan.mergedPullRequests.length === 0);
+  const cleanupEmpty = !hasResourceCleanup(cleanupPlan);
   function handleAction(operation: ResourceAction, items: TaskManagedListItem[]) {
     if (busy || readOnly) return;
     const store = useTaskStore.getState();
     if (operation === "restore") void runBatch(() => store.restoreResources(task.id, toResourceRefs(items)));
     else if (operation === "archive") void runBatch(() => store.archiveResources(task.id, toResourceRefs(items.filter((item) => item.archivable))));
     else setBatchConfirm({ action: operation, items: items.filter((item) => operation === "detach" ? item.detachable : item.deletable) });
+  }
+
+  async function deleteNotes(items: TaskManagedListItem[]) {
+    if (busy || readOnly) return;
+    setActionError(null);
+    try {
+      const notes = items.map((item) => {
+        if (item.kind !== "note" || item.noteVersion === undefined) throw new Error("TASK_INVALID");
+        return { id: item.id, version: item.noteVersion };
+      });
+      await useTaskStore.getState().deleteNotes(updatedTask.id, notes);
+      setSelected(new Set());
+    } catch (failure) { setActionError(failure); }
   }
 
   const size = expanded ? "h-[calc(100dvh-16px)] w-[calc(100%-16px)] max-w-none sm:max-w-none" : "h-[min(88dvh,820px)] w-[94vw] max-w-[94vw] sm:max-w-[1120px]";
@@ -129,6 +144,7 @@ export function TaskAddResourcesDialog({
             <TaskResourceAddForm task={updatedTask} category={category} draft={draft} disabled={busy} onPickerBusy={setPickerBusy} />
           </> : <TaskResourceManageList active={active} archived={archived} category={category} selected={selected} archivedOpen={archivedOpen} readOnly={readOnly} busy={busy}
             onSelect={setSelected} onArchivedOpenChange={setArchivedOpen} onOpen={openItem} onAction={handleAction} onAdd={() => setAdding(true)} />}
+          {!addingView && category === "notes" && <TaskDeletedNotes key={updatedTask.id} taskId={updatedTask.id} contextVersion={updatedTask.contextVersion} readOnly={readOnly} busy={busy} />}
           {((addingView && draft.error !== null) || actionError !== null) && <p role="alert" className="text-xs text-destructive">{getTaskError(actionError ?? draft.error)}</p>}
           {!addingView && !readOnly && !cleanupEmpty && <Button type="button" variant="ghost" size="sm" className="self-end" data-cleanup disabled={busy} onClick={() => setCleanupOpen(true)}>{t("tasks:resources.cleanup")}</Button>}
         </Tabs.Content>
@@ -147,13 +163,16 @@ export function TaskAddResourcesDialog({
     }} />}
     {batchConfirm && <TaskResourceBatchConfirmDialog
       action={batchConfirm.action}
+      notes={batchConfirm.items.every((item) => item.kind === "note")}
       count={batchConfirm.action === "delete" ? batchConfirm.items.flatMap((item) => item.ids).length : batchConfirm.items.length}
       busy={pending}
       onClose={() => setBatchConfirm(null)}
       onConfirm={() => {
         const { action, items } = batchConfirm;
         setBatchConfirm(null);
-        if (action === "delete") {
+        if (action === "delete" && items.every((item) => item.kind === "note")) {
+          void deleteNotes(items);
+        } else if (action === "delete") {
           void runBatch(() => useTaskStore.getState().deleteAttachments(updatedTask.id, items.flatMap((item) => item.ids)));
         } else {
           void runBatch(() => useTaskStore.getState().detachResources(updatedTask.id, toResourceRefs(items)));

@@ -13,6 +13,8 @@ export interface TaskNoteUpdate extends TaskNoteInput {
   sortOrder?: number;
 }
 export interface TaskNote extends TaskNoteInput {
+  /** 软删除后仅通过回收列表读取，不进入普通列表或 Agent 上下文。 */
+  deletedAt?: string;
   /** 资源级归档时间；归档后退出活动列表和共享上下文。 */
   archivedAt?: string;
   /** 最近保存者与原创建者分开记录，历史迁移无法确认时为 unknown。 */
@@ -28,6 +30,11 @@ export interface TaskNote extends TaskNoteInput {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+}
+export interface TaskNoteRemoval {
+  /** 删除确认时看到的笔记及版本；批量删除一次提交、一次并发校验。 */
+  id: string;
+  version: number;
 }
 export interface TaskFileReference {
   id: string;

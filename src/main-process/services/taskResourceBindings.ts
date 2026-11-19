@@ -1,4 +1,4 @@
-import type { AddTaskResourcesInput, TaskNoteInput, TaskNoteUpdate } from "../../shared/taskResourceTypes";
+import type { AddTaskResourcesInput, TaskNoteInput, TaskNoteRemoval, TaskNoteUpdate } from "../../shared/taskResourceTypes";
 import { isIssueItem } from "../../utils/adeDataValidation";
 import { isTaskWebLink } from "../../utils/taskWebLinks";
 import { TaskRepository } from "./taskRepository";
@@ -62,6 +62,15 @@ export class TaskResourceBindings {
   async noteHistory(taskId: string, noteId: string) {
     await this.task(taskId);
     return this.notes.history(taskId, noteId);
+  }
+  async deleteNotes(taskId: string, notes: TaskNoteRemoval[]) {
+    await this.notes.removeMany(taskId, notes); return this.task(taskId);
+  }
+  async deletedNotes(taskId: string) {
+    await this.task(taskId); return this.notes.deleted(taskId);
+  }
+  async restoreDeletedNote(taskId: string, noteId: string, expectedVersion: number, version?: number) {
+    await this.notes.restoreDeleted(taskId, noteId, expectedVersion, version); return this.task(taskId);
   }
   async restoreNote(taskId: string, noteId: string, version: number, expectedVersion: number) {
     await this.notes.restore(taskId, noteId, version, expectedVersion); return this.task(taskId);

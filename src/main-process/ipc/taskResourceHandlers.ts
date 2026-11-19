@@ -52,6 +52,13 @@ export function registerTaskResourceHandlers(tasks: TaskService) {
     owner(event); return tasks.updatePrompt(taskId, content, expected, version).then(publishTask);
   });
   ipcMain.handle(ipcChannels.tasksNoteHistory, (event, taskId: string, noteId: string) => { owner(event); return tasks.noteHistory(taskId, noteId); });
+  ipcMain.handle(ipcChannels.tasksDeletedNotes, (event, taskId: string) => { owner(event); return tasks.deletedNotes(taskId); });
+  ipcMain.handle(ipcChannels.tasksDeleteNotes, (event, taskId: string, notes: import("../../shared/taskResourceTypes").TaskNoteRemoval[]) => {
+    owner(event); return tasks.deleteNotes(taskId, notes).then(publishTask);
+  });
+  ipcMain.handle(ipcChannels.tasksRestoreDeletedNote, (event, taskId: string, noteId: string, expected: number, version?: number) => {
+    owner(event); return tasks.restoreDeletedNote(taskId, noteId, expected, version).then(publishTask);
+  });
   ipcMain.handle(ipcChannels.tasksRestoreNote, (event, taskId: string, noteId: string, version: number, expected: number) => {
     owner(event); return tasks.restoreNote(taskId, noteId, version, expected).then(publishTask);
   });

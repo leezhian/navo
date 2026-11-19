@@ -40,6 +40,8 @@ async function fixture(context, { busyIds = [] } = {}) {
   const original = path.join(directory, "spec.md");
   const missing = path.join(directory, "gone.txt");
   await writeFile(original, "# hello\n");
+  await mkdir(path.join(directory, "folder-b"));
+  await mkdir(path.join(directory, "folder-c"));
   const attachmentDir = path.join(userData, "task-files", "test", "existing");
   await mkdir(attachmentDir, { recursive: true });
   const attachmentPath = path.join(attachmentDir, storageName);
@@ -132,7 +134,7 @@ test("附件删除会在撤销失效后移除托管副本，路径解除关联�
   await assert.rejects(lifecycle.undo("existing", 1), /TASK_UNDO_EXPIRED/);
 });
 
-test("清理只处理缺失文件和本地已是 merged 的 PR，不把未合并或未知状态算进去", async (context) => {
+test("清理缺失文件和本地已是 merged 的 PR，不把未合并或未知状态算进去", async (context) => {
   const { lifecycle, ids, tasks, bindings, directory } = await fixture(context);
   const plan = await lifecycle.inspectCleanup("existing");
   assert.ok(plan.missingFiles.some((item) => item.id === ids.missingId && item.kind === "file"));
@@ -174,6 +176,50 @@ test("清理只处理缺失文件和本地已是 merged 的 PR，不把未合并
   const recovered = await lifecycle.restoreResources("existing", [{ kind: "issue", id: "pr-merged" }], 1);
   assert.ok(recovered.task.links.some((item) => item.id === "pr-merged" && !item.archivedAt));
   assert.ok(!(recovered.task.archivedLinks ?? []).some((item) => item.id === "pr-merged"));
+});
+
+test("清理已关闭 Issue 与失效普通文件夹，跳过占用目录，撤销恢复关联和上下文", async (context) => {
+  const target = await fixture(context, { busyIds: ["repo-c"] });
+  context.after(() => target.lifecycle.forgetOwner(1));
+  await target.bindings.add("existing", { requestId: randomUUID(), links: [issue("issue-closed", "ISSUE", "closed")], notes: [], webLinks: [], fileIds: [] }, 1);
+  await rm(path.join(target.directory, "folder-b"), { recursive: true });
+  await rm(path.join(target.directory, "folder-c"), { recursive: true });
+  const plan = await target.lifecycle.inspectCleanup("existing");
+  assert.deepEqual(plan.closedIssues.map((item) => item.id), ["issue-closed"]);
+  assert.deepEqual(plan.missingFolders.map((item) => item.id), ["repo-b"]);
+  const result = await target.lifecycle.applyCleanup("existing", 1);
+  assert.ok(!result.task.resources.some((item) => item.resourceId === "repo-b"));
+  assert.ok(result.task.resources.some((item) => item.resourceId === "repo-c"));
+  assert.ok(result.task.resources.some((item) => item.resourceId === "repo-a"));
+  assert.ok(result.task.archivedLinks.some((item) => item.id === "issue-closed"));
+  assert.ok(result.task.links.some((item) => item.id === "issue-one"));
+  const restored = await target.lifecycle.undo("existing", 1);
+  assert.ok(restored.resources.some((item) => item.resourceId === "repo-b"));
+  assert.ok(restored.links.some((item) => item.id === "issue-closed"));
+  assert.equal(await readFile(target.original, "utf8"), "# hello\n");
+});
+
+test("清理执行时重新核对已恢复路径和 Issue 状态，并保留最后一个普通目录", async (context) => {
+  const target = await fixture(context);
+  context.after(() => target.lifecycle.forgetOwner(1));
+  await target.bindings.add("existing", { requestId: randomUUID(), links: [issue("issue-closed", "ISSUE", "closed")], notes: [], webLinks: [], fileIds: [] }, 1);
+  await rm(path.join(target.directory, "folder-b"), { recursive: true });
+  assert.equal((await target.lifecycle.inspectCleanup("existing")).missingFolders.length, 1);
+  await mkdir(path.join(target.directory, "folder-b"));
+  const database = await openAppDatabase(target.filename);
+  database.prepare("UPDATE task_links SET data=? WHERE namespace=? AND task_id=? AND link_id=?").run(JSON.stringify(issue("issue-closed", "ISSUE", "todo")), "test", "existing", "issue-closed");
+  database.close();
+  const changed = await target.lifecycle.applyCleanup("existing", 1);
+  assert.ok(changed.task.resources.some((item) => item.resourceId === "repo-b"));
+  assert.ok(changed.task.links.some((item) => item.id === "issue-closed"));
+  await target.lifecycle.detachResources("existing", [{ kind: "workspace", id: "repo-a" }], 1);
+  await rm(path.join(target.directory, "folder-b"), { recursive: true });
+  await rm(path.join(target.directory, "folder-c"), { recursive: true });
+  assert.equal((await target.lifecycle.inspectCleanup("existing")).missingFolders.length, 2);
+  const last = await target.lifecycle.applyCleanup("existing", 1);
+  assert.equal(last.task.resources.length, 1);
+  assert.ok(last.skipped.some((item) => item.reason === "lastWorkspace"));
+  assert.equal((await target.lifecycle.inspectCleanup("existing")).missingFolders.length, 0);
 });
 
 test("inspect 与预览只读取文件前缀，大图先按 stat 限制大小", async (context) => {

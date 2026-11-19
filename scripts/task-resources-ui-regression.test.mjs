@@ -38,7 +38,8 @@ test("任务资源统一窗口：分类定位、共享筛选、笔记、原文�
         chooseResourceFile:async()=>({id:'11111111-1111-4111-8111-111111111111',name:'spec.md',path:'/fixture/spec.md',size:4}),releaseResourceFiles:async ids=>window.releases.push(...ids),revealResourceFile:async(...args)=>window.reveals.push(args),
         inspectManagedFile:async(id,kind,fileId)=>({kind,id:fileId,name:'spec.md',description:'',size:4,mtime:'2026-10-07T00:00:00.000Z',exists:true,source:kind==='file'?'path':'attachment',location:'/fixture/spec.md',previewType:'markdown'}),
         previewManagedFile:async()=>({type:'markdown',text:'# spec',size:4}),
-        inspectResourceCleanup:async()=>({missingFiles:[],mergedPullRequests:[]}),
+        deletedNotes:async()=>[],
+        inspectResourceCleanup:async()=>({missingFiles:[],missingFolders:[],mergedPullRequests:[],closedIssues:[]}),
         dismissResourceUndo:async()=>{}},
         agents:{onCapabilitiesChanged:()=>()=>{},capabilitySnapshot:async()=>({settings:{configurations:[]},installations:[],entries:{}})}};
       window.remoteNoteUpdate=(title,content)=>{task={...task,notes:task.notes.map(note=>note.title===title?{...note,content,version:note.version+1}:note)};useTaskStore.setState({tasks:[structuredClone(task),previousTask]});};

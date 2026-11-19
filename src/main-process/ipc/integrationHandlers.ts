@@ -54,7 +54,10 @@ export function registerIntegrationHandlers() {
     const commentsPage = options && typeof options === "object" && typeof (options as { commentsPage?: unknown }).commentsPage === "number"
       ? Math.max(1, Math.min(100, Math.floor((options as { commentsPage: number }).commentsPage)))
       : undefined;
-    return service.getItem(id, { refresh, commentsPage });
+    return service.getItem(id, { refresh, commentsPage }).then(async (item) => {
+      if (refresh && item) await getTaskIssueLinker()?.refreshLinkedItem(item);
+      return item;
+    });
   });
   ipcMain.handle(ipcChannels.issuesResolveUrl, (_event, value: unknown) => {
     if (typeof value !== "string" || value.length > 4096) throw new Error("ISSUE_INVALID");

@@ -3,7 +3,7 @@ import { readingPositionKey } from "@/stores/readingPositionStore";
 import { useTaskSessionStore } from "@/stores/taskSessionStore";
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Archive, ChevronDown, ChevronRight, CircleDot, FileText, FolderGit2, GitBranch, GitPullRequest, Link2, Plus, Terminal } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, CircleDot, FileText, FolderGit2, GitBranch, GitPullRequest, Link2, Plus, RefreshCw, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import type { TaskResource } from "@/shared/taskTypes";
@@ -28,6 +28,7 @@ import { TaskInitializationPanel } from "./TaskInitializationPanel";
 import { SessionHoverDetails } from "./SessionHoverDetails";
 import { ChangeHoverDetails } from "./ChangeHoverDetails";
 import { useSessionUnread } from "@/hooks/useSessionUnread";
+import { useTaskIssueGroupRefresh } from "@/hooks/useTaskIssueGroupRefresh";
 import { sessionActivityText } from "@/utils/sessionActivityLabel";
 import { aggregateTaskWebLinks } from "@/utils/taskWebLinks";
 import { useTaskStore } from "@/stores/taskStore";
@@ -95,6 +96,11 @@ interface ResourceGroupProps {
   action?: ReactNode;
   /** 省略时只展示禁用加号。 */
   onAdd?: () => void;
+  /** PR/Issue 分组刷新独立于展开和添加，失败在本组显示。 */
+  onRefresh?: () => void;
+  refreshing?: boolean;
+  refreshDisabled?: boolean;
+  refreshFailed?: number;
 }
 interface ContextItemIconProps {
   /** 仅承载条目前置图标，分类及操作按钮不使用背景容器。 */
@@ -103,20 +109,23 @@ interface ContextItemIconProps {
 function ContextItemIcon({ children }: ContextItemIconProps) {
   return <span className="task-context-item-icon">{children}</span>;
 }
-function ResourceGroup({ title, count, children, action, onAdd }: ResourceGroupProps) {
+function ResourceGroup({ title, count, children, action, onAdd, onRefresh, refreshing, refreshDisabled, refreshFailed = 0 }: ResourceGroupProps) {
   const { t } = useTranslation(["tasks", "common", "issues"]);
   const [open, setOpen] = useState(true);
   if (count === 0) return null;
   return <section className="task-context-group">
     <div className="task-context-group-heading"><button onClick={() => setOpen(!open)} aria-expanded={open}>
       {open ? <ChevronDown /> : <ChevronRight />}<span>{title}</span><small>{count}</small>
-    </button>{action ?? <IconTooltip label={t("tasks:runtime.addCategory", { category: title })} size="icon-xs" disabled={!onAdd} onClick={onAdd}><Plus /></IconTooltip>}</div>
+    </button>{onRefresh && <IconTooltip label={t("tasks:resources.refreshGroup", { category: title })} size="icon-xs" disabled={refreshDisabled || refreshing} aria-busy={refreshing} onClick={onRefresh}><RefreshCw className={refreshing ? "animate-spin" : undefined} /></IconTooltip>}
+      {action ?? <IconTooltip label={t("tasks:runtime.addCategory", { category: title })} size="icon-xs" disabled={!onAdd} onClick={onAdd}><Plus /></IconTooltip>}</div>
+    {refreshFailed > 0 && <p role="alert" className="px-2 pb-1 text-xs text-destructive">{t("tasks:resources.refreshGroupFailed", { count: refreshFailed })}</p>}
     {open && <div className="task-context-items">{children}</div>}
   </section>;
 }
 export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, activeResourceId, activeNoteId, onNote, onDeleteNote, onRenameNote, noteDeleteDisabled, onRunCommand, agentChoices = [], onNewSession, onNewSessionFrom, onNewTerminal, onSelect, onRestored, newSessionControl, onArchive, archivePending, newTerminalControl, onReview, onPreview, onIssuePreview, onAttachment, onLink, onAddResource, onFile, activeFile, onWorkspaceOpenError }: TaskResourceRailProps) {
   const { t } = useTranslation(["tasks", "taskCreate", "issues"]);
   const { unread } = useSessionUnread();
+  const groupRefresh = useTaskIssueGroupRefresh(task);
   const sessionsLoaded = useTaskSessionStore(state => state.loaded);
   const scrollRef = useReadingPosition<HTMLElement>(readingPositionKey(task.id, "context"), sessionsLoaded);
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
@@ -189,7 +198,8 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
     {terminals.length > 0 && <ResourceGroup title={t("tasks:runtime.terminals")} count={terminals.length} action={newTerminalControl}>
       {terminals.map((session) => <button key={session.id} className="task-context-row" data-active={session.id === activeTerminalId} aria-pressed={session.id === activeTerminalId} onClick={() => onSelect(session)} title={session.cwd}><ContextItemIcon><Terminal /></ContextItemIcon><span className="truncate">{session.title}</span></button>)}
     </ResourceGroup>}
-    <ResourceGroup title="PULL REQUESTS" count={prs.length + archivedPrs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}>
+    <ResourceGroup title="PULL REQUESTS" count={prs.length + archivedPrs.length} onAdd={onAddResource && (() => onAddResource("pullRequests"))}
+      onRefresh={() => void groupRefresh.refresh("PR")} refreshing={groupRefresh.state.PR.busy} refreshDisabled={!groupRefresh.available("PR")} refreshFailed={groupRefresh.state.PR.failed}>
       {prs.map((link) => <TaskIssueMenu key={link.id} task={task} item={link}
         onOpen={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}
         onRefresh={() => onIssuePreview?.(link, true)}
@@ -204,7 +214,8 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
         </TaskIssueMenu>)}
       </RailArchiveList>
     </ResourceGroup>
-    <ResourceGroup title="ISSUES" count={issues.length + archivedIssues.length} onAdd={onAddResource && (() => onAddResource("issues"))}>
+    <ResourceGroup title="ISSUES" count={issues.length + archivedIssues.length} onAdd={onAddResource && (() => onAddResource("issues"))}
+      onRefresh={() => void groupRefresh.refresh("ISSUE")} refreshing={groupRefresh.state.ISSUE.busy} refreshDisabled={!groupRefresh.available("ISSUE")} refreshFailed={groupRefresh.state.ISSUE.failed}>
       {issues.map((link) => <TaskIssueMenu key={link.id} task={task} item={link}
         onOpen={() => { onIssuePreview ? onIssuePreview(link) : onPreview(link.title, [link.provider, link.repository || link.projectName, link.status].filter(Boolean).join(" · ")) }}
         onRefresh={() => onIssuePreview?.(link, true)}>

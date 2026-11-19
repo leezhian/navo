@@ -84,6 +84,7 @@ export function TaskResourceManageList({ active, archived, category, selected, o
       {archivedOpen && <ul data-resource-archived className="space-y-1 px-2">{archived.map((item) => <li key={itemKey(item)} data-existing-kind={item.kind} data-existing-id={item.id} className="flex items-center gap-2 text-xs">
         <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => onOpen(item)}>{item.title}</button>
         {!readOnly && <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAction("restore", [item])}>{t("tasks:resources.restore")}</Button>}
+        {!readOnly && item.kind === "note" && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={busy} onClick={() => onAction("delete", [item])}>{t("common:actions.delete")}</Button>}
       </li>)}</ul>}
     </div>}
   </>;

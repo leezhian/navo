@@ -25,7 +25,7 @@ export const taskNoteTools = [
     inputSchema: { type: "object", properties: { title, content: { ...content, minLength: 1 } }, required: ["content"], additionalProperties: false }, annotations: { ...annotations, destructiveHint: false } },
   { name: "update_task_note", description: "Update a note in this task using its last-read version. Specify title, content or sortOrder; omitted fields are preserved. Never silently overwrite a version conflict.",
     inputSchema: { type: "object", properties: { noteId, version, title, content, sortOrder: { type: "integer", minimum: 0, description: "Display order; lower values appear first. Ties keep insertion order." } }, required: ["noteId", "version"], additionalProperties: false }, annotations },
-  { name: "delete_task_note", description: "Permanently delete a note from the current task using its last-read version. Read the note first and only delete it when appropriate for the user's task.",
+  { name: "delete_task_note", description: "Move a note to Deleted using its last-read version. It leaves the task context, but its content, history and comments can be restored in the app. Read the note first and only delete it when appropriate for the user's task.",
     inputSchema: { type: "object", properties: { noteId, version }, required: ["noteId", "version"], additionalProperties: false }, annotations },
 ];
 

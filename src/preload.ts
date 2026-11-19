@@ -116,6 +116,9 @@ const api: NavoApi = {
       return () => ipcRenderer.removeListener(ipcChannels.tasksChanged, handler);
     },
     deleteNote: (id, noteId, expectedVersion) => ipcRenderer.invoke(ipcChannels.tasksDeleteNote, id, noteId, expectedVersion),
+    deleteNotes: (id, notes) => ipcRenderer.invoke(ipcChannels.tasksDeleteNotes, id, notes),
+    deletedNotes: (id) => ipcRenderer.invoke(ipcChannels.tasksDeletedNotes, id),
+    restoreDeletedNote: (id, noteId, expectedVersion, version) => ipcRenderer.invoke(ipcChannels.tasksRestoreDeletedNote, id, noteId, expectedVersion, version),
     chooseResourceFile: () => ipcRenderer.invoke(ipcChannels.tasksChooseResourceFile),
     releaseResourceFiles: (ids) => ipcRenderer.invoke(ipcChannels.tasksReleaseResourceFiles, ids),
     revealResourceFile: (id, fileId) => ipcRenderer.invoke(ipcChannels.tasksRevealResourceFile, id, fileId),

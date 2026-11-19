@@ -16,6 +16,8 @@ export interface TaskManagedListItem {
   archivable: boolean;
   detachable: boolean;
   deletable: boolean;
+  /** 笔记删除使用列表读取时的版本，确认后不重取版本绕过并发检查。 */
+  noteVersion?: number;
 }
 
 export function itemKey(item: TaskManagedListItem) {
@@ -47,10 +49,10 @@ export function collectCategoryItems(task: Task, category: TaskResourceCategory)
   }
   if (category === "notes") {
     for (const note of task.notes ?? []) {
-      active.push({ kind: "note", id: note.id, ids: [note.id], date: note.createdAt, title: note.title || note.content.slice(0, 80), archivable: true, detachable: false, deletable: false });
+      active.push({ kind: "note", id: note.id, ids: [note.id], date: note.createdAt, title: note.title || note.content.slice(0, 80), archivable: true, detachable: false, deletable: true, noteVersion: note.version });
     }
     for (const note of task.archivedNotes ?? []) {
-      archived.push({ kind: "note", id: note.id, ids: [note.id], date: note.createdAt, title: note.title || note.content.slice(0, 80), archivable: true, detachable: false, deletable: false });
+      archived.push({ kind: "note", id: note.id, ids: [note.id], date: note.createdAt, title: note.title || note.content.slice(0, 80), archivable: true, detachable: false, deletable: true, noteVersion: note.version });
     }
   }
   if (category === "files") {

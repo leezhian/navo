@@ -30,7 +30,18 @@ export interface TaskResourceBatchResult {
 
 export interface TaskResourceCleanupPlan {
   missingFiles: Array<{ kind: TaskManagedFileKind; id: string; name: string }>;
+  /** 仅明确不存在的普通文件夹；工作树不参与引用清理。 */
+  missingFolders: Array<{ id: string; name: string }>;
   mergedPullRequests: Array<{ id: string; title: string }>;
+  closedIssues: Array<{ id: string; title: string }>;
+}
+
+export function emptyResourceCleanupPlan(): TaskResourceCleanupPlan {
+  return { missingFiles: [], missingFolders: [], mergedPullRequests: [], closedIssues: [] };
+}
+
+export function hasResourceCleanup(plan: TaskResourceCleanupPlan | null): boolean {
+  return Boolean(plan && (plan.missingFiles.length || plan.missingFolders.length || plan.mergedPullRequests.length || plan.closedIssues.length));
 }
 
 export interface TaskFileInspect {

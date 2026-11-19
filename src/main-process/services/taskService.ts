@@ -88,6 +88,13 @@ export class TaskService {
     return this.serialize(async () => { this.resourceLifecycle.invalidateTask(id); await this.content.updatePrompt(id, content, expected, expectedVersion); return requireTask(await this.repository.load() ?? [], id); });
   }
   noteHistory(id: string, noteId: string) { return this.serialize(() => this.resourceBindings.noteHistory(id, noteId)); }
+  deletedNotes(id: string) { return this.serialize(() => this.resourceBindings.deletedNotes(id)); }
+  deleteNotes(id: string, notes: import("../../shared/taskResourceTypes").TaskNoteRemoval[]) {
+    return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.deleteNotes(id, notes); });
+  }
+  restoreDeletedNote(id: string, noteId: string, expectedVersion: number, version?: number) {
+    return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.restoreDeletedNote(id, noteId, expectedVersion, version); });
+  }
   restoreNote(id: string, noteId: string, version: number, expectedVersion: number) {
     return this.serialize(() => { this.resourceLifecycle.invalidateTask(id); return this.resourceBindings.restoreNote(id, noteId, version, expectedVersion); });
   }
