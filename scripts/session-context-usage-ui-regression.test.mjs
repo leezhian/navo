@@ -16,6 +16,8 @@ async function checks() {
   if (text().includes('上下文占用')) throw Error('Missing capacity must hide the whole context usage row');
   window.setUsage({ inputTokens: 50000, outputTokens: 1000, cachedTokens: 40000, contextTokens: 51000, contextWindow: 200000 });
   await wait(() => text().includes('26%'), 'A valid occupancy must show its percentage');
+  window.setUsage({ contextTokens: 24000, contextWindow: 200000 }, 'antigravity');
+  await wait(() => text().includes('12%'), 'Antigravity callback usage must be displayed');
   window.setUsage(undefined, 'antigravity');
   await wait(() => !text().includes('上下文占用'), 'Unsupported agent must hide the context usage row');
   window.setUsage(undefined, 'codex');

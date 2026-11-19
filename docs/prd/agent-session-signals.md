@@ -17,3 +17,14 @@
 - 只按精确绑定的原生会话 ID 读取，未绑定时视为无信号；读取失败保留上次结果，不推断。
 - 回复时间只前进不后退，写入快照但不更新会话的元数据时间或最近活动时间。
 - 原生文件只读尾部（512 KB），后台随名称同步约每 5 秒轮询一次。
+
+上下文占用单独采集，不作为运行相位或回合完成信号：
+
+| Agent | 占用来源 |
+|---|---|
+| Claude Code | 原生 `statusLine` 的 `context_window`；使用窗口及当前输入、缓存创建和缓存读取，缺少分项时使用 CLI 提供的占用比例 |
+| Antigravity | 原生 `statusLine` 的 `context_window`，同时核对 `product=antigravity` 与 `conversation_id`；口径同 Claude |
+| Codex | rollout 的 `token_count.info.last_token_usage.total_tokens` 与 `model_context_window`，缓存属于输入子集，不重复相加 |
+| Grok Build | 当前会话 `signals.json` 的 `contextTokensUsed` 与 `contextWindowTokens`，不使用 `usage.json` 的整轮累计请求量 |
+
+状态栏只通过会话启动参数配置，保留用户原有命令和输出。回调凭证按每次运行隔离，原生身份未绑定时暂存、绑定匹配后才展示；停止或重启撤销旧凭证。缺少可靠数据时整行隐藏，已确认的 0% 正常显示。

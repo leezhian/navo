@@ -18,7 +18,7 @@ const config: ForgeConfig = {
     protocols: [{ name: 'Navo task links', schemes: ['navo'] }],
     // Packager 会按目标平台选择同名的 .icns 或 .ico。
     icon: appIconPath,
-    extraResource: [`${appIconPath}.png`],
+    extraResource: [`${appIconPath}.png`, 'src/main-process/services/taskSessions/statusline-forwarder.cjs'],
   },
   rebuildConfig: {},
   makers: [
