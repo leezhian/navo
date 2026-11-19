@@ -1,4 +1,20 @@
 {
+  "progress": {
+    "archivedReadOnly": "请先恢复任务，再修改进度。",
+    "title": "任务进度",
+    "automatic": "自动",
+    "manual": "手动",
+    "exploration": "探索",
+    "development": "开发中",
+    "review": "审查中",
+    "done": "已完成",
+    "archived": "已归档",
+    "reopen": "重新打开",
+    "change": "任务进度：{{stage}}（{{mode}}）",
+    "unavailable": "部分进度信息暂时不可用，保留上次可靠结果。",
+    "localChanges": "任务已完成，但工作区仍有本地改动。",
+    "failed": "更新任务进度失败"
+  },
   "changesMenu": {
     "openIn": "打开方式",
     "newSession": "在此新建会话",

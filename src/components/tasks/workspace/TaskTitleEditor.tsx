@@ -6,6 +6,7 @@ import { useTaskStore } from "@/stores/taskStore";
 import { getTaskError } from "@/services/taskErrors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TaskProgressMenu } from "./TaskProgressMenu";
 
 interface TaskTitleEditorProps {
   /** 当前任务；外部更新标题时同步展示，编辑中不打断输入。 */
@@ -71,7 +72,7 @@ export function TaskTitleEditor({ task, headingId, editRequest = 0, menu }: Task
     if (success) setEditing(false);
   }
 
-  const status = <span className="task-workbench-task-status">{task.status}</span>;
+  const status = <TaskProgressMenu task={task} />;
 
   if (!editing) {
     return <div className="task-workbench-title">

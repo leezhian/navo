@@ -10,6 +10,7 @@ import { registerTaskSessionHandlers, startInitialTaskSession, deleteTaskWithSes
 import { registerTaskResourceHandlers } from "./taskResourceHandlers";
 import { registerTaskWorkspaceOpenHandlers } from "./taskWorkspaceOpenHandlers";
 import { registerTaskBranchHandlers } from "./taskBranchHandlers";
+import { registerTaskProgressHandlers } from "./taskProgressHandlers";
 import { publishTask } from "./taskEvents";
 import path from "node:path";
 import { TaskIssueLinker } from "../services/integrations/taskIssueLinker";
@@ -41,16 +42,17 @@ function createLinker(service: TaskService, namespace: string) {
 }
 
 export function registerTaskHandlers() {
-  const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection);
+  const service = new TaskService(app.getPath("userData"), app.isPackaged ? "production" : "development", getCurrentSettings, resolveTaskAgentSelection, publishTask);
   tasks = service;
   linker = createLinker(service, app.isPackaged ? "production" : "development");
   registerTaskResourceHandlers(service);
   registerTaskWorkspaceOpenHandlers(service);
   registerTaskBranchHandlers(service);
   registerTaskSessionHandlers(service);
+  const progress = registerTaskProgressHandlers(service);
   const owners = new Set<number>();
-  ipcMain.handle(ipcChannels.tasksLoad, () => service.load());
-  ipcMain.handle(ipcChannels.tasksImportLegacy, (_event, value: Task[]) => service.importLegacy(value));
+  ipcMain.handle(ipcChannels.tasksLoad, async () => { const result = await service.load(); void progress.refreshAll().catch(() => undefined); return result; });
+  ipcMain.handle(ipcChannels.tasksImportLegacy, async (_event, value: Task[]) => { const records = await service.importLegacy(value); void progress.refreshAll().catch(() => undefined); return records; });
   ipcMain.handle(ipcChannels.tasksCreate, async (event, value: CreateTaskInput) => {
     const task = await service.create(value, event.sender.id);
     startInitialTaskSession(task, event.sender);

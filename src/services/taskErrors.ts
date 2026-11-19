@@ -30,6 +30,7 @@ const messages: Record<string, TranslationKey<"tasks" | "taskCreate">> = {
   TASK_ATTACHMENT_MISSING: "taskCreate:errors.attachmentMissing",
   TASK_CREATE_RETAINED: "taskCreate:errors.retained",
   TASK_BUSY: "tasks:errors.busy",
+  TASK_ARCHIVED: "tasks:progress.archivedReadOnly",
   TASK_UNDO_EXPIRED: "tasks:resources.undoExpired",
   TASK_FILE_RENAME_EMPTY: "tasks:resources.renameRefused.empty",
   TASK_FILE_RENAME_SEPARATOR: "tasks:resources.renameRefused.separator",

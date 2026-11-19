@@ -6,6 +6,8 @@ import type { TaskFileReference, TaskNote } from "../shared/taskResourceTypes";
 export type TaskStatus = "TODO" | "DONE" | "ARCHIVED";
 
 export interface Task {
+  /** 开发阶段及手动覆盖；看板 TODO/DONE 与最终阶段保持一致，归档独立处理。 */
+  progress?: import("../shared/taskProgress").TaskProgress;
   /** 正文、笔记、资源每次成功修改后递增，供运行中的 Agent 判断上下文变化。 */
   contextVersion?: number;
   /** 正文独立版本；笔记或其他资源修改不会改变它。 */

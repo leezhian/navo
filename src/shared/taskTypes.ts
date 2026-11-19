@@ -96,6 +96,8 @@ export interface TaskBootstrap {
 }
 
 export interface TasksApi {
+  /** null 恢复自动，reopen 按当前完成来源重新打开；不修改归档任务。 */
+  setProgress(taskId: string, stage: import("./taskProgress").TaskProgressStage | null | "reopen"): Promise<Task>;
   /** 只读获取任务关联仓库的分支、文件统计与提交列表。 */
   loadBranch(taskId: string, resourceId: string): Promise<TaskBranchSnapshot>;
   /** 只读读取已关联工作区的 Git 状态，供 CHANGES 悬停卡使用。 */

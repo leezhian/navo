@@ -91,6 +91,7 @@ const api: NavoApi = {
     report: (report) => ipcRenderer.invoke(ipcChannels.diagnosticsReport, report),
   },
   tasks: {
+    setProgress: (id, stage) => ipcRenderer.invoke(ipcChannels.tasksSetProgress, id, stage),
     loadBranch: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.tasksLoadBranch, taskId, resourceId),
     inspectChangeGitStatus: (taskId, resourceId) => ipcRenderer.invoke(ipcChannels.tasksInspectChangeGitStatus, taskId, resourceId),
     load: () => ipcRenderer.invoke(ipcChannels.tasksLoad),

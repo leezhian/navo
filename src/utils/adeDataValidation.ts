@@ -1,5 +1,6 @@
 import type { Task } from "@/domain/tasks";
 import type { IssueItem } from "@/domain/issues";
+import { isTaskProgress } from "../shared/taskProgress";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -11,7 +12,8 @@ function hasItemFields(value: Record<string, unknown>) {
 }
 
 export function isTask(value: unknown): value is Task {
-  return isRecord(value) && hasItemFields(value) && ["TODO", "DONE", "ARCHIVED"].includes(String(value.status));
+  return isRecord(value) && hasItemFields(value) && ["TODO", "DONE", "ARCHIVED"].includes(String(value.status))
+    && (value.progress === undefined || isTaskProgress(value.progress));
 }
 
 export function isIssueItem(value: unknown): value is IssueItem {

@@ -40,6 +40,8 @@ interface TaskState {
   deleteNotes: (id: string, notes: import("@/shared/taskResourceTypes").TaskNoteRemoval[]) => Promise<Task>;
   restoreDeletedNote: (id: string, noteId: string, expectedVersion: number, version?: number) => Promise<Task>;
   rename: (id: string, title: string) => Promise<boolean>;
+  /** 更新开发阶段，保留失败供当前入口显示与重试。 */
+  setProgress: (id: string, stage: import("@/shared/taskProgress").TaskProgressStage | null | "reopen") => Promise<Task>;
   move: (id: string, status: TaskStatus, beforeId: string | null) => Promise<boolean>;
   restore: (id: string) => Promise<boolean>;
   archive: (id: string, confirmation: TaskDeletionConfirmation) => Promise<boolean>;
@@ -132,6 +134,7 @@ export const useTaskStore = create<TaskState>((set, get) => {
       } finally { set({ pending: false }); }
     },
     rename: (id, title) => mutate(() => getTasksApi().rename(id, title)),
+    setProgress: (id, stage) => updateTask(() => getTasksApi().setProgress(id, stage)),
     move: (id, status, beforeId) => mutate(() => getTasksApi().move(id, status, beforeId), moveTask(get().tasks, id, status, beforeId)),
     restore: (id) => mutate(() => getTasksApi().restore(id)),
     archive: (id, confirmation) => mutate(() => getTasksApi().archive(id, confirmation)),

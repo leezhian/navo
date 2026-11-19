@@ -1,4 +1,20 @@
 {
+  "progress": {
+    "archivedReadOnly": "Restore this task before changing its progress.",
+    "title": "Task progress",
+    "automatic": "Automatic",
+    "manual": "Manual",
+    "exploration": "Exploration",
+    "development": "In development",
+    "review": "In review",
+    "done": "Done",
+    "archived": "Archived",
+    "reopen": "Reopen",
+    "change": "Task progress: {{stage}} ({{mode}})",
+    "unavailable": "Some progress information is unavailable. Keeping the last reliable result.",
+    "localChanges": "This task is done, but its workspace still has local changes.",
+    "failed": "Could not update task progress"
+  },
   "changesMenu": {
     "openIn": "Open in",
     "newSession": "New session here",
