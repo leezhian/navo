@@ -24,7 +24,7 @@ export const NATIVE_ACTIVITY_CAPABILITIES: Record<AgentId, NativeActivityCapabil
   },
   claude: {
     phases: ["answering", "idle"], waitingReason: false, reply: true,
-    source: "$CLAUDE_CONFIG_DIR/projects/<cwd>/<id>.jsonl：非 meta、非工具结果的 user 记录开始回合；system turn_duration 结束回合",
+    source: "$CLAUDE_CONFIG_DIR/projects/<cwd>/<id>.jsonl：用户输入开启回合；system turn_duration 给出回复时间；结构化作业标识和完成通知追踪后台工作；assistant usage 的缓存写入档位估计缓存到期",
   },
   antigravity: {
     phases: [], waitingReason: false, reply: false,

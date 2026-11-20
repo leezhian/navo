@@ -12,7 +12,9 @@ const {TaskNoteRepository}=load('src/main-process/services/taskNoteRepository.ts
 const {TaskContentRepository}=load('src/main-process/services/taskContentRepository.ts');
 const {TaskResourceBindings}=load('src/main-process/services/taskResourceBindings.ts');
 const {openAppDatabase}=load('src/main-process/services/appDatabase.ts');
-const {locateNoteComment,toggleNoteChecklist}=load('src/utils/taskNoteAnchors.ts');
+const {locateNoteComment}=load('src/utils/taskNoteAnchors.ts');
+const {noteChecklistMarkers,toggleNoteChecklist}=load('src/utils/taskNoteChecklist.ts');
+const {lastOwnNoteEdit,noteCheckboxChanges}=load('src/utils/taskNoteChanges.ts');
 const {parseTaskLink,taskLink}=load('src/shared/taskLinks.ts');
 const base={id:'task',title:'Task',description:'Initial prompt',date:'2026-01-01T00:00:00.000Z',updatedAt:'2026-01-01T00:00:00.000Z',projectName:'',status:'TODO'};
 async function fixture(t){
@@ -55,7 +57,8 @@ test('评论保存真实引用、幂等、回复过期线程、并发编辑、�
  let note=(await f.current()).notes[0];assert.equal(note.comments.length,1);assert.equal(note.version,1);assert.equal(note.content,f.note.content);
  await assert.rejects(f.notes.comment(base.id,{...input,body:'Different request'}),/TASK_CONTENT_CHANGED/);
  await assert.rejects(f.notes.comment(base.id,{...input,id:randomUUID(),quote:'Not the real source'}),/TASK_CONTENT_CHANGED/);
- const updated=toggleNoteChecklist(f.note.content,3,true);await f.notes.update(base.id,{...f.note,content:updated},1);
+ const [marker]=noteChecklistMarkers(f.note.content);
+ const updated=toggleNoteChecklist(f.note.content,marker.offset,true);await f.notes.update(base.id,{...f.note,content:updated},1);
  await f.notes.comment(base.id,{...input,id:randomUUID(),parentId:id,noteVersion:2,body:'Reply to original quote'},undefined,'agent-session');
  note=(await f.current()).notes[0];assert.equal(note.comments[1].actor,'agent');assert.equal(note.comments[1].quote,'- [ ] check');assert.equal(note.comments[1].noteVersion,1);
  const comment=note.comments[0];await f.notes.changeComment(base.id,id,comment.updatedAt,{resolved:true});
@@ -76,9 +79,18 @@ test('升级旧笔记只保留当前基线和原更新时间，不伪造以前�
 });
 
 test('原文清单更新保留空白，评论唯一位置重定位，笔记链接不接受额外动作',()=>{
- const source='  - [ ] task\r\nlast';assert.equal(toggleNoteChecklist(source,1,true),'  - [x] task\r\nlast');assert.equal(toggleNoteChecklist(source,2,true),source);
+ const source='  -\r\n    [ ] task\r\nlast';const [marker]=noteChecklistMarkers(source);
+ assert.equal(marker.line,2);assert.equal(toggleNoteChecklist(source,marker.offset,true),'  -\r\n    [x] task\r\nlast');assert.equal(toggleNoteChecklist(source,0,true),source);
  const anchor={startLine:1,endLine:1,quote:'target'};assert.deepEqual(locateNoteComment('new\ntarget',anchor),{startLine:2,endLine:2});assert.equal(locateNoteComment('new\ntarget\ntarget',anchor),null);
  assert.deepEqual(parseTaskLink(taskLink('task','task-prompt')),{taskId:'task',noteId:'task-prompt'});assert.equal(parseTaskLink('navo://task/task/note/id?run=1'),null);
+});
+
+test('清单历史只识别 GFM 条目，缩进代码里的方括号仍是正文编辑',()=>{
+ const codeBefore='    - [ ] literal',codeAfter='    - [x] literal';
+ assert.deepEqual(noteCheckboxChanges(codeBefore,codeAfter),[]);
+ const versions=[{version:2,actor:'user',kind:'edit',title:'Note',content:codeAfter},{version:1,actor:'user',kind:'create',title:'Note',content:codeBefore}];
+ assert.equal(lastOwnNoteEdit(versions)?.version,2);
+ assert.deepEqual(noteCheckboxChanges('- > - [ ] nested','- > - [x] nested'),[{line:1,checked:true}]);
 });
 
 test('另存为使用系统确认目标，保留完整 Markdown；取消不写文件',async t=>{

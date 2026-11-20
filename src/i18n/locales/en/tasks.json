@@ -273,6 +273,9 @@
     "failedDetail": "Check that the working directory, remote URL, or selected application is still available."
   },
   "commands": {
+    "pinDefault": "Set \"{{name}}\" as default",
+    "unpinDefault": "Clear default for \"{{name}}\"",
+    "setDefaultFailed": "Could not save the default command. Try again.",
     "title": "Run a command",
     "choose": "Choose command",
     "empty": "No command yet",
@@ -320,6 +323,9 @@
       "link": "Link"
     },
     "history": {
+      "sinceOwnEdit": "Since my last edit",
+      "checked": "Checked",
+      "unchecked": "Unchecked",
       "title": "History and changes",
       "text": "Text",
       "diff": "Diff",
@@ -503,6 +509,14 @@
     }
   },
   "runtime": {
+    "terminalExited": "Process exited (code {{code}})",
+    "runAgain": "Run again",
+    "closeTerminalTitle": "Close this running terminal?",
+    "closeTerminalProgram": "{{program}} is still running. Closing the terminal will stop it.",
+    "closeTerminalUnknown": "There may still be programs running in this terminal. Closing the terminal will stop them.",
+    "confirmCloseTerminal": "Close terminal",
+    "forceCloseTerminal": "Force close",
+    "closeTerminalTimedOut": "The program did not exit. You can force close the terminal.",
     "allWorktrees": "All worktrees and folders",
     "allWorktreesDescription": "Runs in the task folder with context for all linked directories",
     "unknownWorkspace": "Working directory not determined",
@@ -574,6 +588,20 @@
       "waitingPermissionWithReason": "Waiting for permission ({{reason}})"
     },
     "hover": {
+      "promptCache": "Prompt cache",
+      "cacheExpired": "May have expired",
+      "cachePartlyExpired_one": "May be partly expired, about {{count}} minute remaining",
+      "cachePartlyExpired_other": "May be partly expired, about {{count}} minutes remaining",
+      "cacheExpiresIn_one": "Estimated to expire in {{count}} minute",
+      "cacheExpiresIn_other": "Estimated to expire in {{count}} minutes",
+      "cacheExpiresBetween": "Estimated to expire in {{min}}–{{max}} minutes",
+      "backgroundWork_one": "Background work ({{count}})",
+      "backgroundWork_other": "Background work ({{count}})",
+      "unnamedWork": "Background job",
+      "moreWork_one": "{{count}} more job",
+      "moreWork_other": "{{count}} more jobs",
+      "sourceSession": "Source session",
+      "openSourceSession": "Open source session",
       "lastActive": "Last active",
       "lastReply": "Last reply",
       "lastPrompt": "Last prompt",

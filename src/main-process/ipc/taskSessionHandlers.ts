@@ -95,6 +95,8 @@ export function registerTaskSessionHandlers(tasks: TaskService) {
   ipcMain.handle(ipcChannels.taskSessionsRefreshTitles, (event, taskId: string) => { owner(event); return service.refreshTitles(taskId); });
   ipcMain.handle(ipcChannels.taskSessionsContextReminder, (event, id: string) => service.contextReminder(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsStart, (event, input: StartTaskSessionInput) => service.start(input, owner(event)));
+  ipcMain.handle(ipcChannels.taskSessionsCloseTerminal, (event, id: string, terminalId: string, mode: "inspect" | "confirm" | "force") => service.closeTerminal(id, terminalId, mode, owner(event)));
+  ipcMain.handle(ipcChannels.taskSessionsRerunCommand, (event, id: string, terminalId: string) => service.rerunCommand(id, terminalId, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsStop, (event, id: string) => service.stop(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsArchive, (event, id: string) => service.archive(id, owner(event)));
   ipcMain.handle(ipcChannels.taskSessionsRestore, (event, id: string) => service.restore(id, owner(event)));

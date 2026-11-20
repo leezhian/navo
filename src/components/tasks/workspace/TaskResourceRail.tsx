@@ -131,6 +131,9 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
   const agents = sessions.filter((session) => session.kind === "agent" && !session.archivedAt);
   const archived = sessions.filter((session) => session.kind === "agent" && session.archivedAt);
   const terminals = sessions.filter((session) => session.kind === "shell");
+  const sourceSession = (session: TaskSession) => session.sourceSessionId
+    ? sessions.find((item) => item.kind === "agent" && item.taskId === session.taskId && item.id === session.sourceSessionId)
+    : undefined;
   const repos = task.resources?.filter((resource) => resource.mode !== "folder") ?? [];
   const folders = task.resources?.filter((resource) => resource.mode === "folder") ?? [];
   const prs = task.links?.filter((link) => link.group === "PR") ?? [];
@@ -156,7 +159,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
     <TaskInitializationPanel task={task} />
     <div className="task-context-toolbar"><Button variant="outline" size="sm" className="h-7 w-full gap-1.5 px-2 text-xs" disabled={!onAddResource} onClick={() => onAddResource?.("repositories", true)}><Plus className="size-3.5" />{t("tasks:actions.addResource")}</Button></div>
     <ResourceGroup title={t("tasks:runtime.sessions")} count={agents.length + archived.length} action={newSessionControl}>
-      <ArchivedSessions sessions={archived} task={task} onRestored={onRestored} onOpen={onSelect} agentChoices={agentChoices} onNewSessionFrom={onNewSessionFrom} />
+      <ArchivedSessions sessions={archived} task={task} onRestored={onRestored} onOpen={onSelect} sourceSession={sourceSession} agentChoices={agentChoices} onNewSessionFrom={onNewSessionFrom} />
       {agents.map((session) => {
         const workspaceLabel = sessionWorkspaceLabel(session, task.resources ?? [], t("tasks:runtime.allWorktrees"), t("tasks:runtime.unknownWorkspace"));
         const workspace = session.workspace;
@@ -164,9 +167,11 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
         const hasUnread = unread(session);
         const activity = sessionActivityText(session);
         const statusLabel = "reason" in activity ? t(activity.key, { reason: activity.reason }) : t(activity.key);
-        return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={archivePending} onOpen={() => onSelect(session, true)} onArchive={() => onArchive(session.id)} onNewSession={onNewSessionFrom}>
+        const source = sourceSession(session);
+        const onOpenSource = source ? () => onSelect(source, true) : undefined;
+        return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={archivePending} onOpen={() => onSelect(session, true)} onOpenSource={onOpenSource} onArchive={() => onArchive(session.id)} onNewSession={onNewSessionFrom}>
         <div className="task-context-session" data-active={session.id === activeId} data-unread={hasUnread || undefined}>
-        <SessionHoverDetails session={session} resources={task.resources ?? []}>
+        <SessionHoverDetails session={session} resources={task.resources ?? []} source={source} onOpenSource={onOpenSource}>
         <button className="task-context-session-select" aria-pressed={session.id === activeId} onClick={() => onSelect(session)}>
           <ContextItemIcon><AgentProviderIcon agentId={session.agent?.agentId} /></ContextItemIcon>
           <span className="min-w-0 flex-1"><span className="flex min-w-0 w-full items-center gap-1"><span className="block min-w-0 truncate">{session.title || t("tasks:runtime.untitledSession")}</span>{hasUnread && <span className="task-context-session-unread" aria-label={t("tasks:runtime.status.unread")} />}</span>
@@ -191,7 +196,7 @@ export function TaskResourceRail({ task, sessions, activeId, activeTerminalId, a
         </button>
         </ChangeHoverDetails>
         <div className="task-context-change-actions"><WorkspaceOpenActions taskId={task.id} resource={resource} onError={onWorkspaceOpenError} />
-          <WorkspaceCommandActions resource={resource} sessions={terminals} disabled={archivePending || task.status === "ARCHIVED" || !onWorkspaceOpenError} onRun={onRunCommand} />
+          <WorkspaceCommandActions taskId={task.id} resource={resource} sessions={terminals} disabled={archivePending || task.status === "ARCHIVED" || !onWorkspaceOpenError} onRun={onRunCommand} />
         </div>
       </div></TaskChangeMenu>)}
     </ResourceGroup>

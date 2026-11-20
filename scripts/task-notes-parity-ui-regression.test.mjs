@@ -22,11 +22,41 @@ async function checks(){
  action('复制笔记').click();await wait(()=>window.copied.length===1,'Copy missing');if(window.copied[0]!==window.current().notes[0].content)throw Error('Copy must include raw body only');
  action('另存为…').click();await wait(()=>window.exports.length===1,'Save as missing');
  await menu();menuItem('复制笔记链接').click();await wait(()=>window.copied.length===2,'Note link missing');if(window.copied[1]!==`navo://task/task/note/${window.current().notes[0].id}`)throw Error('Wrong note link');
- const before=window.current().notes[0].version;pane().querySelector('input[type="checkbox"]').click();await wait(()=>window.current().notes[0].version===before+1&&!window.pending(),'Checklist not saved');
+ const before=window.current().notes[0].version;
+ const checkbox=()=>pane().querySelector('input[type="checkbox"]');
+ const heading=pane().querySelector('h1'),table=pane().querySelector('table'),commentButton=button('评论选中文本');
+ const headingTop=heading.getBoundingClientRect().top;
+ window.holdNextNoteUpdate();checkbox().focus();checkbox().click();
+ await wait(()=>window.pending(),'Checklist request did not start');
+ await new Promise(requestAnimationFrame);
+ if(button('评论选中文本')!==commentButton||heading.getBoundingClientRect().top!==headingTop)throw Error('Checklist save shifted the note by removing the comment toolbar');
+ if(pane().querySelector('h1')!==heading||pane().querySelector('table')!==table)throw Error('Checklist save remounted unrelated Markdown');
+ if(!checkbox().checked||document.activeElement!==checkbox())throw Error('Checklist must show the new value and keep focus before the save completes');
+ if(checkbox().getAttribute('aria-disabled')!=='true'||checkbox().tabIndex!==-1)throw Error('Checklist remains actionable while saving');
+ checkbox().click();if(!checkbox().checked)throw Error('A second click changed the pending checklist');
+ window.finishNoteUpdate();
+ await wait(()=>window.current().notes[0].version===before+1&&!window.pending(),'Checklist not saved');
+ if(!checkbox().checked||pane().querySelector('h1')!==heading)throw Error('Saving the checklist flashed the previous value or replaced the heading');
  if(!window.current().notes[0].content.includes('- [x] item'))throw Error('Checklist modified wrong source line');
+ window.holdNextNoteUpdate();checkbox().click();
+ await wait(()=>window.pending()&&!checkbox().checked,'Undoing the check did not update the pending preview');
+ window.finishNoteUpdate(false);
+ await wait(()=>!window.pending()&&checkbox().checked&&pane().querySelector('[role="alert"]'),'Failed checklist save did not restore the stored value and show its error');
+ action('历史版本与变更').click();await wait(()=>button('自我上次编辑以来')?.getAttribute('aria-pressed')==='true','Checklist toggle must keep the last body edit as the preset baseline');
+ await wait(()=>pane().textContent.includes('已勾选'),'Diff must mark the checklist change');
+ button('后退').click();await wait(()=>pane().querySelector('input[type="checkbox"]')?.checked,'Leaving history lost the current checklist');
  pane().querySelector('header button[title="Original note"]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));await wait(()=>pane().querySelector('header input'),'Inline rename absent');
  await fill(pane().querySelector('header input'),'Renamed note');action('确认').click();await wait(()=>window.current().notes[0].title==='Renamed note'&&!window.pending()&&!pane().querySelector('header input'),'Rename failed');
- action('编辑笔记').click();await wait(input,'Editor missing');await fill(input(),'# Updated\n\n**new body**');button('预览').click();await wait(()=>pane().querySelector('strong')?.textContent==='new body','Editor preview missing');button('编辑').click();await wait(input,'Source toggle failed');
+ action('编辑笔记').click();await wait(input,'Editor missing');await fill(input(),'# Updated\n\n**new body**\n\n-\n  [ ] Draft item');button('预览').click();await wait(()=>pane().querySelector('strong')?.textContent==='new body','Editor preview missing');
+ const draftVersion=window.current().notes[0].version;
+ const draftCheckbox=()=>pane().querySelector('[data-note-editor] input[type="checkbox"]');
+ if(draftCheckbox()?.disabled)throw Error('Editor preview checklist cannot be clicked');
+ draftCheckbox().focus();draftCheckbox().click();await wait(()=>draftCheckbox()?.checked,'Editor preview did not update the checklist');
+ if(document.activeElement!==draftCheckbox())throw Error('Editor preview lost checkbox focus immediately after the toggle');
+ const target=draftCheckbox().closest('label');
+ if(!target||target.getBoundingClientRect().width<24||target.getBoundingClientRect().height<24)throw Error('Checklist target is too small to click reliably');
+ if(window.current().notes[0].version!==draftVersion)throw Error('Checklist in editor preview saved an unsubmitted draft');
+ button('编辑').click();await wait(()=>input()?.value.includes('-\n  [x] Draft item'),'Edited checklist not reflected in Markdown source');
  input().dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true,cancelable:true}));await wait(()=>!input()&&!window.pending()&&window.current().notes[0].content.includes('Updated'),'Save shortcut failed');
  action('历史版本与变更').click();await wait(()=>pane().querySelectorAll('select').length===2,'History controls missing');
  const to=[...pane().querySelectorAll('label')].find(node=>node.textContent.includes('查看版本')).querySelector('select');to.value='1';to.dispatchEvent(new Event('change',{bubbles:true}));
@@ -66,8 +96,10 @@ test('Notes 完整交互：Markdown、清单、复制、独立标题、历史、
  const update=(patch,kind='edit',restoredFrom)=>{task.notes[0]={...task.notes[0],...patch,version:task.notes[0].version+1,updatedAt:new Date().toISOString(),lastEditor:'user'};history.push({noteId:task.notes[0].id,...task.notes[0],actor:'user',kind,createdAt:new Date().toISOString(),restoredFrom});return emit();};
  window.pending=()=>useTaskStore.getState().pending;window.current=()=>task;window.remoteEdit=(content,title)=>update({content,title});window.archive=value=>{task.status=value?'ARCHIVED':'TODO';emit();};
  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>window.copied.push(text)}});
+ let nextNoteUpdate;
+ window.holdNextNoteUpdate=()=>{nextNoteUpdate=new Promise((resolve,reject)=>window.finishNoteUpdate=(success=true)=>success?resolve():reject(Error('TASK_CONTENT_CHANGED')));};
  window.navo={settings:{},tasks:{load:async()=>({tasks:[structuredClone(task)],recoveryWarnings:[]}),exportNote:async(...args)=>{window.exports.push(args);return true;},
- updateNote:async(_id,note,expected)=>{if(task.notes[0].version!==expected)throw Error('TASK_CONTENT_CHANGED');return update(note);},
+ updateNote:async(_id,note,expected)=>{const gate=nextNoteUpdate;nextNoteUpdate=undefined;if(gate)await gate;if(task.notes[0].version!==expected)throw Error('TASK_CONTENT_CHANGED');return update(note);},
  noteHistory:async()=>structuredClone(history).reverse(),restoreNote:async(_id,_note,version,expected)=>{if(expected!==task.notes[0].version)throw Error('TASK_CONTENT_CHANGED');const selected=history.find(item=>item.version===version);return update({title:selected.title,content:selected.content},'restore',version);},
  commentNote:async(_id,input)=>{if(task.notes[0].version!==input.noteVersion)throw Error('TASK_CONTENT_CHANGED');task.notes[0].comments.push({...input,actor:'user',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});return emit();},
  changeNoteComment:async(_id,id,expected,patch)=>{const comment=task.notes[0].comments.find(item=>item.id===id);if(comment.updatedAt!==expected)throw Error('TASK_CONTENT_CHANGED');Object.assign(comment,patch,{resolvedAt:patch.resolved===undefined?comment.resolvedAt:patch.resolved?new Date().toISOString():undefined,updatedAt:new Date(Date.now()+1).toISOString()});return emit();},

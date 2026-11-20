@@ -16,11 +16,17 @@ import { TaskNoteMarkdown, type NoteLineSelection } from "./TaskNoteMarkdown";
 import { TaskNoteTitle } from "./TaskNoteTitle";
 import { TaskNoteProvenance } from "./TaskNoteProvenance";
 import { TaskNoteComments, type NoteCommentDraft } from "./TaskNoteComments";
-import { toggleNoteChecklist } from "@/utils/taskNoteAnchors";
 import { useTaskNoteDraftStore, taskNoteDraftKey } from "@/stores/taskNoteDraftStore";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const TaskNoteHistory = lazy(() => import("./TaskNoteHistory"));
+
+interface PendingChecklistEdit {
+  taskId: string;
+  noteId: string;
+  version: number;
+  content: string;
+}
 
 interface TaskNotePaneProps {
   /** 正文与笔记的位置按所属任务隔离。 */
@@ -45,26 +51,34 @@ export function TaskNotePane({ taskId, editor, onClose, onSession, renameRequest
   const [historyNoteId, setHistoryNoteId] = useState<string>();
   const [actionError, setActionError] = useState<unknown>(null);
   const [localRename, setLocalRename] = useState(false);
+  const [checklistEdit, setChecklistEdit] = useState<PendingChecklistEdit | null>(null);
   const commentDraft = useTaskNoteDraftStore((state) => note ? state.commentDrafts[taskNoteDraftKey(taskId, note.id)] ?? null : null);
   const { copy, copied, copyFailed } = useTaskNoteCopy(note && { ...note, content: draft?.content ?? note.content });
   if (!note) return null;
   const saveCommentDraft = (next: NoteCommentDraft | null) => next ? useTaskNoteDraftStore.getState().writeComment(taskId, { ...next, noteId: note.id }) : useTaskNoteDraftStore.getState().clearComment(taskId, note.id);
   const showHistory = historyNoteId === note.id;
   const title = note.title || t("tasks:resources.untitledNote");
+  const activeChecklistEdit = checklistEdit?.taskId === taskId && checklistEdit.noteId === note.id ? checklistEdit : null;
+  const previewContent = activeChecklistEdit?.version === note.version ? activeChecklistEdit.content : note.content;
+  const canToggleChecklist = !readOnly && !editor.hasDraft;
   async function run(action: () => Promise<unknown>) {
     setActionError(null);
     try { await action(); } catch (failure) { setActionError(failure); }
   }
-  async function checklist(line: number, checked: boolean) {
-    if (!note || readOnly || pending || editor.hasDraft) return;
-    const content = toggleNoteChecklist(note.content, line, checked);
+  async function checklist(content: string) {
+    const store = useTaskStore.getState();
+    if (!note || !canToggleChecklist || activeChecklistEdit || store.pending) return;
     if (content === note.content) return;
+    // 先更新当前视图。成功后用存储返回的新版本，失败时回到仍在存储里的正文。
+    const edit = { taskId, noteId: note.id, version: note.version, content };
+    setChecklistEdit(edit);
     await run(() => editor.isPrompt
-      ? useTaskStore.getState().updatePrompt(taskId, content, note.content, note.version)
-      : useTaskStore.getState().updateNote(taskId, { id: note.id, title: note.title, content }, note.version));
+      ? store.updatePrompt(taskId, content, note.content, note.version)
+      : store.updateNote(taskId, { id: note.id, title: note.title, content }, note.version));
+    setChecklistEdit((current) => current === edit ? null : current);
   }
   function comment(selection: NoteLineSelection) {
-    if (!note || commentDraft) return;
+    if (!note || commentDraft || useTaskStore.getState().pending) return;
     saveCommentDraft({ ...selection, id: crypto.randomUUID(), noteVersion: note.version, body: "" });
     requestAnimationFrame(() => paneRef.current?.querySelector("[data-note-comment-draft] textarea")?.scrollIntoView({ block: "nearest" }));
   }
@@ -96,7 +110,7 @@ export function TaskNotePane({ taskId, editor, onClose, onSession, renameRequest
     {editor.draftStorageFailed && <p role="alert" className="px-3 pt-2 text-xs text-destructive">{t("tasks:notes.draftStorageFailed")}</p>}
     {(actionError !== null || editor.error !== null) && <p role="alert" className="px-3 pt-2 text-xs text-destructive">{getTaskError(actionError ?? editor.error)}</p>}
     {showHistory ? <Suspense fallback={<p className="p-3 text-xs">{t("common:status.loading")}</p>}><TaskNoteHistory editor={editor} onBack={() => setHistoryNoteId(undefined)} /></Suspense> : draft ? <div data-note-editor className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <TaskMarkdownEditor textareaRef={editorRef} value={draft.content} disabled={busy || readOnly} onChange={(content) => editor.change({ content })} />
+      <TaskMarkdownEditor textareaRef={editorRef} value={draft.content} disabled={busy || pending || readOnly} onChange={(content) => editor.change({ content })} />
       <p className="text-[11px] text-muted-foreground">{t("tasks:notes.draftHint")}</p>
       <footer className="flex shrink-0 justify-end gap-2">
         <Button variant="ghost" size="sm" disabled={busy} onClick={editor.cancel}>{t("common:actions.cancel")}</Button>
@@ -105,7 +119,8 @@ export function TaskNotePane({ taskId, editor, onClose, onSession, renameRequest
     </div> : <div ref={previewRef} className="min-h-0 flex-1 overflow-auto p-4">
       <TaskNoteProvenance note={note} onSession={onSession} />
       {editor.hasDraft && <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground"><span>{t("tasks:notes.unsavedDraft")}</span><Button size="sm" variant="ghost" disabled={readOnly || pending} onClick={editor.edit}>{t("tasks:notes.resumeDraft")}</Button></div>}
-      <TaskNoteMarkdown content={note.content} onChecklist={readOnly || pending || editor.hasDraft ? undefined : (line, checked) => void checklist(line, checked)} onComment={readOnly || pending ? undefined : comment} />
+      <TaskNoteMarkdown content={previewContent} onChecklist={canToggleChecklist ? checklist : undefined} checklistPending={pending || Boolean(activeChecklistEdit)}
+        onComment={readOnly ? undefined : comment} commentDisabled={pending} />
       <TaskNoteComments key={note.id} taskId={taskId} note={note} readOnly={readOnly} draft={commentDraft} onDraft={saveCommentDraft} />
     </div>}
   </section>;

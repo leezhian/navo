@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Archive, ArchiveRestore, Link, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowUpRight, Link, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AgentId } from "@/shared/agentTypes";
 import type { TaskSession } from "@/shared/taskSessionTypes";
@@ -24,6 +24,8 @@ interface TaskSessionMenuProps {
   pending: boolean;
   /** 活动会话始终展示，再次打开不会收起面板。 */
   onOpen?: () => void;
+  /** 使用悬停卡相同的来源导航入口。 */
+  onOpenSource?: () => void;
   onArchive?: () => void;
   /** 归档会话复用条目的恢复行为；任务已归档时不传，禁用恢复。 */
   onRestore?: () => void;
@@ -31,7 +33,7 @@ interface TaskSessionMenuProps {
   onNewSession?: (agentId: AgentId, sourceSessionId: string) => void;
 }
 
-export function TaskSessionMenu({ session, children, agentChoices, canCreate, pending, onOpen, onArchive, onRestore, onNewSession }: TaskSessionMenuProps) {
+export function TaskSessionMenu({ session, children, agentChoices, canCreate, pending, onOpen, onOpenSource, onArchive, onRestore, onNewSession }: TaskSessionMenuProps) {
   const { t } = useTranslation(["tasks", "common", "taskCreate"]);
   const [action, setAction] = useState<SessionDialogAction | null>(null);
   const selectedAction = useRef(false);
@@ -60,6 +62,7 @@ export function TaskSessionMenu({ session, children, agentChoices, canCreate, pe
             </ContextMenuItem>) : <ContextMenuItem disabled>{t("taskCreate:agent.empty")}</ContextMenuItem>}
           </ContextMenuSubContent></ContextMenuPortal>
         </ContextMenuSub>
+        {onOpenSource && <ContextMenuItem onSelect={() => { selectedAction.current = true; onOpenSource(); }}><ArrowUpRight />{t("tasks:runtime.hover.openSourceSession")}</ContextMenuItem>}
         <ContextMenuItem onSelect={() => { selectedAction.current = true; void copySessionLink(session.taskId, session.id); }}><Link />{t("tasks:runtime.copySessionLink")}</ContextMenuItem>
         <ContextMenuSeparator />
         {!archived && <ContextMenuItem disabled={pending || !onArchive} onSelect={() => { selectedAction.current = true; onArchive?.(); }}><Archive />{t("tasks:runtime.archiveSession")}</ContextMenuItem>}

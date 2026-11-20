@@ -61,6 +61,10 @@ export function registerSettingsHandlers() {
     if (event.senderFrame !== event.sender.mainFrame || !BrowserWindow.fromWebContents(event.sender)) throw new Error("WINDOW_UNAVAILABLE");
     return inspectResourceGit(localPath, forceRefresh === true);
   });
+  ipcMain.handle(ipcChannels.resourcesSetDefaultCommand, (event, id: string, commandId: string | null) => {
+    if (event.senderFrame !== event.sender.mainFrame || !BrowserWindow.fromWebContents(event.sender)) throw new Error("WINDOW_UNAVAILABLE");
+    return service.setDefaultCommand(id, commandId);
+  });
   ipcMain.handle(ipcChannels.resourcesSave, async (_event, params: SaveResourceParams) => {
     const record = await service.save(params);
     return record;

@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import path from "node:path";
 import os from "node:os";
-import { stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import type { WebContents } from "electron";
 import type { Task } from "../../../domain/tasks";
 import { agentNames } from "../../../domain/agents";
 import type { AppSettings } from "../../../domain/types";
 import type { ResourceCommand, ResourceRecord } from "../../../shared/settingsTypes";
 import { resolveTaskCommand, taskCommandArguments } from "./taskCommand";
-import type { StartTaskSessionInput, TaskSession } from "../../../shared/taskSessionTypes";
+import type { StartTaskSessionInput, TaskSession, TaskTerminalCloseResult } from "../../../shared/taskSessionTypes";
 import { defaultAgentSelection, isTaskAgentSelection } from "../../../utils/taskAgentSelection";
 import { resolveSessionWorkspace } from "../../../utils/taskSessionWorkspace";
 import { canAutoResumeSession } from "../../../utils/taskSessionResume";
@@ -16,7 +17,7 @@ import { readLegacySessionWorkspace } from "./legacySessionWorkspace";
 import { sessionFromSource } from "./sessionFromSource";
 import { requireAgentId } from "../agents/agentRepository";
 import type { AgentService } from "../agents/agentService";
-import { createTerminal, destroyTerminal, resolveShell } from "../terminal/terminalService";
+import { createTerminal, destroyTerminal, requestTerminalClose, resolveShell } from "../terminal/terminalService";
 import { SessionRepository } from "./sessionRepository";
 import { prepareTaskContext, taskPrompt } from "./taskContext";
 import { prepareAgentLaunch } from "./agentLaunch";
@@ -36,6 +37,7 @@ import type { StatusLineObservation } from "./statusLinePayload";
 const MAX_SESSIONS = 32;
 const ACTIVITY_FLUSH_DELAY_MS = 1000;
 const RUNTIME_REFRESH_DELAY_MS = 5000;
+const BACKGROUND_WORK_BACKSTOP_MS = 30 * 60_000;
 export class TaskSessionService {
   private sessions: TaskSession[] = [];
   private owners = new Map<string, number>();
@@ -48,6 +50,7 @@ export class TaskSessionService {
   private titleEnvironments = new Map<string, NodeJS.ProcessEnv>();
   private activityTimer: NodeJS.Timeout | null = null;
   private activeSessions = new Set<TaskSession>();
+  private runStartedAt = new Map<string, number>();
   private readonly contextServer: TaskContextServer;
   private readonly contextFiles = new TaskContextFiles();
   /** 保留最后一次已验证快照供停止后查看；重启时清除，凭证仍随每次运行撤销。 */
@@ -165,6 +168,7 @@ export class TaskSessionService {
       session.phase = activity.phase; session.waitingReason = activity.waitingReason; changed = true;
     }
     if (this.applyUsage(session, activity.usage)) changed = true;
+    if (this.applyHoverDetails(session, activity)) changed = true;
     if (this.advanceTurnTimes(session, activity.lastReplyAt, activity.lastPromptAt)) {
       await this.repository.save(session, { preserveUpdateTime: true });
       changed = true;
@@ -176,9 +180,21 @@ export class TaskSessionService {
     if (session.kind !== "agent" || !session.nativeSessionId) return false;
     const activity = await this.readActivity(session, this.titleEnvironments.get(session.id));
     const usageChanged = this.applyUsage(session, activity?.usage);
+    const detailsChanged = activity ? this.applyHoverDetails(session, activity) : false;
     const timesChanged = this.advanceTurnTimes(session, activity?.lastReplyAt, activity?.lastPromptAt);
     if (timesChanged) await this.repository.save(session, { preserveUpdateTime: true });
-    return usageChanged || timesChanged;
+    return usageChanged || detailsChanged || timesChanged;
+  }
+  private applyHoverDetails(session: TaskSession, activity: Pick<TaskSession, "promptCache" | "backgroundWork">) {
+    const cutoff = Math.max(this.runStartedAt.get(session.id) ?? Infinity, Date.now() - BACKGROUND_WORK_BACKSTOP_MS);
+    const work = session.status === "running" ? activity.backgroundWork?.filter((item) => item.startedAt >= cutoff) : undefined;
+    const background = work?.length ? work : undefined;
+    const changed = !isDeepStrictEqual(session.promptCache, activity.promptCache) || !isDeepStrictEqual(session.backgroundWork, background);
+    if (changed) {
+      session.promptCache = activity.promptCache;
+      session.backgroundWork = background;
+    }
+    return changed;
   }
   private applyUsage(session: TaskSession, usage: TaskSession["usage"]) {
     const observed = this.statusLineObservations.get(session.id);
@@ -211,6 +227,7 @@ export class TaskSessionService {
       const activity = await this.readActivity(session, this.titleEnvironments.get(session.id));
       this.advanceTurnTimes(session, activity?.lastReplyAt, activity?.lastPromptAt);
       this.applyUsage(session, activity?.usage);
+      if (activity) this.applyHoverDetails(session, activity);
       if (!session.title || !session.resumable) await this.refreshNativeMetadata(session);
     }
     catch { /* 读取失败保留上次回复时间，不阻断停止流程。 */ }
@@ -226,7 +243,10 @@ export class TaskSessionService {
   }
   list() { return this.serialize(async () => { await this.initialize(); return this.sessions; }); }
   private publish() {
-    for (const session of this.sessions) if (session.status !== "running") { delete session.phase; delete session.waitingReason; }
+    for (const session of this.sessions) if (session.status !== "running") {
+      delete session.phase; delete session.waitingReason; delete session.backgroundWork;
+      this.runStartedAt.delete(session.id);
+    }
     // 启动失败、解除归档等状态变化也可能留下待绑定记录，不依赖某次成功启动来开启检查。
     this.scheduleRuntimeRefresh();
     this.changed(this.sessions); return this.sessions;
@@ -333,6 +353,7 @@ export class TaskSessionService {
       const createdAt = new Date().toISOString();
       const session: TaskSession = { id: randomUUID(), taskId: task.id, kind: input.kind,
         ...(initialization ? { initialization: true } : {}),
+        ...(source ? { sourceSessionId: input.sourceSessionId } : {}),
         title: command?.name ?? (input.kind === "shell" ? `${path.basename(resolveShell())}${number}` : ""),
         ...(command ? { command: { id: command.id, resourceId: input.resourceId as string, name: command.name } } : {}),
         cwd: source?.cwd ?? "", workspace, agent: input.kind === "agent" ? agent : undefined, status: "starting", terminalId: "task-" + randomUUID(),
@@ -350,7 +371,7 @@ export class TaskSessionService {
   private async launch(session: TaskSession, task: Task, owner: WebContents, resume: boolean, resourceId?: string | null, command?: ResourceCommand, finished?: (code: number | null) => void) {
     void writeDiagnosticEvent("session.start.started", { taskId: task.id, operationId: session.id });
     try {
-      this.statusLineObservations.delete(session.id); delete session.usage;
+      this.statusLineObservations.delete(session.id); delete session.usage; delete session.backgroundWork;
       const directoryId = session.workspace?.kind === "resource" ? session.workspace.resourceId : session.workspace?.kind === "all" ? null : resourceId;
       const context = session.cwd ? { cwd: session.cwd, prompt: taskPrompt(task) } : await prepareTaskContext(task, this.settings().tasksDirectory, directoryId);
       if (session.agent) context.prompt += "\nAttachments (reference files):\n" + (await this.attachmentPaths(task)).map((filename) => JSON.stringify(filename)).join("\n");
@@ -376,10 +397,11 @@ export class TaskSessionService {
       if (launch && session.agent?.agentId === "antigravity") session.nativeHistoryRoot = path.join(os.homedir(), ".gemini", "antigravity-cli");
       if (this.closing || owner.isDestroyed()) throw new Error("SESSION_UNAVAILABLE");
       const terminalId = session.terminalId;
+      const startedAt = Date.now();
       createTerminal({ sessionId: terminalId, cwd: session.cwd, cols: 80, rows: 24 }, owner, {
         strictCwd: true,
         command: launch?.command ?? resolveShell(), args: command ? taskCommandArguments(command.script) : launch?.args ?? (process.platform === "win32" ? [] : ["-l"]), env: launch?.env ?? process.env,
-        retainOnExit: Boolean(command),
+        retainOnExit: session.kind === "shell",
         onActivity: () => this.recordActivity(session, terminalId),
         onFinish: () => {
           if (session.terminalId === terminalId) { this.contextServer.revoke(session.id); this.statusLineServer.revoke(session.id); }
@@ -406,13 +428,17 @@ export class TaskSessionService {
             await this.captureFinalReply(session);
             session.status = code === 0 ? "stopped" : "failed";
             session.resumeOnOpen = false;
+            if (session.kind === "shell") session.terminalExitCode = code;
             if (session.command) session.commandExitCode = code;
+            // Shell 已退出时，仍可能有正常关闭期间追踪到的子进程等待强制关闭。
             if (code !== 0) session.error = "SESSION_EXIT_FAILED";
             await this.save(session);
           }).catch(() => undefined);
         },
       });
       session.status = "running";
+      if (command) session.commandRunAt = startedAt;
+      if (session.agent?.agentId === "claude") this.runStartedAt.set(session.id, startedAt);
       session.resumeOnOpen = true;
       this.recordActivity(session, terminalId);
       session.resumable = Boolean(session.nativeSessionId && (resume || session.agent?.agentId === "claude" || session.agent?.agentId === "grok"));
@@ -432,6 +458,53 @@ export class TaskSessionService {
       await this.save(session);
       void writeDiagnosticEvent("session.start.failed", { taskId: task.id, operationId: session.id, error });
     }
+  }
+
+  closeTerminal(id: string, terminalId: string, mode: "inspect" | "confirm" | "force", owner: WebContents): Promise<TaskTerminalCloseResult> {
+    return this.serialize(async () => {
+      await this.initialize();
+      const session = this.owned(id, owner);
+      if (session.kind !== "shell" || session.terminalId !== terminalId || !["inspect", "confirm", "force"].includes(mode)) throw new Error("SESSION_UNAVAILABLE");
+      const result = await requestTerminalClose({ sessionId: terminalId }, owner.id, mode, session.command?.name);
+      if (result.kind !== "closed") {
+        if (result.kind === "needsForce") {
+          session.terminalNeedsForce = true;
+          this.publish();
+        }
+        return result;
+      }
+      this.sessions = this.sessions.filter((item) => item.id !== id);
+      this.owners.delete(id);
+      return { kind: "closed", sessions: this.publish() };
+    });
+  }
+
+  rerunCommand(id: string, terminalId: string, owner: WebContents) {
+    return this.serialize(async () => {
+      await this.initialize();
+      const session = this.owned(id, owner);
+      if (this.closing || owner.isDestroyed() || session.kind !== "shell" || session.initialization || !session.command || session.terminalNeedsForce
+        || session.terminalId !== terminalId || session.commandExitCode === undefined) throw new Error("SESSION_COMMAND_UNAVAILABLE");
+      const { id: commandId, resourceId } = session.command;
+      const task = await this.loadTask(session.taskId);
+      const command = await resolveTaskCommand(task, { taskId: task.id, kind: "shell", resourceId, commandId }, await this.loadResources());
+      const workspace = task.resources?.find((item) => item.resourceId === resourceId);
+      if (!workspace || await realpath(workspace.workingPath) !== await realpath(session.cwd)
+        || this.sessions.some((item) => item.taskId === task.id && item.command?.resourceId === resourceId && item.command.id === commandId && ["starting", "running"].includes(item.status))) {
+        throw new Error("SESSION_COMMAND_UNAVAILABLE");
+      }
+      if (this.sessions.filter((item) => ["starting", "running"].includes(item.status)).length >= MAX_SESSIONS) throw new Error("SESSION_LIMIT");
+      destroyTerminal({ sessionId: terminalId }, owner.id);
+      session.terminalId = "task-" + randomUUID();
+      session.title = command.name;
+      session.command = { id: commandId, resourceId, name: command.name };
+      session.status = "starting";
+      delete session.commandExitCode;
+      delete session.terminalExitCode;
+      delete session.terminalNeedsForce;
+      await this.launch(session, task, owner, false, resourceId, command);
+      return this.publish();
+    });
   }
 
   stop(id: string, owner: WebContents) {
@@ -576,6 +649,7 @@ export class TaskSessionService {
         this.sessions = this.sessions.filter((item) => item.id !== id);
         this.owners.delete(id); this.titleEnvironments.delete(id);
         this.statusLineObservations.delete(id);
+        this.runStartedAt.delete(id);
       } finally { this.publish(); }
       return this.sessions;
     });
@@ -638,6 +712,7 @@ export class TaskSessionService {
         const result = await operation();
         this.sessions = this.sessions.filter((item) => item.taskId !== taskId);
         for (const id of this.statusLineObservations.keys()) if (!this.sessions.some((session) => session.id === id)) this.statusLineObservations.delete(id);
+        for (const id of this.runStartedAt.keys()) if (!this.sessions.some((session) => session.id === id)) this.runStartedAt.delete(id);
         return result;
       } finally { this.publish(); }
     });

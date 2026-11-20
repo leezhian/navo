@@ -4,11 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import type { SessionUsage, TaskSession, TaskSessionPhase } from "../../../shared/taskSessionTypes";
 import { NATIVE_ACTIVITY_CAPABILITIES } from "../../../shared/taskSessionActivity";
+import { claudeSessionDetails, claudeTaskNotifications } from "./claudeSessionDetails";
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const MAX_TAIL_BYTES = 512 * 1024;
 
-export interface NativeSessionActivity {
+export interface NativeSessionActivity extends Pick<TaskSession, "promptCache" | "backgroundWork"> {
   /** 仅来自 CLI 写入的结构化事件；没有可确认的回合边界时为空。 */
   phase?: TaskSessionPhase;
   /** 只取事件自带的工具名，不拼接参数或终端文本。 */
@@ -130,13 +131,14 @@ function codexActivity(records: Record<string, unknown>[]): NativeSessionActivit
 
 /** Claude projects/*.jsonl：真实用户输入开启回合，system turn_duration 结束回合；工具结果不算新回合。 */
 function claudeActivity(records: Record<string, unknown>[], sessionId: string): NativeSessionActivity {
-  const result: NativeSessionActivity = {};
+  const result: NativeSessionActivity = claudeSessionDetails(records, sessionId);
   for (const record of records) {
     if (record.sessionId !== sessionId || record.isSidechain === true) continue;
     if (record.type === "user" && record.isMeta !== true) {
-      const content = (record.message as Record<string, unknown> | undefined)?.content;
+      const message = record.message as Record<string, unknown> | undefined;
+      const content = message?.content;
       const toolResult = Array.isArray(content) && content.length > 0 && content.every((item) => (item as Record<string, unknown>)?.type === "tool_result");
-      if (!toolResult) {
+      if (!toolResult && !claudeTaskNotifications(record, message).length) {
         result.phase = "answering";
         if (isDate(record.timestamp)) result.lastPromptAt = record.timestamp;
       }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { FolderOpen, LoaderCircle, Play, Settings2, Square, Terminal } from "lucide-react";
+import { FolderOpen, Settings2, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/tasks";
 import { agentNames } from "@/domain/agents";
@@ -20,6 +20,7 @@ import type { IssueItem } from "@/domain/issues";
 import { WorkspaceTargetIcon } from "./WorkspaceTargetIcon";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { TaskWorktreeDeleteDialog } from "./TaskWorktreeDeleteDialog";
+import { WorkspaceCommandMenuItem } from "./WorkspaceCommandMenuItem";
 
 interface TaskChangeMenuProps {
   /** 操作仅针对当前任务已绑定的工作区。 */
@@ -47,7 +48,7 @@ interface TaskChangeMenuProps {
 export function TaskChangeMenu({ task, resource, sessions, children, agentChoices, pending, onOpen, onRunCommand, onNewSession, onNewTerminal, onOpenError, onOpenPullRequest, variant = "repository" }: TaskChangeMenuProps) {
   const { t } = useTranslation(["tasks", "common", "taskCreate", "issues"]);
   const opening = useWorkspaceOpenActions(task.id, resource, onOpenError);
-  const commands = useWorkspaceCommands(resource, sessions, onRunCommand);
+  const commands = useWorkspaceCommands(task.id, resource, sessions, onRunCommand);
   const repositoriesDirectory = useSettingsStore((state) => state.settings.repositoriesDirectory);
   const [managing, setManaging] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -84,14 +85,14 @@ export function TaskChangeMenu({ task, resource, sessions, children, agentChoice
     <ContextMenuItem disabled={disabled || !onNewTerminal} onSelect={() => onNewTerminal?.(resource.resourceId)}>{t("tasks:changesMenu.newTerminal")}</ContextMenuItem>
     {variant === "repository" && <ContextMenuSub><ContextMenuSubTrigger className="data-disabled:pointer-events-none data-disabled:opacity-50" disabled={disabled || !onOpenError}>{t("tasks:changesMenu.runCommand")}</ContextMenuSubTrigger><ContextMenuPortal><ContextMenuSubContent className="w-48 [&_svg]:size-3.5!">
       {!commands.menuCommands.length && <ContextMenuItem disabled>{t("tasks:commands.empty")}</ContextMenuItem>}
-      {commands.menuCommands.map((command) => {
-        const active = commands.running.find((session) => session.command?.id === command.id);
-        return <ContextMenuItem key={command.id} disabled={disabled} title={t(active ? "tasks:commands.stop" : "tasks:commands.run", { name: command.name })} onSelect={() => commands.select(command.id)}>
-          {active?.status === "starting" ? <LoaderCircle className="animate-spin" /> : active ? <Square /> : <Play />}<span className="truncate">{command.name}</span>
-        </ContextMenuItem>;
-      })}
+      {commands.menuCommands.map(({ id, name, activeStatus, pinned, canPin }) => (
+        <WorkspaceCommandMenuItem key={id} Item={ContextMenuItem} name={name} activeStatus={activeStatus} disabled={disabled}
+          pinned={pinned} savingDefault={commands.savingDefault} onSelectCommand={() => commands.select(id)}
+          onToggleDefault={canPin ? () => void commands.pin(pinned ? null : id) : undefined} />
+      ))}
       {commands.error !== null && <ContextMenuItem onSelect={() => void useResourceStore.getState().refresh()}>{t("common:actions.retry")}</ContextMenuItem>}
       <ContextMenuSeparator />
+      {commands.defaultFailed && <p role="alert" className="px-2 py-1 text-xs text-destructive">{t("tasks:commands.setDefaultFailed")}</p>}
       <ContextMenuItem disabled={!commands.repository || disabled} onSelect={() => setManaging(true)}><Settings2 />{t("tasks:commands.manage")}</ContextMenuItem>
     </ContextMenuSubContent></ContextMenuPortal></ContextMenuSub>}
     <ContextMenuSeparator />

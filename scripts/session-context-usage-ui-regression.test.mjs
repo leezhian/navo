@@ -27,6 +27,13 @@ async function checks() {
   await wait(() => text().includes('上下文占用 0%'), 'A confirmed zero occupancy must remain visible');
   window.setUsage({ contextTokens: 300000, contextWindow: 200000 });
   await wait(() => !text().includes('上下文占用'), 'Invalid usage must hide the context usage row');
+  window.showSource();
+  await wait(() => document.querySelector('#session').dataset.state === 'closed', 'Source hover trigger did not mount');
+  document.querySelector('#session').dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }));
+  const source = () => [...document.querySelectorAll('button')].find((button) => button.textContent === 'Previous session');
+  await wait(source, 'Source navigation is missing');
+  if (!document.body.textContent.includes('提示词缓存') || !document.body.textContent.includes('Run checks')) throw Error('Verified cache and background work missing');
+  source().click();await wait(() => window.openedSource === true, 'Source hover link did not navigate');
 }
 
 test('会话悬停仅在上下文占用可靠时显示整行，保留真实零值', { timeout: 30000 }, async () => {
@@ -38,7 +45,7 @@ test('会话悬停仅在上下文占用可靠时显示整行，保留真实零�
       import React from 'react';import {createRoot} from 'react-dom/client';
       import i18n from '/src/i18n/index.ts';import {SessionHoverDetails} from '/src/components/tasks/workspace/SessionHoverDetails.tsx';import {TooltipProvider} from '/src/components/ui/tooltip.tsx';
       await i18n.changeLanguage('zh-CN');
-      function Fixture(){const [usage,setUsage]=React.useState({inputTokens:40577,outputTokens:414,cachedTokens:21120}),[agentId,setAgent]=React.useState('grok');window.setUsage=(next,agent)=>{setUsage(next);if(agent)setAgent(agent);};return React.createElement(TooltipProvider,{delayDuration:0},React.createElement(SessionHoverDetails,{session:{id:'fixture',kind:'agent',title:'Fixture',status:'stopped',cwd:'/fixture',agent:{agentId,modelId:'model',modelName:'Model',modeId:'default',modeName:'Default',effort:null},usage},resources:[]},React.createElement('button',{id:'session'},'Session')));}
+      function Fixture(){const [usage,setUsage]=React.useState({inputTokens:40577,outputTokens:414,cachedTokens:21120}),[agentId,setAgent]=React.useState('grok'),[withSource,setWithSource]=React.useState(false);window.setUsage=(next,agent)=>{setUsage(next);if(agent)setAgent(agent);};window.showSource=()=>setWithSource(true);const sourceProps=withSource?{source:{id:'earlier',title:'Previous session',archivedAt:'2026-11-01'},onOpenSource:()=>window.openedSource=true}:{};const observed=withSource?{status:'running',promptCache:{expiresAt:Date.now()+60_000},backgroundWork:[{id:'job',title:'Run checks'}]}:{status:'stopped'};return React.createElement(TooltipProvider,{delayDuration:0},React.createElement(SessionHoverDetails,{session:{id:'fixture',kind:'agent',title:'Fixture',cwd:'/fixture',agent:{agentId,modelId:'model',modelName:'Model',modeId:'default',modeName:'Default',effort:null},usage,...observed},resources:[],...sourceProps},React.createElement('button',{id:'session'},'Session')));}
       createRoot(document.getElementById('root')).render(React.createElement(Fixture));
     </script>`));
   });

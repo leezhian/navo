@@ -12,6 +12,7 @@ export const resourceApi = {
   chooseRepositoriesFolder: () => api().chooseRepositoriesFolder(),
   detectCommands: (localPath: string) => api().detectCommands(localPath),
   inspectGit: (localPath: string, forceRefresh = false) => api().inspectGit(localPath, forceRefresh),
+  setDefaultCommand: (id: string, commandId: string | null) => api().setDefaultCommand(id, commandId),
   save: (params: SaveResourceParams) => api().save(params),
   addFolder: (localPath: string) => api().save({ kind: "folder", name: getFolderName(localPath), localPath }),
   async chooseAndAddFolder(): Promise<ResourceRecord | null> {

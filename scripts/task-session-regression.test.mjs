@@ -116,6 +116,7 @@ test("从会话新建沿用实际目录，使用新 Agent 默认配置与最新�
   await runtime.service.start({ taskId: task.id, kind: "agent", sourceSessionId: source.id, agentId: "grok" }, runtime.owner);
   const created = (await runtime.service.list())[1];
   assert.equal(created.cwd, source.cwd); assert.deepEqual(created.workspace, source.workspace);
+  assert.equal(created.sourceSessionId, source.id); assert.equal(runtime.saved.get(created.id).sourceSessionId, source.id);
   assert.notEqual(created.id, source.id); assert.notEqual(created.terminalId, source.terminalId); assert.notEqual(created.nativeSessionId, source.nativeSessionId);
   assert.equal(created.agent.agentId, "grok"); assert.equal(created.agent.modelId, "default-model"); assert.equal(created.agent.effort, "low");
   assert.ok(options.prompts[1].includes("Updated task prompt")); assert.ok(options.prompts[1].includes("Current context"));
@@ -128,6 +129,7 @@ test("从会话新建沿用实际目录，使用新 Agent 默认配置与最新�
   await runtime.service.start({ taskId: task.id, kind: "agent", sourceSessionId: source.id, agentId: "grok" }, runtime.owner);
   const fromArchived = (await runtime.service.list())[4];
   assert.equal(fromArchived.cwd, source.cwd); assert.deepEqual(fromArchived.workspace, source.workspace);
+  assert.equal(fromArchived.sourceSessionId, source.id);
   assert.notEqual(fromArchived.nativeSessionId, source.nativeSessionId); assert.equal(fromArchived.archivedAt, undefined);
   assert.deepEqual(source, archived); assert.equal(runtime.processes.has(source.terminalId), false);
   current.status = "ARCHIVED";
@@ -261,8 +263,15 @@ test("仓库命令只读取已保存脚本，在指定工作区执行并按命�
   current.status = "ARCHIVED";await assert.rejects(runtime.service.start(input, runtime.owner), /COMMAND_UNAVAILABLE/);current.status = "TODO";
   process.launch.onExit(7);const exited = (await runtime.service.list()).find(item => item.id === records[0].id);
   assert.equal(exited.commandExitCode, 7);assert.equal(exited.status, "failed");
-  command.script = "printf updated";await runtime.service.start(input, runtime.owner);assert.equal(runtime.launches(), 3);
-  const latest = (await runtime.service.list()).at(-1);assert.equal(runtime.processes.get(latest.terminalId).launch.args.at(-1), "printf updated");
+  const oldTerminal = exited.terminalId;
+  await assert.rejects(runtime.service.rerunCommand(exited.id, oldTerminal, runtime.other), /SESSION_UNAVAILABLE/);
+  current.status = "ARCHIVED";await assert.rejects(runtime.service.rerunCommand(exited.id, oldTerminal, runtime.owner), /COMMAND_UNAVAILABLE/);current.status = "TODO";
+  command.script = "printf updated";await runtime.service.rerunCommand(exited.id, oldTerminal, runtime.owner);assert.equal(runtime.launches(), 3);
+  const latest = (await runtime.service.list()).find(item => item.id === exited.id);
+  assert.notEqual(latest.terminalId, oldTerminal);
+  assert.equal(latest.commandExitCode, undefined);
+  assert.equal(runtime.processes.get(latest.terminalId).launch.args.at(-1), "printf updated");
+  await assert.rejects(runtime.service.rerunCommand(latest.id, oldTerminal, runtime.owner), /COMMAND_UNAVAILABLE/);
   await runtime.service.stop(latest.id, runtime.owner);assert.ok(!(await runtime.service.list()).some(item => item.id === latest.id));
   record.localPath = secondPath;await assert.rejects(runtime.service.start(input, runtime.owner), /COMMAND_UNAVAILABLE/);
 });

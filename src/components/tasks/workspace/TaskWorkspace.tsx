@@ -412,7 +412,7 @@ export function TaskWorkspace({ task, headingId, onClose, onOpenPage, noteReques
         {visibleTerminal && <>
           {showUpper && <WorkspaceSeparator label={t("tasks:runtime.resizeTerminal")} value={terminalHeight} min={100} max={400} vertical onDelta={(delta) => setTerminalHeight((height) => Math.max(100, Math.min(400, (contentRef.current?.clientHeight ?? 600) - 160, height - delta)))} />}
           <div className="task-shell-container" data-expanded={terminalFillsSpace} style={terminalFillsSpace ? undefined : { height: terminalHeight }}>
-            <TaskTerminalDrawer sessions={terminals} activeId={activeTerminal?.id} expanded={expanded} onSelect={(id) => { invalidateSelection("shell"); setSelectedTerminal(id); }}
+            <TaskTerminalDrawer readOnly={task.status === "ARCHIVED"} sessions={terminals} activeId={activeTerminal?.id} expanded={expanded} onSelect={(id) => { invalidateSelection("shell"); setSelectedTerminal(id); }}
               newTerminalControl={newTerminalControl} onExpand={() => setExpanded(!expanded)} onCollapse={toggleTerminal} />
           </div>
         </>}

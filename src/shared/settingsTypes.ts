@@ -21,6 +21,8 @@ export interface ResourceRecord {
   description?: string;
   /** 命令按数组顺序保存，可在任务工作区手动执行。 */
   commands?: ResourceCommand[];
+  /** 此资源显式固定的命令，Git 工作区可沿用以文件夹登记的记录。 */
+  defaultCommandId?: string;
   /** 最近一次静态检测的声明命令与警告，编辑页可手动重新检测。 */
   commandDetection?: ResourceCommandDetection;
   /** 重新加载时检查路径是否仍可访问。 */

@@ -90,6 +90,35 @@ test("Claude jsonl：真实用户输入与 turn_duration；工具结果不算新
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("Claude 原生记录：缓存档位、流式重复片段和后台工作的结束通知", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "navo-claude-hover-"));
+  try {
+    const directory = path.join(root, "projects", base.cwd.replace(/[^a-zA-Z0-9]/g, "-"));
+    await mkdir(directory, { recursive: true });
+    const filename = path.join(directory, id + ".jsonl");
+    const session = { ...base, agent: { agentId: "claude" } };
+    const records = [
+      { type: "user", timestamp: "2026-11-07T02:00:00Z", message: { content: "Run checks" } },
+      { type: "assistant", timestamp: "2026-11-07T02:00:01Z", message: { id: "msg_1", usage: { cache_creation: { ephemeral_5m_input_tokens: 20, ephemeral_1h_input_tokens: 80 } } } },
+      { type: "assistant", timestamp: "2026-11-07T02:00:25Z", message: { id: "msg_1", usage: { cache_creation: { ephemeral_5m_input_tokens: 20, ephemeral_1h_input_tokens: 80 } }, content: [{ type: "tool_use", id: "tool_1", name: "Bash", input: { description: "Run checks" } }] } },
+      { type: "user", timestamp: "2026-11-07T02:00:26Z", toolUseResult: { backgroundTaskId: "work-1" }, message: { content: [{ type: "tool_result", tool_use_id: "tool_1" }] } },
+    ];
+    const read = async () => {
+      await writeFile(filename, records.map((record) => JSON.stringify({ sessionId: id, ...record })).join("\n"));
+      return readNativeSessionActivity(session, { CLAUDE_CONFIG_DIR: root });
+    };
+    const active = await read();
+    assert.deepEqual(active.promptCache, { expiresAt: Date.parse("2026-11-07T02:05:01Z"), latestExpiresAt: Date.parse("2026-11-07T03:00:01Z") });
+    assert.deepEqual(active.backgroundWork, [{ id: "work-1", title: "Run checks", startedAt: Date.parse("2026-11-07T02:00:26Z") }]);
+    records.push({ type: "user", timestamp: "2026-11-07T02:00:30Z", message: { content: "<system-reminder>Background worker result.\n<task-notification><task-id>work-1</task-id><status>completed</status></task-notification></system-reminder>" } });
+    const finished = await read();
+    assert.equal(finished.backgroundWork, undefined);
+    assert.equal(finished.lastPromptAt, "2026-11-07T02:00:00Z");
+    records.push({ type: "system", subtype: "compact_boundary", timestamp: "2026-11-07T02:02:00Z" });
+    assert.equal((await read()).promptCache, undefined);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("Codex rollout：经 state sqlite 定位；task_complete 才算回复", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "navo-activity-codex-"));
   try {

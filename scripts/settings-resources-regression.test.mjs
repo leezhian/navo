@@ -238,6 +238,46 @@ test("并发资源写入不丢记录，刷新标记失效路径", async (context
   assert.equal(records.find((record) => record.name === "second").available, true);
 });
 
+test("仓库默认命令写入后可重载，普通编辑保留，移除命令后清空", async (context) => {
+  const directory = await temporaryDirectory(context);
+  const storage = path.join(directory, "records.json");
+  const { ResourceService } = createLoader()("src/main-process/services/resourceService.ts");
+  const service = new ResourceService(storage);
+  const command = { id: "build", name: "Build", script: "printf build", runOnWorktreeCreation: false };
+  const record = await service.save({ kind: "repo", name: "Repo", localPath: directory, commands: [command] });
+  await assert.rejects(service.setDefaultCommand(record.id, "other-repo-command"), /INVALID_RESOURCE_COMMAND/);
+  await service.setDefaultCommand(record.id, command.id);
+  assert.equal((await new ResourceService(storage).list())[0].defaultCommandId, command.id);
+  const edited = await service.save({ id: record.id, kind: "repo", name: "Edited", localPath: directory });
+  assert.equal(edited.defaultCommandId, command.id);
+  assert.equal((await service.setDefaultCommand(record.id, null)).defaultCommandId, undefined);
+  await service.setDefaultCommand(record.id, command.id);
+  await service.save({ id: record.id, kind: "repo", name: "Edited", localPath: directory, commands: [] });
+  assert.equal((await service.list())[0].defaultCommandId, undefined);
+});
+
+test("以文件夹登记的 Git 工作区也能通过设置 IPC 固定和取消默认命令", async (context) => {
+  const directory = await temporaryDirectory(context);
+  await mkdir(path.join(directory, ".git"));
+  const handlers = new Map();
+  const load = createLoader({ electron: {
+    app: { getPath: () => directory },
+    ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+    BrowserWindow: { fromWebContents: () => ({}) },
+  } });
+  load("src/main-process/ipc/settingsHandlers.ts").registerSettingsHandlers();
+  const { ipcChannels } = load("src/shared/ipcChannels.ts");
+  const command = { id: "test", name: "Test", script: "printf test", runOnWorktreeCreation: false };
+  const event = { senderFrame: {}, sender: {} };
+  event.sender.mainFrame = event.senderFrame;
+  const save = handlers.get(ipcChannels.resourcesSave);
+  const pin = handlers.get(ipcChannels.resourcesSetDefaultCommand);
+  const folder = await save(event, { kind: "folder", name: "Workspace", localPath: directory, commands: [command] });
+  await pin(event, folder.id, command.id);
+  assert.equal((await save(event, { ...folder, name: "Renamed" })).defaultCommandId, command.id);
+  assert.equal((await pin(event, folder.id, null)).defaultCommandId, undefined);
+});
+
 test("损坏存储明确失败，不用空列表覆盖数据", async (context) => {
   const directory = await temporaryDirectory(context);
   const storage = path.join(directory, "records.json");

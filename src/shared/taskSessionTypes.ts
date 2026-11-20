@@ -22,9 +22,17 @@ export interface TaskSession {
   cwd: string;
   /** 创建时绑定的工作范围快照；旧记录缺省，不根据后续资源数量猜测范围。 */
   workspace?: TaskSessionWorkspace;
+  /** 本任务中用于沿用工作目录的来源会话；旧会话没有来源字段。 */
+  sourceSessionId?: string;
   /** 手动执行的仓库命令；不保存脚本或在重启应用后自动重跑。 */
   command?: { id: string; resourceId: string; name: string };
   commandExitCode?: number;
+  /** 本次运行的时间；重跑时终端标签保持原位。 */
+  commandRunAt?: number;
+  /** 普通终端退出后保留缓冲和实际退出码。 */
+  terminalExitCode?: number;
+  /** 正常关闭未能结束进程，可对同一 PTY 发起强制关闭。 */
+  terminalNeedsForce?: boolean;
   /** 初始化终端由协调器顺序执行，不通过手动命令入口重启。 */
   initialization?: boolean;
   agent?: TaskAgentSelection;
@@ -56,7 +64,17 @@ export interface TaskSession {
   waitingReason?: string;
   /** 最近一条结构化用量；只在内存中，没有上下文窗口时不推算百分比，也不估算费用。 */
   usage?: SessionUsage;
+  /** CLI 报告缓存 TTL 后估算的到期时间，可能同时有两个档位。 */
+  promptCache?: { expiresAt: number; latestExpiresAt?: number };
+  /** 当前进程中仍在后台执行的原生作业，只保留展示摘要。 */
+  backgroundWork?: SessionBackgroundWork[];
   error?: string;
+}
+
+export interface SessionBackgroundWork {
+  id: string;
+  title?: string;
+  startedAt: number;
 }
 
 /** 来自 CLI 用量记录的非负整数。上下文窗口仅在原生记录提供时存在。 */
@@ -84,7 +102,15 @@ export interface StartTaskSessionInput {
   commandId?: string;
 }
 
+export type TaskTerminalCloseResult =
+  | { kind: "closed"; sessions: TaskSession[] }
+  | { kind: "confirm" | "needsForce"; program?: string };
+
 export interface TaskSessionsApi {
+  /** 按当前 PTY 检查并关闭，确认和强制操作不能关闭重跑后的新进程。 */
+  closeTerminal(id: string, terminalId: string, mode: "inspect" | "confirm" | "force"): Promise<TaskTerminalCloseResult>;
+  /** 在原终端标签里重跑当前仍存在的已保存命令。 */
+  rerunCommand(id: string, terminalId: string): Promise<TaskSession[]>;
   /** 刷新本会话上下文文件并返回读取提示，仅供复制，不发送终端输入。 */
   contextReminder(id: string): Promise<string>;
   list(): Promise<TaskSession[]>;

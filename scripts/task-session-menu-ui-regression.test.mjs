@@ -93,6 +93,7 @@ test('Session row menu targets source, lists Agents, and keeps confirmation laye
       import i18n from '/src/i18n/index.ts';import {TaskSessionMenu} from '/src/components/tasks/workspace/TaskSessionMenu.tsx';
       import {TaskPanelSheet} from '/src/components/tasks/workspace/TaskPanelSheet.tsx';import {useTaskSessionStore} from '/src/stores/taskSessionStore.ts';
       import {ArchivedSessions} from '/src/components/tasks/workspace/ArchivedSessions.tsx';
+      import {TooltipProvider} from '/src/components/ui/tooltip.tsx';
       await i18n.changeLanguage('en');window.setLocale=locale=>i18n.changeLanguage(locale);
       window.selected='other';window.opened=0;window.created=[];window.renames=[];window.archived=[];window.removed=[];window.restores=[];
       let record={id:'source',taskId:'task',kind:'agent',title:'Source session',agent:{agentId:'claude'},status:'stopped',cwd:'/fixture',workspace:{kind:'all'},nativeSessionId:'native-source',terminalId:'terminal-source'};
@@ -104,9 +105,9 @@ test('Session row menu targets source, lists Agents, and keeps confirmation laye
         const [archivedMode,setArchivedMode]=React.useState(false),[taskArchived,setTaskArchived]=React.useState(false);window.showArchived=setArchivedMode;window.setTaskArchived=setTaskArchived;
         const trigger=React.useRef(null);const sessions=useTaskSessionStore(state=>state.sessions);const session=sessions[0];const pending=useTaskSessionStore(state=>state.pending);
         return React.createElement('div',{ref:setContainer,style:{position:'relative',width:900,height:700}},React.createElement('button',{ref:trigger},'Context'),React.createElement(TaskPanelSheet,{side:'left',open,onOpenChange:setOpen,width:300,container,triggerRef:trigger,title:'Context',closeLabel:'Close context'},
-          archivedMode?React.createElement(ArchivedSessions,{sessions:sessions.filter(item=>item.archivedAt),task:{id:'task',status:taskArchived?'ARCHIVED':'TODO',resources:[]},agentChoices:[{id:'claude',ready:true}],onRestored:item=>window.restoredSelection=item.id,onNewSessionFrom:(...args)=>window.created.push(args)}):
+          archivedMode?React.createElement(ArchivedSessions,{sessions:sessions.filter(item=>item.archivedAt),task:{id:'task',status:taskArchived?'ARCHIVED':'TODO',resources:[]},sourceSession:item=>sessions.find(source=>source.id===item.sourceSessionId),onOpen:item=>window.selected=item.id,agentChoices:[{id:'claude',ready:true}],onRestored:item=>window.restoredSelection=item.id,onNewSessionFrom:(...args)=>window.created.push(args)}):
           React.createElement(TaskSessionMenu,{session:{...session,agent:{agentId:agent}},canCreate,pending,agentChoices:[{id:'claude',ready:true},{id:'grok',ready:true},{id:'codex',ready:false}],onOpen:()=>{window.selected='source';window.opened++;},onArchive:()=>window.archived.push(session.id),onNewSession:(...args)=>window.created.push(args)},React.createElement('button',{id:'source'},session.title))));}
-      createRoot(document.getElementById('root')).render(React.createElement(Fixture));
+      createRoot(document.getElementById('root')).render(React.createElement(TooltipProvider,null,React.createElement(Fixture)));
     </script>`));
   });
   let child;

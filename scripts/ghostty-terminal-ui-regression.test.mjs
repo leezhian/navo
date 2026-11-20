@@ -39,6 +39,9 @@ async function assertions(checkWheel) {
   textarea.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'你好中文'}));
   await pause();check(window.writes.join('')==='你好中文','Composition was lost or duplicated');
   window.writes.length=0;textarea.dispatchEvent(new KeyboardEvent('keydown',{key:'c',code:'KeyC',ctrlKey:true,bubbles:true,cancelable:true}));await pause();check(window.writes.join('')==='\x03','Ctrl+C did not interrupt');
+  const pasteKey=new KeyboardEvent('keydown',{key:'v',code:'KeyV',metaKey:true,bubbles:true,cancelable:true});
+  textarea.dispatchEvent(pasteKey);
+  if(/Mac/.test(navigator.platform))check(!pasteKey.defaultPrevented,'Command+V canceled Chromium clipboard paste');
   window.emit('\x1B[?2004h');window.writes.length=0;const clipboard=new DataTransfer();clipboard.setData('text/plain','one\ntwo');
   textarea.dispatchEvent(new ClipboardEvent('paste',{clipboardData:clipboard,bubbles:true,cancelable:true}));await pause();check(window.writes.join('')==='\x1B[200~one\ntwo\x1B[201~','Bracketed paste incorrect');
   const sizeBefore=window.sizes.length;window.exit();await wait(()=>document.querySelector('[data-status="exited"]'),'Exit missing');

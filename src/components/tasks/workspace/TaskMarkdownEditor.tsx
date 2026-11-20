@@ -41,7 +41,7 @@ export function TaskMarkdownEditor({ value, onChange, disabled, textareaRef }: T
         onMouseDown={(event) => event.preventDefault()} onClick={() => format(before, "after" in rest ? rest.after : "")}><Icon /></IconTooltip>)}
       <Button variant="ghost" size="sm" className="ml-auto text-xs" aria-pressed={preview} onClick={() => setPreview(!preview)}>{t(preview ? "tasks:notes.source" : "tasks:notes.preview")}</Button>
     </div>
-    {preview ? <div className="min-h-0 flex-1 overflow-auto p-3"><TaskNoteMarkdown content={value} /></div>
+    {preview ? <div className="min-h-0 flex-1 overflow-auto p-3"><TaskNoteMarkdown content={value} onChecklist={disabled ? undefined : onChange} /></div>
       : <textarea ref={attachField} aria-label={t("tasks:resources.noteContent")} placeholder={t("tasks:resources.noteContent")} value={value} maxLength={TASK_NOTE_CONTENT_LIMIT} disabled={disabled}
         onChange={(event) => onChange(event.target.value)} className="min-h-24 flex-1 resize-none bg-transparent p-3 font-mono text-xs leading-6 outline-none" />}
   </div>;

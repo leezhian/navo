@@ -34,6 +34,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         list:async()=>structuredClone(records),refreshTitles:async()=>structuredClone(records),onChanged:callback=>{changed.add(callback);return()=>changed.delete(callback);},
         start:async input=>{window.creates.push(input);number++;records.push({id:input.kind+'-'+number,taskId:task.id,kind:input.kind,command:input.commandId?{id:input.commandId,resourceId:input.resourceId,name:'Build'}:undefined,title:input.commandId?'Build':input.kind==='shell'?'zsh'+number:'CLI session '+number,agent:input.kind==='agent'?{agentId:input.agentId,modelName:'hidden-model',modeName:'hidden-mode',effort:'hidden-effort'}:undefined,nativeSessionId:'3ce7a9f0-9d84-47bc-921c-9cf4f686fccc',cwd:'/test',workspace:resolveSessionWorkspace(window.scopeResources,input.resourceId),status:'running',terminalId:'terminal-'+number,createdAt:'now',lastActiveAt:'2026-10-07T00:00:00.000Z',resumable:input.kind==='agent'});return publish();},
         stop:async id=>{window.stops.push(id);records=records.filter(record=>record.id!==id||record.kind==='agent').map(record=>record.id===id?{...record,status:'stopped'}:record);return publish();},
+        closeTerminal:async(id,terminalId,mode)=>{if(!records.some(record=>record.id===id&&record.terminalId===terminalId))throw Error('SESSION_UNAVAILABLE');if(window.busyTerminal&&mode==='inspect')return {kind:'confirm',program:'sleep'};if(window.busyTerminal&&mode==='confirm'){records=records.map(record=>record.id===id?{...record,terminalNeedsForce:true}:record);publish();return {kind:'needsForce',program:'sleep'};}records=records.filter(record=>record.id!==id);return {kind:'closed',sessions:publish()};},
+        rerunCommand:async(id,terminalId)=>{window.reran={id,terminalId};records=records.map(record=>record.id===id?{...record,terminalId:terminalId+'-rerun',status:'running',commandRunAt:Date.now(),commandExitCode:undefined,terminalExitCode:undefined}:record);return publish();},
         archive:async id=>{window.archives.push(id);records=records.map(record=>record.id===id?{...record,status:'stopped',archivedAt:new Date().toISOString()}:record);return publish();},
         restore:async id=>{records=records.map(record=>record.id===id?{...record,archivedAt:undefined,status:'stopped'}:record);return publish();},
         rename:async(id,title)=>{window.renames.push({id,title});records=records.map(record=>record.id===id?{...record,title,status:'stopped'}:record);return publish();},
@@ -44,6 +46,8 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         write:async()=>{},resize:async()=>{},destroy:async params=>window.destroyed.push(params.sessionId),
         onData:callback=>{data.add(callback);return()=>data.delete(callback);},onExit:callback=>{exits.add(callback);return()=>exits.delete(callback);}
       }};
+      window.navo.resources.setDefaultCommand=async(id,commandId)=>{window.pinned={id,commandId};return {...useResourceStore.getState().records.find(record=>record.id===id),defaultCommandId:commandId??undefined};};
+      window.finishCommand=()=>{const command=records.find(record=>record.command);records=records.map(record=>record===command?{...record,status:'stopped',commandExitCode:0,terminalExitCode:0}:record);for(const callback of exits)callback({sessionId:command.terminalId,exitCode:0});publish();return command;};
       subscribeTaskSessions();
       function Fixture(){const [width,setWidth]=React.useState(360),[visible,setVisible]=React.useState(true),[sidebar,setSidebar]=React.useState(true),[currentTask,setTask]=React.useState(task);window.resizeFixture=setWidth;window.showFixture=setVisible;window.setSidebar=setSidebar;window.setTaskResources=resources=>{window.scopeResources=resources.resources||[];setTask({...task,...resources});};
         return React.createElement(TooltipProvider,null,React.createElement('div',{id:'status'},React.createElement(TaskSessionStatusIcon,{taskId:task.id})),visible&&React.createElement('div',{id:'fixture',style:{width,height:610}},React.createElement(TaskWorkspace,{task:currentTask,headingId:'test-title',onClose:()=>setVisible(false),onOpenPage:sidebar?()=>{}:undefined})));}
@@ -213,7 +217,20 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(window.creates.length!==2||window.attached.length!==2)throw new Error('View remount restarted terminals');
         // 任务会记住终端抽屉是否打开；重挂后若已展开，再点「显示终端」会把它收起。
         if(!button('关闭 zsh1')){button('显示终端').click();await wait(()=>button('关闭 zsh1'),'Existing terminal lost');}
-        button('关闭 zsh1').click();await wait(()=>!button('关闭 zsh1'),'Close failed');
+        const closeDialogButton=label=>[...document.querySelectorAll('[role="alertdialog"] button')].find(node=>node.textContent.trim()===label);
+        window.busyTerminal=true;button('关闭 zsh1').click();await wait(()=>closeDialogButton('取消'),'Busy close confirmation missing');
+        if(document.activeElement!==closeDialogButton('取消'))throw new Error('Busy close must focus Cancel');
+        closeDialogButton('取消').click();await wait(()=>!document.querySelector('[role="alertdialog"]'),'Busy close did not cancel');
+        if(!button('关闭 zsh1'))throw new Error('Cancel closed the terminal');
+        button('关闭 zsh2').closest('.task-shell-tab').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:160,clientY:240}));
+        const contextClose=()=>[...document.querySelectorAll('[role="menuitem"]')].find(item=>item.textContent==='关闭 zsh2');
+        await wait(contextClose,'Terminal context menu missing');contextClose().click();
+        await wait(()=>closeDialogButton('取消'),'Context close confirmation missing');closeDialogButton('取消').click();
+        await wait(()=>document.activeElement===button('关闭 zsh2'),'Context close must restore focus to its own tab');
+        button('关闭 zsh1').click();await wait(()=>closeDialogButton('关闭终端'),'Busy close confirmation did not reopen');
+        closeDialogButton('关闭终端').click();await wait(()=>button('强制关闭'),'Timed-out close did not offer Force close');
+        button('强制关闭').click();await wait(()=>!document.querySelector('.task-shell-tab button span')||![...document.querySelectorAll('.task-shell-tab button span')].some(node=>node.textContent==='zsh1'),'Force close failed');
+        window.busyTerminal=false;
         button('关闭 zsh2').click();await wait(()=>!document.querySelector('.task-terminal-badge'),'Zero badge should hide');
         button('任务上下文').click();await pause();
         const headings=[...document.querySelectorAll('.task-context-group-heading')].map(node=>node.textContent);
@@ -417,6 +434,33 @@ test("任务工作台：窄侧栏、终端同步、挂载独立、分组和会�
         if(document.querySelectorAll('.task-context-change-actions > [data-slot="button-group"]').length!==1||document.querySelector('.task-context-change-actions').getBoundingClientRect().width!==36)throw new Error('Hidden commands must not reserve space or hide Open in');
         window.setCommandRecord('repo-choice');await window.setLocale('en');
         await wait(()=>[...document.querySelectorAll('.task-context-change button')].some(item=>item.getAttribute('aria-label')==='Run "Build" in this worktree'),'English shortcut tooltip must contain command name and scope');
+        const commandDropdown=()=>document.querySelector('.task-context-change button[aria-label="Choose command"]');
+        const englishShortcut=()=>commandDropdown()?.parentElement.querySelector('button');
+        window.setCommandRecord('repo-choice',[{id:'build',name:'Build',script:'echo build',runOnWorktreeCreation:false},{id:'test',name:'Test',script:'echo test',runOnWorktreeCreation:false}]);
+        const pinButton=()=>menuItem('Test')?.nextElementSibling;
+        await openDropdown(commandDropdown());await wait(()=>pinButton()?.tagName==='BUTTON'&&pinButton().getAttribute('aria-label')==='Set "Test" as default','Command row pin button missing');
+        pinButton().click();
+        await wait(()=>window.pinned?.commandId==='test'&&englishShortcut()?.getAttribute('aria-label')==='Run "Test" in this worktree','Pinned command did not update the shortcut');
+        if(window.creates.length!==commandCount+1||pinButton()?.dataset.pinned!=='true')throw new Error('Pinning executed a command or closed the command list');
+        pinButton().focus();pinButton().dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+        await wait(()=>window.pinned?.commandId===null&&pinButton()?.dataset.pinned==='false','The pinned row did not clear the default via the keyboard');
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await pause();
+        document.querySelector('.task-context-change').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:160,clientY:240}));
+        await wait(()=>menuItem('Run command here'),'Worktree context menu missing');
+        menuItem('Run command here').focus();
+        menuItem('Run command here').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+        await wait(()=>pinButton()?.tagName==='BUTTON','Worktree context command row pin missing');
+        pinButton().click();await wait(()=>window.pinned?.commandId==='test'&&pinButton()?.dataset.pinned==='true','Context menu could not pin the default');
+        if(window.creates.length!==commandCount+1)throw new Error('Context pinning executed a command');
+        for(let level=0;level<2;level++){document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await pause();}
+        englishShortcut().click();await wait(()=>window.creates.at(-1)?.commandId==='test'&&document.querySelector('.task-shell-pane'),'Pinned shortcut did not execute');
+        const exitedCommand=window.finishCommand();
+        const runAgain=()=>[...document.querySelectorAll('.task-shell-pane button')].find(item=>item.textContent.trim()==='Run again');
+        await wait(runAgain,'Exited saved command must offer Run again');runAgain().click();
+        await wait(()=>window.reran?.id===exitedCommand.id&&window.reran?.terminalId===exitedCommand.terminalId&&!runAgain()&&document.querySelectorAll('.task-shell-tab').length===1,'Run again did not reuse the same terminal tab');
+        window.setCommandRecord('repo-choice',[{id:'build',name:'Build',script:'echo build',runOnWorktreeCreation:false},{id:'test',name:'Test',script:'echo test',runOnWorktreeCreation:false}]);
+        englishShortcut().click();await wait(()=>!document.querySelector('.task-shell-pane'),'Stopping Test did not remove its terminal');
+        await wait(()=>englishShortcut()?.getAttribute('aria-label')==='Run "Test" in this worktree','Closing the last terminal forgot the most recently run command');
       })().catch(error=>{console.error(error.stack);throw error;})\`);
       console.log('WORKBENCH_UI_OK');app.exit(0);}catch(error){console.error(error);app.exit(1);}
     });`);

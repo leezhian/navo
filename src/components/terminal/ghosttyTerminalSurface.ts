@@ -84,9 +84,11 @@ export class GhosttyTerminalSurface {
   };
   private handleShortcut(event: KeyboardEvent) {
     const key = event.key.toLowerCase();
-    const primary = isApplePlatform() ? event.metaKey && !event.ctrlKey : event.ctrlKey && event.shiftKey;
+    const apple = isApplePlatform();
+    const primary = apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && event.shiftKey;
     if (primary && !event.altKey) {
-      if (key === "c" || key === "v") return true; // 保留浏览器 copy/paste，不能当作 CLI 控制键发送。
+      // Ghostty 用 true 取消浏览器默认动作；macOS 的复制、粘贴交给库的原生快捷键分支。
+      if (key === "c" && !apple) return true;
       if (key === "a") { event.preventDefault(); this.terminal.selectAll(); return true; }
       if (key === "k") { event.preventDefault(); this.terminal.clear(); this.inputAnchor?.update(); return true; }
     }

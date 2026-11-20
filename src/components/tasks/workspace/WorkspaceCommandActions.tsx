@@ -10,23 +10,26 @@ import { ResourceDialog } from "@/components/settings/ResourceDialog";
 import { useResourceStore } from "@/stores/resourceStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useWorkspaceCommands } from "@/hooks/useWorkspaceCommands";
+import { WorkspaceCommandMenuItem } from "./WorkspaceCommandMenuItem";
 
 interface WorkspaceCommandActionsProps {
+  /** 最近运行记录按任务与工作区隔离。 */
+  taskId: string;
   /** 命令属于全局仓库，执行目录属于当前任务工作区，不能混用两个 ID。 */
   resource: TaskResource;
-  /** 当前任务的终端记录，用于选择最近运行的命令及停止目标。 */
+  /** 当前任务的终端记录，用于定位正在运行的命令。 */
   sessions: TaskSession[];
   disabled: boolean;
   /** 显式选择后启动已保存命令，并展示对应任务终端。 */
   onRun: (resourceId: string, commandId: string) => void;
 }
 
-export function WorkspaceCommandActions({ resource, sessions, disabled, onRun }: WorkspaceCommandActionsProps) {
+export function WorkspaceCommandActions({ taskId, resource, sessions, disabled, onRun }: WorkspaceCommandActionsProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const repositoriesDirectory = useSettingsStore((state) => state.settings.repositoriesDirectory);
   const [managing, setManaging] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const { repository, error, running, active, preferred, menuCommands, select } = useWorkspaceCommands(resource, sessions, onRun);
+  const { repository, error, active, preferred, menuCommands, select, savingDefault, defaultFailed, pin } = useWorkspaceCommands(taskId, resource, sessions, onRun);
   const shortcutLabel = active ? t("tasks:commands.stop", { name: active.command?.name })
     : preferred ? t("tasks:commands.run", { name: preferred.name }) : t("tasks:commands.empty");
   function runShortcut() {
@@ -41,15 +44,14 @@ export function WorkspaceCommandActions({ resource, sessions, disabled, onRun }:
     <DropdownMenu><DropdownMenuTrigger asChild>
       <IconTooltip ref={trigger} label={t("tasks:commands.choose")} size="icon-xs" variant="ghost" className="h-5 w-4 border-0" disabled={disabled}><ChevronDown className="size-3" /></IconTooltip>
     </DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48">
-      {menuCommands.map((command) => {
-        const active = running.find((session) => session.command?.id === command.id);
-        return <DropdownMenuItem key={command.id} disabled={disabled} title={t(active ? "tasks:commands.stop" : "tasks:commands.run", { name: command.name })}
-          onSelect={() => select(command.id)}>
-          {active?.status === "starting" ? <LoaderCircle className="size-3.5 animate-spin" /> : active ? <Square className="size-3.5" /> : <Play className="size-3.5" />}<span className="truncate">{command.name}</span>
-        </DropdownMenuItem>;
-      })}
+      {menuCommands.map(({ id, name, activeStatus, pinned, canPin }) => (
+        <WorkspaceCommandMenuItem key={id} Item={DropdownMenuItem} name={name} activeStatus={activeStatus} disabled={disabled}
+          pinned={pinned} savingDefault={savingDefault} onSelectCommand={() => select(id)}
+          onToggleDefault={canPin ? () => void pin(pinned ? null : id) : undefined} />
+      ))}
       {error !== null && <DropdownMenuItem onSelect={() => void useResourceStore.getState().refresh()}>{t("common:actions.retry")}</DropdownMenuItem>}
       <DropdownMenuSeparator />
+      {defaultFailed && <p role="alert" className="px-2 py-1 text-xs text-destructive">{t("tasks:commands.setDefaultFailed")}</p>}
       <DropdownMenuItem disabled={!repository || disabled} onSelect={() => setManaging(true)}><Settings2 className="size-3.5" />{t("tasks:commands.manage")}</DropdownMenuItem>
     </DropdownMenuContent></DropdownMenu>
     </ButtonGroup>}

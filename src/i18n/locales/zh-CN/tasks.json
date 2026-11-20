@@ -265,6 +265,9 @@
     "failedDetail": "请检查工作目录、远端地址或所选应用是否仍然可用。"
   },
   "commands": {
+    "pinDefault": "将「{{name}}」设为默认命令",
+    "unpinDefault": "取消固定「{{name}}」",
+    "setDefaultFailed": "保存默认命令失败，请重试。",
     "title": "运行命令",
     "choose": "选择命令",
     "empty": "暂无命令",
@@ -312,6 +315,9 @@
       "link": "链接"
     },
     "history": {
+      "sinceOwnEdit": "自我上次编辑以来",
+      "checked": "已勾选",
+      "unchecked": "已取消勾选",
       "title": "历史版本与变更",
       "text": "正文",
       "diff": "差异",
@@ -495,6 +501,14 @@
     }
   },
   "runtime": {
+    "terminalExited": "进程已退出（退出码 {{code}}）",
+    "runAgain": "再次运行",
+    "closeTerminalTitle": "关闭正在运行的终端？",
+    "closeTerminalProgram": "「{{program}}」仍在运行。关闭终端会停止该程序。",
+    "closeTerminalUnknown": "终端中可能还有程序在运行。关闭终端会停止这些程序。",
+    "confirmCloseTerminal": "关闭终端",
+    "forceCloseTerminal": "强制关闭",
+    "closeTerminalTimedOut": "程序未能正常退出，可强制关闭。",
     "allWorktrees": "所有工作树和文件夹",
     "allWorktreesDescription": "在任务目录运行，携带全部关联目录的上下文",
     "unknownWorkspace": "工作目录未确定",
@@ -566,6 +580,16 @@
       "waitingPermissionWithReason": "等待权限（{{reason}}）"
     },
     "hover": {
+      "promptCache": "提示词缓存",
+      "cacheExpired": "可能已到期",
+      "cachePartlyExpired_other": "部分可能已到期，剩余约 {{count}} 分钟",
+      "cacheExpiresIn_other": "预计 {{count}} 分钟后到期",
+      "cacheExpiresBetween": "预计 {{min}}–{{max}} 分钟后到期",
+      "backgroundWork_other": "后台工作（{{count}}）",
+      "unnamedWork": "后台作业",
+      "moreWork_other": "另有 {{count}} 项",
+      "sourceSession": "来源会话",
+      "openSourceSession": "打开来源会话",
       "lastActive": "最近活动",
       "lastReply": "最后一次回复",
       "lastPrompt": "最后一次 prompt",

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { AgentProviderIcon } from "./AgentProviderIcon";
 import { SessionActionMenu } from "./SessionActionMenu";
 import { TaskSessionMenu } from "./TaskSessionMenu";
+import { SessionHoverDetails } from "./SessionHoverDetails";
 
 interface ArchivedSessionsProps {
   /** 只包含本任务的归档 Agent 会话。 */
@@ -18,14 +19,16 @@ interface ArchivedSessionsProps {
   task: Task;
   /** 仅选择恢复后的已停止会话，不启动 CLI。 */
   onRestored: (session: TaskSession) => void;
-  /** 只读打开归档会话，不恢复、不启动。 */
-  onOpen: (session: TaskSession) => void;
+  /** 打开选中的会话，归档会话保持只读。 */
+  onOpen: (session: TaskSession, forceOpen?: boolean) => void;
+  /** 解析同任务内的活动或归档来源。 */
+  sourceSession: (session: TaskSession) => TaskSession | undefined;
   /** 沿用工作台的可用 Agent 快照，不在展开菜单时检测。 */
   agentChoices?: Array<{ id: AgentId; ready: boolean }>;
   /** 归档记录仅作为目录来源，新建不恢复原会话。 */
   onNewSessionFrom?: (agentId: AgentId, sourceSessionId: string) => void;
 }
-export function ArchivedSessions({ sessions, task, onRestored, onOpen, agentChoices = [], onNewSessionFrom }: ArchivedSessionsProps) {
+export function ArchivedSessions({ sessions, task, onRestored, onOpen, sourceSession, agentChoices = [], onNewSessionFrom }: ArchivedSessionsProps) {
   const { t } = useTranslation(["tasks", "common"]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -50,15 +53,19 @@ export function ArchivedSessions({ sessions, task, onRestored, onOpen, agentChoi
       {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}{t("tasks:context.archived", { count: sessions.length })}
     </button>
     {open && <div className="px-2 pb-1"><Input aria-label={t("tasks:context.archivedSearch")} className="h-7 text-xs" placeholder={t("tasks:context.archivedSearch")} value={query} onChange={(event) => setQuery(event.target.value)} /></div>}
-    {open && visible.map(({ session, workspaceLabel, canCreate }) => <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={pending}
+    {open && visible.map(({ session, workspaceLabel, canCreate }) => {
+      const source = sourceSession(session);
+      const onOpenSource = source ? () => onOpen(source, true) : undefined;
+      return <TaskSessionMenu key={session.id} session={session} agentChoices={agentChoices} canCreate={canCreate} pending={pending} onOpenSource={onOpenSource}
       onRestore={task.status !== "ARCHIVED" ? () => void restore(session) : undefined} onNewSession={onNewSessionFrom}>
-      <div className="flex items-center"><button className="task-context-row min-w-0 flex-1"
-      title={t("tasks:context.readArchived")} onClick={() => onOpen(session)}>
+      <div className="flex items-center"><SessionHoverDetails session={session} resources={task.resources ?? []} source={source} onOpenSource={onOpenSource}>
+      <button className="task-context-row min-w-0 flex-1" title={t("tasks:context.readArchived")} onClick={() => onOpen(session)}>
       <span className="task-context-item-icon"><AgentProviderIcon agentId={session.agent?.agentId} /></span>
       <span className="min-w-0"><span className="block truncate">{session.title || t("tasks:runtime.untitledSession")}</span>
         <span className="block truncate text-[11px] text-muted-foreground">{workspaceLabel}</span>
       </span>
-    </button><SessionActionMenu session={session} /></div></TaskSessionMenu>)}
+    </button></SessionHoverDetails><SessionActionMenu session={session} /></div></TaskSessionMenu>;
+    })}
     {open && query.trim() && visible.length === 0 && <p className="px-2 py-1 text-xs text-muted-foreground">{t("tasks:context.archivedEmpty")}</p>}
   </div>;
 }

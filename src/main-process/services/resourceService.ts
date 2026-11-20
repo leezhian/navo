@@ -58,11 +58,26 @@ export class ResourceService {
           if (merged.limited && commandDetection.warnings.length < 50) commandDetection.warnings.push({ source: ".", code: "limitReached" });
         }
         const record: ResourceRecord = { id: previous?.id ?? randomUUID(), kind: params.kind, name: params.name.trim(), localPath, available: true, description, commands, ...(commandDetection ? { commandDetection } : {}) };
+        if (previous?.defaultCommandId && commands.some((command) => command.id === previous.defaultCommandId)) record.defaultCommandId = previous.defaultCommandId;
         const savedRemote = remoteUrl || (previous?.localPath === localPath ? previous.remoteUrl : undefined);
         if (params.kind === "repo" && savedRemote) record.remoteUrl = savedRemote;
         await writeJsonFile(this.storagePath, previous ? records.map((item) => item.id === record.id ? record : item) : [...records, record]);
         return record;
       });
+    });
+  }
+
+  setDefaultCommand(id: string, commandId: string | null): Promise<ResourceRecord> {
+    return this.serialize(async () => {
+      const records = await this.readRecords();
+      // Git 工作区也可能以文件夹登记。固定命令沿用该资源的命令列表，不依赖登记类型。
+      const resource = records.find((record) => record.id === id);
+      if (!resource) throw new Error("RESOURCE_NOT_FOUND");
+      if (commandId !== null && !resource.commands?.some((command) => command.id === commandId)) throw new Error("INVALID_RESOURCE_COMMAND");
+      if (commandId === null) delete resource.defaultCommandId;
+      else resource.defaultCommandId = commandId;
+      await writeJsonFile(this.storagePath, records);
+      return { ...resource, available: await this.isAvailable(resource.localPath) };
     });
   }
 

@@ -9,6 +9,7 @@ import { getTasksApi } from "@/services/taskApi";
 import { getTaskError } from "@/services/taskErrors";
 import { useTaskStore } from "@/stores/taskStore";
 import { Button } from "@/components/ui/button";
+import { lastOwnNoteEdit, noteCheckboxChanges } from "@/utils/taskNoteChanges";
 import { TaskNoteMarkdown } from "./TaskNoteMarkdown";
 
 interface TaskNoteHistoryProps {
@@ -23,6 +24,7 @@ export default function TaskNoteHistory({ editor, onBack }: TaskNoteHistoryProps
   const [selected, setSelected] = useState<number>();
   const [baseline, setBaseline] = useState<number>();
   const [showDiff, setShowDiff] = useState(true), [loading, setLoading] = useState(true), [error, setError] = useState<unknown>(null);
+  const [sinceOwnEdit, setSinceOwnEdit] = useState(false);
   const note = editor.note;
   const loadedNote = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -34,14 +36,21 @@ export default function TaskNoteHistory({ editor, onBack }: TaskNoteHistoryProps
         const changedNote = loadedNote.current !== key;
         loadedNote.current = key;
         setVersions(records);
-        // 新版本到来时保留正在查看的历史范围，首次打开才默认比较最近两个版本。
+        if (changedNote) setSinceOwnEdit(true);
+        // 首次优先比较自己上次编辑，缺少起点时回到最近两个版本；手选后保留选定范围。
         setSelected((value) => !changedNote && records.some((item) => item.version === value) ? value : records[0]?.version);
         setBaseline((value) => changedNote ? records[1]?.version : value);
       }
     }).catch((failure) => { if (!disposed) setError(failure); }).finally(() => { if (!disposed) setLoading(false); });
     return () => { disposed = true; };
   }, [editor.taskId, note?.id, note?.version]);
-  const current = versions.find((item) => item.version === selected), previous = versions.find((item) => item.version === baseline);
+  const ownEdit = useMemo(() => lastOwnNoteEdit(versions), [versions]);
+  const latest = versions[0];
+  const ownRange = sinceOwnEdit && ownEdit && latest && ownEdit.version < latest.version;
+  const current = ownRange ? latest : versions.find((item) => item.version === selected);
+  const previous = ownRange ? ownEdit : versions.find((item) => item.version === baseline);
+  const annotations = useMemo(() => current && previous ? noteCheckboxChanges(previous.content, current.content)
+    .map(({ line, checked }) => ({ side: "additions" as const, lineNumber: line, metadata: checked })) : [], [current, previous]);
   const matchesCurrent = current?.content === note?.content && (editor.isPrompt || current?.title === note?.title);
   const diff = useMemo(() => current && previous ? parseDiffFromFile({ name: "note.md", contents: previous.content }, { name: "note.md", contents: current.content }) : null, [current, previous]);
   async function restore() {
@@ -61,14 +70,19 @@ export default function TaskNoteHistory({ editor, onBack }: TaskNoteHistoryProps
     </div>
     {error !== null && <p role="alert" className="p-3 text-xs text-destructive">{getTaskError(error)}</p>}
     {loading ? <p className="p-3 text-xs text-muted-foreground">{t("common:status.loading")}</p> : <>
+      {ownEdit && latest && ownEdit.version < latest.version && <div className="px-3 pt-2">
+        <Button variant={ownRange ? "secondary" : "outline"} size="sm" aria-pressed={Boolean(ownRange)} onClick={() => { setSinceOwnEdit(!ownRange); setShowDiff(true); }}>
+          {t("tasks:notes.history.sinceOwnEdit")}
+        </Button>
+      </div>}
       <div className="flex shrink-0 flex-wrap gap-2 p-3">
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs">{t("tasks:notes.history.from")}
-          <select className="min-w-0 rounded border border-input bg-background p-1" value={baseline ?? ""} onChange={(event) => setBaseline(event.target.value === "" ? undefined : Number(event.target.value))}>
+          <select className="min-w-0 rounded border border-input bg-background p-1" value={previous?.version ?? ""} onChange={(event) => { setSinceOwnEdit(false); setSelected(current?.version); setBaseline(event.target.value === "" ? undefined : Number(event.target.value)); }}>
             <option value="">{t("tasks:notes.history.noEarlier")}</option>{versions.map((item) => <option key={item.version} value={item.version}>v{item.version} · {new Date(item.createdAt).toLocaleString(i18n.language)}</option>)}
           </select>
         </label>
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs">{t("tasks:notes.history.to")}
-          <select className="min-w-0 rounded border border-input bg-background p-1" value={selected ?? ""} onChange={(event) => setSelected(Number(event.target.value))}>
+          <select className="min-w-0 rounded border border-input bg-background p-1" value={current?.version ?? ""} onChange={(event) => { setSinceOwnEdit(false); setBaseline(previous?.version); setSelected(Number(event.target.value)); }}>
             {versions.map((item) => <option key={item.version} value={item.version}>v{item.version} · {new Date(item.createdAt).toLocaleString(i18n.language)}</option>)}
           </select>
         </label>
@@ -84,7 +98,7 @@ export default function TaskNoteHistory({ editor, onBack }: TaskNoteHistoryProps
       {editor.hasDraft && <p className="px-3 pb-2 text-xs text-muted-foreground">{t("tasks:notes.history.draftBlocked")}</p>}
       {previous && current && previous.title !== current.title && <p className="px-3 pb-2 text-xs">{t("tasks:notes.history.titleChanged", { from: previous.title, to: current.title })}</p>}
       <div className="min-h-0 flex-1 overflow-auto p-3">
-        {showDiff && diff ? <FileDiff fileDiff={diff} options={{ diffStyle: "unified", disableFileHeader: true }} /> : current && <TaskNoteMarkdown content={current.content} />}
+        {showDiff && diff ? <FileDiff fileDiff={diff} lineAnnotations={annotations} renderAnnotation={({ metadata }) => <span className="block px-3 py-1 text-xs font-medium text-muted-foreground">{t(metadata ? "tasks:notes.history.checked" : "tasks:notes.history.unchecked")}</span>} options={{ diffStyle: "unified", disableFileHeader: true }} /> : current && <TaskNoteMarkdown content={current.content} />}
         {!versions.length && <p className="text-xs text-muted-foreground">{t("tasks:notes.history.empty")}</p>}
       </div>
     </>}

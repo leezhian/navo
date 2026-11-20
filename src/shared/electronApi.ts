@@ -174,6 +174,7 @@ export interface NavoApi {
     detectCommands(localPath: string): Promise<import("./resourceCommandDetection").ResourceCommandDetection>;
     /** 只读查询 Git remote；配置未变化时复用内存缓存，手动刷新可强制重新读取。 */
     inspectGit(localPath: string, forceRefresh?: boolean): Promise<ResourceGitInfo>;
+    setDefaultCommand(id: string, commandId: string | null): Promise<ResourceRecord>;
     save(params: SaveResourceParams): Promise<ResourceRecord>;
     remove(id: string): Promise<void>;
     clone(params: CloneResourceParams): Promise<ResourceRecord>;

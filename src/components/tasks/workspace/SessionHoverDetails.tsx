@@ -1,4 +1,6 @@
 import type { ReactElement } from "react";
+import { ArrowUpRight } from "lucide-react";
+import { HoverCard } from "radix-ui";
 import { useTranslation } from "react-i18next";
 import type { TaskResource } from "@/shared/taskTypes";
 import type { TaskSession } from "@/shared/taskSessionTypes";
@@ -16,11 +18,15 @@ interface SessionHoverDetailsProps {
   session: TaskSession;
   /** 用来解析项目名、分支和实际目录；不根据资源数量猜测范围。 */
   resources: TaskResource[];
+  /** 来源必须是同一个任务内现存的会话，归档来源通过只读面板打开。 */
+  source?: TaskSession;
+  /** 仅找到同任务内的来源时提供，打开归档来源时保留只读状态。 */
+  onOpenSource?: () => void;
   /** 保留原按钮的点击与截断标题行为。 */
   children: ReactElement;
 }
 
-export function SessionHoverDetails({ session, resources, children }: SessionHoverDetailsProps) {
+export function SessionHoverDetails({ session, resources, source, onOpenSource, children }: SessionHoverDetailsProps) {
   const { t, i18n } = useTranslation(["tasks", "common"]);
   const now = useMinuteClock();
   const activity = sessionActivityText(session);
@@ -40,9 +46,18 @@ export function SessionHoverDetails({ session, resources, children }: SessionHov
     session.lastReplyAt ? { key: "reply", label: t("tasks:runtime.hover.lastReply"), value: session.lastReplyAt } : null,
     session.lastPromptAt ? { key: "prompt", label: t("tasks:runtime.hover.lastPrompt"), value: session.lastPromptAt } : null,
   ].filter((item) => item !== null);
-  return <Tooltip>
-    <TooltipTrigger asChild>{children}</TooltipTrigger>
-    <TooltipContent side="right" sideOffset={8} className="flex w-72 max-w-72 flex-col items-stretch gap-2 p-3 text-left">
+  const cache = session.promptCache;
+  const work = session.status === "running" ? session.backgroundWork : undefined;
+  const minutesUntil = (value: number) => Math.max(0, Math.ceil((value - now) / 60_000));
+  const cacheDeadline = cache ? [fullTime(new Date(cache.expiresAt).toISOString()), cache.latestExpiresAt ? fullTime(new Date(cache.latestExpiresAt).toISOString()) : null].filter(Boolean).join(" – ") : undefined;
+  const cacheSoonest = cache ? minutesUntil(cache.expiresAt) : 0;
+  const cacheLatest = cache?.latestExpiresAt ? minutesUntil(cache.latestExpiresAt) : cacheSoonest;
+  const cacheText = cacheLatest === 0 ? t("tasks:runtime.hover.cacheExpired")
+    : cacheSoonest === 0 ? t("tasks:runtime.hover.cachePartlyExpired", { count: cacheLatest })
+      : cacheSoonest === cacheLatest ? t("tasks:runtime.hover.cacheExpiresIn", { count: cacheSoonest })
+        : t("tasks:runtime.hover.cacheExpiresBetween", { min: cacheSoonest, max: cacheLatest });
+  const detailsClass = "flex w-72 max-w-72 flex-col items-stretch gap-2 p-3 text-left";
+  const details = <>
       <div className="min-w-0">
         <p className="truncate text-sm font-medium" title={session.title || undefined}>{session.title || t("tasks:runtime.untitledSession")}</p>
         <p className="mt-1 flex min-w-0 items-center gap-1.5 text-background/75">
@@ -51,7 +66,15 @@ export function SessionHoverDetails({ session, resources, children }: SessionHov
         </p>
         {configLine && <p className="mt-2 truncate text-background/90" title={configLine}>{configLine}</p>}
         {session.kind === "agent" && percent !== undefined && <p className="mt-1 text-background/75">{t("tasks:runtime.hover.contextPercent", { percent })}</p>}
+        {cache && <p className="mt-1 text-background/75" title={cacheDeadline}>{t("tasks:runtime.hover.promptCache")} · {cacheText}</p>}
       </div>
+      {!!work?.length && <div className="min-w-0 border-t border-background/15 pt-2">
+        <p className="text-background/70">{t("tasks:runtime.hover.backgroundWork", { count: work.length })}</p>
+        <ul className="mt-1 list-disc pl-4">
+          {work.slice(0, 4).map((item) => <li key={item.id} className="truncate" title={item.title}>{item.title ?? t("tasks:runtime.hover.unnamedWork")}</li>)}
+        </ul>
+        {work.length > 4 && <p className="mt-1 text-background/70">{t("tasks:runtime.hover.moreWork", { count: work.length - 4 })}</p>}
+      </div>}
       {place && (place.project || place.branch || place.path) && <div className="min-w-0 border-t border-background/15 pt-2">
         {place.project && <p className="truncate text-background/70">{place.project}</p>}
         {place.branch && <p className="truncate font-medium">{place.branch}</p>}
@@ -63,6 +86,20 @@ export function SessionHoverDetails({ session, resources, children }: SessionHov
           <dd title={fullTime(item.value)}>{timeText(item.value)}</dd>
         </div>)}
       </dl>}
-    </TooltipContent>
+      {source && onOpenSource && <div className="min-w-0 border-t border-background/15 pt-2">
+        <p className="text-background/70">{t("tasks:runtime.hover.sourceSession")}</p>
+        <button type="button" className="mt-1 flex w-full items-center gap-1 rounded text-left hover:underline focus-visible:outline-1"
+          onClick={(event) => { event.stopPropagation(); onOpenSource(); }}>
+          <span className="truncate">{source.title || t("tasks:runtime.untitledSession")}</span><ArrowUpRight className="size-3 shrink-0" />
+        </button>
+      </div>}
+  </>;
+  if (source && onOpenSource) return <HoverCard.Root openDelay={400} closeDelay={200}>
+    <HoverCard.Trigger asChild>{children}</HoverCard.Trigger>
+    <HoverCard.Portal><HoverCard.Content side="right" sideOffset={8} className={detailsClass + " z-50 rounded-md bg-foreground text-xs text-background"}>{details}</HoverCard.Content></HoverCard.Portal>
+  </HoverCard.Root>;
+  return <Tooltip>
+    <TooltipTrigger asChild>{children}</TooltipTrigger>
+    <TooltipContent side="right" sideOffset={8} className={detailsClass}>{details}</TooltipContent>
   </Tooltip>;
 }

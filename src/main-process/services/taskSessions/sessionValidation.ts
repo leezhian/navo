@@ -29,10 +29,11 @@ export function parseStoredSession(data: string, id: string, taskId: string): Ta
     || (session.resumeOnOpen !== undefined && typeof session.resumeOnOpen !== "boolean")
     || (session.workspace !== undefined && !isWorkspace(session.workspace))
     || [session.archivedAt, session.lastUpdateAt, session.lastActiveAt, session.lastReplyAt, session.lastPromptAt, session.nativeLaunchAt].some((date) => date !== undefined && !isDate(date))
-    || [session.nativeSessionId, session.nativeLaunchId, session.nativeHistoryRoot, session.error].some((text) => text !== undefined && !isText(text))) return null;
+    || [session.nativeSessionId, session.nativeLaunchId, session.nativeHistoryRoot, session.sourceSessionId, session.error].some((text) => text !== undefined && !isText(text))
+    || session.sourceSessionId === id) return null;
   // 兼容没有活动时间的旧记录，仅使用已知时间回填，不制造新活动。
   const stored = { ...session };
-  delete stored.phase; delete stored.waitingReason; delete stored.usage;
+  delete stored.phase; delete stored.waitingReason; delete stored.usage; delete stored.promptCache; delete stored.backgroundWork;
   return { ...stored, lastUpdateAt: session.lastUpdateAt ?? session.archivedAt ?? session.createdAt,
     lastActiveAt: session.lastActiveAt ?? session.createdAt } as TaskSession;
 }

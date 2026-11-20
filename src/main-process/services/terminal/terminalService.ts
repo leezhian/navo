@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import type { WebContents } from "electron";
 import { spawn, type IPty } from "node-pty";
+import { setTimeout as delay } from "node:timers/promises";
+import { signalTerminalJobs, terminalProcesses, type TerminalJob } from "./terminalProcesses";
 import { terminateDescendants } from "./terminateProcessTree";
 import { ipcChannels } from "../../../shared/ipcChannels";
 import type {
@@ -16,6 +18,9 @@ const OUTPUT_BATCH_DELAY_MS = 16;
 const MAX_PENDING_OUTPUT_LENGTH = 32 * 1024;
 const MIN_TERMINAL_DIMENSION = 1;
 const MAX_TERMINAL_DIMENSION = 500;
+const TERMINAL_CLOSE_POLL_MS = 100;
+const TERMINAL_JOB_EXIT_POLLS = 8;
+const TERMINAL_PTY_EXIT_POLLS = 5;
 
 interface TerminalRecord {
   replay: string;
@@ -24,10 +29,14 @@ interface TerminalRecord {
   /** 创建该会话的渲染进程，避免不同窗口互相读写 PTY。 */
   owner: WebContents;
   pty: IPty;
+  /** 启动时的可执行文件，用于识别原 Shell 已经被 exec 替换。 */
+  executable: string;
   pendingOutput: string;
   flushTimer: NodeJS.Timeout | null;
   isDisposed: boolean;
   exit?: { exitCode: number; signal?: number };
+  /** 正常关闭期间收集的进程，父进程退出后仍可由强制关闭清理。 */
+  closingJobs: TerminalJob[];
 }
 
 const terminalRecords = new Map<string, TerminalRecord>();
@@ -58,7 +67,8 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
   destroyTerminal({ sessionId: params.sessionId }, owner.id);
 
   const shell = resolveShell();
-  const pty = spawn(launch?.command ?? shell, launch?.args ?? resolveShellArgs(shell), {
+  const executable = launch?.command ?? shell;
+  const pty = spawn(executable, launch?.args ?? resolveShellArgs(shell), {
     name: "xterm-256color",
     cols: normalizeDimension(params.cols),
     rows: normalizeDimension(params.rows),
@@ -77,9 +87,11 @@ export function createTerminal(params: CreateTerminalParams, owner: WebContents,
     onActivity: launch?.onActivity,
     owner,
     pty,
+    executable: path.basename(executable),
     pendingOutput: "",
     flushTimer: null,
     isDisposed: false,
+    closingJobs: [],
   };
   terminalRecords.set(params.sessionId, record);
   bindOwnerCleanup(owner);
@@ -133,6 +145,10 @@ export function destroyTerminal(params: TerminalSessionParams, ownerId?: number)
   }
 
   terminalRecords.delete(params.sessionId);
+  if (!record.exit || record.closingJobs.length) {
+    try { terminateDescendants(record.exit ? undefined : record.pty.pid, record.closingJobs); }
+    catch { /* 进程查询失败仍要关闭 PTY 本身。 */ }
+  }
   if (record.exit) return;
   record.isDisposed = true;
   record.onFinish?.();
@@ -142,12 +158,48 @@ export function destroyTerminal(params: TerminalSessionParams, ownerId?: number)
   }
 
   try {
-    try { terminateDescendants(record.pty.pid); } catch { /* 进程查询失败仍必须终止 PTY 本身。 */ }
     record.pty.kill("SIGKILL");
   } catch {
     // Shell 已经退出时 kill 可能抛错，资源记录已清理，不再向上层传播。
   }
   if (!record.owner.isDestroyed()) record.owner.send(ipcChannels.terminalExit, { sessionId: params.sessionId, exitCode: 0, signal: 9 });
+}
+
+/** 普通 Shell 空闲时直接关闭。有运行程序时先确认，随后尝试正常终止。 */
+export async function requestTerminalClose(params: TerminalSessionParams, ownerId: number, mode: "inspect" | "confirm" | "force", command?: string) {
+  const record = terminalRecords.get(params.sessionId);
+  if (!record) return { kind: "closed" as const };
+  if (record.owner.id !== ownerId) throw new Error("SESSION_UNAVAILABLE");
+  function finish() {
+    if (terminalRecords.get(params.sessionId) === record) destroyTerminal(params, ownerId);
+    return { kind: "closed" as const };
+  }
+  if (mode === "force" || (record.isDisposed && !record.closingJobs.length)) return finish();
+  const inspectProcesses = () => terminalProcesses(record.isDisposed ? undefined : record.pty.pid, record.closingJobs);
+  const processes = await inspectProcesses();
+  if (terminalRecords.get(params.sessionId) !== record) return finish();
+  const rootProgram = processes?.rootName && processes.rootName !== record.executable ? processes.rootName : undefined;
+  const program = (record.isDisposed ? undefined : command ?? rootProgram) ?? processes?.jobs[0]?.name;
+  if (mode === "inspect") {
+    if (program || !processes || processes.jobs.length) return { kind: "confirm" as const, program };
+    return finish();
+  }
+  if (!processes) return { kind: "needsForce" as const, program };
+  record.closingJobs = processes.jobs;
+  signalTerminalJobs(record.closingJobs, "SIGTERM");
+  for (let attempt = 0; attempt < TERMINAL_JOB_EXIT_POLLS && record.closingJobs.length; attempt++) {
+    await delay(TERMINAL_CLOSE_POLL_MS);
+    const remaining = await inspectProcesses();
+    if (terminalRecords.get(params.sessionId) !== record) return finish();
+    if (!remaining) return { kind: "needsForce" as const, program };
+    record.closingJobs = remaining.jobs;
+  }
+  if (record.closingJobs.length) return { kind: "needsForce" as const, program };
+  // 交互 Shell 可能忽略 SIGTERM，挂断信号等同于终端连接正常关闭。
+  if (!record.isDisposed) record.pty.kill("SIGHUP");
+  for (let attempt = 0; attempt < TERMINAL_PTY_EXIT_POLLS && !record.isDisposed; attempt++) await delay(TERMINAL_CLOSE_POLL_MS);
+  if (!record.isDisposed) return { kind: "needsForce" as const, program };
+  return finish();
 }
 
 export function destroyAllTerminals(): void {
